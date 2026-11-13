@@ -1,4 +1,7 @@
-<p align="center"><img src="brand/logo-horizontal-light-bg.svg" alt="Lumen Aureum" width="360"></p>
+<p align="center"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="brand/logo-horizontal-dark-bg.svg">
+  <img src="brand/logo-horizontal-light-bg.svg" alt="Lumen Aureum" width="360">
+</picture></p>
 
 # Lumen Aureum
 
