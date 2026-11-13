@@ -1,0 +1,166 @@
+{% extends "base.html" %}{% from "_macros.html" import stage_pill, phone, avatar, seg, help with context %}
+{% block title %}{{ s.household }} - Lumen Aureum{% endblock %}
+{% block body %}
+{% set here = url_for('session_view', sid=s.id) %}
+{% set open_ = tasks|rejectattr('done')|list %}{% set done_ = tasks|selectattr('done')|list %}
+{% set signed = docs|selectattr('status', 'equalto', 'signed')|list|length %}
+<div class="page-head">
+  <div class="grow"><div class="kicker">{{ type_label[s.type] }} session</div>
+    <h1 class="with-ic">{{ avatar(s.household_id, 44) }}<a href="{{ url_for('client_view', hid=s.household_id) }}">{{ s.household }}</a>{% if s.title %} <span class="sub" style="font-weight:400;font-size:18px">{{ s.title }}</span>{% endif %}</h1></div>
+  {% if s.stage == 'lost' %}<span class="pill red">Lost{% if s.lost_reason %}: {{ s.lost_reason }}{% endif %}</span>{% endif %}
+</div>
+
+
+
+{% include "_workflow.html" %}
+
+<div class="surface highlights">
+  <div><div class="k">Shoot</div><div class="v">{{ nice(s.shoot_date) or '-' }}{% if s.start_time %} {{ s.start_time }}{% endif %}</div></div>
+  {% set SL = light(s.shoot_date, s.type) %}{% if SL %}<div><div class="k">Light</div><div class="v"><span style="color:var(--gold)">{{ SL.golden }}</span> <span class="sub" style="font-weight:400">to {{ SL.sunset }}</span></div><div class="sub" style="font-size:12px">golden hour to sunset</div></div>{% endif %}
+  <div><div class="k">Contact</div><div class="v">{% if contact %}{{ contact.name }}{% else %}-{% endif %}</div>
+    {% if contact %}<div style="font-size:13px;overflow:hidden;text-overflow:ellipsis">{% if contact.phone %}{{ phone(contact.phone) }}{% else %}<a href="mailto:{{ contact.email }}">{{ contact.email }}</a>{% endif %}</div>{% endif %}</div>
+  {% set stops_ = s.stops.splitlines()|map('trim')|select|list %}
+  {% if stops_ %}<div><div class="k">Meet</div><div class="v" title="{{ stops_[0] }}">{{ stops_[0] }}</div>{% if stops_|length > 1 %}<div class="sub" style="font-size:12px">+{{ stops_|length - 1 }} more stop{{ 's' if stops_|length > 2 }}</div>{% endif %}</div>{% endif %}
+  <div><div class="k">Subjects</div><div class="v">{{ subjects|map(attribute='name')|join(', ') or '-' }}</div></div>
+  <div><div class="k">Paperwork</div><div class="v">{% if docs %}<span class="pill {{ 'green' if signed == docs|length else 'red' }}">{{ signed }}/{{ docs|length }} signed</span>{% else %}-{% endif %}</div></div>
+  <div><div class="k">Quote</div><div class="v">{{ money(t.quoted) if t.quoted else '-' }}</div></div>
+  <div><div class="k">Balance</div><div class="v">{{ money(t.due) if t.quoted else '-' }}</div></div>
+  {% if s.event_id %}<div><div class="k">Event</div><div class="v"><a href="{{ url_for('event_view', eid=s.event_id) }}">{{ s.event_name }}</a></div></div>{% endif %}
+  {% if expires %}<div><div class="k">Gallery</div><div class="v">{{ 'Deletes' if expires >= today else 'Deleted' }} {{ nice(expires.isoformat()) }}</div></div>{% endif %}
+</div>
+
+
+<section class="sec" id="shoot"><h2 class="sec-h">Shoot</h2>
+  <form method="post" action="{{ here }}" class="f" style="max-width:760px">
+    <div class="f2"><div><label class="l">Title</label><input name="title" maxlength="200" value="{{ s.title }}"></div>
+      <div><label class="l">Type</label>{{ seg('type', C.SESSION_TYPES.items()|list, s.type) }}</div></div>
+    <div class="f3"><div><label class="l">Date</label><input type="date" name="shoot_date" value="{{ s.shoot_date or '' }}" data-avail="{{ s.id }}">
+      <input type="hidden" name="date_tentative_present" value="1"><label class="row" style="gap:5px;font-size:13px"><input type="checkbox" name="date_tentative" value="1"{{ ' checked' if s.date_tentative }} style="width:auto;margin:0">Tentative (waiting on a due date or other news)</label></div>
+      <div><label class="l">Start</label><input type="time" name="start_time" value="{{ s.start_time }}"></div>
+      <div><label class="l">Minutes</label><input type="number" name="duration_min" min="5" step="5" value="{{ s.duration_min or '' }}" placeholder="{{ minutes }}"></div></div>
+    {% if s.type in C.LICENSE_TYPES or s.type in C.NET_TERMS_TYPES %}
+    {% set biz_ = C.TYPE_KIND.get(s.type) == 'property' or s.type in C.NET_TERMS_TYPES or s.po_number or s.lic_term or s.lic_territory or s.lic_exclusive %}
+    <details{{ ' open' if biz_ }} class="bizopts"><summary>Business client options (purchase order, license term and territory)</summary><div class="f3">
+      <div><label class="l">PO / reference (on the invoice)</label><input name="po_number" maxlength="80" value="{{ s.po_number or '' }}"></div>
+      {% if s.type in C.LICENSE_TYPES %}<div><label class="l">License term</label><input name="lic_term" maxlength="200" value="{{ s.lic_term or '' }}" placeholder="e.g. 2 years; blank = no end"></div>
+      <div><label class="l">Territory</label><input name="lic_territory" maxlength="200" value="{{ s.lic_territory or '' }}" placeholder="e.g. United States; blank = anywhere"></div>{% endif %}</div>
+      {% if s.type in C.LICENSE_TYPES %}<input type="hidden" name="lic_present" value="1"><label class="row" style="gap:6px"><input type="checkbox" name="lic_exclusive" value="1"{{ ' checked' if s.lic_exclusive }} style="width:auto;margin:0">Exclusive license (I license these photos to no one else)</label>{% endif %}</details>{% endif %}
+    <div><label class="l">Subjects</label><input type="hidden" name="subjects_present" value="1">
+      <div class="row">{% for m in members %}<label class="row" style="gap:5px"><input type="checkbox" name="subjects" value="{{ m.id }}" {{ 'checked' if m.id in subjects|map(attribute='id')|list }}>{{ m.name }}{% if m.is_minor %} <span class="pill">minor</span>{% endif %}</label>{% endfor %}</div></div>
+    <div class="f2"><div><label class="l">Where (one place per line, the meeting place first)</label><textarea name="stops" >{{ s.stops }}</textarea></div>
+      <div><label class="l">Notes</label><textarea name="notes">{{ s.notes }}</textarea></div></div>
+    <div class="f2"><div><label class="l">Event</label><select name="event_id"><option value="">None</option>{% for e in events %}<option value="{{ e.id }}" {{ 'selected' if e.id == s.event_id }}>{{ e.name }}</option>{% endfor %}</select></div><div></div></div>
+    <div class="row"><button class="primary">Save</button><span class="grow"></span>
+      {% if s.stage != 'lost' %}<button form="lostform" class="ghost">Mark lost</button>{% endif %}
+      <button form="delform" class="ghost">Delete</button></div>
+  </form>
+  <form id="lostform" method="post" action="{{ url_for('session_stage', sid=s.id) }}"><input type="hidden" name="stage" value="lost"></form>
+  <form id="delform" method="post" action="{{ url_for('session_delete', sid=s.id) }}" data-confirm="Delete this session and everything on it?"></form>
+  {% for p in panels %}{{ p }}{% endfor %}
+</section>
+
+{% if C.INTAKE.get(s.type) %}<section class="sec" id="intake"><h2 class="sec-h">Intake</h2>
+  <form method="post" action="{{ url_for('session_intake', sid=s.id) }}" style="max-width:760px">
+    <table class="data">{% for k, label in C.INTAKE[s.type] %}<tr><td style="width:38%;color:var(--mute)">{{ label }}</td><td><input name="{{ k }}" value="{{ intake.get(k, '') }}"></td></tr>{% endfor %}</table>
+    <div class="rel-add"><button class="primary">Save</button></div>
+  </form>
+</section>{% endif %}
+
+<section class="sec" id="paperwork"><h2 class="sec-h">Paperwork</h2>
+  <table class="data"><thead><tr><th>Document</th><th>About</th><th>Signer</th><th>Status</th><th>Signed on</th><th>Paper kept</th></tr></thead><tbody>
+  {% for doc in docs %}<tr>
+    <td>{{ doc.kind|capitalize }}</td><td>{{ doc.person or 'Session' }}</td><td class="mute">{{ doc.signer or '-' }}</td>
+    <td data-v="{{ doc.status }}"><form method="post" action="{{ url_for('doc_save', did=doc.id) }}" class="inline"><input type="hidden" name="cycle" value="1"><input type="hidden" name="back" value="{{ here }}#paperwork">
+      <button class="pillbtn {{ {'signed':'green','sent':'amber'}.get(doc.status,'red') }}">{{ doc.status }}</button></form></td>
+    <td data-v="{{ doc.signed or '' }}"><form method="post" action="{{ url_for('doc_save', did=doc.id) }}" class="inline"><input type="hidden" name="back" value="{{ here }}#paperwork">
+      <input type="date" name="signed_on" value="{{ doc.signed or '' }}" data-autosubmit style="width:auto"></form></td>
+    <td><form method="post" action="{{ url_for('doc_save', did=doc.id) }}" class="inline"><input type="hidden" name="back" value="{{ here }}#paperwork">
+      <input name="note" value="{{ doc.note }}" placeholder="Where" data-autosubmit></form></td>
+  </tr>{% else %}<tr><td colspan="6" class="empty">None</td></tr>{% endfor %}</tbody></table>
+  <form method="post" action="{{ url_for('doc_add', sid=s.id) }}" class="row rel-add">
+    {{ seg('kind', ['release','agreement','property release','other'], 'release') }}
+    {% set ap = [('', 'Whole session')] %}{% for m in members %}{% set _ = ap.append((m.id, m.name)) %}{% endfor %}{{ seg('about_person', ap, '') }}
+    <input name="signer" maxlength="200" placeholder="Signer" class="grow" style="width:auto"><button>Add</button></form>
+  {% if plan_opts or s.plan_of %}<form method="post" action="{{ url_for('join_plan', sid=s.id) }}" class="row rel-add" style="gap:10px;flex-wrap:wrap">
+    <input type="hidden" name="back" value="{{ here }}#paperwork"><span class="mute">One agreement with</span>
+    <select name="plan_of" style="width:auto"><option value="">No other session (its own agreement)</option>{% for o_ in plan_opts %}<option value="{{ o_.id }}"{{ ' selected' if s.plan_of == o_.id }}>{{ o_.title or type_label[o_.type] }}{% if o_.shoot_date %}, {{ nice(o_.shoot_date) }}{% endif %}</option>{% endfor %}</select>
+    <button>Save</button></form>{% endif %}
+  {% if signer_opts|length > 1 %}<form method="post" action="{{ url_for('session_signers', sid=s.id) }}" class="row rel-add" style="gap:12px;flex-wrap:wrap">
+    <input type="hidden" name="back" value="{{ here }}#paperwork"><span class="mute">Who signs the agreement</span>
+    {% for p_ in signer_opts %}<label class="row" style="gap:4px"><input type="checkbox" name="signer" value="{{ p_.id }}"{{ ' checked' if p_.id in signer_ids }} style="width:auto;margin:0">{{ p_.name }}</label>{% endfor %}
+    <button>Save</button></form>{% endif %}
+</section>
+
+<section class="sec" id="money"><h2 class="sec-h">Billing</h2>
+  <div class="surface highlights" style="margin-bottom:6px">
+    <div><div class="k">Quote</div><div class="v">{{ money(t.quoted) }}</div></div>
+    <div><div class="k">Paid</div><div class="v">{{ money(t.paid) }}</div></div>
+    <div><div class="k">{{ 'Credit' if t.due < -0.005 else 'Balance' }}</div><div class="v">{{ money(-t.due if t.due < -0.005 else t.due) }}</div>{% if t.due < -0.005 and not t.quoted %}<div class="sub" style="font-size:12px">Paid before a quote</div>{% endif %}</div>
+    <div><div class="k">Profit</div><div class="v">{{ money(t.profit) }}</div>{% if t.miles and not t.rate %}<div class="sub" style="font-size:12px"><a href="{{ url_for('settings_view') }}">no mileage rate</a></div>{% endif %}</div>
+  </div>
+  <div class="grid">
+    <div><div class="section-title"><h2>Quote</h2></div>
+      <table class="data"><tbody>{% for l in lines %}<tr><td>{{ l.label }}</td><td class="n">{{ money(l.amount) }}</td><td style="width:30px"><form method="post" action="{{ url_for('money_delete', what='line', rid=l.id) }}" class="inline"><button class="ghost">x</button></form></td></tr>{% else %}<tr><td class="empty">No lines</td></tr>{% endfor %}</tbody></table>
+      <form method="post" action="{{ url_for('money_add', sid=s.id) }}" class="row rel-add"><input type="hidden" name="what" value="line"><input name="label" maxlength="200" placeholder="Line" required class="grow" style="width:auto"><input type="number" step="0.01" name="amount" placeholder="$" required style="width:90px"><input type="hidden" name="taxable_shown" value="1"><label class="row" style="gap:4px;font-size:12px;white-space:nowrap"><input type="checkbox" name="taxable" value="1" checked style="width:auto;margin:0">taxed</label><button>Add</button></form></div>
+    <div><div class="section-title"><h2>Payments</h2></div>
+      <table class="data"><tbody>{% for p in payments %}<tr class="{{ 'void' if p.voided }}"><td>{{ nice(p.received) }}</td><td>{{ p.kind }}{% if p.voided %} (void){% endif %}</td><td class="mute">{{ p.method }}{% if p.ref %} #{{ p.ref }}{% endif %}</td><td class="n">{{ money(p.amount) }}</td><td style="width:44px"><form method="post" action="{{ url_for('money_delete', what='payment', rid=p.id) }}" class="inline"><input type="hidden" name="set" value="{{ 'restore' if p.voided else 'void' }}"><button class="ghost" title="{{ 'Restore' if p.voided else 'Void' }}">{{ 'undo' if p.voided else 'void' }}</button></form></td></tr>{% else %}<tr><td class="empty">None</td></tr>{% endfor %}</tbody></table>
+      <form method="post" action="{{ url_for('money_add', sid=s.id) }}" class="row rel-add"><input type="hidden" name="what" value="payment">
+        {% set dep_now = s.stage in ('inquiry', 'quoted', 'booked') and t.deposit_short > 0.005 %}{# the deposit is what's due until it is in #}
+        <input type="number" step="0.01" name="amount" placeholder="$" required value="{{ '%.2f'|format(t.deposit_short if dep_now else t.due) if t.due > 0 }}" style="width:90px">
+        {{ seg('kind', ['deposit','balance','refund','other'], 'deposit' if dep_now else 'balance') }}
+        {{ seg('method', C.PAYMENT_METHODS, C.PAYMENT_METHODS[0] if C.PAYMENT_METHODS else '') }}<input name="ref" maxlength="40" placeholder="Check #" style="width:90px" data-show-if="method=check"><input type="date" name="received" value="{{ today.isoformat() }}" style="width:auto"><button>Record</button></form></div>
+    <div><div class="section-title"><h2>Expenses and miles</h2></div>
+      <table class="data"><tbody>{% for e in expenses %}<tr><td>{{ nice(e.date) }}</td><td>{{ e.label }}</td><td class="n">{% if e.miles %}{{ e.miles|round(1) }} mi{% endif %}</td><td class="n">{% if e.amount %}{{ money(e.amount) }}{% endif %}</td><td style="width:30px"><form method="post" action="{{ url_for('money_delete', what='expense', rid=e.id) }}" class="inline"><button class="ghost">x</button></form></td></tr>{% else %}<tr><td class="empty">None</td></tr>{% endfor %}</tbody></table>
+      <form method="post" action="{{ url_for('money_add', sid=s.id) }}" class="row rel-add"><input type="hidden" name="what" value="expense">
+        <input name="label" maxlength="200" placeholder="What" required class="grow" style="width:auto"><input type="number" step="0.1" name="miles" placeholder="Miles" style="width:80px"><input type="number" step="0.01" name="amount" placeholder="$" style="width:80px">
+        <input type="hidden" name="date" value="{{ s.shoot_date or today.isoformat() }}"><button>Add</button></form></div>
+  </div>
+</section>
+
+{% if s.stage in ('shot','delivered','closed') or s.gallery_built %}<section class="sec" id="delivery"><h2 class="sec-h">Delivery</h2>
+  <div class="row" style="align-items:flex-start;margin-bottom:12px">
+    <div class="grow"><div class="k" style="font-size:11px;color:var(--mute);text-transform:uppercase;letter-spacing:.06em">Mail to</div>
+      {% if s.address %}<div style="white-space:pre-line;font-weight:600">{{ s.household }}
+{{ s.address }}</div>{% else %}<div style="color:var(--red)" data-tip="Problem: the QR letter and SD card need a mailing address">No mailing address</div>{% endif %}</div>
+    <a class="btn" href="{{ url_for('client_view', hid=s.household_id) }}#details">{{ 'Edit' if s.address else 'Add' }} address</a></div>
+  <form method="post" action="{{ url_for('session_delivery', sid=s.id) }}" style="max-width:640px">
+  <ul class="track">
+    {% if C.galleries_on() or s.gallery_built or s.letter_mailed or s.first_visit %}
+    <li class="{{ 'ok' if s.gallery_built }}"><span class="dot"></span>Gallery built<input type="date" name="gallery_built" value="{{ s.gallery_built or '' }}" data-autosubmit></li>
+    <li class="{{ 'ok' if s.letter_mailed }}"><span class="dot"></span>QR letter mailed<input type="date" name="letter_mailed" value="{{ s.letter_mailed or '' }}" data-autosubmit></li>
+    <li class="{{ 'ok' if s.first_visit }}"><span class="dot"></span>First visit<input type="date" name="first_visit" value="{{ s.first_visit or '' }}" data-autosubmit></li>
+    {% else %}{# no online galleries: these steps can't happen, so they aren't shown #}
+    <input type="hidden" name="gallery_built" value=""><input type="hidden" name="letter_mailed" value=""><input type="hidden" name="first_visit" value="">{% endif %}
+    {% if expires %}<li class="{{ 'warn' if expires >= today else 'ok' }}" data-tip="Gallery {{ 'deletes' if expires >= today else 'was deleted' }} {{ nice(expires.isoformat()) }}"><span class="dot"></span><span>{{ 'Deletes' if expires >= today else 'Deleted' }} {{ nice(expires.isoformat()) }}</span>
+      <label class="row" style="gap:6px;font-size:13px"><input type="checkbox" name="extension_used" value="1" {{ 'checked' if s.extension_used }} data-autosubmit>+{{ C.gallery_days(s.type) }} days</label></li>
+    {% else %}<input type="hidden" name="extension_used" value="{{ '1' if s.extension_used }}">{% endif %}
+    {% set dm_ = C.delivery_method(s.type, s.delivery_method) %}
+    <li class="{{ 'ok' if s.sd_shipped }}"><span class="dot"></span>Files delivered by
+      <select name="delivery_method" data-autosubmit style="width:auto;display:inline;margin:0 6px" title="How the files reach the client: the agreement says this">{% for k_, v_ in C.DELIVERY_METHODS.items() %}<option value="{{ k_ }}"{{ ' selected' if k_ == dm_ }}>{{ v_[0] }}</option>{% endfor %}</select>
+      <input type="date" name="sd_shipped" value="{{ s.sd_shipped or '' }}" data-autosubmit></li>
+  </ul>
+  <div class="f2" style="margin-top:10px"><div><label class="l">Client's portfolio suggestions{{ help("You choose up to " ~ C.MARKETING_PICKS ~ " photos for your portfolio. The client may suggest favorites, and you never show a photo they asked you not to.") }}</label><input name="favorites" value="{{ s.favorites }}"></div>
+    <div><label class="l">Don't show (the client asked)</label><input name="veto" value="{{ s.veto }}"></div></div>
+  {% set gcw_ = C.POLICY[s.type].get('gallery_codeword') or s.gallery_codeword %}
+  {% if gcw_ %}<div style="margin-top:8px"><label class="l">Gallery codeword{{ help("Three words the client chose. The gallery asks for them; with only the link, someone would have to guess them, so short or common words are refused. It's never printed on the letter. Once the gallery is online, the word stays as it is so the link you sent keeps working.") }}</label>
+    <input name="gallery_codeword" maxlength="60" value="{{ s.gallery_codeword or '' }}" autocomplete="off" placeholder="three words, e.g. heron maple tide"></div>{% endif %}
+  <div style="margin-top:8px"><label class="l">Retouch picks, with the client's notes</label><textarea name="retouch_picks" rows="3">{{ s.retouch_picks or '' }}</textarea></div>
+  <div class="row rel-add"><button class="primary">Save</button><span class="grow"></span><span class="sub" style="font-size:12px">Gallery {{ s.gallery_id }}</span></div>
+  </form>
+  {% if s.gallery_id %}<details style="max-width:640px;margin-top:8px"><summary>Check a picks email</summary>
+    <form method="post" action="{{ url_for('picks_paste', sid=s.id) }}"><input type="hidden" name="back" value="{{ request.path }}#delivery">
+      <p class="mute" style="font-size:13px;margin:6px 0">Paste the whole email the client sent from the gallery. Its fingerprint line shows whether the list is what they picked in the gallery. If they changed it while writing, the picks are still recorded and a to-do reminds you to ask which are final.</p>
+      <textarea name="text" rows="6" maxlength="20000"></textarea><div class="row"><button class="primary">Check and record</button></div></form></details>{% endif %}
+</section>{% endif %}
+
+{% for lab, cnt, html in tabs %}<section class="sec" id="{{ lab|lower|replace(' ', '-') }}"><h2 class="sec-h">{{ lab }}</h2>{{ html }}</section>{% endfor %}
+
+<section class="sec" id="log"><h2 class="sec-h">Log</h2>
+  <form method="post" action="{{ url_for('log_add') }}" class="row" style="margin-bottom:8px">
+    <input type="hidden" name="household_id" value="{{ s.household_id }}"><input type="hidden" name="session_id" value="{{ s.id }}"><input type="hidden" name="back" value="{{ here }}#log">
+    {{ seg('channel', ['note','email','text','call','in person'], 'note') }}
+    <input name="summary" class="grow" style="width:auto" placeholder="Note" required><button>Add</button></form>
+  <table class="data"><thead><tr><th style="width:120px">Date</th><th style="width:100px">Channel</th><th>Summary</th></tr></thead><tbody>
+  {% for l in log %}<tr><td data-v="{{ l.at }}">{{ nice(l.at) }}</td><td class="mute">{{ l.channel }}</td><td>{{ l.summary }}</td></tr>{% else %}<tr><td colspan="3" class="empty">Nothing yet</td></tr>{% endfor %}</tbody></table>
+</section>
+{% endblock %}

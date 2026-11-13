@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Fee schedule #{{ sch.id }} - Lumen Aureum{% endblock %}
+{% block body %}
+<h1>Fee schedule #{{ sch.id }}</h1>
+<div class="mute">Saved {{ sch.created[:16] }}{% if sch.note %} - {{ sch.note }}{% endif %}{% if sch.id == current %} - current{% else %} - <a href="{{ url_for('fees_view', sched_id=current) }}">see current (#{{ current }})</a>{% endif %}</div>
+<table class="data" style="max-width:640px;margin-top:14px"><tbody>
+{% for it in sch['items'] %}<tr><td>{{ it.label }}</td><td class="n">{% if it.unit == 'mile' and not it.amount %}mileage rate{% else %}{{ money(it.amount) }}{% if it.unit == 'hour' %}/hr{% elif it.unit == 'mile' %}/mi{% elif it.unit == 'each' %} each{% endif %}{% endif %}</td></tr>{% endfor %}
+</tbody></table>
+{% include "_editing.html" %}
+{% endblock %}

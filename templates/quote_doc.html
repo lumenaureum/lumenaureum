@@ -1,0 +1,29 @@
+{% from "_doc_bar.html" import doc_bar, draft with context %}<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Quote - {{ v.client }}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{% include "_doc_style.html" %}</head><body>
+{% if preview %}<div class="bar"><span class="sent" style="margin-right:auto">Preview: nothing has been sent or saved</span><form method="post" action="{{ url_for('quote_send', sid=v.sid) }}" class="inline"><input type="hidden" name="total" value="{{ total_shown }}"><button class="linkish strong">Send this quote</button></form><a href="{{ v.back }}" data-close>Close</a></div>
+{% elif not pdf %}{{ doc_bar(url_for('quote_doc_pdf', vid=v.id), v.back, send, v.review if not v.reviewed) }}{% endif %}
+<div class="page">
+  {% include "_doc_logo.html" %}
+  {% if not v.reviewed %}{{ draft(v.review, 'wording') }}{% endif %}
+  <h1>Quote for {{ v.client_company or v.client }}</h1>
+  <p class="sub">{{ [v.photographer, v.business, v.sent_long, 'good through ' ~ v.expires_long]|select|join(' - ') }}</p>
+  {% include "_doc_contact.html" %}
+  <table class="facts" style="margin-top:14px">
+    <tr><td>Session</td><td>{{ v.type_label }}{% if v.shoot_date_long %}, {{ v.shoot_date_long }}{% endif %}</td></tr>
+    {% if v.people %}<tr><td>Photographed</td><td>{{ v.people }}</td></tr>{% endif %}
+  </table>
+  <h2>Price</h2>
+  <table>{% for l in v.lines %}<tr><td>{{ l.label }}</td><td class="n">{{ money(l.amount) }}</td></tr>{% endfor %}
+    <tr><td><b>Total</b></td><td class="n"><b>{{ money(v.total) }}</b></td></tr>
+    {% if v.deposit %}<tr><td>Deposit to hold the date</td><td class="n">{{ money(v.deposit) }}</td></tr>
+    <tr><td>Balance, {{ v.balance_rule or ('due within %d days of the invoice' % v.net_days) }}</td><td class="n">{{ money(v.total - v.deposit) }}</td></tr>{% endif %}
+  </table>
+  <div class="promise"><b>Every edited image is included.</b></div>
+  <h2>Terms</h2>
+  <table>{% for head, txt in v.terms %}<tr><td style="width:170px"><b>{{ head }}</b></td><td>{{ txt }}</td></tr>{% endfor %}</table>
+  <h2>What editing includes</h2>
+  <div class="ed">{% for head, pts in v.editing %}<b>{{ head }}</b><ul>{% for p_ in pts %}<li>{{ p_ }}</li>{% endfor %}</ul>{% endfor %}</div>
+  <p class="foot">Quote {{ v.id or "(numbered when sent)" }}, fee schedule #{{ v.schedule_id }}. Prices on this quote hold until {{ v.expires_long }}.</p>
+{% include "_credit.html" %}
+</div>{% if not pdf %}<script src="{{ url_for('static', filename='ui.js', v=static_v('ui.js')) }}"></script>{% endif %}</body></html>

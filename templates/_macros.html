@@ -1,0 +1,33 @@
+{% macro stage_pill(stage) -%}
+<span class="pill {{ {'inquiry':'blue','quoted':'blue','booked':'gold','shot':'amber','delivered':'green','closed':'','lost':''}[stage] }}">{{ stage_label[stage] }}</span>
+{%- endmacro %}
+{% macro phone(num) -%}
+{%- if num -%}<a class="tel" href="tel:{{ num|replace('-', '')|replace(' ', '') }}">{{ num }}</a> <a class="sms" href="sms:{{ num|replace('-', '')|replace(' ', '') }}">text</a>{%- endif -%}
+{%- endmacro %}
+{% macro avatar(hid, size=32) -%}{%- set f = face(hid) -%}
+{%- if f.url -%}<img class="av" draggable="false" src="{{ f.url }}" alt="" style="width:{{ size }}px;height:{{ size }}px">
+{%- else -%}<span class="av" style="width:{{ size }}px;height:{{ size }}px;font-size:{{ (size * 0.38)|int }}px;background:{{ f.color }}">{{ f.initials }}</span>{%- endif -%}
+{%- endmacro %}
+{% macro event_avatar(eid, name, size=32) -%}<span class="av ev" style="width:{{ size }}px;height:{{ size }}px;font-size:{{ (size * 0.38)|int }}px">{{ (name.split()|map('first')|select('upper')|list)[:2]|join('') if name else 'EV' }}</span>{%- endmacro %}
+{% macro sym(name, status='next', size=22) -%}<span class="ms g-{{ sym_group(name) }} s-{{ status }}" style="font-size:{{ size }}px" aria-hidden="true">{{ name }}</span>{%- endmacro %}
+{% macro close_menu(a, back, more=[]) -%}
+{%- if a.close or more -%}<details class="closemenu"><summary title="More">&hellip;</summary><div class="cm-pop">
+{% for m in more %}<form method="post" action="{{ m.post }}">{% for fk, fv in m.fields.items() %}<input type="hidden" name="{{ fk }}" value="{{ fv }}">{% endfor %}<input type="hidden" name="back" value="{{ back }}"><button class="cm-act">{{ m.verb }}</button></form>{% endfor %}
+{% if a.close %}<form method="post" action="{{ url_for('close_step') }}">{% for fk, fv in a.close.items() %}<input type="hidden" name="{{ fk }}" value="{{ fv }}">{% endfor %}
+<input type="hidden" name="back" value="{{ back }}">
+<textarea name="note_why" placeholder="Note" rows="2"></textarea>
+<input type="datetime-local" name="said_at" title="When they said it">
+{% for k, v in OUTCOMES.items() if k != 'done' %}<button name="outcome" value="{{ k }}">{{ v }}</button>{% endfor %}
+</form>{% endif %}</div></details>{%- endif -%}
+{%- endmacro %}
+
+{% macro seg(name, opts, sel=None, form=None, attrs='') -%}
+<span class="seg">{%- for o in opts -%}{%- set v, l = (o if o is not string else (o, o)) -%}
+<label><input type="radio" name="{{ name }}" value="{{ v }}"{% if form %} form="{{ form }}"{% endif %}{{ ' checked' if sel is not none and (v|string) == (sel|string) }} {{ attrs|safe }}><span>{{ l }}</span></label>
+{%- endfor -%}</span>
+{%- endmacro %}
+
+{# (?) beside a field: the explanation opens on hover, on keyboard focus and on tap (phones and tablets); tap away closes it. #}
+{% macro help(text) -%}
+<span class="qh" tabindex="0" role="button" aria-label="What is this? {{ text }}">?<span class="qh-pop" role="tooltip">{{ text }}</span></span>
+{%- endmacro %}

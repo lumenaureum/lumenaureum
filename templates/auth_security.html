@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Security - Lumen Aureum{% endblock %}
+{% block body %}
+<h1>Security</h1>
+{% if msg %}<p style="color:var(--gold)">{{ msg }}</p>{% endif %}{% if err %}<p style="color:var(--crit)">{{ err }}</p>{% endif %}
+
+
+<div class="card f" style="max-width:760px;margin-top:16px">
+  <p class="mute">Client records, settings and backups are encrypted. Signing in unlocks it; after a restart it stays
+    locked until you sign in again. Your master key (on paper) opens it if your password is lost.</p>
+  <h2>Change password</h2>
+  <form method="post" class="f" autocomplete="off"><input type="hidden" name="act" value="password">
+    <input type="password" name="current" placeholder="Current password" autocomplete="current-password" required>
+    <input type="password" name="password" placeholder="New password ({{ min_pw }}+ characters)" autocomplete="new-password" minlength="{{ min_pw }}" required>
+    <input type="password" name="password2" placeholder="New password again" autocomplete="new-password" required>
+    <button class="primary">Change password</button></form>
+
+  <h2 style="margin-top:20px">Signed-in devices</h2>
+  <form method="post" class="row" autocomplete="off"><input type="hidden" name="act" value="others">
+    <input type="password" name="current" placeholder="Current password" autocomplete="current-password" required style="width:240px">
+    <button class="quiet">Sign out every other device</button></form>
+
+  <h2 style="margin-top:20px">Recovery codes</h2>
+  {% if codes %}
+  <p>New codes. Print them or save them in your password manager; they won't be shown again, and the old ones no longer work.</p>
+  <div class="codes" style="columns:2;font:600 15px/1.9 ui-monospace,Menlo,monospace">{% for c in codes %}<div>{{ c }}</div>{% endfor %}</div>
+  {% else %}
+  <p class="mute">{{ left }} unused. Each one stands in for your phone's code once. They never unlock the data on their own: your password is still needed.</p>
+  <form method="post" class="row" autocomplete="off"><input type="hidden" name="act" value="codes">
+    <input type="password" name="current" placeholder="Current password" autocomplete="current-password" required style="width:240px">
+    <button class="quiet">Make new codes</button></form>
+  {% endif %}
+
+  <h2 style="margin-top:20px">Unattended unlock</h2>
+  <p class="mute">Off by default. When on, Lumen Aureum unlocks itself after a restart using a key file kept on a separate volume
+    (CRM_UNLOCK_KEY_FILE). Anyone who has both that volume and the data can read everything, so keep the file somewhere a
+    thief would not also take, such as an encrypted dataset that is locked when the machine is off.</p>
+  {% if auto %}
+  <form method="post" class="row" autocomplete="off"><input type="hidden" name="act" value="auto_off">
+    <input type="password" name="current" placeholder="Current password" autocomplete="current-password" required style="width:240px">
+    <button class="quiet">Turn off</button></form>
+  {% elif auto_file %}
+  <p>Key file: <span class="mono">{{ auto_file }}</span></p>
+  <form method="post" class="row" autocomplete="off"><input type="hidden" name="act" value="auto_on">
+    <input type="password" name="current" placeholder="Current password" autocomplete="current-password" required style="width:240px">
+    <button class="quiet">Turn on</button></form>
+  {% else %}
+  <p class="mute">Not available: CRM_UNLOCK_KEY_FILE is not set.</p>
+  {% endif %}
+</div>
+{% endblock %}

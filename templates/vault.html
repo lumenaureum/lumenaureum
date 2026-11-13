@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Vault - Lumen Aureum{% endblock %}
+{% block body %}
+<h1>Vault</h1>
+{% if master_mismatch %}<div class="err" style="max-width:760px;margin-top:12px">The master key recorded for backups and the one in the keyring don't match (a master key change was interrupted). Run the master key change again with the current key before relying on new backups.</div>{% endif %}
+{% if setting('photo_mirror_error') %}<div class="err" style="max-width:760px;margin-top:12px">The last photo mirror copy failed: {{ setting('photo_mirror_error') }}. Your photos are still here; the copy is tried again every 15 minutes.</div>{% endif %}
+{% if second_err %}<div class="err" style="max-width:760px;margin-top:12px">Your second backup copy couldn't be checked, so it isn't counted yet. Your main backup is fine. The second copy is tried again at the next backup{% if btime %} ({{ btime }}){% endif %}, or press Back up now to try it now. <details style="display:inline"><summary style="display:inline;cursor:pointer;text-decoration:underline">Details</summary> {{ second_err }}</details></div>{% endif %}
+<div class="card f" style="max-width:760px;margin-top:16px">
+  {% if master %}
+  <div class="row"><span class="pill">Master key set</span><span class="mute" style="font-size:12px;word-break:break-all" data-tip="Public half only. The private half is in your password manager and on paper.">{{ master[:18] }}...{{ master[-6:] }}</span></div>
+  {% else %}
+  <div class="row"><span class="grow">No master key yet. Nothing can be sealed until it exists.</span>
+    <form method="post" action="{{ url_for('vault_new') }}" class="inline"><button class="primary">Create master key</button></form></div>
+  {% endif %}
+  <table class="data" style="margin-top:8px"><tbody>
+    <tr><td style="width:160px">Primary</td><td>{{ primary }}</td></tr>
+    <tr><td>Second location</td><td>{{ offsite }}{% if offsite != '-' %} (copied daily){% endif %}</td></tr>
+    <tr><td>Gallery host</td><td>{{ gallery }}</td></tr>
+    <tr><td>Sealed sessions</td><td>{{ n_keys }}</td></tr>
+    <tr><td>Daily backup at</td><td><form method="post" action="{{ url_for('vault_schedule') }}" class="row" style="gap:8px">
+      <input type="time" name="backup_time" value="{{ btime }}" style="width:auto" data-autosubmit>{% if blast %}<span class="mute" style="font-size:12px">last ran {{ nice(blast[:10]) }}, {{ ampm(blast[11:16]) }}</span>{% endif %}</form></td></tr>
+    <tr><td>Last database backup</td><td>{{ nice(last_db[:10]) if last_db else '-' }}</td></tr>
+    {% for o in objs %}<tr><td class="mute">{{ o.kind }} on {{ o.backend }}</td><td>{{ o.n }} objects, {{ '%.1f'|format(o.b / 1048576) }} MB</td></tr>{% endfor %}
+  </tbody></table>
+  {% if result %}{% for where, ok, words in result %}<div class="{{ 'ok-msg' if ok else 'err' }}" style="color:{{ 'var(--gold)' if ok else 'var(--crit)' }}">{% if where %}{{ where }}: {% endif %}{{ words }}</div>{% endfor %}{% endif %}
+  {% if master %}<div class="row" style="gap:8px;margin-top:8px">
+    <form method="post" action="{{ url_for('vault_backup_now') }}" class="inline"><button class="primary">Back up now</button></form></div>
+  <form method="post" action="{{ url_for('vault_check') }}" class="row" style="gap:8px;margin-top:8px" autocomplete="off">
+    <input name="secret" type="password" placeholder="Master key" class="grow" style="width:auto;margin:0" spellcheck="false" required>
+    <button class="quiet">Check the newest backup opens</button></form>{% endif %}
+</div>
+{% if backups %}<h2 style="margin-top:20px">Backups</h2>
+<table class="data" style="max-width:760px"><thead><tr><th>When</th><th>Size</th><th>Where</th></tr></thead><tbody>
+  {% for b in backups %}<tr><td>{{ nice(b.created[:10]) }} {{ ampm(b.created[11:16]) }}</td><td>{{ '%.1f'|format(b.size / 1048576) }} MB</td>
+    <td>{{ primary }}{% if b.second %}; also {{ offsite }}{% endif %}</td></tr>{% endfor %}
+</tbody></table>{% endif %}
+{% endblock %}

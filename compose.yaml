@@ -1,0 +1,35 @@
+# Lumen Aureum. Before the first start:
+#   1. Set LUMEN_HOST_IP to the address your computers use to reach this machine, in a file named .env next to
+#      this one:   LUMEN_HOST_IP=192.168.1.10
+#      No .env file (a NAS app screen such as TrueNAS "Install via YAML")? Write the address straight into the
+#      ports line instead:   - "192.168.1.10:8780:8780"
+#      A machine with more than one network (a separate storage network) must use the address on the network your
+#      computers are on.
+#   2. Set "user" below to the user that owns your data, vault and photos folders.
+#   3. Point the /vault line at a folder on a different disk from your data folder. A NAS with a single pool: a
+#      separate dataset is fine; then add a second backup copy in another place (Settings), which is what protects you.
+# Then: docker compose up -d, and open https://<that address>:8780 from another device on your network.
+services:
+  lumen:
+    image: ghcr.io/lumenaureum/lumenaureum:1.0.0     # a fixed version; change it deliberately to upgrade
+    restart: unless-stopped
+    user: "10001:10001"                              # the user and group that own the folders below
+    ports:
+      - "${LUMEN_HOST_IP:?Set LUMEN_HOST_IP to this machine's address on your network}:8780:8780"
+    volumes:
+      - ./data:/data                                 # database, keyring, settings
+      - /path/to/another/disk/lumen-vault:/vault     # backups: a different disk or dataset from ./data
+      - ./photos:/photos                             # uploaded RAWs and exports, stored encrypted: make room for them
+    # Optional: unattended unlock (see docs/security.md). The key file must be on a different volume from ./data.
+    #  - /path/to/other-volume/lumen-unlock:/unlock
+    # environment:
+    #   CRM_UNLOCK_KEY_FILE: /unlock/unlock.key
+    #   CRM_ALLOW_ONLY: "192.168.1.0/24"             # only these addresses may connect
+    #   CRM_HOSTNAMES: "nas.local"                   # names you reach it by, besides its address
+    #   CRM_TLS_SAN: "192.168.1.10,nas.local"        # put these in the certificate, so the browser asks only once;
+    #                                                  # adding one later makes a new certificate at the next start
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]

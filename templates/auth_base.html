@@ -1,0 +1,8 @@
+<!doctype html><html lang="en" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Lumen Aureum{% endblock %}</title><link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ static_v('style.css') }}">
+<style>.auth { max-width: 420px; margin: 9vh auto; padding: 0 16px; } .auth h1 { margin-bottom: 4px; } .auth .card { margin-top: 16px; }
+.auth input { margin-bottom: 10px; } .auth .err { color: var(--crit); font-size: 13px; margin-bottom: 8px; } .auth .brand { margin-bottom: 12px; }
+.qr { width: 220px; height: 220px; box-sizing: border-box; background: #fff; padding: 8px; border-radius: 6px; } .qr svg { display: block; width: 100%; height: 100%; }
+.mono { font: 600 14px/1.5 ui-monospace, Menlo, monospace; word-break: break-all; }
+.codes { columns: 2; font: 600 15px/1.9 ui-monospace, Menlo, monospace; }</style></head>
+<body><main class="auth"><div class="brand"><img src="{{ url_for('static', filename='brand/logo-horizontal-dark-bg.svg') }}" alt="Lumen Aureum" style="height:46px;width:auto;display:block"></div>{% if take_notice is defined and request.endpoint not in ('login', 'login_2fa', 'setup_owner', 'setup_owner_verify', 'setup_owner_key') %}{% set notice = take_notice() %}{% if notice %}<div class="err" role="status">{{ notice }}</div>{% endif %}{% endif %}{% block body %}{% endblock %}</main><script src="{{ url_for('static', filename='ui.js', v=static_v('ui.js')) }}"></script></body></html>

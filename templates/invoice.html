@@ -1,0 +1,37 @@
+{% from "_doc_bar.html" import doc_bar, draft with context %}<!doctype html><html lang="en"><head><meta charset="utf-8"><title>{{ 'Receipt' if v.receipt else 'Invoice' }} {{ v.number }} - {{ v.client }}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{% include "_doc_style.html" %}</head><body>
+{% if not pdf %}{{ doc_bar(v.pdf_url, v.back, send, v.review if not v.reviewed) }}{% endif %}
+<div class="page">
+  {% include "_doc_logo.html" %}
+  {% if not v.reviewed %}{{ draft(v.review, 'wording') }}{% endif %}
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
+    <div style="flex:1;min-width:0"><h1>{{ 'Receipt' if v.receipt else 'Invoice' }}</h1>
+      <p class="sub">{{ v.photographer }}{% if v.business %}, {{ v.business }}{% endif %}</p>{% include "_doc_contact.html" %}</div>
+    <table class="facts headfacts" style="width:auto;flex:none"><tr><td>{{ 'Receipt' if v.receipt else 'Invoice' }}</td><td>{{ v.number }}</td></tr>
+      <tr><td>Date</td><td>{{ v.date_long }}</td></tr>
+      {% if v.replaces %}<tr><td>Replaces</td><td>{{ v.replaces }}</td></tr>{% endif %}
+      {% if v.po %}<tr><td>PO / reference</td><td>{{ v.po }}</td></tr>{% endif %}{% if v.tax_id %}<tr><td>Tax ID</td><td>{{ v.tax_id }}</td></tr>{% endif %}
+      {% if not v.receipt %}<tr><td>Balance due</td><td>{{ v.due_rule }}</td></tr>{% endif %}</table>
+  </div>
+  <table class="facts" style="margin-top:14px">
+    <tr><td>{{ 'Received from' if v.receipt else 'Bill to' }}</td><td>{{ v.bill_to }}{% if v.attn %}<br>Attn: {{ v.attn }}{% endif %}{% if v.client_address %}<br>{{ v.client_address|replace('\n', '<br>'|safe) }}{% endif %}</td></tr>
+    <tr><td>Session</td><td>{{ v.type_label }}{% if v.shoot_date_long %}, {{ v.shoot_date_long }}{% endif %}</td></tr>
+    {% if v.job_address %}<tr><td>Where</td><td>{{ v.job_address }}</td></tr>{% endif %}
+  </table>
+  <h2>Services</h2>
+  <table>{% for l in v.lines %}<tr><td>{{ l.label }}</td><td class="n">{{ money(l.amount) }}</td></tr>{% endfor %}
+    <tr><td><b>Total</b></td><td class="n"><b>{{ money(v.total) }}</b></td></tr></table>
+  <h2>Payments</h2>
+  <table>{% for p in v.payments %}<tr><td>{{ p.date }} - {{ p.kind }}{% if p.method %}, {{ p.method }}{% endif %}{% if p.ref %} #{{ p.ref }}{% endif %}</td><td class="n">{{ money(p.amount) }}</td></tr>{% else %}<tr><td>None yet</td><td></td></tr>{% endfor %}
+    <tr><td><b>{{ 'Paid in full' if v.receipt else 'Balance due' }}</b></td><td class="n"><b>{{ money(v.paid if v.receipt else v.balance) }}</b></td></tr></table>
+  {% if v.receipt %}
+  <div class="promise"><b>Paid in full. Thank you.</b> {% if v.event_family %}Your photos are yours to print, share, and post for personal use.{% elif v.license %}Your license to use the photos is set out in your agreement.{% else %}With this payment, the copyright in your delivered photos is yours.{% endif %}</div>
+  {% else %}
+  <h2>How to pay</h2>
+  <p>{{ v.pay_words }}.{% if v.checks %} Checks are made out to {{ v.business or v.photographer }}{% if v.address %} and mailed to {{ v.address|oneline }}{% endif %}.{% endif %}{% if v.pay_details %} {{ v.pay_details }}{% endif %} {{ v.due_sentence }}</p>
+  {% if v.bank %}<p>Bank transfer: {{ v.bank|replace('\n', '<br>'|safe) }}</p>{% endif %}
+  {% endif %}
+  <p class="foot">{{ v.number }}{% if v.quote_id %} - quote {{ v.quote_id }}{% endif %}. Questions about this {{ 'receipt' if v.receipt else 'invoice' }}? Just reply or call.</p>
+{% include "_credit.html" %}
+</div>{% if not pdf %}<script src="{{ url_for('static', filename='ui.js', v=static_v('ui.js')) }}"></script>{% endif %}</body></html>

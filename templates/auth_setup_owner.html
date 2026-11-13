@@ -1,0 +1,25 @@
+{% extends "auth_base.html" %}{% block body %}
+<style>.auth { max-width: 460px; } .help { font-size: 13px; color: var(--mute); margin: 2px 0 8px; }
+.auth label.l { display: block; font-size: 13px; margin: 10px 0 3px; }
+.landing { margin: 0 0 6px; } .landing img { width: min(320px, 85%); height: auto; display: block; }
+.tag { color: var(--mute); margin: 0 0 16px; } .auth > .brand { display: none; }</style>
+<h1 class="landing"><img src="{{ url_for('static', filename='brand/logo-horizontal-dark-bg.svg') }}" alt="Lumen Aureum"></h1>
+<p class="tag">Set up the owner account.</p>
+<h2>Step 1 of 3: you</h2>
+<form method="post" class="card f">
+  {% if err == 'slow' %}<div class="err">Too many tries. Wait 15 minutes.</div>{% endif %}
+  {% if err == 'claim' %}<div class="err">Wrong setup code. A restart makes a new one.</div>{% endif %}
+  {% if err == 'name' %}<div class="err">Enter your name and a valid email.</div>{% elif err == 'password' %}<div class="err">Passwords must match, {{ min_pw }}+ characters.</div>{% endif %}
+  <label class="l" for="claim">Setup code</label>
+  <div class="help">In <b>SETUP-CODE.txt</b>, in your data folder.</div>
+  <input id="claim" name="claim" placeholder="1A2B-3C4D-5E6F" autocomplete="off" required {{ '' if err in ('password', 'name') else 'autofocus' }} spellcheck="false" value="{{ (keep.claim or '') if err != 'claim' }}">
+  <label class="l" for="name">Name</label>
+  <input id="name" name="name" maxlength="200" required value="{{ keep.name or '' }}">
+  <label class="l" for="email">Email</label>
+  <input id="email" type="email" name="email" maxlength="200" autocomplete="username" required value="{{ keep.email or '' }}">
+  <label class="l" for="pw">Password <span class="help">({{ min_pw }}+ characters)</span></label>
+  <input id="pw" type="password" name="password" autocomplete="new-password" minlength="{{ min_pw }}" required {{ 'autofocus' if err == 'password' }}>
+  <label class="l" for="pw2">Again</label>
+  <input id="pw2" type="password" name="password2" autocomplete="new-password" required>
+  <button class="primary" style="margin-top:12px">Next</button>
+</form>{% endblock %}

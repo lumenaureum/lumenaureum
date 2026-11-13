@@ -1,0 +1,9 @@
+# The secret scan's own rules, plus three known test fixtures that look like secrets and are not:
+# the published gallery-codeword test vectors, the RFC 6238 TOTP test secret, and an all-Q age key used to test refusal.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Published test vectors and fixed test values"
+paths = ['''^tests/vectors/.*\.json$''']
+regexes = ['''GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ''', '''AGE-SECRET-KEY-1Q{20,}''']

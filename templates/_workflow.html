@@ -1,0 +1,51 @@
+{% set cur = wf.current %}
+{% if s.stage == 'lost' %}
+<div class="surface wf"><div class="wf-now"><div class="wf-head"><span class="pill red">Lost</span>
+  <form method="post" action="{{ url_for('session_stage', sid=s.id) }}" class="inline"><input type="hidden" name="stage" value="inquiry"><button class="ghost">Reopen as inquiry</button></form></div></div></div>
+{% elif cur %}
+<div class="surface wf">
+  <div class="wf-now">
+    <div class="wf-head">
+      <span class="wf-stage">{{ stage_label[s.stage] }}</span>
+      {% if cur.steps %}<span class="sub">{{ cur.n_done }} of {{ cur.steps|length }} done</span>
+      <span class="wf-bar"><span style="width:{{ (cur.n_done / cur.steps|length * 100)|round }}%"></span></span>{% endif %}
+    </div>
+    <ul class="wf-steps">
+    {% for st in cur.steps %}
+      <li class="{{ 'done' if st.done }} {{ 'auto' if st.kind == 'auto' }}">
+        {% if st.kind == 'do' %}
+          <form method="post" action="{{ url_for('task_toggle', tid=st.task_id) }}" class="inline"><input type="hidden" name="set" value="0"><input type="checkbox" name="set" value="1" data-autosubmit {{ 'checked' if st.done }}></form>
+          <span class="lbl">{{ st.label }}{% if st.shared %} <a class="pill blue" href="{{ url_for('event_view', eid=s.event_id) }}#steps">whole event</a>{% endif %}</span>
+          {% if st.due and not st.done %}<span class="due {{ 'late' if st.due < today.isoformat() }}">{{ nice(st.due) }}</span>{% endif %}
+        {% else %}
+          <span class="ring"></span>
+          <a class="lbl" href="#{{ st.tab }}">{{ st.label if st.done else st.label|todo }}</a>
+          {% if st.due and not st.done %}<span class="due {{ 'late' if st.due < today.isoformat() }}">{{ nice(st.due) }}</span>{% endif %}
+          {% if not st.done %}<span class="go">{{ {'paperwork':'Paperwork','money':'Billing','intake':'Intake','delivery':'Delivery','log':'Log','shoot':'Details'}.get(st.tab, st.tab|capitalize) }} &rsaquo;</span>{% endif %}
+        {% endif %}
+      </li>
+    {% endfor %}
+    </ul>
+    <form method="post" action="{{ url_for('task_add', sid=s.id) }}" class="row wf-add"><input name="title" maxlength="200" placeholder="Add a step" required class="grow" style="width:auto"><button class="ghost" style="color:var(--gold)">Add</button></form>
+    {% if wf.next_stage and wf.ready %}
+    <form method="post" action="{{ url_for('session_stage', sid=s.id) }}" class="wf-move">
+      <input type="hidden" name="stage" value="{{ wf.next_stage }}"><button class="primary">Move to {{ stage_label[wf.next_stage] }} &rsaquo;</button></form>
+    {% elif wf.next_stage == 'shot' and s.shoot_date and s.shoot_date > today.isoformat() %}<p class="mute wf-move" style="font-size:13px">Next steps start on the shoot day, {{ nice(s.shoot_date) }}. Shot earlier? Change the shoot date.</p>
+    {% elif wf.next_stage %}<details class="closemenu wf-move"><summary title="When the steps don't match what really happened">&hellip;</summary><div class="cm-pop">
+      <form method="post" action="{{ url_for('session_stage', sid=s.id) }}" data-confirm="Move to {{ stage_label[wf.next_stage] }} with steps still open?"><input type="hidden" name="stage" value="{{ wf.next_stage }}"><button class="cm-act">Mark as {{ stage_label[wf.next_stage] }} anyway</button></form></div></details>
+    {% endif %}
+  </div>
+  <div class="wf-road">
+    {% set idx = C.STAGES.index(s.stage) %}
+    {% for g in wf.stages %}{% if loop.index0 != idx and g.steps %}
+      <div class="wf-leg {{ 'past' if loop.index0 < idx else 'ahead' }}">
+        <div class="wf-leg-head">{{ stage_label[g.stage] }}
+          <span class="sub">{% if loop.index0 < idx %}{{ g.n_done }}/{{ g.steps|length }}{% if g.n_done < g.steps|length %} - <span style="color:var(--red)" data-tip="Problem: {{ g.steps|length - g.n_done }} step{{ '' if g.steps|length - g.n_done == 1 else 's' }} of {{ stage_label[g.stage] if g.stage is defined else 'an earlier stage' }} never finished: {{ g.steps|rejectattr('done')|map(attribute='label')|join(', ') }}">{{ g.steps|length - g.n_done }} left behind</span>{% endif %}{% else %}{{ g.steps|length }} steps{% endif %}</span></div>
+        {% if loop.index0 > idx or g.n_done < g.steps|length %}
+        <div class="wf-leg-steps">{% for st in g.steps %}{% if loop.index0 >= 0 %}<span class="{{ 'done' if st.done }}">{{ st.label }}</span>{% endif %}{% endfor %}</div>
+        {% endif %}
+      </div>
+    {% endif %}{% endfor %}
+  </div>
+</div>
+{% endif %}

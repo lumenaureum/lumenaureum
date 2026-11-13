@@ -1,0 +1,32 @@
+{% extends "base.html" %}{% from "_macros.html" import stage_pill, seg with context %}
+{% block body %}
+<div class="page-head"><div class="grow"><div class="kicker">Sessions</div><h1>{{ views[view][0] }}</h1></div>
+  <a class="btn" href="{{ url_for('pipeline') }}">Board</a></div>
+<form class="toolbar" method="get">
+  <span class="chips row" style="gap:6px">{% for k, v in views.items() %}<a href="{{ url_for('sessions', view=k) }}" class="{{ 'on' if k == view }}">{{ v[0] }}</a>{% endfor %}</span>
+  <span class="grow"></span>
+  <input type="hidden" name="view" value="{{ view }}">
+  {{ seg('type', [('', 'All')] + C.SESSION_TYPES.items()|list, request.args.get('type', ''), attrs='data-autosubmit') }}
+  <label class="row" style="gap:5px;font-size:13px"><input type="checkbox" name="owing" value="1" data-autosubmit {{ 'checked' if request.args.get('owing') }}>Owing</label>
+  <input name="q" value="{{ request.args.get('q', '') }}" placeholder="Search">
+</form>
+<div class="surface wrapx">
+<table class="data">
+  <thead><tr><th>Client</th><th>Type</th><th>Shoot</th><th>Stage</th><th class="opt">Next step</th><th class="opt">Paperwork</th><th class="n">Quote</th><th class="n">Due</th></tr></thead>
+  <tbody>{% for r in rows %}{% set s = r.s %}
+  <tr class="rowlink" data-href="{{ url_for('session_view', sid=s.id) }}">
+    <td><a href="{{ url_for('session_view', sid=s.id) }}"><b>{{ s.household }}</b></a>{% if s.event_name %}<div class="sub" style="font-size:12px">{{ s.event_name }}</div>{% elif s.title %}<div class="sub" style="font-size:12px">{{ s.title }}</div>{% endif %}</td>
+    <td>{{ type_label[s.type] }}</td>
+    <td data-v="{{ s.shoot_date or '9999' }}">{{ nice(s.shoot_date) or '-' }}</td>
+    <td data-v="{{ (C.STAGES + C.OFF_PIPELINE).index(s.stage) }}">{{ stage_pill(s.stage) }}</td>
+    {% set nx = r.wf.next_step %}{% set cur = r.wf.current %}
+    <td class="opt" data-v="{{ (nx.due if nx and nx.due) or '9999' }}">{% if cur and cur.steps %}<span class="mini-bar"><span style="width:{{ (cur.n_done / cur.steps|length * 100)|round }}%"></span></span>{% endif %}
+      {% if nx %}<span class="{{ 'late' if nx.due and nx.due < today.isoformat() }}" style="{{ 'color:var(--red);font-weight:600' if nx.due and nx.due < today.isoformat() }}">{{ nx.label|todo }}</span>{% if nx.due %} <span class="sub" style="font-size:12px">{{ nice(nx.due) }}</span>{% endif %}
+      {% elif r.wf.next_stage and s.stage not in ('lost',) %}<span style="font-weight:600">Ready for {{ stage_label[r.wf.next_stage] }}</span>{% else %}<span class="sub">-</span>{% endif %}</td>
+    <td class="opt" data-v="{{ s.n_docs - s.n_signed }}">{% if s.n_docs %}<span class="pill {{ 'green' if s.n_signed == s.n_docs else 'red' }}">{{ s.n_signed }}/{{ s.n_docs }}</span>{% endif %}</td>
+    <td class="n" data-v="{{ r.t.quoted }}">{{ money(r.t.quoted) if r.t.quoted else '-' }}</td>
+    <td class="n" data-v="{{ r.t.due }}">{{ money(r.t.due) if r.t.quoted else '-' }}</td>
+  </tr>{% else %}<tr><td colspan="8" class="empty">Nothing in this view</td></tr>{% endfor %}</tbody>
+</table></div>
+<div class="sub" style="margin-top:8px;font-size:13px">{{ rows|length }} session{{ '' if rows|length == 1 else 's' }}</div>
+{% endblock %}

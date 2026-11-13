@@ -1,0 +1,40 @@
+{% extends "base.html" %}{% from "_macros.html" import seg with context %}
+{% block body %}
+<div class="row" style="margin-bottom:14px"><h1 class="grow">Finances</h1>
+  <a href="{{ url_for('money_view', year=year-1) }}">&lsaquo; {{ year-1 }}</a> <b>{{ year }}</b> <a href="{{ url_for('money_view', year=year+1) }}">{{ year+1 }} &rsaquo;</a></div>
+{% set mileage = exp.mc %}
+<div class="stats">
+  <div class="card"><div class="stat">{{ money(total) }}</div><div class="sub">received</div></div>
+  <div class="card"><div class="stat">{{ money(exp.a) }}</div><div class="sub">expenses</div></div>
+  <div class="card"><div class="stat">{{ exp.m|round|int }}</div><div class="sub">miles{% if rate %} ({{ money(mileage) }}){% endif %}</div></div>
+  <div class="card"><div class="stat">{{ money(total - exp.a - mileage - tax_due) }}</div><div class="sub">net, after sales tax</div></div>
+</div>
+<div class="grid">
+  <div class="card"><h2>By month</h2>
+    {% set peak = (by_month|map(attribute='v')|max) if by_month else 1 %}
+    {% for m in by_month %}<div class="row" style="margin:6px 0"><span style="width:70px" class="sub">{{ m.mo }}</span>
+      <div class="grow"><div class="bar" style="width:{{ (m.v / peak * 100)|round }}%"></div></div><span style="width:80px;text-align:right">{{ money(m.v) }}</span></div>
+    {% else %}<div class="empty">Nothing received</div>{% endfor %}</div>
+  <div class="card"><h2>By session type</h2>
+    <table>{% for r in received %}<tr><td>{{ type_label[r.type] }}</td><td class="n">{{ money(r.v) }}</td></tr>{% else %}<tr><td class="empty">Nothing yet</td></tr>{% endfor %}</table></div>
+  <div class="card"><h2>Owed</h2>
+    <ul class="list">{% for o in outstanding %}<li><a class="what" href="{{ url_for('session_view', sid=o.s.id) }}#money">{{ o.s.household }}<small>{{ type_label[o.s.type] }} - shot {{ nice(o.s.shoot_date) }}, {{ 'was due' if o.late else 'due' }} {{ nice(o.due_on) }}</small></a>
+      <span class="pill {{ 'amber' if o.late }}">{{ money(o.t.due) }}</span></li>{% else %}<li class="empty">Nothing owed</li>{% endfor %}</ul></div>
+  <div class="card"><h2>Balances on booked shoots</h2>
+    <ul class="list">{% for o in upcoming %}<li><a class="what" href="{{ url_for('session_view', sid=o.s.id) }}#money">{{ o.s.household }}<small>{{ type_label[o.s.type] }} - {{ nice(o.s.shoot_date) or 'no date' }}</small></a>
+      <span class="pill">{{ money(o.t.due) }}</span></li>{% else %}<li class="empty">None</li>{% endfor %}</ul></div>
+  <div class="card" id="overhead"><h2>Business expenses</h2>
+    <table class="data"><tbody>{% for e in overhead %}<tr><td class="sub">{{ nice(e.date) }}</td><td>{{ e.label }}</td><td class="n">{% if e.miles %}{{ e.miles|round(1) }} mi{% endif %}</td><td class="n">{% if e.amount %}{{ money(e.amount) }}{% endif %}</td>
+      <td style="width:30px"><form method="post" action="{{ url_for('money_delete', what='expense', rid=e.id) }}" class="inline"><button class="ghost">x</button></form></td></tr>{% else %}<tr><td class="empty">None</td></tr>{% endfor %}</tbody></table>
+    <form method="post" action="{{ url_for('overhead_add') }}" class="row rel-add" style="margin-top:8px">
+      <input type="date" name="date" value="{{ today_iso }}" style="width:auto"><input name="label" maxlength="200" placeholder="What" required class="grow" style="width:auto">
+      <input type="number" step="0.01" name="amount" placeholder="$" style="width:90px"><input type="number" step="0.1" name="miles" placeholder="mi" style="width:70px"><button class="quiet">Add</button></form></div>
+  {% if tax_due %}<div class="card"><h2>Sales tax to remit</h2><div class="stat">{{ money(tax_due) }}</div>{% if tax_kept %}<div class="sub">includes {{ money(tax_kept) }} on kept deposits</div>{% endif %}<div class="sub" style="font-size:12px">Figures follow your settings. Whether a service, a print or a kept deposit is taxable depends on where you work; check with your tax authority or accountant.</div></div>{% endif %}
+  {% if refunds %}<div class="card"><h2>Refunds</h2><div class="stat">{{ money(-refunds) }}</div></div>{% endif %}
+  {% if lost %}<div class="card"><h2>Lost, by reason</h2><table>{% for r in lost %}<tr><td>{{ r.r }}</td><td class="n">{{ r.n }}</td></tr>{% endfor %}</table></div>{% endif %}
+  <div class="card"><h2>Inquiries this year</h2>
+    {% set n_all = funnel.values()|sum %}
+    <table>{% for st in C.STAGES + C.OFF_PIPELINE %}{% if funnel.get(st) %}<tr><td>{{ stage_label[st] }}</td><td class="n">{{ funnel[st] }}</td></tr>{% endif %}{% endfor %}
+      <tr class="total"><td>Total</td><td class="n">{{ n_all }}</td></tr></table></div>
+</div>
+{% endblock %}

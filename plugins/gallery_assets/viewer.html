@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src blob:; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<title>Photos</title>
+<style>
+:root { --bg: #f6f3ed; --ink: #1f1b16; --mute: #7a7065; --line: #e2dbcf; --gold: #b8862f; --cell: #e9e3d8;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-text-size-adjust: 100%; }
+body { min-height: 100vh; display: flex; flex-direction: column; }
+body.tray { padding-bottom: 58px; }
+header { padding: 64px 20px 36px; max-width: 1100px; margin: 0 auto; text-align: center; }
+#brand { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 30px; }
+#logo { display: block; max-height: 96px; max-width: min(320px, 70vw); object-fit: contain; }
+#studio { font-size: 12px; letter-spacing: .22em; text-transform: uppercase; color: var(--mute); }
+#studio.word { font: 400 24px/1.2 var(--serif); letter-spacing: .04em; text-transform: none; color: var(--ink); }
+.rule { width: 56px; height: 1px; background: var(--gold); margin: 0 auto 26px; border: 0; }
+header h1 { margin: 0 0 10px; font: 400 clamp(30px, 4.4vw, 46px)/1.15 var(--serif); letter-spacing: .01em; }
+#meta { margin: 0; color: var(--mute); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; }
+#how { margin: 22px auto 0; max-width: 560px; color: var(--mute); font-size: 14px; }
+#how b { color: var(--ink); font-weight: 600; }
+#grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; padding: 0 28px 64px;
+  max-width: 1600px; margin: 0 auto; width: 100%; flex: 1 0 auto; align-content: start; }
+@media (max-width: 520px) { #grid { grid-template-columns: repeat(2, 1fr); gap: 4px; padding: 0 4px 24px; } header { padding: 36px 14px 22px; } }
+.cell { position: relative; aspect-ratio: 1; background: var(--cell); overflow: hidden; cursor: zoom-in; border: 0; padding: 0; display: block; width: 100%; }
+.cell img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; transition: opacity .35s, transform .5s; }
+.cell:hover img.on { transform: scale(1.025); }
+.cell img.on { opacity: 1; }
+.cell:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+#msg { flex: 1 0 auto; display: grid; place-items: center; text-align: center; color: var(--mute); padding: 96px 24px; }
+#msg:empty { display: none; }
+#msg b { display: block; color: var(--ink); font: 400 28px/1.3 var(--serif); margin-bottom: 8px; }
+footer { background: #141210; color: #b9ad9a; padding: 26px 20px 30px; text-align: center; font-size: 13px; margin-top: auto; }
+#contact { margin-bottom: 14px; color: #e9e1d2; } #contact a { color: #e9e1d2; text-decoration: none; border-bottom: 1px solid #4a4237; }
+#contact span + span::before { content: "\00b7"; margin: 0 10px; color: #6e6455; }
+#la { display: inline-flex; align-items: center; gap: 10px; color: #b9ad9a; text-decoration: none; letter-spacing: .03em; }
+#la svg { width: 30px; height: 30px; } #la b { color: #f0dfb4; font-weight: 600; } #la:hover b { color: #f6dfa6; }
+#la small { display: block; font-size: 11px; color: #7f7464; letter-spacing: .08em; }
+#lb { position: fixed; inset: 0; background: rgba(8,7,6,.97); display: none; z-index: 10; touch-action: pan-y; user-select: none; }
+#lb.open { display: flex; align-items: center; justify-content: center; padding: 16px 72px 44px; }
+#lb img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; opacity: 0; transition: opacity .2s; }
+#lb img.on { opacity: 1; }
+#lb button { position: absolute; background: none; border: 0; color: var(--ink); opacity: .7; cursor: pointer; padding: 18px;
+  font: 300 44px/1 -apple-system, sans-serif; }
+#lb button:hover { opacity: 1; }
+#prev { left: 0; top: 50%; transform: translateY(-50%); }
+#next { right: 0; top: 50%; transform: translateY(-50%); }
+#close { right: 0; top: 0; font-size: 36px !important; }
+#count { position: absolute; left: 0; right: 0; bottom: 12px; text-align: center; color: var(--mute); font-size: 13px; }
+@media (hover: none) { #prev, #next { display: none; } #lb.open { padding: 0 0 40px; } }
+.num { position: absolute; left: 7px; top: 6px; font-size: 11px; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.7); opacity: .85; }
+.tag { position: absolute; right: 6px; top: 5px; display: flex; gap: 4px; }
+.tag i { font-style: normal; font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 9px; background: #e3aa48; color: #1a1308; }
+.tag i.no { background: #3a3530; color: #f2ebe0; }
+#pickbar { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; align-items: center; z-index: 2; width: max-content; max-width: calc(100vw - 16px); }
+@media (max-width: 640px) { #note { order: -1; flex-basis: 100%; max-width: none !important; } }
+body.lbopen #tray { display: none; }
+#lb #pickbar button { position: static; font: 600 13px/1 -apple-system, sans-serif; padding: 8px 12px; border: 1px solid var(--ink); border-radius: 18px; opacity: .85; }
+#lb #pickbar button.on { background: #e3aa48; border-color: #e3aa48; color: #1a1308; opacity: 1; }
+#lb #pickbar #pv.on { background: #f2ebe0; border-color: #f2ebe0; }
+#lb button { color: #ece5d8; }
+#count { color: #8f8678 !important; }
+#note { width: 260px; max-width: 48vw; padding: 7px 10px; border-radius: 16px; border: 1px solid #26221e; background: #171513; color: #ece5d8; font-size: 13px; }
+#tray { position: fixed; left: 0; right: 0; bottom: 0; display: none; justify-content: center; gap: 14px; align-items: center; padding: 10px; background: rgba(20,18,16,.97); color: #ece5d8; font-size: 14px; z-index: 5; }
+#tray.on { display: flex; } #tray a { color: #1a1308; background: #e3aa48; padding: 8px 16px; border-radius: 18px; text-decoration: none; font-weight: 600; }
+</style>
+</head>
+<body>
+<header hidden><div id="brand"><img id="logo" alt="" hidden><div id="studio"></div></div><hr class="rule"><h1 id="title"></h1><p id="meta"></p><p id="how" hidden></p></header>
+<main id="grid"></main>
+<div id="msg"></div>
+<div id="tray"><span id="trayn"></span><a id="send" href="#">Send my picks</a><span id="sent" hidden></span></div>
+<div id="lb" role="dialog" aria-modal="true">
+  <img id="big" alt="">
+  <button id="prev" aria-label="Previous">&lsaquo;</button>
+  <button id="next" aria-label="Next">&rsaquo;</button>
+  <button id="close" aria-label="Close">&times;</button>
+  <div id="count"></div>
+  <div id="pickbar"><button id="pr" type="button">Retouch</button><input id="note" placeholder="What should I fix?" aria-label="What should I fix in this photo?" maxlength="200" hidden><button id="pm" type="button">Suggest for portfolio</button><button id="pv" type="button">Please don't show</button></div>
+</div>
+<script>
+"use strict";
+(() => {
+const $ = id => document.getElementById(id);
+
+const subtle = window.crypto && window.crypto.subtle;
+let ckey = null;
+// the key travels in the link's #fragment (never sent to any server)
+const HP = new URLSearchParams(location.hash.slice(1));
+const k = HP.get("k") || "";
+const NEEDS_WORD = HP.get("c") === "1";   // the gallery is protected by a codeword the client chose
+let raw = (() => {
+  try {
+    const s = k.replace(/-/g, "+").replace(/_/g, "/");
+    const b = atob(s + "===".slice((s.length + 3) % 4));
+    return b.length === 32 ? Uint8Array.from(b, c => c.charCodeAt(0)) : null;
+  } catch (e) { return null; }
+})();
+// the photographer's preview inside the app needs the app sign-in; a client gallery on the web sends no cookies
+const PREVIEW = location.pathname.startsWith("/gallery-preview/");
+
+async function open(buf, name) {
+  const data = new Uint8Array(buf);
+  if (subtle) {
+    if (!ckey) ckey = await subtle.importKey("raw", raw, "AES-GCM", false, ["decrypt"]);
+    return new Uint8Array(await subtle.decrypt({ name: "AES-GCM", iv: data.subarray(0, 12),
+      additionalData: new TextEncoder().encode("lumen-aureum-gallery:" + name) }, ckey, data.subarray(12)));
+  }
+  // WebCrypto exists only on secure (https) pages: a gallery opened any other way refuses to decrypt.
+  throw Object.assign(new Error("insecure"), { insecure: true });
+}
+// The picks email carries a fingerprint: HMAC-SHA256 over the exact list of picks, under a key derived from the gallery
+// key (HKDF-SHA256). The photographer's app recomputes it, so a list changed after it left the gallery shows up.
+async function fingerprint(lines) {
+  const text = lines.map(l => l.trim().replace(/\s+/g, " ")).filter(Boolean).join("\n");
+  const base = await subtle.importKey("raw", raw, "HKDF", false, ["deriveKey"]);
+  const hk = await subtle.deriveKey({ name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0),
+    info: new TextEncoder().encode("lumen-aureum picks fingerprint") }, base, { name: "HMAC", hash: "SHA-256", length: 256 }, false, ["sign"]);
+  const mac = new Uint8Array(await subtle.sign("HMAC", hk, new TextEncoder().encode(text))).slice(0, 10);
+  const A = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";             // no 0/O or 1/I to misread
+  let bits = 0, val = 0, out = "";
+  for (const b of mac) { val = (val << 8) | b; bits += 8; while (bits >= 5) { out += A[(val >>> (bits - 5)) & 31]; bits -= 5; } }
+  return out.match(/.{4}/g).join("-");
+}
+const GATE = document.documentElement.dataset.gate === "1";   // a PHP host: fetch through gate.php, which enforces expiry
+async function get(name) {
+  let r = await fetch(GATE ? "gate.php?f=" + encodeURIComponent(name) : name, { credentials: PREVIEW ? "same-origin" : "omit" });
+  if (GATE && !r.ok && r.status !== 404 && r.status !== 410) r = null;          // the gate isn't running here (no PHP)
+  if (GATE && r && r.ok && (r.headers.get("content-type") || "").includes("php")) r = null;
+  if (!r) r = await fetch(name, { credentials: PREVIEW ? "same-origin" : "omit" });
+  if (!r.ok) throw Object.assign(new Error("http"), { status: r.status });
+  return open(await r.arrayBuffer(), name);
+}
+const blobs = new Map();
+async function url(name) {
+  if (!blobs.has(name)) blobs.set(name, get(name).then(b => URL.createObjectURL(new Blob([b], { type: "image/jpeg" }))));
+  return blobs.get(name);
+}
+function say(head, line) {
+  $("msg").innerHTML = "";
+  const b = document.createElement("b"); b.textContent = head;
+  const d = document.createElement("div"); d.append(b, line || "");
+  $("msg").append(d);
+}
+
+// A codeword gallery's key: PBKDF2-SHA256(word, salt = the link's 32-byte secret + the gallery id, 600000 rounds), the
+// same as codeword_key() in the app. The word is normalized the same way (NFKC, trimmed, lowercase, single spaces).
+async function wordKey(word) {
+  const w = word.normalize("NFKC").replace(/[\u200b-\u200d\u2060\ufeff\u00ad]/g, "")
+    .replace(/[\x00-\x1f\x7f\s\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/g, " ").trim().toLowerCase();
+  const gid = new TextEncoder().encode(document.documentElement.dataset.gid || "");
+  const salt = new Uint8Array(raw.length + gid.length); salt.set(raw); salt.set(gid, raw.length);
+  const base = await subtle.importKey("raw", new TextEncoder().encode(w), "PBKDF2", false, ["deriveBits"]);
+  return new Uint8Array(await subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: 600000 }, base, 256));
+}
+function askWord(wrong) {
+  return new Promise(resolve => {
+    $("msg").innerHTML = "";
+    const d = document.createElement("div"), b = document.createElement("b"), p = document.createElement("p");
+    b.textContent = wrong ? "That word doesn't open this gallery" : "This gallery is protected by a word";
+    p.textContent = "Enter the word you chose with your photographer.";
+    const f = document.createElement("form"), i = document.createElement("input"), go = document.createElement("button");
+    i.type = "password"; i.autocomplete = "off"; i.autofocus = true; i.setAttribute("aria-label", "Gallery word");
+    i.style.cssText = "font:inherit;padding:8px 10px;border:1px solid #c9bfae;border-radius:8px;margin-right:8px";
+    go.textContent = "Open"; go.style.cssText = "font:inherit;padding:8px 16px;border:0;border-radius:18px;background:#e3aa48;color:#1a1308";
+    f.append(i, go); d.append(b, p, f); $("msg").append(d);
+    f.onsubmit = e => { e.preventDefault(); go.disabled = true; go.textContent = "Opening..."; resolve(i.value); };
+    i.focus();
+  });
+}
+
+async function main() {
+  if (!raw) { say("This gallery is locked", "Open it from the code in your letter."); return; }
+  if (NEEDS_WORD) {
+    if (!subtle) { say("This gallery must be opened over https", "Check the address starts with https://."); return; }
+    const linkKey = raw;
+    for (let tries = 0; ; tries++) {
+      const word = await askWord(tries > 0);
+      raw = linkKey; raw = await wordKey(word); ckey = null;
+      try { await get("manifest.bin"); break; } catch (e) { if (e.status === 404 || e.status === 410) { say("This gallery has closed"); return; } }
+    }
+  }
+  let m;
+  try { m = JSON.parse(new TextDecoder().decode(await get("manifest.bin"))); }
+  catch (e) {
+    if (e.insecure) { say("This gallery must be opened over https", "Check the address starts with https://."); return; }
+    if (e.status === 404 || e.status === 410) say("This gallery has closed");
+    else say("This gallery is locked", "Open it from the code in your letter.");
+    return;
+  }
+  $("msg").remove();
+  // the visit counts only with proof of the key: sha256(key), first 32 hex, matched by seen.php
+  if (!location.pathname.startsWith("/gallery-preview/")) try {
+    const proof = [...new Uint8Array(await subtle.digest("SHA-256", raw))].map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
+    fetch("seen.php", { method: "POST", credentials: "omit", cache: "no-store", body: proof }).catch(() => {});
+  } catch (e) {}
+  const B = m.brand || {};
+  document.title = m.title + (B.studio ? " \u00b7 " + B.studio : "");
+  $("title").textContent = m.title;
+  $("meta").textContent = [B.what, B.date, m.items.length + (m.items.length === 1 ? " photo" : " photos")].filter(Boolean).join("  \u00b7  ");
+  if (B.logo) try {
+    const bin = atob(B.logo);
+    $("logo").src = URL.createObjectURL(new Blob([Uint8Array.from(bin, c => c.charCodeAt(0))], { type: "image/png" }));
+    $("logo").alt = B.studio || ""; $("logo").hidden = false;
+  } catch (e) {}
+  $("studio").textContent = B.studio || "";
+  $("studio").classList.toggle("word", !B.logo);
+  const ct = $("contact");
+  if (B.email) { const sp = document.createElement("span"), a = document.createElement("a");
+    a.href = "mailto:" + B.email; a.textContent = B.email; sp.append(a); ct.append(sp); }
+  if (B.phone) { const sp = document.createElement("span"); sp.textContent = B.phone; ct.append(sp); }
+  if (B.studio || B.photographer) { const sp = document.createElement("span"); sp.textContent = B.photographer && B.photographer !== B.studio ? B.photographer + ", " + (B.studio || "") : (B.studio || B.photographer); ct.prepend(sp); }
+  document.querySelector("header").hidden = false;
+  const grid = $("grid");
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if (!e.isIntersecting) return;
+    io.unobserve(e.target);
+    const img = e.target.firstChild;
+    get(m.items[+e.target.dataset.i].t).then(b => {
+      img.onload = () => img.classList.add("on");
+      img.src = URL.createObjectURL(new Blob([b], { type: "image/jpeg" }));
+    }).catch(() => {});
+  }), { rootMargin: "600px 0px" });
+  m.items.forEach((it, i) => {
+    const c = document.createElement("button");
+    c.className = "cell"; c.dataset.i = i; c.setAttribute("aria-label", "Photo " + (i + 1));
+    const img = document.createElement("img"); img.alt = "";
+    const num = document.createElement("span"); num.className = "num"; num.textContent = i + 1;
+    const tag = document.createElement("span"); tag.className = "tag";
+    c.append(img, num, tag); grid.append(c); io.observe(c);
+    c.onclick = () => show(i);
+  });
+
+  // picks: retouch (with a note), portfolio suggestions, and photos never to be shown; kept on this device until sent
+  const P = m.picks || {}, KEY = "picks:" + location.pathname;
+  let picks = {}; try { picks = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) {}
+  const nR = () => Object.values(picks).filter(p => p.r).length, nM = () => Object.values(picks).filter(p => p.m).length,
+        nV = () => Object.values(picks).filter(p => p.v).length;
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(picks)); } catch (e) {} paint(); };
+  function paint() {
+    document.querySelectorAll(".cell").forEach(c => { const p = picks[c.dataset.i] || {};
+      c.querySelector(".tag").innerHTML = (p.r ? "<i>R</i>" : "") + (p.m ? "<i>&hearts;</i>" : "") + (p.v ? "<i class=\"no\">&#8856;</i>" : ""); });
+    const r = nR(), mk = nM(), vt = nV();
+    $("tray").classList.toggle("on", !!(P.email || P.post) && (r + mk + vt) > 0);
+    document.body.classList.toggle("tray", $("tray").classList.contains("on"));
+    $("trayn").textContent = "Retouch " + r + "/" + (P.retouch || 0) + "  \u00b7  Suggested " + mk + "  \u00b7  Don't show " + vt;
+    const lines = [];
+    Object.keys(picks).sort((a, b) => a - b).forEach(i => { const p = picks[i];
+      const it = m.items[+i] || {}, which = (it.n ? it.n + " (photo " + (+i + 1) + ")" : "photo " + (+i + 1));
+      if (p.r) lines.push("Retouch " + which + (p.n ? ": " + p.n : ""));
+      if (p.m) lines.push("Suggested for your portfolio: " + which);
+      if (p.v) lines.push("Please don't show: " + which); });
+    const mail = fp => "mailto:" + (P.email || "") + "?subject=" + encodeURIComponent("My photo picks (" + (P.ref || "") + ")") +
+      "&body=" + encodeURIComponent(lines.join("\n") + "\n" + (fp ? "\nFingerprint: " + fp + "\n" : ""));
+    $("send").href = mail("");
+    fingerprint(lines).then(fp => { $("send").href = mail(fp); }).catch(() => {});
+    $("sent").hidden = true;
+  }
+  // Send my picks: on a host that runs the small picks script, the picks go back encrypted with the gallery key
+  // (never readable on the host) and the photographer's app collects them; otherwise the email draft opens.
+  $("send").onclick = async e => {
+    if (!P.post || PREVIEW) return;                   // the mailto link does its job
+    e.preventDefault();
+    const list = Object.keys(picks).map(i => ({ i: +i, name: (m.items[+i] || {}).n || "", r: !!picks[i].r,
+      note: picks[i].n || "", m: !!picks[i].m, v: !!picks[i].v })).filter(p => p.r || p.m || p.v);
+    try {
+      const ek = await subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt"]);
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const ct = new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv,
+        additionalData: new TextEncoder().encode("lumen-aureum-gallery:picks.bin") }, ek,
+        new TextEncoder().encode(JSON.stringify({ v: 1, at: new Date().toISOString(), picks: list }))));
+      const body = new Uint8Array(4 + 12 + ct.length);
+      body.set(new TextEncoder().encode("LAK1")); body.set(iv, 4); body.set(ct, 16);
+      const proof = [...new Uint8Array(await subtle.digest("SHA-256", raw))].map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
+      const r = await fetch("picks.php", { method: "POST", credentials: "omit", cache: "no-store", body, headers: { "X-Proof": proof } });
+      if (!r.ok) throw new Error("http " + r.status);
+      $("sent").hidden = false; $("sent").textContent = "Sent. Thank you! You can change them and send again.";
+    } catch (err) {
+      if (P.email) location.href = $("send").href;    // the script isn't there: the email draft instead
+      else { $("sent").hidden = false; $("sent").textContent = "Couldn't send. Please tell your photographer."; }
+    }
+  };
+  if (!P.email && !P.post) $("pickbar").style.display = "none";
+  if (!P.market) { $("pm").hidden = true; $("pv").hidden = true; }      // the client declined portfolio use: nothing to suggest
+  else if (P.retouch || P.market) {
+    const how = $("how"); how.hidden = false;
+    const parts = [];
+    if (P.retouch) parts.push("<b>Retouch</b> for up to " + P.retouch + " favorites, with a note on what to fix");
+    how.innerHTML = (parts.length ? "Open any photo and choose " + parts.join(", and ") + "." : "Open any photo to see it full size.") +
+      (P.market ? " I choose up to " + P.market + " for my portfolio: <b>Suggest</b> your favorites, and mark any you would rather I never show with <b>Please don't show</b>." : "") +
+      " When you are done, press <b>Send my picks</b>.";
+  }
+  paint();
+  $("pr").onclick = e => { e.stopPropagation(); const p = picks[cur] = picks[cur] || {};
+    if (!p.r && nR() >= (P.retouch || 0)) { $("count").textContent = "You have chosen " + (P.retouch || 0) + " to retouch: untick one to choose this one"; return; } p.r = !p.r; if (!p.r) delete p.n; save(); bar(); };
+  $("pm").onclick = e => { e.stopPropagation(); const p = picks[cur] = picks[cur] || {};
+    p.m = !p.m; if (p.m) delete p.v; save(); bar(); };
+  $("pv").onclick = e => { e.stopPropagation(); const p = picks[cur] = picks[cur] || {};
+    p.v = !p.v; if (p.v) delete p.m; save(); bar(); };
+  $("note").onclick = e => e.stopPropagation();
+  $("note").oninput = () => { (picks[cur] = picks[cur] || {}).n = $("note").value.slice(0, 200); save(); };
+  function bar() { const p = picks[cur] || {};
+    $("pr").classList.toggle("on", !!p.r); $("pm").classList.toggle("on", !!p.m); $("pv").classList.toggle("on", !!p.v);
+    $("pr").setAttribute("aria-pressed", !!p.r); $("pm").setAttribute("aria-pressed", !!p.m); $("pv").setAttribute("aria-pressed", !!p.v);
+    $("note").hidden = !p.r; $("note").value = p.n || ""; }
+  const lb = $("lb"), big = $("big");
+  let cur = -1;
+  let opener = null;
+  const behind = () => ["grid", "msg", "tray"].map($).concat([document.querySelector("header"), document.querySelector("footer")]).filter(Boolean);
+  async function show(i) {
+    const n = m.items.length;
+    if (!lb.classList.contains("open")) {                 // focus moves into the photo view; what's behind is inert
+      opener = document.activeElement;
+      behind().forEach(el => el.inert = true);
+      document.body.classList.add("lbopen");
+      setTimeout(() => $("close").focus(), 0);
+    }
+    cur = (i + n) % n;
+    lb.classList.add("open");
+    document.body.style.overflow = "hidden";
+    $("count").textContent = (cur + 1) + " / " + n; bar();
+    lb.setAttribute("aria-label", "Photo " + (cur + 1) + " of " + n);
+    big.classList.remove("on");
+    const want = cur, u = await url(m.items[cur].f).catch(() => null);
+    if (want !== cur || !u) return;
+    big.onload = () => big.classList.add("on");
+    big.src = u;
+    [cur + 1, cur - 1].forEach(j => url(m.items[(j + n) % n].f).catch(() => {}));
+  }
+  function hide() { const cell = document.querySelector('.cell[data-i="' + cur + '"]') || opener;   // back to the photo last seen
+    lb.classList.remove("open"); document.body.style.overflow = ""; big.removeAttribute("src"); cur = -1;
+    behind().forEach(el => el.inert = false); document.body.classList.remove("lbopen");
+    if (cell && cell.focus) cell.focus(); opener = null; }
+  $("prev").onclick = e => { e.stopPropagation(); show(cur - 1); };
+  $("next").onclick = e => { e.stopPropagation(); show(cur + 1); };
+  $("close").onclick = e => { e.stopPropagation(); hide(); };
+  lb.onclick = e => { if (e.target === lb) hide(); };
+  document.addEventListener("keydown", e => {
+    if (cur < 0) return;
+    if (e.target.closest && e.target.closest("input, textarea") && e.key !== "Escape") return;   // typing a note
+    if (e.key === "ArrowLeft") show(cur - 1);
+    else if (e.key === "ArrowRight") show(cur + 1);
+    else if (e.key === "Escape") hide();
+  });
+  let sx = null, sy = null;
+  lb.addEventListener("touchstart", e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+  lb.addEventListener("touchend", e => {
+    if (sx === null) return;
+    const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+    sx = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) show(cur + (dx < 0 ? 1 : -1));
+    else if (dy > 90 && Math.abs(dy) > Math.abs(dx)) hide();
+  }, { passive: true });
+}
+main();
+})();
+</script>
+<footer><div id="contact"></div><span hidden data-credit></span></footer>
+</body>
+</html>

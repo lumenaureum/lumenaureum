@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en" data-theme="dark"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Lumen Aureum{% endblock %}</title>
+<link rel="stylesheet" href="/static/fonts/ms.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=static_v('style.css')) }}">
+</head><body class="{{ 'home' if request.endpoint == 'home' }}">
+{% set ep = request.endpoint %}
+<nav class="top">
+  <a class="brand" href="{{ url_for('home') }}" style="padding:0;background:none">
+    <img src="{{ url_for('static', filename='brand/mark.svg') }}" alt="" style="width:40px;height:40px;display:block">
+    Lumen Aureum</a>
+  <form class="search" method="get" action="{{ url_for('search') }}"><input name="q" value="{{ request.args.get('q', '') if ep == 'search' }}" placeholder="Search"></form>
+  <span class="spacer"></span>
+  <a href="{{ url_for('settings_view') }}" class="gear {{ 'on' if ep == 'settings_view' }}" title="Settings"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></a><form method="post" action="{{ url_for('logout') }}" class="inline"><button class="quiet" title="Sign out" style="padding:4px 9px;font-size:12px">Sign out</button></form>
+  <a href="{{ url_for('contact_new') }}" class="cta">+ Contact</a><a href="{{ url_for('inquiry') }}" class="{{ 'on' if ep == 'inquiry' }}">+ Inquiry</a>
+</nav>
+<main>{% set notice = take_notice() %}{% if notice %}<div class="clash toast" role="status">{{ notice }}<button type="button" class="toast-x" aria-label="Dismiss" data-dismiss>&times;</button></div>{% endif %}{% if ep != 'home' %}<a class="back" href="{{ url_for('home') }}">&lsaquo; Today</a>{% endif %}{% set sp_ = ep in SETTINGS_ENDPOINTS %}{% if sp_ %}<div class="setwrap">{% include "_settings_nav.html" %}<div class="setmain">{% endif %}{% block body %}{% endblock %}{% if sp_ %}</div></div>{% endif %}</main>
+{% set jobs_ = jobs_visible() %}{% if jobs_ %}<aside class="jobs" aria-live="polite">{% for j in jobs_ %}
+  <div class="job {{ j.state }}"><b>{{ j.label }}</b> <span>{% if j.state == 'running' %}working...{% elif j.state == 'error' %}{{ j.message }}{% else %}{{ j.message }}{% endif %}</span></div>{% endfor %}
+  {% if jobs_|selectattr('state', 'equalto', 'running')|list %}<span hidden data-poll="{{ url_for('jobs_state') }}"></span>{% endif %}</aside>{% endif %}
+<script src="{{ url_for('static', filename='ui.js', v=static_v('ui.js')) }}"></script>
+</body></html>

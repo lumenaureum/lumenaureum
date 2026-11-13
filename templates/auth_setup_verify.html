@@ -1,0 +1,13 @@
+{% extends "auth_base.html" %}{% block body %}
+<style>.auth { max-width: 460px; } .help { font-size: 13px; color: var(--mute); }</style>
+<h1>Step 2 of 3: phone code</h1>
+<p class="mute">Scan with an authenticator app (Google Authenticator, Microsoft Authenticator, or the one built into your password manager), then type its code.</p>
+<div class="card f" style="align-items:center">
+  <div class="qr">{{ qr|safe }}</div>
+  <details><summary class="help">On this phone, or can't scan? Type this key into the app</summary><div class="mono">{{ secret }}</div></details>
+  <form method="post" class="f" style="width:100%">
+    {% if err %}<div class="err">No match. Use the code showing now; check your phone's clock.</div>{% endif %}
+    <input name="code" placeholder="6-digit code" autocomplete="one-time-code" inputmode="numeric" required autofocus>
+    <button class="primary">Next</button>
+  </form>
+</div>{% endblock %}

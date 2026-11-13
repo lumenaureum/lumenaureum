@@ -1,0 +1,11 @@
+# Direct dependencies of the image (licenses: requirements.txt). The lock file pins them and everything they pull in.
+flask>=3.1
+cryptography>=44
+pyrage>=1.2
+pillow>=11
+weasyprint>=65
+segno>=1.6
+sqlcipher3-binary>=0.6
+gunicorn>=23
+paramiko>=3.5
+boto3>=1.35

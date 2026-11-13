@@ -1,0 +1,34 @@
+{
+  "rounds": 600000,
+  "salt": "the link key's 32 bytes, then the gallery id in ASCII",
+  "vectors": [
+    {
+      "link_key": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+      "gallery_id": "gal123456789",
+      "word": "Biscuit",
+      "normalized": "biscuit",
+      "key": "WA8dnQgtlGNtuXRa3Zb69KCvfe1R3-8P3dhl4wXiYX4"
+    },
+    {
+      "link_key": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+      "gallery_id": "gal123456789",
+      "word": "  BISCUIT  ",
+      "normalized": "biscuit",
+      "key": "WA8dnQgtlGNtuXRa3Zb69KCvfe1R3-8P3dhl4wXiYX4"
+    },
+    {
+      "link_key": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+      "gallery_id": "gal123456789",
+      "word": "blue   heron",
+      "normalized": "blue heron",
+      "key": "ae7-dNfiQomKu5nIN24CFwQKKCNTzdgzZ-O3tIcuDHQ"
+    },
+    {
+      "link_key": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+      "gallery_id": "gal123456789",
+      "word": "Ünïcode Wörd",
+      "normalized": "ünïcode wörd",
+      "key": "ovRgOhR8p1hsdDlaqs17QpCh4xBgP-gB-CFNGW03ymI"
+    }
+  ]
+}

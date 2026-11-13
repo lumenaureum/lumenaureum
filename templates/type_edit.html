@@ -1,0 +1,71 @@
+{% extends "base.html" %}{% from "_macros.html" import help with context %}
+{% block title %}{{ t.label }} - Lumen Aureum{% endblock %}
+{% block body %}
+<div class="row"><h1 class="grow">{{ t.label }}</h1><a class="btn quiet" href="{{ url_for('type_walk', key=t.key, n=0) }}">Walk me through this</a><a class="go" href="{{ url_for('settings_view') }}">Settings &rsaquo;</a></div>
+{% if saved %}<p class="ok-msg" style="color:var(--gold)">Saved.</p>{% endif %}
+<form method="post" class="card f" style="max-width:720px;margin-top:12px">
+  <h2>Steps</h2>
+  <p class="mute" style="margin:0 0 6px;font-size:13px">Day: days from the shoot (-7 is a week before). Blank: no due date.</p>
+  {% for stage in stages %}
+  <h3 style="margin:14px 0 4px">{{ stage_label[stage] }}</h3>
+  <table class="data steps"><tbody>
+    {% for st in flow.get(stage, []) %}{% set k = stage ~ '_' ~ loop.index0 %}
+    <tr>{% if st[0] == 'auto' %}
+      <td><input type="hidden" name="{{ k }}_kind" value="auto"><input type="hidden" name="{{ k }}_key" value="{{ st[1] }}">
+        <span class="mute">{{ auto_label.get(st[1], st[1]) }}</span> <small class="mute">(automatic)</small></td><td></td>
+    {% else %}
+      <td><input type="hidden" name="{{ k }}_kind" value="{{ st[0] }}">{% if st[1] in C.BUILTIN_STEPS %}<input type="hidden" name="{{ k }}_label" value="{{ st[1] }}"><span>{{ st[1] }}</span> <small class="mute" title="The app recognizes this step by name, so its wording is fixed. You can drop it.">(built in)</small>{% else %}<input name="{{ k }}_label" value="{{ st[1] }}" maxlength="80">{% endif %}</td>
+      <td style="width:90px"><input type="number" name="{{ k }}_days" value="{{ st[2] if st[2] is not none }}" placeholder="Day"></td>
+    {% endif %}
+      <td style="width:70px"><label class="row" style="gap:4px;font-size:12px"><input type="checkbox" name="{{ k }}_drop" value="1">drop</label></td></tr>
+    {% endfor %}
+    <tr><td><input name="{{ stage }}_new" placeholder="New step" maxlength="80"></td>
+      <td style="width:90px"><input type="number" name="{{ stage }}_new_days" placeholder="Day"></td><td></td></tr>
+    {% set have = flow.get(stage, [])|selectattr(0, 'equalto', 'auto')|map(attribute=1)|list %}
+    <tr><td colspan="3"><select name="{{ stage }}_auto"><option value="">Add an automatic step</option>
+      {% for ak, al in auto_label.items() if ak not in have %}<option value="{{ ak }}">{{ al }}</option>{% endfor %}</select></td></tr>
+  </tbody></table>
+  {% endfor %}
+
+  <h2 style="margin-top:20px">Intake questions</h2>
+  <p class="mute" style="margin:0 0 6px;font-size:13px">One per line, asked of every client of this type. Answers stay with a question while its words stay the same.</p>
+  <textarea name="questions" rows="{{ [questions.count('\n') + 2, 12]|min }}" maxlength="3000">{{ questions }}</textarea>
+
+  <h2 style="margin-top:20px">Terms</h2>
+  <p class="mute" style="font-size:12px;margin:0 0 6px">These sentences go into your quotes and agreements. {{ DOC_DISCLAIMER }}</p>
+  <label class="row" style="gap:6px"><input type="checkbox" name="free_reschedule" value="1"{{ ' checked' if policy.free_reschedule }} style="width:auto;margin:0">One free reschedule, with
+    <input type="number" name="notice_hours" min="0" value="{{ policy.notice_hours }}" style="width:80px;display:inline;margin:0"> hours' notice</label>
+  <label class="row" style="gap:6px">No-show after <input type="number" name="late_minutes" min="0" value="{{ policy.late_minutes }}" style="width:80px;display:inline;margin:0"> minutes late <span class="mute">(0: none)</span></label>
+  {% for k, sentence, blank in C.FILL_INS %}{% if k != 'license_use' or t.key in C.LICENSE_TYPES %}{% set before, after = sentence.split('___') %}
+  <label class="row" style="gap:6px;flex-wrap:wrap">{{ before }}<input name="{{ k }}" maxlength="200" value="{{ policy.get(k) or '' }}" placeholder="{{ blank|lower }}" class="grow" style="width:auto;min-width:240px;margin:0">{{ after }}</label>
+  {% else %}<input type="hidden" name="{{ k }}" value="{{ policy.get(k) or '' }}">{% endif %}{% endfor %}
+  <label class="row" style="gap:6px;flex-wrap:wrap">I keep the unedited files for <input type="number" name="keep_raw_days" min="1" max="3650" value="{{ C.raw_keep_days(t.key) }}" style="width:90px;display:inline;margin:0"> days after delivery, then delete them.{{ help("One number for both: the agreement says it, and the RAWs and outtakes are deleted on that day (Today warns a week ahead).") }}</label>
+  <label class="row" style="gap:6px;flex-wrap:wrap">Files are delivered by default
+    <select name="delivery_method" style="width:auto;display:inline;margin:0">{% for k_, v_ in C.DELIVERY_METHODS.items() %}<option value="{{ k_ }}"{{ ' selected' if k_ == C.delivery_method(t.key) }}>{{ v_[0] }}</option>{% endfor %}</select>
+    {{ help("Each session can choose another way; its agreement says which. A download link is one you send from your own service.") }}</label>
+  <label class="row" style="gap:6px;flex-wrap:wrap">Photos ready within <input type="number" name="delivery_days" min="1" max="365" value="{{ C.delivery_days(t.key) }}" style="width:90px;display:inline;margin:0"> days of the session.</label>
+  <label class="row" style="gap:6px;flex-wrap:wrap">The gallery stays up for <input type="number" name="gallery_days" min="1" max="3650" value="{{ C.gallery_days(t.key) }}" style="width:90px;display:inline;margin:0"> days after the client first opens it.{{ help("Blank or the general number (Online galleries) follows the general setting.") }}</label>
+  <label class="row" style="gap:6px"><input type="checkbox" name="outfits" value="1"{{ ' checked' if policy.outfits }} style="width:auto;margin:0">Outfits and props lines</label>
+  <label class="row" style="gap:6px;flex-wrap:wrap">What to wear and bring: "You plan the look: <input name="wear" maxlength="200" value="{{ policy.wear or C.DEFAULT_WEAR }}" class="grow" style="width:auto;min-width:240px;margin:0">, and any props."</label>
+  <div class="row" style="gap:14px;font-size:14px"><a class="go" href="{{ url_for('wording_edit', doc='agreement', type=t.key) }}">Agreement wording for {{ t.label }} &rsaquo;</a><a class="go" href="{{ url_for('wording_edit', doc='release', type=t.key) }}">Release wording &rsaquo;</a></div>
+  <div class="row" style="gap:8px;flex-wrap:wrap"><span>Deposit for this type</span>
+    <input type="number" name="deposit_value" min="0" value="{{ t.get('deposit_pct') if t.get('deposit_pct') is not none else (t.get('deposit_amount') if t.get('deposit_amount') is not none else '') }}" placeholder="general rule" style="width:130px">
+    <select name="deposit_mode" style="width:auto"><option value="amt"{{ ' selected' if t.get('deposit_amount') is not none }}>dollars</option><option value="pct"{{ ' selected' if t.get('deposit_pct') is not none }}>% of the price</option></select>
+    <span class="mute" style="font-size:12px">Blank uses the general deposit.</span></div>
+  <div class="row" style="gap:8px;flex-wrap:wrap"><span>Portfolio permission discount</span>
+    <input type="number" name="portfolio_value" min="0" value="{{ t.portfolio_pct or t.portfolio_amount or '' }}" placeholder="none" style="width:110px">
+    <select name="portfolio_mode" style="width:auto"><option value="amt"{{ ' selected' if t.portfolio_amount }}>dollars</option><option value="pct"{{ ' selected' if t.portfolio_pct }}>% of the price</option></select>
+    {{ help("Off unless you set it. A client who lets you show up to " ~ C.MARKETING_PICKS ~ " photos (you choose; they may suggest favorites and say no to any) gets this off the price. A client who declines pays full price, and nothing from the session is ever shown. Some photographers don't offer it when children are photographed.") }}</div>
+  <label class="row" style="gap:6px"><input type="checkbox" name="gallery_codeword" value="1"{{ ' checked' if policy.get('gallery_codeword') }} style="width:auto;margin:0">Ask for a gallery codeword{{ help("The client picks three words at intake. Their gallery opens only with the link and the words together; short or common words are refused, since anyone holding the link could try to guess them.") }}</label>
+  <label class="row" style="gap:6px"><input type="checkbox" name="indoors" value="1"{{ ' checked' if t.indoors }} style="width:auto;margin:0">Shot indoors (no golden hour or sunset times){{ help("Studio, newborn and food sessions don't need sunset times; they are left off this type's pages and documents.") }}</label>
+  <label class="row" style="gap:6px"><input type="checkbox" name="all_sign" value="1"{{ ' checked' if t.all_sign }} style="width:auto;margin:0">Every adult on the client record signs the agreement{{ help("For couples and weddings: each adult gets a signature line, and a signer needs no separate release.") }}</label>
+  <div class="row" style="margin-top:12px"><button class="primary">Save</button></div>
+</form>
+<div class="card" id="terms" style="max-width:720px"><h2>Terms as clients read them</h2>
+  <p class="mute" style="font-size:13px;margin:0 0 8px">On quotes, invoices and session details for {{ t.label }}. Built from the settings above and in Payments and terms.</p>
+  <table class="data"><tbody>{% for head, txt in C.build_terms(t.key) %}<tr><td style="width:160px"><b>{{ head }}</b></td><td>{{ txt }}</td></tr>{% endfor %}</tbody></table>
+  {% set rs = review_state('terms', t.key) %}
+  <form method="post" action="{{ url_for('doc_review', doc='terms') }}" class="reviewbox {{ 'ok' if rs.reviewed }}"><input type="hidden" name="type" value="{{ t.key }}"><input type="hidden" name="back" value="{{ url_for('type_edit', key=t.key) }}#terms">
+  {% if rs.reviewed %}<span class="grow"><b>Reviewed {{ rs.when }}.</b> Changes you make later keep it reviewed.</span><button class="quiet" name="revert" value="1" data-confirm="Put {{ t.label }}'s terms back to the shipped defaults (reschedule, no-show, fill-ins, deposit) and mark them SAMPLE again?">Revert to default</button>
+  {% else %}<span class="grow"><b>These terms print as SAMPLE</b> until you review them here. Saving does not count.</span><button class="quiet" name="revert" value="1" data-confirm="Put {{ t.label }}'s terms back to the shipped defaults and keep them marked SAMPLE?">Revert to default</button><button class="primary">Reviewed - remove SAMPLE</button>{% endif %}</form></div>
+{% endblock %}

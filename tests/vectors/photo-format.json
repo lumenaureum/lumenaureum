@@ -1,0 +1,27 @@
+{
+  "format": "LAP1",
+  "record_bytes": 1048576,
+  "vectors": [
+    {
+      "name": "one-record",
+      "file_id": "00112233445566778899aabbccddeeff",
+      "key_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "plaintext_len": 39,
+      "plaintext_sha256": "3296e462a770b6cb8f1b6340d40e222e560f793a123e072f5a8398cd787b10df",
+      "file_sha256": "5a4dcd429dc228b3bfd14d0e24acc71a552e245ed54fc429d0998f2901e5a3ca",
+      "file_len": 63,
+      "plaintext_hex": "4c756d656e2041757265756d2070686f746f20666f726d6174207465737420766563746f722e0a",
+      "file_hex": "4c4150310000003742c9d8bbdb0cc2c87acddc58385cf9f6a62c763547f30d4ef4bec7e6b68b7d202b3c92d358dcb26617db227a1b6b7ddf9700d6df957b32"
+    },
+    {
+      "name": "two-records",
+      "file_id": "00112233445566778899aabbccddeeff",
+      "key_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "plaintext_len": 1049576,
+      "plaintext_sha256": "5c552b3cb24ce48cdddbc3ffc5bc53ddfc557b33d4a9ec5422861e0ef9b14311",
+      "file_sha256": "537ac70b9434385734c07b8296a7a71c994a408e8691e8d3875ed2edad688274",
+      "file_len": 1049620,
+      "plaintext_rule": "byte i is i mod 251, for i from 0 to plaintext_len - 1"
+    }
+  ]
+}

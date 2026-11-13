@@ -1,0 +1,99 @@
+{% extends "base.html" %}{% from "_macros.html" import seg, help with context %}
+{% block title %}Settings - Lumen Aureum{% endblock %}
+{% block body %}
+{% set tab = request.args.get('tab', 'general') %}
+<h1>{{ {'general': 'General', 'fees': 'Prices', 'documents': 'Documents: review status', 'file': 'Settings file', 'system': 'System'}.get(tab, 'Settings') }}</h1>
+{% include "_import_msg.html" %}{% if request.args.get('saved') %}<p class="ok-msg" style="color:var(--gold)">Saved.</p>{% endif %}
+{% if tab == 'general' %}
+<form method="post" class="card f" style="max-width:620px;margin-top:4px"><input type="hidden" name="main_posted" value="1">
+  <div class="f2"><div><label class="l">Your name</label><input name="photographer_name" maxlength="200" value="{{ photographer }}"></div>
+    <div><label class="l">Brand name, if different</label><input name="studio_name" maxlength="200" value="{{ studio }}"></div></div>
+  <div><label class="l">Business (party to agreements)</label><input name="business_name" maxlength="200" value="{{ setting('business_name') }}"></div>
+  <div class="f2"><div><label class="l">Business email{{ help("Printed on your documents. Clients' gallery picks are sent here.") }}</label><input type="email" name="business_email" maxlength="200" value="{{ setting('business_email') }}"></div>
+    <div><label class="l">Business phone{{ help("Printed with your email and address at the top of quotes, invoices and session details.") }}</label><input type="tel" name="business_phone" maxlength="40" value="{{ setting('business_phone') }}"></div></div>
+  <div><label class="l">Mailing address</label><textarea name="business_address" rows="2" maxlength="400">{{ setting('business_address') }}</textarea></div>
+  <div class="f2"><div><label class="l">Tax ID{{ help("Printed on invoices if you fill it in. Leave blank to keep it off.") }}</label><input name="business_tax_id" maxlength="40" value="{{ setting('business_tax_id') }}"></div>
+    <div><label class="l">Where clients pay you{{ help("Printed after the ways to pay on quotes, agreements and invoices. For example: Venmo @yourname. Card: your payment link. Check your state's rules before adding a card fee.") }}</label><input name="pay_details" maxlength="200" value="{{ setting('pay_details') }}" placeholder="Venmo @yourname. Card: your payment link"></div>
+    <div><label class="l">Bank details for transfers{{ help("Printed on invoices if you fill it in, for clients who pay by bank transfer.") }}</label><textarea name="bank_details" rows="2" maxlength="300">{{ setting('bank_details') }}</textarea></div></div>
+  <div class="f2"><div><label class="l">Mileage rate ($ per mile){{ help("Used for travel lines and your mileage log. Each trip keeps the rate in force when it was logged.") }}</label><input type="number" step="0.001" name="mileage_rate" value="{{ rate }}"></div>
+    <div><label class="l">Home base{{ help("Where your drives start, for travel distance.") }}</label><input name="home_base" value="{{ home_base }}"></div></div>
+  <div class="f2"><div><label class="l">Age of majority{{ help("Under this age a person is a minor, and a parent or guardian signs their release. 18 in most US states; 19 in Alabama and Nebraska, 21 in Mississippi; check where you work.") }}</label><input type="number" name="age_majority" min="14" max="25" value="{{ majority_age() }}" style="width:90px"></div>
+    <div><label class="l">Gallery address{{ help("The web address your online galleries are served from. Set it up in Online galleries.") }}</label><input value="{{ gallery_base or 'Not set up' }}" disabled></div></div>
+  <label class="row" style="gap:6px"><input type="checkbox" name="credit" value="1" {{ 'checked' if setting('credit_off') != '1' }}>Credit Lumen Aureum on quotes, invoices and galleries{{ help("One small line: " ~ C.CREDIT ~ ". Never on agreements or releases.") }}</label>
+  {% if n_demo %}<label class="row" style="gap:6px"><input type="checkbox" name="clear_demo" value="1">Delete the {{ n_demo }} demo clients</label>{% endif %}
+  <div><button class="primary">Save</button></div>
+</form>
+<div class="card f" style="max-width:620px"><h2>Logo on your documents</h2>
+  <p class="mute" style="font-size:13px;margin:0">Printed at the top of quotes, invoices, receipts, agreements, releases, session details, statements and the price list. PNG or JPEG; it is resized to fit.</p>
+  {% if setting('logo_png') %}<div style="margin:10px 0"><img src="{{ logo_src() }}" alt="Your logo" style="max-height:70px;max-width:280px;background:#fff;padding:6px;border-radius:6px"></div>{% endif %}
+  <form method="post" action="{{ url_for('logo_upload') }}" enctype="multipart/form-data" class="row" style="gap:8px;flex-wrap:wrap">
+    <input type="file" name="logo" accept="image/png,image/jpeg" style="width:auto" required><button class="quiet">Upload</button></form>
+  {% if setting('logo_png') %}<form method="post" action="{{ url_for('logo_upload') }}" class="row"><button class="ghost" name="remove" value="1">Remove the logo</button></form>{% endif %}
+</div>
+{% elif tab == 'fees' %}
+<form method="post" class="card f" style="max-width:760px"><input type="hidden" name="fees_posted" value="1">
+  <h2 id="fees">Fees and quotes</h2>
+  <div class="row"><a class="btn quiet" href="{{ url_for('fee_sheet') }}" target="_blank">Price list for clients</a><a class="btn quiet" href="{{ url_for('fee_sheet_pdf') }}">Download PDF</a></div>
+  <div class="sub">Saving a change makes a new version of your price list (version {{ fees.id + 1 }}). Quotes already made keep the prices they were built from.</div>
+  <div class="row"><label class="l" style="margin:0">Quotes good for</label><input type="number" name="quote_term_days" value="{{ term }}" min="1" style="width:80px"><span class="mute">days</span>
+    <label class="l" style="margin:0 0 0 18px">Sales tax</label><input type="number" step="0.01" min="0" name="sales_tax_pct" value="{{ tax_pct }}" style="width:70px"><span class="mute">%</span>
+    {% if region %}<span class="mute">+</span><input type="number" step="0.01" min="0" name="local_tax_pct" value="{{ local_pct }}" style="width:70px"><span class="mute">% local</span>{% endif %}</div>
+  <table class="data fees"><tbody>
+  {% for it in fees['items'] %}<tr><td><input name="fee_label_{{ loop.index0 }}" value="{{ it.label }}"></td>
+    <td style="width:110px"><input type="number" step="0.01" name="fee_amt_{{ loop.index0 }}" value="{{ '%g' % it.amount }}"></td>
+    <td class="mute" style="width:70px">{{ {'flat':'flat','hour':'per hr','mile':'per mi','each':'each'}[it.unit] }}</td>
+    <td style="width:70px"><label class="row" style="gap:4px;font-size:12px"><input type="checkbox" name="fee_tax_{{ loop.index0 }}" value="1" {{ 'checked' if it.get('taxable', True) }}>taxed</label></td>
+    <td style="width:70px"><label class="row" style="gap:4px;font-size:12px"><input type="checkbox" name="fee_del_{{ loop.index0 }}" value="1">drop</label></td></tr>{% endfor %}
+  <tr><td><input name="new_label" placeholder="New fee"></td><td><input type="number" step="0.01" name="new_amount" placeholder="$"></td>
+    <td colspan="2">{{ seg('new_unit', [('flat','flat'),('hour','per hr'),('each','each'),('mile','per mi')], 'flat') }}</td>
+    <td><label class="row" style="gap:4px;font-size:12px"><input type="checkbox" name="new_taxable" value="1" checked>taxed</label></td></tr>
+  </tbody></table>
+  <div class="sub">Travel at $0 uses the mileage rate above. Older schedules: {% for v in versions %}<a href="{{ url_for('fees_view', sched_id=v.id) }}">#{{ v.id }}</a>{{ ', ' if not loop.last }}{% endfor %}</div>
+  <div><button class="primary">Save fees</button></div>
+</form>
+{% include "_editing.html" %}
+<div class="card" id="terms" style="max-width:760px"><h2>Terms on the price list</h2>
+  <p class="mute" style="font-size:13px;margin:0 0 8px">What the client-facing price list says, for every session type together. Each type's own terms are on its page under Session types. <a class="go" href="{{ url_for('fee_sheet') }}" target="_blank">See the price list &rsaquo;</a></p>
+  {% set src_ = {'Booking': ('money', 'Payments and terms'), 'Payment': ('money', 'Payments and terms'), 'Delivery': ('money', 'Payments and terms'), 'Travel and permits': ('money', 'Payments and terms')} %}
+  <table class="data"><tbody>{% for head, txt in C.TERMS %}<tr><td style="width:160px"><b>{{ head }}</b></td><td>{{ txt }}</td>
+    <td style="width:150px;font-size:12.5px">{% if head in src_ %}<a class="go" href="{{ url_for('setup_step', step=src_[head][0]) }}">Change in {{ src_[head][1] }} &rsaquo;</a>{% else %}<span class="mute">Per session type, under Session types</span>{% endif %}</td></tr>{% endfor %}</tbody></table>
+  {% set rs = review_state('terms') %}
+  <form method="post" action="{{ url_for('doc_review', doc='terms') }}" class="reviewbox {{ 'ok' if rs.reviewed }}"><input type="hidden" name="back" value="{{ url_for('settings_view', tab='fees') }}#terms">
+  {% if rs.reviewed %}<span class="grow"><b>Reviewed {{ rs.when }}.</b> The price list prints without SAMPLE.</span>
+  {% else %}<span class="grow"><b>These terms print as SAMPLE</b> on the price list until you review them here.</span><button class="primary">Reviewed - remove SAMPLE</button>{% endif %}</form></div>
+{% elif tab == 'documents' %}
+<div class="card" style="max-width:760px;margin-top:4px"><h2>Review status</h2>
+  <p class="mute" style="font-size:13px;margin:0 0 8px">Each supplied document prints SAMPLE until you read its wording and press Reviewed on its page. A session type with its own wording is reviewed on its own.</p>
+  <p style="font-size:13px;border-left:3px solid var(--gold);padding:4px 10px;margin:4px 0 10px">{{ DOC_DISCLAIMER }}</p>
+  <table class="data"><thead><tr><th>Document</th><th>For</th><th>Status</th><th></th></tr></thead><tbody>
+  {% for r in reviews %}<tr><td>{{ r.label }}</td><td class="mute">{{ r.for_ }}</td>
+    <td>{% if r.reviewed %}<span class="pill green">Reviewed {{ r.when }}</span>{% else %}<span class="pill amber">SAMPLE</span>{% endif %}</td>
+    <td><a class="go" href="{{ r.url }}">{{ 'Open' if r.reviewed else 'Review' }} &rsaquo;</a></td></tr>{% endfor %}
+  </tbody></table></div>
+{% elif tab == 'file' %}
+<div class="card" style="max-width:560px" id="settings-file"><h2>Settings file</h2>
+  <p class="mute" style="font-size:13px">Your business details, terms, prices, tax, gallery address and storage locations, in one file: to set up
+    another install, or to keep a copy. It never contains client records, passwords or secret keys, but it does carry your tax ID and bank details if you set them: share it with care.</p>
+  {% if plugin_errors %}<div class="err">Plugins that didn't load: {{ plugin_errors|join(', ') }}</div>{% endif %}
+  <div class="row" style="gap:10px;flex-wrap:wrap">
+    <a class="btn quiet" href="{{ url_for('settings_export') }}">Export settings</a>
+    <form method="post" action="{{ url_for('settings_import') }}" enctype="multipart/form-data" class="row" style="gap:6px">
+      <input type="hidden" name="back" value="{{ url_for('settings_view', tab='file') }}">
+      <input type="file" name="file" accept=".json,application/json" required style="width:auto">
+      <button class="quiet">Import settings</button></form>
+  </div>
+</div>
+{% elif tab == 'system' %}
+<div class="card" style="max-width:560px"><h2>System</h2>
+  <div class="sub">Database {{ db_path }}</div>
+  <div class="sub">Plugins: {{ plugins|join(', ') or 'none' }}</div></div>
+<div class="card" style="max-width:560px"><h2>Reset database</h2>
+  {% if request.args.get('reset') == 'done' %}<div class="sub"><b>Reset done.</b> The old database was saved as {{ request.args.get('saved') }}</div>
+  {% elif request.args.get('reset') == 'nope' %}<div class="sub"><b>Not reset.</b> Type RESET exactly to confirm.</div>{% endif %}
+  <div class="sub">Deletes every client, person, session, event, payment and note. Settings and the current fee schedule stay (it becomes #1). A copy of the database is saved first (sealed in the vault once a master key exists).</div>
+  <form method="post" action="{{ url_for('settings_reset') }}" class="row" style="margin-top:10px"
+        data-confirm="Delete ALL clients, sessions and history? A backup copy is saved first.">
+    <input name="confirm" placeholder="Type RESET" autocomplete="off" style="width:140px" required>
+    <button class="danger">Reset database</button></form></div>
+{% endif %}
+{% endblock %}

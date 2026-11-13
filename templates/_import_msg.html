@@ -1,0 +1,11 @@
+{% set ir = import_result() %}{% if ir %}
+{% if ir.error %}<div class="err">Nothing was imported: {{ ir.error }}</div>
+{% else %}
+<div class="ok-msg">Imported.{% if ir.skipped %} Not changed: {{ ir.skipped|join(', ') }}.{% endif %}</div>
+{% for n_ in ir.notices or [] %}<div class="err" style="color:var(--warn)">{{ n_ }}</div>{% endfor %}
+{% if ir.gallery %}<form method="post" action="{{ url_for('settings_import_gallery') }}" class="card f" style="margin:8px 0">
+  <input type="hidden" name="back" value="{{ request.path }}">
+  <div>This file sets your online galleries: <b>{{ ir.gallery_words }}</b>. Client galleries will be uploaded there.</div>
+  <div class="row" style="gap:8px"><button class="primary" name="use" value="1">Use it</button><button name="use" value="0" class="quiet">No</button></div>
+</form>{% endif %}
+{% endif %}{% endif %}

@@ -1,0 +1,42 @@
+<style>
+  body { font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #1f1d1a; background: #fff; margin: 0; }
+  .page { max-width: 720px; margin: 0 auto; padding: 36px 40px; }
+  h1 { font: 600 28px/1.2 "Iowan Old Style", Palatino, Georgia, serif; margin: 0; }
+  .sub { color: #6b6459; margin: 6px 0 0; }
+  .promise { margin: 18px 0 6px; padding: 10px 14px; border-left: 3px solid #b86f86; background: #faf5f6; }
+  h2 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #8a5a6b; margin: 22px 0 6px; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 6px 0; border-bottom: 1px solid #ece6dd; vertical-align: top; }
+  td.n { text-align: right; white-space: nowrap; padding-left: 16px; font-variant-numeric: tabular-nums; }
+  ul { margin: 4px 0 0 18px; padding: 0; } li { margin: 2px 0; }
+  .ed b { display: block; margin-top: 8px; }
+  .foot { margin-top: 22px; color: #6b6459; font-size: 13px; }
+  .bar { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center;
+    padding: 10px 16px; background: #f6f2ee; border-bottom: 1px solid #e3dbd2; font-size: 14px; }
+  .bar a, .bar button { display: inline-flex; align-items: center; padding: 7px 14px; border-radius: 7px; border: 1px solid #c9b8bd;
+    background: #fff; color: #5c3d48; font: 600 14px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    text-decoration: none; cursor: pointer; white-space: nowrap; }
+  .bar a:hover, .bar button:hover { background: #f1e6ea; }
+  .bar .send { display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-left: 4px; padding-left: 12px; border-left: 1px solid #ddd; }
+  .bar .send > a:first-child { background: #8a5a6b; border-color: #8a5a6b; color: #fff; }
+  .bar .send > a:first-child:hover { background: #74495a; }
+  .bar [data-close] { order: 99; margin-left: 12px; }
+  .bar .linkish, .bar .strong { }
+  .bar .sent { color: #4f6b42; font-weight: 600; padding: 0 6px; }
+  .bar .noemail input { width: 190px; padding: 6px 8px; border: 1px solid #c9b8bd; border-radius: 6px; }
+  .draft { margin: 0 0 14px; padding: 8px 12px; border: 1px dashed #b86f86; color: #8a5a6b; font-size: 13px; }
+  .sig { display: flex; gap: 40px; margin-top: 36px; } .sig div { flex: 1; border-top: 1px solid #1f1d1a; padding-top: 4px; font-size: 12px; color: #6b6459; }
+  .facts td:first-child { width: 150px; color: #6b6459; }
+  .headfacts td:first-child { width: auto; padding-right: 12px; } .headfacts td { white-space: nowrap; }
+  p { margin: 6px 0; }
+  .bar form { display: inline-flex; gap: 6px; align-items: center; } .bar .marksent .ask { display: none; }
+  .bar .marksent.asking .ask { display: inline; font-weight: 600; color: #1f1d1a; }
+  .bar .marksent.asking button { background: #4f6b42; border-color: #4f6b42; color: #fff; } .bar .noemail { color: #6b6459; }
+  .bar .review { margin-left: 8px; } .reviewbar { color: #6b6459; } .bar .strong { font-weight: 700; }
+  .draft a { color: #8a5a6b; }
+  .reviewpanel { max-width: 640px; margin: 12px auto 0; padding: 10px 14px; border: 1.5px dashed #b86f86; border-radius: 8px; font-size: 14px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .reviewpanel.ok { border-style: solid; border-color: #c9d8bf; color: #4f6b42; }
+  .reviewpanel .rv { background: #8a5a6b; color: #fff; border: 0; border-radius: 6px; padding: 7px 14px; font: 600 14px/1 inherit; cursor: pointer; }
+  .doclogo { display: block; max-height: 64px; max-width: 260px; margin: 0 0 12px; }
+  @media print { .bar, .reviewpanel { display: none; } .draft a { display: none; } .page { padding: 0; } @page { margin: 0.6in; } }
+</style>

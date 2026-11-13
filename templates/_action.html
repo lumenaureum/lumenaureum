@@ -1,0 +1,41 @@
+{# One To do row: the item on the left (icon, what, who, when), its one action on the right, in one column.
+   Anything else (the step's other outcomes, a second action) sits in the ... menu. #}
+{% set more_ = [] %}{% if a.doc and a.post %}{% set more_ = more_ + [dict(verb=a.verb, post=a.post, fields=a.fields)] %}{% endif %}
+{% if a.alt %}{% set more_ = more_ + [a.alt] %}{% endif %}
+<li class="{{ 'primary' if a.primary }} {{ 'theirs' if a.theirs }}" data-group="{{ a.group }}" data-tags="{{ a.tags }}" data-who="{{ a.who.link }}">
+  <div class="act-what"><span class="badged" data-tip="{{ a.tip or a.what }}">{{ sym(a.sym, a.status if a.status in ('late','soon') else 'next', 38) }}{% if a.theirs and a.who.hid %}<span class="badge-face">{{ avatar(a.who.hid, 18) }}</span>{% endif %}</span>{% if show_face %}<span class="act-face sel" data-sel="{{ 'e:%s' % a.who.eid if a.who.eid else 'c:%s' % a.who.hid }}">{% if a.who.eid %}{{ event_avatar(a.who.eid, a.who.name, 30) }}{% elif a.who.hid %}{{ avatar(a.who.hid, 30) }}{% endif %}</span>{% endif %}<span>{{ a.what }}{% if a.detail %}<small class="act-detail" style="display:block;white-space:pre-line;color:var(--mute);font-size:12px;margin-top:2px">{{ a.detail }}</small>{% endif %}{% if a.theirs %} <small class="mute">waiting on them</small>{% endif %}</span></div>
+  {% if show_face %}<a class="act-who name" href="{{ a.who.link }}">{{ a.who.name }}</a>{% endif %}
+  <div class="act-when {{ 'late' if a.group == 'overdue' }}">{{ nice(a.when) if a.when else '' }}</div>
+  <div class="act-btn">
+    {% if a.doc %}<a class="btn {{ 'primary' if a.primary else 'verb' }}" href="{{ a.doc }}"{% if not a.doc_here %} target="_blank"{% endif %}>{{ a.doc_verb or 'Open' }}</a>{{ close_menu(a, back, more_) }}
+    {% elif a.post %}<form method="post" action="{{ a.post }}" class="inline">{% for k, v in a.fields.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}{% if a.ask_date %}<input type="date" name="on" value="{{ iso_today() }}" max="{{ iso_today() }}" title="{{ a.date_tip }}" style="width:auto;display:inline;margin:0 4px 0 0">{% endif %}
+      <input type="hidden" name="back" value="{{ back }}"><button class="{{ 'primary' if a.primary else 'verb' }}">{{ a.verb }}</button></form>{{ close_menu(a, back, more_) }}
+    {% elif a.form %}<button type="button" class="verb" data-toggle-open>{{ a.verb }}</button>{{ close_menu(a, back, more_) }}
+    {% else %}<a class="btn verb" href="{{ a.href }}">{{ a.verb }}</a>{{ close_menu(a, back, more_) }}{% endif %}
+  </div>
+  {% if a.form %}<div class="act-form">
+    {% if a.form == 'logged' %}
+      <form method="post" action="{{ url_for('log_add') }}" class="row"><input type="hidden" name="household_id" value="{{ a.hid }}"><input type="hidden" name="session_id" value="{{ a.sid }}"><input type="hidden" name="back" value="{{ back }}">
+        <span class="seg">{% for c in ['text','call','email','in person','note'] %}<label><input type="radio" name="channel" value="{{ c }}"{{ ' checked' if loop.first }}><span>{{ c }}</span></label>{% endfor %}</span>
+        <input name="summary" class="grow" style="width:auto" placeholder="Note" required><button class="primary">Save</button></form>
+    {% elif a.form == 'intake_done' %}
+      <form method="post" action="{{ url_for('session_intake', sid=a.sid) }}" class="intake-grid"><input type="hidden" name="back" value="{{ back }}">
+        {% for k, label in C.INTAKE.get(a.type, []) %}<label><span>{{ label }}</span><input name="{{ k }}" value="{{ a.intake.get(k, '') }}"></label>{% endfor %}
+        <div><button class="primary">Save</button></div>{% set n_q = C.INTAKE.get(a.type, [])|length %}{% set need_ = [1, n_q // 2]|max %}<div class="intake-note mute" data-need="{{ need_ }}">All optional. Answer at least {{ need_ }} of {{ n_q }} to tick this step off; save as many as you have now.</div></form>
+    {% elif a.form == 'quote_built' %}
+      <form method="post" action="{{ url_for('money_add', sid=a.sid) }}" class="row"><input type="hidden" name="what" value="line"><input type="hidden" name="back" value="{{ back }}">
+        <input name="label" maxlength="200" value="{{ type_label[a.type] }} session" class="grow" style="width:auto" required><input type="number" step="0.01" name="amount" placeholder="$" required style="width:110px"><button class="primary">Add to quote</button></form>
+    {% elif a.form == 'deposit_paid' %}
+      <form method="post" action="{{ url_for('money_add', sid=a.sid) }}" class="row"><input type="hidden" name="what" value="payment"><input type="hidden" name="kind" value="deposit"><input type="hidden" name="back" value="{{ back }}">
+        <input type="number" step="0.01" min="0.01" name="amount" placeholder="$" required style="width:110px" value="{{ '%.2f'|format(a.dep_amt) if a.dep_amt and a.dep_amt > 0.005 }}"><span class="seg">{% for m_ in C.PAYMENT_METHODS %}<label><input type="radio" name="method" value="{{ m_ }}"{{ ' checked' if loop.first }}><span>{{ m_ }}</span></label>{% endfor %}</span>
+        <input name="ref" maxlength="40" placeholder="Check #" style="width:90px" data-show-if="method=check">
+        <input type="date" name="received" value="{{ today.isoformat() }}" style="width:auto"><button class="primary">Record</button></form>
+    {% elif a.form == 'date_set' %}
+      <form method="post" action="{{ url_for('quick', sid=a.sid) }}" class="row"><input type="hidden" name="act" value="date"><input type="hidden" name="back" value="{{ back }}">
+        <input type="date" name="shoot_date" required style="width:auto" data-avail="{{ a.sid }}"><input type="time" name="start_time" style="width:auto"><input name="where" maxlength="200" placeholder="Where" style="width:auto;min-width:180px"><button class="primary">Set</button></form>
+    {% elif a.form == 'favorites' %}
+      <form method="post" action="{{ url_for('quick', sid=a.sid) }}" class="row"><input type="hidden" name="act" value="favorites"><input type="hidden" name="back" value="{{ back }}">
+        <textarea name="retouch_picks" rows="2" placeholder="Retouch" class="grow" style="width:auto"></textarea><input name="favorites" placeholder="Portfolio suggestions" class="grow" style="width:auto"><input name="veto" placeholder="Don't show" class="grow" style="width:auto"><button class="primary">Save</button></form>
+    {% endif %}
+  </div>{% endif %}
+</li>

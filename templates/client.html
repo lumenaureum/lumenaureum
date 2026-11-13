@@ -1,0 +1,85 @@
+{% extends "base.html" %}{% from "_macros.html" import stage_pill, phone, avatar, seg with context %}
+{% block title %}{{ h.name }} - Lumen Aureum{% endblock %}
+{% block body %}
+{% set contact = (people|selectattr('role', 'equalto', 'parent')|list + people|selectattr('role', 'equalto', 'adult')|list)|first %}
+{% set f = face(h.id) %}
+<div class="page-head facehead">
+  <form method="post" action="{{ url_for('face_upload', hid=h.id) }}" enctype="multipart/form-data" class="faceform">
+    <label title="{{ 'Change' if f.url else 'Add' }} reference photo">{{ avatar(h.id, 72) }}<span class="faceedit">{{ 'Change' if f.url else 'Add photo' }}</span>
+      <input type="file" name="photo" accept="image/*" class="vh" aria-label="{{ 'Change' if f.url else 'Add' }} reference photo" data-autosubmit></label>
+    {% if f.url %}<button class="ghost" name="remove" value="1" style="font-size:12px">Remove</button>{% endif %}
+  </form>
+  <div class="grow"><div class="kicker">Client</div><h1>{{ h.name }}</h1></div></div>
+<div class="surface highlights">
+  <div><div class="k">Contact</div><div class="v">{{ contact.name if contact else '-' }}</div></div>
+  <div><div class="k">Phone</div><div class="v">{% if contact and contact.phone %}{{ phone(contact.phone) }}{% else %}-{% endif %}</div></div>
+  <div><div class="k">Email</div><div class="v">{% if contact and contact.email %}<a href="mailto:{{ contact.email }}">{{ contact.email }}</a>{% else %}-{% endif %}</div></div>
+  <div><div class="k">Source</div><div class="v">{{ h.source or '-' }}</div></div>
+  <div><div class="k">Referred by</div><div class="v">{% if referrer %}<a href="{{ url_for('client_view', hid=referrer.id) }}">{{ referrer.name }}</a>{% else %}-{% endif %}</div></div>
+  <div><div class="k">Referred</div><div class="v">{% for r in referred %}<a href="{{ url_for('client_view', hid=r.id) }}">{{ r.name }}</a>{{ ', ' if not loop.last }}{% else %}-{% endfor %}</div></div>
+</div>
+
+
+<section class="sec" id="sessions"><h2 class="sec-h">Sessions</h2>
+  <table class="data"><thead><tr><th>Shoot</th><th>Type</th><th>Title</th><th>Stage</th></tr></thead><tbody>
+  {% for s in sessions %}<tr class="rowlink" data-href="{{ url_for('session_view', sid=s.id) }}">
+    <td data-v="{{ s.shoot_date or '9999' }}"><a href="{{ url_for('session_view', sid=s.id) }}">{{ nice(s.shoot_date) or 'No date' }}</a></td>
+    <td>{{ type_label[s.type] }}</td><td class="mute">{{ s.title }}</td><td>{{ stage_pill(s.stage) }}</td></tr>
+  {% else %}<tr><td colspan="4" class="empty">None</td></tr>{% endfor %}</tbody></table>
+  <div class="row rel-add"><a class="btn primary" href="{{ url_for('inquiry', hid=h.id) }}">+ New inquiry</a></div>
+</section>
+
+<section class="sec" id="people"><h2 class="sec-h">People</h2>
+  <datalist id="rels">{% for r in RELATIONS %}<option value="{{ r }}">{% endfor %}</datalist>
+  <table class="data"><thead><tr><th>Name</th><th>Who</th>{% if show_gender %}<th>Gender</th>{% endif %}<th>Age</th><th>Minor</th>{% if show_born %}<th>Born or due</th>{% endif %}{% if show_grad %}<th>Grad year</th>{% endif %}<th>Email</th><th>Phone</th><th></th></tr></thead><tbody>
+  {% for p in people %}<tr>
+    <form method="post" action="{{ url_for('person_save', pid=p.id) }}" id="p{{ p.id }}"></form>
+    <td><input form="p{{ p.id }}" name="name" maxlength="200" value="{{ p.name }}"></td>
+    <td><input form="p{{ p.id }}" name="relation" list="rels" value="{{ p.relation or '' }}" placeholder="Who" style="width:120px"></td>
+    {% if show_gender %}<td>{{ seg('gender', ['F','M'], p.gender, form='p%s' % p.id) }}</td>{% endif %}
+    <td>{% if p.birth_date %}<span class="mute" style="font-size:13px">{{ age_label(p) }}</span>{% else %}<span class="agebox"><input form="p{{ p.id }}" type="number" name="age" min="0" max="120" value="{{ age_of(p) if age_of(p) is not none else '' }}" style="width:70px" placeholder="Age" data-age data-minor="is_minor" data-approx="age_approx" data-majority="{{ majority_age() }}"><label><input form="p{{ p.id }}" type="checkbox" name="age_approx" value="1"{{ ' checked' if p.age_approx }}>approx.</label></span>{% endif %}</td>
+    <td><input form="p{{ p.id }}" type="hidden" name="minor_shown" value="1"><input form="p{{ p.id }}" type="checkbox" name="is_minor" value="1"{{ ' checked' if p.is_minor }} aria-label="Minor"></td>
+    {% if show_born %}<td><input form="p{{ p.id }}" type="date" name="birth_date" value="{{ p.birth_date or '' }}" style="width:auto"></td>{% endif %}
+    {% if show_grad %}<td><input form="p{{ p.id }}" type="number" name="grad_year" value="{{ p.grad_year or '' }}" style="width:90px"></td>{% endif %}
+    <td><input form="p{{ p.id }}" type="email" name="email" maxlength="200" value="{{ p.email }}"></td>
+    <td><input form="p{{ p.id }}" type="tel" name="phone" maxlength="200" value="{{ p.phone }}"></td>
+    <td style="white-space:nowrap"><button form="p{{ p.id }}">Save</button><button form="p{{ p.id }}" class="ghost" name="delete" value="1" data-confirm="Remove {{ p.name }}? A release they already signed stays as a record until the client is deleted.">x</button></td>
+  </tr>{% endfor %}
+  <tr><form method="post" action="{{ url_for('person_add', hid=h.id) }}" id="pnew"></form>
+    <td><input form="pnew" name="name" maxlength="200" placeholder="New person" required></td>
+    <td><input form="pnew" name="relation" list="rels" placeholder="Who" style="width:120px"></td>
+    {% if show_gender %}<td>{{ seg('gender', ['F','M'], form='pnew') }}</td>{% endif %}
+    <td><span class="agebox"><input form="pnew" type="number" name="age" min="0" max="120" style="width:70px" placeholder="Age" data-age data-minor="is_minor" data-approx="age_approx" data-majority="{{ majority_age() }}"><label><input form="pnew" type="checkbox" name="age_approx" value="1">approx.</label></span></td>
+    <td><input form="pnew" type="hidden" name="minor_shown" value="1"><input form="pnew" type="checkbox" name="is_minor" value="1" aria-label="Minor"></td>
+    {% if show_born %}<td><input form="pnew" type="date" name="birth_date" style="width:auto"></td>{% endif %}
+    {% if show_grad %}<td><input form="pnew" type="number" name="grad_year" style="width:90px"></td>{% endif %}
+    <td><input form="pnew" type="email" name="email" maxlength="200"></td><td><input form="pnew" type="tel" name="phone" maxlength="200"></td>
+    <td><button form="pnew">Add</button></td></tr>
+  </tbody></table>
+</section>
+
+<section class="sec" id="log"><h2 class="sec-h">History</h2><a class="go" href="{{ url_for('client_stage', hid=h.id) }}#history">History &rsaquo;</a></section>
+
+<section class="sec" id="details"><h2 class="sec-h">Details</h2>
+  <p style="margin:0 0 8px"><a class="go" href="{{ url_for('statement', hid=h.id) }}" target="_blank">Monthly statement &rsaquo;</a></p>
+  <form method="post" action="{{ url_for('client_save', hid=h.id) }}" class="f" style="max-width:640px">
+    <div class="f2"><div><label class="l">Name</label><input name="name" maxlength="200" value="{{ h.name }}"></div>
+      <div><label class="l">Company, if they bill as one</label><input name="company" maxlength="200" value="{{ h.company or '' }}"></div></div>
+    <div><label class="l">Mailing address</label><textarea name="address">{{ h.address }}</textarea></div>
+    <div class="f2"><div><label class="l">Source</label><input name="source" value="{{ h.source }}"></div>
+      <div><label class="l">Referred by</label><select name="referred_by"><option value="">-</option>{% for o in households %}<option value="{{ o.id }}" {{ 'selected' if o.id == h.referred_by }}>{{ o.name }}</option>{% endfor %}</select></div></div>
+    <div><label class="l">Notes</label><textarea name="notes">{{ h.notes }}</textarea></div>
+    <div><button class="primary">Save</button></div>
+  </form>
+</section>
+<section class="sec" id="their-data">
+  <h2 class="sec-h">Their data</h2>
+  <div class="row" style="gap:10px;flex-wrap:wrap">
+    <a class="btn quiet" href="{{ url_for('client_export', hid=h.id) }}">Export everything about them</a>
+    <form method="post" action="{{ url_for('client_delete', hid=h.id) }}" class="row" style="gap:6px">
+      <input name="confirm" placeholder="Type DELETE" autocomplete="off" style="width:130px" required>
+      <button class="ghost" style="color:var(--crit)" data-tip="Takes their galleries off the web, destroys their photos and archives, and erases every record and history line about them. Payments stay in your yearly totals, without the name. Cannot be undone. Sealed backups keep the record for up to 30 days; if an older backup is ever restored, Lumen Aureum deletes them again.">Delete this client</button></form>
+  </div>
+  {% if request.args.get('delete') == 'nope' %}<div class="clash">Type DELETE to confirm.</div>{% endif %}
+</section>
+{% endblock %}

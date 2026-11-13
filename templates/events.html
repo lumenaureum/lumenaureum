@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="page-head"><div class="grow"><div class="kicker">Events</div><h1>Group events</h1>
+  {% if contact %}<p class="mute">Add the event below; {{ contact.name }} is kept as its organizer contact.</p>{% endif %}</div></div>
+<div class="surface wrapx"><table class="data">
+  <thead><tr><th style="width:120px">Date</th><th>Event</th><th class="opt">Venue</th><th class="n">Families</th></tr></thead>
+  <tbody>{% for e in rows %}<tr class="rowlink" data-href="{{ url_for('event_view', eid=e.id) }}">
+    <td data-v="{{ e.date or '' }}">{{ nice(e.date) or '-' }}</td><td><a href="{{ url_for('event_view', eid=e.id) }}"><b>{{ e.name }}</b></a></td>
+    <td class="opt mute">{{ e.venue }}</td><td class="n">{{ e.n }}</td></tr>
+  {% else %}<tr><td colspan="4" class="empty">None yet</td></tr>{% endfor %}
+  <tr><form method="post" id="enew">{% if contact %}<input type="hidden" name="contact" value="{{ contact.id }}">{% endif %}</form>
+    <td><input form="enew" type="date" name="date"></td><td><input form="enew" name="name" maxlength="200" placeholder="New event" required></td>
+    <td class="opt"><input form="enew" name="venue" maxlength="200" placeholder="Venue"></td><td class="n"><button form="enew">Add</button></td></tr>
+  </tbody></table></div>
+{% endblock %}

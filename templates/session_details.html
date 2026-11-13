@@ -1,0 +1,28 @@
+{% from "_doc_bar.html" import doc_bar, draft with context %}<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Session details - {{ v.client }}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{% include "_doc_style.html" %}</head><body>
+{% if not pdf %}{{ doc_bar(url_for('session_details_pdf', sid=v.sid), v.back, send, v.review if not v.reviewed) }}{% endif %}
+<div class="page">
+  {% include "_doc_logo.html" %}
+  {% if not v.reviewed %}{{ draft(v.review, 'wording') }}{% endif %}
+  <h1>Your session</h1>
+  <p class="sub">{{ v.photographer }}{% if v.business %}, {{ v.business }}{% endif %}</p>
+  {% include "_doc_contact.html" %}
+  <table class="facts" style="margin-top:14px">
+    <tr><td>For</td><td>{{ v.client }}{% if v.people %} - {{ v.people }}{% endif %}</td></tr>
+    <tr><td>Session</td><td>{{ v.type_label }}{% if v.date_long %}, {{ v.date_long }}{% endif %}</td></tr>
+    {% if v.meet %}<tr><td>Meet</td><td>{{ v.meet }}</td></tr>{% endif %}
+    <tr><td>Length</td><td>{{ v.length }}</td></tr>
+  </table>
+  {% if v.stops %}<h2>Where we'll be</h2>
+  <table>{% for st in v.stops %}<tr><td style="width:120px">{{ st.time or '' }}</td><td><b>{{ st.name }}</b>{% if st.town %}, {{ st.town }}{% endif %}{% if st.what %}<br>{{ st.what }}{% endif %}{% if st.light %}<br><span style="color:#6b6459">Light: {{ st.light }}</span>{% endif %}</td></tr>{% endfor %}</table>
+  <p style="color:#6b6459;font-size:13px">These are the places we agreed on; use them as a guide when you plan the look.</p>{% endif %}
+  {% if v.outfits %}<h2>What to wear and bring</h2>
+  <p>You plan and bring the theme, {{ v.wear }}, and any props. Change outfits or props as often as you like during the session.</p>{% endif %}
+  {% if v.animals %}<h2>Your animals</h2>
+  <p>Bring treats, a favorite toy, and a leash or lead; tell me anything I should know about how they behave with strangers. Breaks are fine whenever they need one.</p>{% endif %}
+  <h2>Weather</h2>
+  <p>If the weather turns, {{ v.weather }}.</p>
+  <p class="foot">Questions? Just reply or call.</p>
+{% include "_credit.html" %}
+</div>{% if not pdf %}<script src="{{ url_for('static', filename='ui.js', v=static_v('ui.js')) }}"></script>{% endif %}</body></html>

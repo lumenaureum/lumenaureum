@@ -1,0 +1,45 @@
+{% extends "base.html" %}{% from "_macros.html" import help with context %}
+{% block title %}{{ t.label }}: walk through - Lumen Aureum{% endblock %}
+{% block body %}
+<div class="row"><h1 class="grow">{{ t.label }}</h1><a class="go" href="{{ url_for('type_edit', key=t.key) }}">All {{ t.label }} settings &rsaquo;</a></div>
+{% set total_ = steps|length %}
+<div class="walkbar" style="margin:6px 0 18px;max-width:720px"><div style="height:4px;background:var(--line);border-radius:2px"><div style="height:4px;border-radius:2px;background:var(--gold);width:{{ ((n if not summary else total_) / total_ * 100)|round }}%"></div></div>
+  <div class="mute" style="font-size:12px;margin-top:4px">{% if summary %}Done{% else %}{{ n + 1 }} of {{ total_ }}{% endif %}</div></div>
+{% if summary %}
+<div class="card" style="max-width:720px">
+  <h2>{{ t.label }} is set up</h2>
+  <p class="mute" style="margin:0 0 10px">Anything you skipped keeps its default. You can change these at any time in {{ t.label }}'s settings.</p>
+  <table class="data"><tbody>{% for s_ in steps %}<tr><td>{{ s_.title }}</td><td style="width:140px">{% if s_.id in mine.done %}<span style="color:var(--gold)">Set</span>{% elif s_.id in mine.skipped %}<span class="mute">Skipped</span>{% else %}<span class="mute">Default</span>{% endif %}</td>
+    <td style="width:90px"><a href="{{ url_for('type_walk', key=t.key, n=loop.index0) }}">Change</a></td></tr>{% endfor %}</tbody></table>
+  <p style="margin:14px 0 0">Your quotes and agreements for {{ t.label }} still print as SAMPLE until you read and review them.
+    <a class="go" href="{{ url_for('type_edit', key=t.key) }}#terms">Review {{ t.label }}'s terms &rsaquo;</a></p>
+</div>
+{% else %}
+<form method="post" class="card f" style="max-width:720px">
+  <h2 style="margin-top:0">{{ step.title }}</h2>
+  <p class="mute" style="margin:0 0 14px">{{ step.why }}</p>
+  {% set kind_, name_, hint_ = step.field %}
+  {% if kind_ == 'number' %}<label class="row" style="gap:8px"><input type="number" name="{{ name_ }}" value="{{ value }}" min="1" style="width:120px"> {{ hint_ }}</label>
+  {% elif kind_ == 'text' %}<input name="{{ name_ }}" value="{{ value }}" placeholder="{{ hint_ }}" maxlength="200">
+  {% elif kind_ == 'check' %}<label class="row" style="gap:8px"><input type="checkbox" name="{{ name_ }}" value="1"{{ ' checked' if value }} style="width:auto;margin:0"> {{ hint_ }}</label>
+  {% elif kind_ == 'method' %}<span class="seg">{% for k_, v_ in C.DELIVERY_METHODS.items() %}<label><input type="radio" name="delivery_method" value="{{ k_ }}"{{ ' checked' if k_ == value }}><span>{{ v_[0] }}</span></label>{% endfor %}</span>
+  {% elif kind_ in ('deposit', 'portfolio') %}{% set p_ = 'deposit' if kind_ == 'deposit' else 'portfolio' %}
+    <div class="row" style="gap:8px"><input type="number" name="{{ p_ }}_value" min="0" value="{{ value[1] }}" placeholder="{{ 'general rule' if kind_ == 'deposit' else 'none' }}" style="width:130px">
+    <select name="{{ p_ }}_mode" style="width:auto"><option value="amt"{{ ' selected' if value[0] == 'amt' }}>dollars</option><option value="pct"{{ ' selected' if value[0] == 'pct' }}>% of the price</option></select></div>
+  {% elif kind_ == 'reschedule' %}
+    <label class="row" style="gap:6px"><input type="checkbox" name="free_reschedule" value="1"{{ ' checked' if value[0] }} style="width:auto;margin:0">One free reschedule, with
+      <input type="number" name="notice_hours" min="0" value="{{ value[1] }}" style="width:80px;display:inline;margin:0"> hours' notice</label>
+    <label class="row" style="gap:6px">No-show after <input type="number" name="late_minutes" min="0" value="{{ value[2] }}" style="width:80px;display:inline;margin:0"> minutes late <span class="mute">(0: none)</span></label>
+  {% endif %}
+  {% if preview %}<div style="margin:16px 0 4px;padding:10px 12px;border-left:3px solid var(--gold);background:var(--panel, rgba(0,0,0,.03))"><div class="mute" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em">What the client reads now</div>{{ preview }}</div>{% endif %}
+  <div class="row" style="gap:8px;margin-top:16px;flex-wrap:wrap">
+    <button class="primary" name="act" value="save">Save and continue</button>
+    <button class="quiet" name="act" value="keep" formnovalidate>Keep as it is</button>
+    <button class="quiet" name="act" value="skip" formnovalidate>Skip for now</button>
+    <span class="grow"></span>
+    {% if n > 0 %}<a href="{{ url_for('type_walk', key=t.key, n=n - 1) }}">Back</a>{% endif %}
+    <button class="linkish" name="act" value="finish" formnovalidate>Finish with defaults</button>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

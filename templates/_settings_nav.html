@@ -1,0 +1,31 @@
+{# Settings: one left tab column for every settings page, grouped. Active tab from the endpoint and its arguments. #}
+{% set ep_ = request.endpoint %}{% set va_ = request.view_args or {} %}{% set tab_ = request.args.get('tab', 'general') %}
+{% macro tab(href, label, on, sub='') -%}<a href="{{ href }}" class="{{ 'on' if on }}"{% if on %} aria-current="page"{% endif %}>{{ label }}{% if sub %}<small>{{ sub }}</small>{% endif %}</a>{%- endmacro %}
+<nav class="settabs" aria-label="Settings">
+  <div class="sg"><b>Business</b>
+    {{ tab(url_for('settings_view'), 'General', ep_ == 'settings_view' and tab_ == 'general', 'names, contact, logo') }}
+    {{ tab(url_for('setup_step', step='business'), 'Business and time zone', ep_ == 'setup_step' and va_.get('step') == 'business') }}
+    {{ tab(url_for('setup_step', step='shoot'), 'What you shoot', ep_ == 'setup_step' and va_.get('step') == 'shoot') }}
+    {{ tab(url_for('setup_step', step='money'), 'Payments and terms', ep_ == 'setup_step' and va_.get('step') == 'money') }}
+    {{ tab(url_for('settings_view', tab='fees'), 'Prices', ep_ == 'settings_view' and tab_ == 'fees') }}
+    {{ tab(url_for('setup_step', step='tax'), 'Sales tax', ep_ == 'setup_step' and va_.get('step') == 'tax') }}</div>
+  <div class="sg"><b>Documents</b>
+    {{ tab(url_for('settings_view', tab='documents'), 'Review status', ep_ == 'settings_view' and tab_ == 'documents', 'what still prints SAMPLE') }}
+    {{ tab(url_for('setup_step', step='documents'), 'Ownership and law', ep_ == 'setup_step' and va_.get('step') == 'documents') }}
+    {{ tab(url_for('wording_edit', doc='agreement'), 'Agreement wording', ep_ == 'wording_edit' and va_.get('doc') == 'agreement') }}
+    {{ tab(url_for('wording_edit', doc='release'), 'Release wording', ep_ == 'wording_edit' and va_.get('doc') == 'release') }}
+    {% if C.SESSION_TYPES|reject('in', C.LICENSE_TYPES)|list or va_.get('doc') == 'transfer' %}{{ tab(url_for('wording_edit', doc='transfer'), 'Copyright transfer wording', ep_ == 'wording_edit' and va_.get('doc') == 'transfer') }}{% endif %}
+    {{ tab(url_for('wording_edit', doc='license'), 'Photo license wording', ep_ == 'wording_edit' and va_.get('doc') == 'license') }}</div>
+  <div class="sg"><b>Session types</b>
+    {% for k_, lab_ in C.SESSION_TYPES.items() %}{{ tab(url_for('type_edit', key=k_), lab_, ep_ in ('type_edit', 'type_walk') and va_.get('key') == k_) }}{% endfor %}</div>
+  <div class="sg"><b>Storage</b>
+    {{ tab(url_for('vault_view'), 'Backups', ep_ == 'vault_view', 'back up now, list, restore check') }}
+    {{ tab(url_for('setup_step', step='storage'), 'Where backups go', ep_ == 'setup_step' and va_.get('step') == 'storage', 'the vault and a second copy') }}
+    {{ tab(url_for('setup_step', step='galleries'), 'Online galleries', ep_ == 'setup_step' and va_.get('step') == 'galleries') }}</div>
+  <div class="sg"><b>Account</b>
+    {{ tab(url_for('security'), 'Security', ep_ == 'security') }}
+    {{ tab(url_for('setup_step', step='network'), 'Who can reach this', ep_ == 'setup_step' and va_.get('step') == 'network') }}
+    {{ tab(url_for('settings_view', tab='file'), 'Settings file', ep_ == 'settings_view' and tab_ == 'file', 'export, import') }}
+    {{ tab(url_for('settings_view', tab='system'), 'System', ep_ == 'settings_view' and tab_ == 'system', 'plugins, reset') }}
+    {{ tab(url_for('about'), 'About', ep_ == 'about') }}</div>
+</nav>
