@@ -89,5 +89,10 @@ Public License as published by the Free Software Foundation, either version 3 of
 later version. See [LICENSE](LICENSE). Third-party components are listed in
 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
 
+## Help
+Ask questions and share ideas in [Discussions](https://github.com/lumenaureum/lumenaureum/discussions). Report bugs in
+[Issues](https://github.com/lumenaureum/lumenaureum/issues). Report security problems privately to
+contact@lumenaureum.org, not in public.
+
 ## Contributing
 Issues and ideas are welcome. Code contributions are not accepted.
