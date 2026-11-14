@@ -34,6 +34,16 @@ def _check(name):
     return name
 
 
+def contained(root, path):
+    """path, once every symlink in it is followed, must stay inside root: a link planted in a folder another user can
+    write (a gallery folder a web server shares) never sends a write, read, chmod or delete elsewhere. Returns path."""
+    base = os.path.realpath(root)
+    real = os.path.realpath(path)
+    if real != base and not real.startswith(base.rstrip(os.sep) + os.sep):
+        raise ValueError(f"path leaves its root: {path!r}")
+    return path
+
+
 class Backend:
     kind = "base"
 
@@ -78,11 +88,12 @@ class LocalBackend(Backend):
         return cls(root)
 
     def _p(self, name):
-        return os.path.join(self.root, *_check(name).split("/"))
+        return contained(self.root, os.path.join(self.root, *_check(name).split("/")))
 
     def put_stream(self, name, reader, content_type=None):
         dst = self._p(name)
         os.makedirs(os.path.dirname(dst), exist_ok=True)
+        contained(self.root, dst)                 # again once the folders exist (one may have appeared as a link)
         tmp = os.path.join(os.path.dirname(dst), f".{secrets.token_hex(6)}.part")
         hr = _Hashing(reader)
         try:

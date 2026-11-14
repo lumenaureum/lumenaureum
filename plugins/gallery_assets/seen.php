@@ -7,12 +7,18 @@ $f = __DIR__ . '/seen.txt';
 // the clock early.
 $raw = @file_get_contents(__DIR__ . '/seen-key.php');
 $want = $raw === false ? false : trim(substr($raw, strpos($raw, "\n") + 1));
-$got = substr((string)file_get_contents('php://input'), 0, 64);
+$got = (string)file_get_contents('php://input', false, null, 0, 64);
+// a stamp left empty or unreadable (a crash between creating and writing it) would hold the gallery open for its
+// unopened period: it is replaced
+if (file_exists($f) && strtotime(trim((string)@file_get_contents($f))) === false && time() - (int)@filemtime($f) > 30) {
+    @unlink($f);
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !file_exists($f) && $want !== false && hash_equals($want, hash('sha256', trim($got)))) {
-    $h = @fopen($f, 'x');
-    if ($h) {
-        fwrite($h, gmdate('Y-m-d\TH:i:s\Z'));
-        fclose($h);
+    $tmp = $f . '.' . bin2hex(random_bytes(6)) . '.tmp';
+    if (@file_put_contents($tmp, gmdate('Y-m-d\TH:i:s\Z'), LOCK_EX) !== false) {
+        // link() never replaces: someone who stamped it first stands. Hosts without hard links get an atomic rename.
+        if (!@link($tmp, $f) && !file_exists($f)) { @rename($tmp, $f); }
     }
+    @unlink($tmp);
 }
 http_response_code(204);

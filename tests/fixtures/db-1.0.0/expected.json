@@ -1,0 +1,131 @@
+{
+ "clients": {
+  "1": "Lane",
+  "2": "Ortiz",
+  "3": "Bell",
+  "4": "Chen"
+ },
+ "deleted": {
+  "client": 5,
+  "session": 6
+ },
+ "event": {
+  "families": [
+   "Bell",
+   "Chen"
+  ],
+  "id": 1
+ },
+ "finances": {
+  "by_month": {
+   "2026-02": 100.0,
+   "2026-03": 250.0,
+   "2026-04": -40.0,
+   "2026-05": 135.0
+  },
+  "outstanding": {},
+  "received": {
+   "event": 60.0,
+   "family": 385.0
+  },
+  "refunds": -40.0,
+  "tax_due": 0.0,
+  "total": 445.0,
+  "upcoming": {
+   "2": 175.0,
+   "5": 60.0
+  }
+ },
+ "invoice_numbers": {
+  "INV-2026-0001": 1
+ },
+ "invoice_sent": {
+  "1": "INV-2026-0001"
+ },
+ "made_with": "1.0.0 (a0966c9)",
+ "password": "test password 123",
+ "payments": {
+  "1": {
+   "amount": 100.0,
+   "kind": "deposit",
+   "received": "2026-02-20",
+   "session": 1
+  },
+  "2": {
+   "amount": 250.0,
+   "kind": "balance",
+   "received": "2026-03-20",
+   "session": 1
+  },
+  "3": {
+   "amount": -40.0,
+   "kind": "refund",
+   "received": "2026-04-02",
+   "session": 1
+  },
+  "4": {
+   "amount": 75.0,
+   "kind": "deposit",
+   "received": "2026-05-01",
+   "session": 2
+  },
+  "5": {
+   "amount": 60.0,
+   "kind": "balance",
+   "received": "2026-05-16",
+   "session": 4
+  }
+ },
+ "refund_lines": {
+  "3": {
+   "amount": -40.0,
+   "fee_key": "refund:3",
+   "session": 1
+  }
+ },
+ "schema_version": 2,
+ "sessions": {
+  "1": {
+   "due": 0.0,
+   "paid": 310.0,
+   "quoted": 310.0,
+   "quoted_without_refund_lines": 350.0,
+   "stage": "delivered"
+  },
+  "2": {
+   "due": 175.0,
+   "paid": 75.0,
+   "quoted": 250.0,
+   "quoted_without_refund_lines": 250.0,
+   "stage": "booked"
+  },
+  "3": {
+   "due": 0.0,
+   "paid": 0.0,
+   "quoted": 0.0,
+   "quoted_without_refund_lines": 0.0,
+   "stage": "inquiry"
+  },
+  "4": {
+   "due": 0.0,
+   "paid": 60.0,
+   "quoted": 60.0,
+   "quoted_without_refund_lines": 60.0,
+   "stage": "booked"
+  },
+  "5": {
+   "due": 60.0,
+   "paid": 0.0,
+   "quoted": 60.0,
+   "quoted_without_refund_lines": 60.0,
+   "stage": "booked"
+  }
+ },
+ "sessions_by_name": {
+  "bell": 4,
+  "lane": 1,
+  "ortiz": 2,
+  "ortiz_inquiry": 3
+ },
+ "year": "2026"
+}

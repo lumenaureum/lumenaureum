@@ -60,6 +60,7 @@
   <div class="now-grid">
     <div class="needs" id="needs" data-refresh>
       <h3>To do</h3>
+      {% with clash_form='todo' %}{% include "_edit_clash.html" %}{% endwith %}
       <ul class="acts in-focus">{% set show_face = false %}{% set ns_ = namespace(lead=false) %}{% for a0 in acts %}{% set lead_ = not ns_.lead and not a0.theirs %}{% if lead_ %}{% set ns_.lead = true %}{% endif %}{% set a = dict(a0, primary=a0.primary or lead_) %}{% include "_action.html" %}{% endfor %}</ul>
       <form method="post" action="{{ url_for('task_add', sid=s.id) }}" class="row wf-add" style="margin-top:8px"><input type="hidden" name="back" value="{{ back }}"><input name="title" maxlength="200" placeholder="Add a step" required class="grow" style="width:auto"><button class="quiet">Add</button></form>
       {% if cur %}{% set done_ = cur.steps|selectattr('done')|list %}{% if done_ %}<div class="done-steps">{% for st in done_ %}<span class="{{ 'oc' if st.outcome }}">{{ st.label }}{% if st.outcome %} <em>{{ OUTCOMES[st.outcome]|lower }}</em>{% endif %}</span>{% endfor %}</div>{% endif %}{% endif %}
@@ -76,9 +77,10 @@
         {% for k, label in C.INTAKE[s.type] %}{% if intake.get(k) %}<div style="font-size:14px;margin:2px 0"><span class="mute">{{ label }}</span> {{ intake[k] }}</div>{% endif %}{% endfor %}</div>{% endif %}
       {% if s.stage in ('inquiry', 'quoted') %}
         {% if C.INTAKE.get(s.type) %}<div class="ctx" id="intake-box" style="order:1"><h3>What they want</h3>
-          <form method="post" action="{{ url_for('session_intake', sid=s.id) }}" class="intake-grid"><input type="hidden" name="back" value="{{ back }}">
+          {% with clash_form='intake' %}{% include "_edit_clash.html" %}{% endwith %}
+          <form method="post" action="{{ url_for('session_intake', sid=s.id) }}" class="intake-grid"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seen" value="{{ edit_stamp('intake', s.id) }}">
             {% for k, label in C.INTAKE[s.type] %}<label><span>{{ label }}</span><input name="{{ k }}" value="{{ intake.get(k, '') }}"></label>{% endfor %}
-            <div><button class="quiet">Save</button></div>{% set n_q = C.INTAKE.get(s.type, [])|length %}{% set need_ = [1, n_q // 2]|max %}<div class="intake-note mute" data-need="{{ need_ }}">All optional. Answer at least {{ need_ }} of {{ n_q }} to tick this step off; save as many as you have now.</div></form></div>{% endif %}
+            <div><button class="quiet">Save</button></div>{% set n_q = C.INTAKE.get(s.type, [])|length %}{% set need_ = [1, n_q // 2]|max %}<div class="intake-note mute" data-need="{{ need_ }}">Needed to tick this step off: {{ need_ }} of {{ n_q }} answers (or move on anyway from the &hellip; menu above). Save what you have now.</div></form></div>{% endif %}
       {% endif %}
 
       {% if (s.stage in ('booked',) or (s.stage in ('inquiry','quoted') and s.shoot_date)) and (clash or panels) %}
@@ -132,7 +134,7 @@
           {% if open_q %}{% set mine_ = fee_sched['items']|selectattr('type', 'defined')|selectattr('type', 'equalto', s.type)|map(attribute='key')|list %}
           <tr class="qnew"><td colspan="4"><form method="post" action="{{ url_for('quote_fee', sid=s.id) }}" class="qnewf"><input type="hidden" name="back" value="{{ back }}">
             <input type="number" step="0.5" min="0.5" name="qty" value="1" aria-label="Quantity" class="qq">
-            <select name="fee_key" required data-show-custom>
+            <select name="fee_key" data-show-custom aria-label="Line to add">
               <option value="">{{ 'Add a line' if lines else 'Pick the first line' }}</option>
               {% macro fee_opt(it) %}<option value="{{ it.key }}">{{ it.label|replace(', every edited image included', '') }} - {% if it.unit == 'mile' and not it.amount %}mileage rate{% else %}{{ money(it.amount) }}{% if it.unit == 'hour' %} per hour{% elif it.unit == 'mile' %} per mile{% elif it.unit == 'each' %} each{% endif %}{% endif %}</option>{% endmacro %}
               {% set own_ = fee_sched['items']|selectattr('key', 'in', mine_)|list %}{% if own_ %}<optgroup label="{{ type_label[s.type] }}">{% for it in own_ %}{{ fee_opt(it) }}{% endfor %}</optgroup>{% endif %}
@@ -141,7 +143,7 @@
               <optgroup label="Not on the price list"><option value="custom">Something else (type it)</option></optgroup>
             </select>
             <span class="qcustom" hidden><input name="label" maxlength="200" placeholder="What it is"><input type="number" step="0.01" name="amount" placeholder="$ each" style="width:90px">{% if tax_rate %}<input type="hidden" name="taxable_shown" value="1"><label class="row" style="gap:4px;font-size:12px"><input type="checkbox" name="taxable" value="1" checked>taxed</label>{% endif %}</span>
-            <button class="{{ 'primary' if not lines else 'quiet' }}">Add</button></form></td></tr>{% endif %}
+            <button class="{{ 'primary' if not lines else 'quiet' }}">Add</button><span class="qmsg mute" role="alert" hidden>Pick a line from the list first.</span></form></td></tr>{% endif %}
           {% if lines %}<tr class="qtot"><td></td><td>Total</td><td class="n">{{ money(t.quoted) }}</td><td></td></tr>{% endif %}</table>
         {% if lines %}
           {% if t.paid %}<div class="money-line"><span class="mbar big"><span style="width:{{ [100, (t.paid / t.quoted * 100)|round]|min if t.quoted else 100 }}%"></span></span>
@@ -165,8 +167,10 @@
         {% if quote %}<div class="qmeta {{ 'qexp' if quote.expired and open_q }}">{% if quote.expired and open_q %}Expired {{ nice(quote.expires) }}{% elif open_q %}Good through {{ nice(quote.expires) }}{% else %}Quoted {{ nice(quote.created[:10]) }}{% endif %}
           - <a href="{{ url_for('fees_view', sched_id=quote.schedule_id) }}">price list version {{ quote.schedule_id }}</a>
           {% if quote.expired and open_q %}<form method="post" action="{{ url_for('quote_requote', sid=s.id) }}" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="quiet">Requote at current fees</button></form>{% endif %}</div>{% endif %}
-        <div class="row qsent">{% if lines and open_q %}<form method="post" action="{{ url_for('quote_send', sid=s.id) }}" class="inline" target="_blank"><input type="hidden" name="total" value="{{ '%.2f'|format(t.quoted) }}"><button class="{{ 'primary' if s.stage == 'quoted' and not versions or s.stage == 'inquiry' else 'quiet' }}">{{ 'Send updated quote' if versions else 'Send quote' }}</button></form>
-          <a class="go" href="{{ url_for('quote_preview', sid=s.id) }}" target="_blank">Preview &rsaquo;</a>{% endif %}
+        <div class="row qsent">{% if lines and open_q %}{% set qcls_ = 'primary' if s.stage == 'quoted' and not versions or s.stage == 'inquiry' else 'quiet' %}
+          {%- if quote_same %}<a class="btn {{ qcls_ }}" href="{{ url_for('quote_doc', vid=quote_same.id) }}" target="_blank" title="Nothing changed since quote {{ quote_same.id }} was made: open it to email, print, or mark sent">Open quote {{ quote_same.id }}</a>
+          {%- else %}<form method="post" action="{{ url_for('quote_send', sid=s.id) }}" class="inline" data-quote-send title="Numbers the quote and opens it to email, print, or mark sent. Nothing is emailed yet."><input type="hidden" name="total" value="{{ '%.2f'|format(t.quoted) }}"><button class="{{ qcls_ }}">{{ 'Prepare updated quote' if versions else 'Prepare quote' }}</button></form>
+          <a class="go" href="{{ url_for('quote_preview', sid=s.id) }}" target="_blank">Preview &rsaquo;</a>{% endif %}{% endif %}
           {% for v in versions %}<a class="go" href="{{ url_for('quote_doc', vid=v.id) }}" target="_blank">Quote {{ v.id }}, {{ nice(v.at[:10]) }} &rsaquo;</a>{% endfor %}
           {% if lines and s.stage not in ('inquiry', 'quoted', 'lost') %}{% if t.due > 0.005 %}<a class="go" href="{{ url_for('invoice', sid=s.id) }}" target="_blank">Invoice &rsaquo;</a>{% elif t.paid > 0.005 %}<a class="go" href="{{ url_for('receipt', sid=s.id) }}" target="_blank">Receipt &rsaquo;</a>{% endif %}{% endif %}</div>
         {% if fold_ %}</details>{% endif %}
@@ -193,7 +197,7 @@
       <span class="htime">{{ r.time }}</span>
       {{ sym(r.icon if r.kind == 'audit' else {'audit':'history','note':'edit_note','call':'call','text':'sms','email':'mail','in person':'groups'}.get(r.kind, 'edit_note'), 'next', 18) }}
       <div class="htext"><span>{{ r.text }}</span>{% if r.note %}<em>{{ r.note }}</em>{% endif %}
-        {% if r.kind == 'audit' and r.who != 'Owner' %}<small>{{ r.who }}</small>{% endif %}</div>
+        {% if r.kind == 'audit' and r.who != 'Owner' %}<small>{{ r.who }}</small>{% endif %}{% if r.gone %}<small class="mute">From a deleted session</small>{% endif %}</div>
       {% if r.lid %}<form method="post" action="{{ url_for('note_delete', lid=r.lid) }}" class="inline hdel" data-confirm="Delete this note?"><input type="hidden" name="back" value="{{ back }}#history"><button class="quiet">&times;</button></form>{% endif %}
     </div>
   {% endfor %}

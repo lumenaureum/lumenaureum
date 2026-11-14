@@ -31,7 +31,8 @@
 
 
 <section class="sec" id="shoot"><h2 class="sec-h">Shoot</h2>
-  <form method="post" action="{{ here }}" class="f" style="max-width:760px">
+  {% include "_edit_clash.html" %}
+  <form method="post" action="{{ here }}" class="f" style="max-width:760px"><input type="hidden" name="seen" value="{{ edit_stamp('sessions', s.id) }}">
     <div class="f2"><div><label class="l">Title</label><input name="title" maxlength="200" value="{{ s.title }}"></div>
       <div><label class="l">Type</label>{{ seg('type', C.SESSION_TYPES.items()|list, s.type) }}</div></div>
     <div class="f3"><div><label class="l">Date</label><input type="date" name="shoot_date" value="{{ s.shoot_date or '' }}" data-avail="{{ s.id }}">
@@ -55,12 +56,13 @@
       <button form="delform" class="ghost">Delete</button></div>
   </form>
   <form id="lostform" method="post" action="{{ url_for('session_stage', sid=s.id) }}"><input type="hidden" name="stage" value="lost"></form>
-  <form id="delform" method="post" action="{{ url_for('session_delete', sid=s.id) }}" data-confirm="Delete this session and everything on it?"></form>
+  <form id="delform" method="post" action="{{ url_for('session_delete', sid=s.id) }}" data-confirm="Delete this session and everything on it?{% if issued_docs %} Issued {{ 'documents' if issued_docs|length > 1 else 'document' }} {{ issued_docs|join(', ') }} {{ 'are' if issued_docs|length > 1 else 'is' }} kept in History, and {{ 'their numbers are' if issued_docs|length > 1 else 'its number is' }} never used again.{% endif %}"></form>
   {% for p in panels %}{{ p }}{% endfor %}
 </section>
 
 {% if C.INTAKE.get(s.type) %}<section class="sec" id="intake"><h2 class="sec-h">Intake</h2>
-  <form method="post" action="{{ url_for('session_intake', sid=s.id) }}" style="max-width:760px">
+  {% with clash_form='intake' %}{% include "_edit_clash.html" %}{% endwith %}
+  <form method="post" action="{{ url_for('session_intake', sid=s.id) }}" style="max-width:760px"><input type="hidden" name="seen" value="{{ edit_stamp('intake', s.id) }}">
     <table class="data">{% for k, label in C.INTAKE[s.type] %}<tr><td style="width:38%;color:var(--mute)">{{ label }}</td><td><input name="{{ k }}" value="{{ intake.get(k, '') }}"></td></tr>{% endfor %}</table>
     <div class="rel-add"><button class="primary">Save</button></div>
   </form>
@@ -95,7 +97,7 @@
   <div class="surface highlights" style="margin-bottom:6px">
     <div><div class="k">Quote</div><div class="v">{{ money(t.quoted) }}</div></div>
     <div><div class="k">Paid</div><div class="v">{{ money(t.paid) }}</div></div>
-    <div><div class="k">{{ 'Credit' if t.due < -0.005 else 'Balance' }}</div><div class="v">{{ money(-t.due if t.due < -0.005 else t.due) }}</div>{% if t.due < -0.005 and not t.quoted %}<div class="sub" style="font-size:12px">Paid before a quote</div>{% endif %}</div>
+    <div><div class="k">{{ 'Credit' if t.due < -0.005 else 'Balance' }}</div><div class="v">{{ money(-t.due if t.due < -0.005 else t.due) }}</div>{% if t.due < -0.005 and not t.quoted %}<div class="sub" style="font-size:12px">Paid before a quote</div>{% elif t.due < -0.005 %}<div class="sub" style="font-size:12px">Paid beyond the quote: to give back</div>{% elif t.refund_credit > 0.005 %}<div class="sub" style="font-size:12px">{{ money(t.refund_credit) }} refunded, not owed again</div>{% endif %}</div>
     <div><div class="k">Profit</div><div class="v">{{ money(t.profit) }}</div>{% if t.miles and not t.rate %}<div class="sub" style="font-size:12px"><a href="{{ url_for('settings_view') }}">no mileage rate</a></div>{% endif %}</div>
   </div>
   <div class="grid">
@@ -103,8 +105,8 @@
       <table class="data"><tbody>{% for l in lines %}<tr><td>{{ l.label }}</td><td class="n">{{ money(l.amount) }}</td><td style="width:30px"><form method="post" action="{{ url_for('money_delete', what='line', rid=l.id) }}" class="inline"><button class="ghost">x</button></form></td></tr>{% else %}<tr><td class="empty">No lines</td></tr>{% endfor %}</tbody></table>
       <form method="post" action="{{ url_for('money_add', sid=s.id) }}" class="row rel-add"><input type="hidden" name="what" value="line"><input name="label" maxlength="200" placeholder="Line" required class="grow" style="width:auto"><input type="number" step="0.01" name="amount" placeholder="$" required style="width:90px"><input type="hidden" name="taxable_shown" value="1"><label class="row" style="gap:4px;font-size:12px;white-space:nowrap"><input type="checkbox" name="taxable" value="1" checked style="width:auto;margin:0">taxed</label><button>Add</button></form></div>
     <div><div class="section-title"><h2>Payments</h2></div>
-      <table class="data"><tbody>{% for p in payments %}<tr class="{{ 'void' if p.voided }}"><td>{{ nice(p.received) }}</td><td>{{ p.kind }}{% if p.voided %} (void){% endif %}</td><td class="mute">{{ p.method }}{% if p.ref %} #{{ p.ref }}{% endif %}</td><td class="n">{{ money(p.amount) }}</td><td style="width:44px"><form method="post" action="{{ url_for('money_delete', what='payment', rid=p.id) }}" class="inline"><input type="hidden" name="set" value="{{ 'restore' if p.voided else 'void' }}"><button class="ghost" title="{{ 'Restore' if p.voided else 'Void' }}">{{ 'undo' if p.voided else 'void' }}</button></form></td></tr>{% else %}<tr><td class="empty">None</td></tr>{% endfor %}</tbody></table>
-      <form method="post" action="{{ url_for('money_add', sid=s.id) }}" class="row rel-add"><input type="hidden" name="what" value="payment">
+      <table class="data"><tbody>{% for p in payments %}<tr class="{{ 'void' if p.voided }}"><td>{{ nice(p.received) }}</td><td>{{ p.kind }}{% if p.voided %} (void){% endif %}</td><td class="mute">{{ p.method }}{% if p.ref %} #{{ p.ref }}{% endif %}</td><td class="n">{{ money(p.amount) }}</td><td style="width:44px"><form method="post" action="{{ url_for('money_delete', what='payment', rid=p.id) }}" class="inline"><input type="hidden" name="set" value="{{ 'restore' if p.voided else 'void' }}"><button class="ghost" title="{{ 'Restore' if p.voided else 'Void' }}"{% if not p.voided %} data-confirm="Void this {{ money(p.amount|abs) }} {{ p.kind }}? It stays listed, struck through, and out of the totals; undo brings it back.{% if receipt_no %} Receipt {{ receipt_no }} was already issued for this session and stays as issued.{% endif %}"{% endif %}>{{ 'undo' if p.voided else 'void' }}</button></form></td></tr>{% else %}<tr><td class="empty">None</td></tr>{% endfor %}</tbody></table>
+      <form method="post" action="{{ url_for('money_add', sid=s.id) }}" class="row rel-add"{% if t.quoted > 0.005 %} data-balance="{{ '%.2f'|format(t.due) }}"{% endif %}><input type="hidden" name="what" value="payment">
         {% set dep_now = s.stage in ('inquiry', 'quoted', 'booked') and t.deposit_short > 0.005 %}{# the deposit is what's due until it is in #}
         <input type="number" step="0.01" name="amount" placeholder="$" required value="{{ '%.2f'|format(t.deposit_short if dep_now else t.due) if t.due > 0 }}" style="width:90px">
         {{ seg('kind', ['deposit','balance','refund','other'], 'deposit' if dep_now else 'balance') }}
@@ -123,27 +125,32 @@
       {% if s.address %}<div style="white-space:pre-line;font-weight:600">{{ s.household }}
 {{ s.address }}</div>{% else %}<div style="color:var(--red)" data-tip="Problem: the QR letter and SD card need a mailing address">No mailing address</div>{% endif %}</div>
     <a class="btn" href="{{ url_for('client_view', hid=s.household_id) }}#details">{{ 'Edit' if s.address else 'Add' }} address</a></div>
-  <form method="post" action="{{ url_for('session_delivery', sid=s.id) }}" style="max-width:640px">
-  <ul class="track">
-    {% if C.galleries_on() or s.gallery_built or s.letter_mailed or s.first_visit %}
-    <li class="{{ 'ok' if s.gallery_built }}"><span class="dot"></span>Gallery built<input type="date" name="gallery_built" value="{{ s.gallery_built or '' }}" data-autosubmit></li>
-    <li class="{{ 'ok' if s.letter_mailed }}"><span class="dot"></span>QR letter mailed<input type="date" name="letter_mailed" value="{{ s.letter_mailed or '' }}" data-autosubmit></li>
-    <li class="{{ 'ok' if s.first_visit }}"><span class="dot"></span>First visit<input type="date" name="first_visit" value="{{ s.first_visit or '' }}" data-autosubmit></li>
-    {% else %}{# no online galleries: these steps can't happen, so they aren't shown #}
-    <input type="hidden" name="gallery_built" value=""><input type="hidden" name="letter_mailed" value=""><input type="hidden" name="first_visit" value="">{% endif %}
-    {% if expires %}<li class="{{ 'warn' if expires >= today else 'ok' }}" data-tip="Gallery {{ 'deletes' if expires >= today else 'was deleted' }} {{ nice(expires.isoformat()) }}"><span class="dot"></span><span>{{ 'Deletes' if expires >= today else 'Deleted' }} {{ nice(expires.isoformat()) }}</span>
-      <label class="row" style="gap:6px;font-size:13px"><input type="checkbox" name="extension_used" value="1" {{ 'checked' if s.extension_used }} data-autosubmit>+{{ C.gallery_days(s.type) }} days</label></li>
-    {% else %}<input type="hidden" name="extension_used" value="{{ '1' if s.extension_used }}">{% endif %}
+  {% with clash_form='delivery' %}{% include "_edit_clash.html" %}{% endwith %}
+  <form method="post" action="{{ url_for('session_delivery', sid=s.id) }}" style="max-width:640px"><input type="hidden" name="seen" value="{{ edit_stamp('delivery', s.id) }}">
+  {% set gal_ = C.galleries_on() or s.gallery_built or s.letter_mailed or s.first_visit %}
+  {% if not gal_ %}{# no online galleries: these steps can't happen, so they aren't shown #}
+  <input type="hidden" name="gallery_built" value=""><input type="hidden" name="letter_mailed" value=""><input type="hidden" name="first_visit" value="">{% endif %}
+  {% if not expires %}<input type="hidden" name="extension_used" value="{{ '1' if s.extension_used }}">{% endif %}
+  <ul class="dtrack">
+    {% if gal_ %}
+    <li class="{{ 'ok' if s.gallery_built }}"><span class="dot"></span><span class="dlab">Gallery built</span><input type="date" name="gallery_built" value="{{ s.gallery_built or '' }}" aria-label="Gallery built on" data-autosubmit></li>
+    <li class="{{ 'ok' if s.letter_mailed }}"><span class="dot"></span><span class="dlab">QR letter mailed</span><input type="date" name="letter_mailed" value="{{ s.letter_mailed or '' }}" aria-label="QR letter mailed on" data-autosubmit></li>
+    <li class="{{ 'ok' if s.first_visit }}"><span class="dot"></span><span class="dlab">First visit</span><input type="date" name="first_visit" value="{{ s.first_visit or '' }}" aria-label="First visit on" data-autosubmit></li>
+    {% endif %}
+    {% if expires %}<li class="{{ 'warn' if expires >= today else 'ok' }}" data-tip="Gallery {{ 'deletes' if expires >= today else 'was deleted' }} {{ nice(expires.isoformat()) }}"><span class="dot"></span><span class="dlab">{{ 'Deletes' if expires >= today else 'Deleted' }} {{ nice(expires.isoformat()) }}</span>
+      <label class="row" style="gap:6px;font-size:13px"><input type="checkbox" name="extension_used" value="1" {{ 'checked' if s.extension_used }} data-autosubmit>+{{ C.gallery_days(s.type) }} days</label></li>{% endif %}
     {% set dm_ = C.delivery_method(s.type, s.delivery_method) %}
-    <li class="{{ 'ok' if s.sd_shipped }}"><span class="dot"></span>Files delivered by
-      <select name="delivery_method" data-autosubmit style="width:auto;display:inline;margin:0 6px" title="How the files reach the client: the agreement says this">{% for k_, v_ in C.DELIVERY_METHODS.items() %}<option value="{{ k_ }}"{{ ' selected' if k_ == dm_ }}>{{ v_[0] }}</option>{% endfor %}</select>
-      <input type="date" name="sd_shipped" value="{{ s.sd_shipped or '' }}" data-autosubmit></li>
+    <li class="{{ 'ok' if s.sd_shipped }}"><span class="dot"></span><span class="dlab">Files delivered by</span>
+      <select name="delivery_method" data-autosubmit aria-label="How the files reach the client" title="How the files reach the client: the agreement says this">{% for k_, v_ in C.DELIVERY_METHODS.items() %}<option value="{{ k_ }}"{{ ' selected' if k_ == dm_ }}>{{ v_[0] }}</option>{% endfor %}</select>
+      <input type="date" name="sd_shipped" value="{{ s.sd_shipped or '' }}" aria-label="Files delivered on" data-autosubmit></li>
   </ul>
   <div class="f2" style="margin-top:10px"><div><label class="l">Client's portfolio suggestions{{ help("You choose up to " ~ C.MARKETING_PICKS ~ " photos for your portfolio. The client may suggest favorites, and you never show a photo they asked you not to.") }}</label><input name="favorites" value="{{ s.favorites }}"></div>
     <div><label class="l">Don't show (the client asked)</label><input name="veto" value="{{ s.veto }}"></div></div>
   {% set gcw_ = C.POLICY[s.type].get('gallery_codeword') or s.gallery_codeword %}
   {% if gcw_ %}<div style="margin-top:8px"><label class="l">Gallery codeword{{ help("Three words the client chose. The gallery asks for them; with only the link, someone would have to guess them, so short or common words are refused. It's never printed on the letter. Once the gallery is online, the word stays as it is so the link you sent keeps working.") }}</label>
-    <input name="gallery_codeword" maxlength="60" value="{{ s.gallery_codeword or '' }}" autocomplete="off" placeholder="three words, e.g. heron maple tide"></div>{% endif %}
+    {%- set cwr_ = session.pop('cw_refused', None) %}{% set cwr_ = cwr_ if cwr_ and cwr_.sid == s.id else None %}
+    <input name="gallery_codeword" maxlength="60" value="{{ cwr_.word if cwr_ else (s.gallery_codeword or '') }}" autocomplete="off" placeholder="three words, e.g. heron maple tide"{% if cwr_ %} aria-invalid="true" aria-describedby="cw-refused"{% endif %}>
+    {%- if cwr_ %}<div id="cw-refused" style="font-size:12px;color:var(--red);margin-top:3px">Not saved: this codeword is too easy to guess. Use three or more words, or 14 letters or more, then save.{% if s.gallery_codeword %} The saved codeword is still "{{ s.gallery_codeword }}".{% endif %}</div>{% endif %}</div>{% endif %}
   <div style="margin-top:8px"><label class="l">Retouch picks, with the client's notes</label><textarea name="retouch_picks" rows="3">{{ s.retouch_picks or '' }}</textarea></div>
   <div class="row rel-add"><button class="primary">Save</button><span class="grow"></span><span class="sub" style="font-size:12px">Gallery {{ s.gallery_id }}</span></div>
   </form>

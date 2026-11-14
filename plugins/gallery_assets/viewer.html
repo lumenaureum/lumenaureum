@@ -34,8 +34,12 @@ header h1 { margin: 0 0 10px; font: 400 clamp(30px, 4.4vw, 46px)/1.15 var(--seri
 .cell img.on { opacity: 1; }
 .cell:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 #msg { flex: 1 0 auto; display: grid; place-items: center; text-align: center; color: var(--mute); padding: 96px 24px; }
-#msg:empty { display: none; }
+#msg[hidden] { display: none; }
 #msg b { display: block; color: var(--ink); font: 400 28px/1.3 var(--serif); margin-bottom: 8px; }
+#msgact:empty { display: none; } #msgact { margin-top: 14px; } #msgact form[hidden] { display: none; }
+#msgact button { font: inherit; padding: 8px 16px; border: 0; border-radius: 18px; background: #e3aa48; color: #1a1308; cursor: pointer; }
+#msgact button.plain { background: none; color: var(--ink); text-decoration: underline; padding: 8px 10px; }
+#msgact input { font: inherit; padding: 8px 10px; border: 1px solid #c9bfae; border-radius: 8px; margin-right: 8px; }
 footer { background: #141210; color: #b9ad9a; padding: 26px 20px 30px; text-align: center; font-size: 13px; margin-top: auto; }
 #contact { margin-bottom: 14px; color: #e9e1d2; } #contact a { color: #e9e1d2; text-decoration: none; border-bottom: 1px solid #4a4237; }
 #contact span + span::before { content: "\00b7"; margin: 0 10px; color: #6e6455; }
@@ -74,7 +78,7 @@ body.lbopen #tray { display: none; }
 <body>
 <header hidden><div id="brand"><img id="logo" alt="" hidden><div id="studio"></div></div><hr class="rule"><h1 id="title"></h1><p id="meta"></p><p id="how" hidden></p></header>
 <main id="grid"></main>
-<div id="msg"></div>
+<div id="msg" hidden><div><div id="msgsay" role="status" aria-live="polite" aria-atomic="true"></div><div id="msgerr" role="alert" aria-atomic="true"></div><div id="msgact"></div></div></div>
 <div id="tray"><span id="trayn"></span><a id="send" href="#">Send my picks</a><span id="sent" hidden></span></div>
 <div id="lb" role="dialog" aria-modal="true">
   <img id="big" alt="">
@@ -129,70 +133,128 @@ async function fingerprint(lines) {
   return out.match(/.{4}/g).join("-");
 }
 const GATE = document.documentElement.dataset.gate === "1";   // a PHP host: fetch through gate.php, which enforces expiry
-async function get(name) {
-  let r = await fetch(GATE ? "gate.php?f=" + encodeURIComponent(name) : name, { credentials: PREVIEW ? "same-origin" : "omit" });
-  if (GATE && !r.ok && r.status !== 404 && r.status !== 410) r = null;          // the gate isn't running here (no PHP)
-  if (GATE && r && r.ok && (r.headers.get("content-type") || "").includes("php")) r = null;
-  if (!r) r = await fetch(name, { credentials: PREVIEW ? "same-origin" : "omit" });
-  if (!r.ok) throw Object.assign(new Error("http"), { status: r.status });
-  return open(await r.arrayBuffer(), name);
+let proofFor = null, proofHex = "";
+async function keyProof() {                    // sha256(key), first 32 hex: what seen.php, picks.php and gate.php check
+  if (proofFor !== raw) { proofFor = raw;
+    proofHex = [...new Uint8Array(await subtle.digest("SHA-256", raw))].map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 32); }
+  return proofHex;
 }
+// A fetch that never arrived (offline, DNS, a dropped connection) is marked network, so it is never taken for a wrong key.
+async function reach(u, opts) {
+  try { return await fetch(u, opts); }
+  catch (e) { throw Object.assign(new Error("network"), { network: true }); }
+}
+async function fetchBin(name) {                // the encrypted bytes of one file, as the host sends them
+  let r = await reach(GATE ? "gate.php?f=" + encodeURIComponent(name) : name, { credentials: PREVIEW ? "same-origin" : "omit",
+    headers: GATE && subtle ? { "X-Proof": await keyProof() } : {} });
+  if (GATE && !r.ok && r.status !== 404 && r.status !== 410 && r.status !== 403) r = null;   // the gate isn't running here (no PHP)
+  if (GATE && r && r.ok && (r.headers.get("content-type") || "").includes("php")) r = null;
+  if (!r) r = await reach(name, { credentials: PREVIEW ? "same-origin" : "omit" });
+  if (!r.ok) throw Object.assign(new Error("http"), { status: r.status });
+  try { return await r.arrayBuffer(); }
+  catch (e) { throw Object.assign(new Error("network"), { network: true }); }   // the connection dropped mid-file
+}
+async function get(name) {
+  return open(await fetchBin(name), name);
+}
+// Why the manifest didn't open: the gallery closed, the key (or word) is wrong, or the host couldn't be reached.
+// A wrong key is a decryption failure, or the gate refusing the key's proof (403); anything else is the connection.
+const isClosed = e => e.status === 404 || e.status === 410;
+const isWrongKey = e => !e.network && !e.insecure && (!e.status || (GATE && e.status === 403));
 const blobs = new Map();
 async function url(name) {
   if (!blobs.has(name)) blobs.set(name, get(name).then(b => URL.createObjectURL(new Blob([b], { type: "image/jpeg" }))));
   return blobs.get(name);
 }
-function say(head, line) {
-  $("msg").innerHTML = "";
-  const b = document.createElement("b"); b.textContent = head;
-  const d = document.createElement("div"); d.append(b, line || "");
-  $("msg").append(d);
+// Messages go to a live region, so a screen reader hears them: status (polite) for asking and opening, alert for
+// anything that went wrong. Both regions are in the page from the start; the one not in use is emptied.
+function say(head, line, error) {
+  const to = $(error ? "msgerr" : "msgsay"), other = $(error ? "msgsay" : "msgerr");
+  other.textContent = ""; to.textContent = "";
+  if (head) { const b = document.createElement("b"); b.textContent = head; to.append(b); }
+  if (line) { const d = document.createElement("div"); d.textContent = line; to.append(d); }
+  $("msgact").textContent = "";
+  $("msg").hidden = false;
 }
+const fail = (head, line) => say(head, line, true);
 
 // A codeword gallery's key: PBKDF2-SHA256(word, salt = the link's 32-byte secret + the gallery id, 600000 rounds), the
 // same as codeword_key() in the app. The word is normalized the same way (NFKC, trimmed, lowercase, single spaces).
 async function wordKey(word) {
   const w = word.normalize("NFKC").replace(/[\u200b-\u200d\u2060\ufeff\u00ad]/g, "")
-    .replace(/[\x00-\x1f\x7f\s\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/g, " ").trim().toLowerCase();
+    .replace(/[\x00-\x1f\x7f-\x9f\s\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/g, " ").trim().toLowerCase();
   const gid = new TextEncoder().encode(document.documentElement.dataset.gid || "");
   const salt = new Uint8Array(raw.length + gid.length); salt.set(raw); salt.set(gid, raw.length);
   const base = await subtle.importKey("raw", new TextEncoder().encode(w), "PBKDF2", false, ["deriveBits"]);
   return new Uint8Array(await subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: 600000 }, base, 256));
 }
-function askWord(wrong) {
+const UNREACHABLE = ["Could not reach the gallery", "Check your connection and try again."];
+const OPENING = "Opening your photos...";
+function askWord(why, last) {                  // why: "" (first ask), "wrong" (the word didn't open it), "reach" (no connection)
   return new Promise(resolve => {
-    $("msg").innerHTML = "";
-    const d = document.createElement("div"), b = document.createElement("b"), p = document.createElement("p");
-    b.textContent = wrong ? "That word doesn't open this gallery" : "This gallery is protected by a word";
-    p.textContent = "Enter the word you chose with your photographer.";
+    const ask = "Enter the word you chose with your photographer.";
+    if (why === "wrong") fail("That word doesn't open this gallery", ask);
+    else if (why === "reach") fail(...UNREACHABLE);          // the word wasn't the problem: don't ask for it as if it were
+    else say("This gallery is protected by a word", ask);
+    const act = $("msgact");
     const f = document.createElement("form"), i = document.createElement("input"), go = document.createElement("button");
-    i.type = "password"; i.autocomplete = "off"; i.autofocus = true; i.setAttribute("aria-label", "Gallery word");
-    i.style.cssText = "font:inherit;padding:8px 10px;border:1px solid #c9bfae;border-radius:8px;margin-right:8px";
-    go.textContent = "Open"; go.style.cssText = "font:inherit;padding:8px 16px;border:0;border-radius:18px;background:#e3aa48;color:#1a1308";
-    f.append(i, go); d.append(b, p, f); $("msg").append(d);
-    f.onsubmit = e => { e.preventDefault(); go.disabled = true; go.textContent = "Opening..."; resolve(i.value); };
-    i.focus();
+    i.type = "password"; i.autocomplete = "off"; i.setAttribute("aria-label", "Gallery word");
+    go.type = "submit"; go.textContent = "Open";
+    f.append(i, go);
+    const opening = () => say("", OPENING);
+    f.onsubmit = e => { e.preventDefault(); go.disabled = true; go.textContent = "Opening..."; opening(); resolve(i.value); };
+    if (why === "reach") {                     // retry with the word already typed; it can still be changed
+      const again = document.createElement("button"), other = document.createElement("button");
+      again.type = "button"; again.textContent = "Try again";
+      other.type = "button"; other.className = "plain"; other.textContent = "Use a different word";
+      i.value = last || ""; f.hidden = true;
+      again.onclick = () => { again.disabled = true; opening(); resolve(last || ""); };
+      other.onclick = () => { again.remove(); other.remove(); f.hidden = false; i.value = ""; i.focus(); };
+      act.append(again, other, f);
+      again.focus();
+    } else {
+      act.append(f);
+      i.focus();
+    }
   });
 }
 
 async function main() {
-  if (!raw) { say("This gallery is locked", "Open it from the code in your letter."); return; }
+  if (!raw) { fail("This gallery is locked", "Open it from the code in your letter."); return; }
+  // manifest.bin is fetched once: its bytes are kept and decrypted again with each word tried
+  let mbuf = null, plain = null;
+  const manifest = async () => { if (!mbuf) mbuf = await fetchBin("manifest.bin"); return open(mbuf, "manifest.bin"); };
   if (NEEDS_WORD) {
-    if (!subtle) { say("This gallery must be opened over https", "Check the address starts with https://."); return; }
+    if (!subtle) { fail("This gallery must be opened over https", "Check the address starts with https://."); return; }
     const linkKey = raw;
-    for (let tries = 0; ; tries++) {
-      const word = await askWord(tries > 0);
+    for (let why = "", word = ""; ; ) {
+      word = await askWord(why, word);
       raw = linkKey; raw = await wordKey(word); ckey = null;
-      try { await get("manifest.bin"); break; } catch (e) { if (e.status === 404 || e.status === 410) { say("This gallery has closed"); return; } }
+      try { plain = await manifest(); break; }
+      catch (e) {
+        if (isClosed(e)) { fail("This gallery has closed"); return; }
+        why = isWrongKey(e) ? "wrong" : "reach";
+      }
     }
   }
   let m;
-  try { m = JSON.parse(new TextDecoder().decode(await get("manifest.bin"))); }
-  catch (e) {
-    if (e.insecure) { say("This gallery must be opened over https", "Check the address starts with https://."); return; }
-    if (e.status === 404 || e.status === 410) say("This gallery has closed");
-    else say("This gallery is locked", "Open it from the code in your letter.");
-    return;
+  for (;;) {
+    if (!plain) say("", OPENING);
+    try { m = JSON.parse(new TextDecoder().decode(plain || await manifest())); break; }
+    catch (e) {
+      if (e.insecure) fail("This gallery must be opened over https", "Check the address starts with https://.");
+      else if (isClosed(e)) fail("This gallery has closed");
+      else if (isWrongKey(e)) fail("This gallery is locked", "Open it from the code in your letter.");
+      else {                                   // the connection: offer the same link again, nothing to retype
+        fail(...UNREACHABLE);
+        const again = document.createElement("button");
+        again.type = "button"; again.textContent = "Try again";
+        $("msgact").append(again); again.focus();
+        await new Promise(r => { again.onclick = () => { again.disabled = true; r(); }; });
+        continue;
+      }
+      return;
+    }
   }
   $("msg").remove();
   // the visit counts only with proof of the key: sha256(key), first 32 hex, matched by seen.php
@@ -244,8 +306,12 @@ async function main() {
         nV = () => Object.values(picks).filter(p => p.v).length;
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(picks)); } catch (e) {} paint(); };
   function paint() {
-    document.querySelectorAll(".cell").forEach(c => { const p = picks[c.dataset.i] || {};
-      c.querySelector(".tag").innerHTML = (p.r ? "<i>R</i>" : "") + (p.m ? "<i>&hearts;</i>" : "") + (p.v ? "<i class=\"no\">&#8856;</i>" : ""); });
+    const mark = (t, cls) => { const i = document.createElement("i"); i.textContent = t; if (cls) i.className = cls; return i; };
+    document.querySelectorAll(".cell").forEach(c => { const p = picks[c.dataset.i] || {}, tag = c.querySelector(".tag");
+      tag.textContent = "";
+      if (p.r) tag.append(mark("R"));
+      if (p.m) tag.append(mark("♥"));
+      if (p.v) tag.append(mark("⊘", "no")); });
     const r = nR(), mk = nM(), vt = nV();
     $("tray").classList.toggle("on", !!(P.email || P.post) && (r + mk + vt) > 0);
     document.body.classList.toggle("tray", $("tray").classList.contains("on"));
@@ -277,6 +343,8 @@ async function main() {
         new TextEncoder().encode(JSON.stringify({ v: 1, at: new Date().toISOString(), picks: list }))));
       const body = new Uint8Array(4 + 12 + ct.length);
       body.set(new TextEncoder().encode("LAK1")); body.set(iv, 4); body.set(ct, 16);
+      if (body.length > 262144) { $("sent").hidden = false;           // the same limit picks.php and the app use
+        $("sent").textContent = "That is too many picks to send at once. Please send fewer, or tell your photographer."; return; }
       const proof = [...new Uint8Array(await subtle.digest("SHA-256", raw))].map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
       const r = await fetch("picks.php", { method: "POST", credentials: "omit", cache: "no-store", body, headers: { "X-Proof": proof } });
       if (!r.ok) throw new Error("http " + r.status);
@@ -290,11 +358,14 @@ async function main() {
   if (!P.market) { $("pm").hidden = true; $("pv").hidden = true; }      // the client declined portfolio use: nothing to suggest
   else if (P.retouch || P.market) {
     const how = $("how"); how.hidden = false;
-    const parts = [];
-    if (P.retouch) parts.push("<b>Retouch</b> for up to " + P.retouch + " favorites, with a note on what to fix");
-    how.innerHTML = (parts.length ? "Open any photo and choose " + parts.join(", and ") + "." : "Open any photo to see it full size.") +
-      (P.market ? " I choose up to " + P.market + " for my portfolio: <b>Suggest</b> your favorites, and mark any you would rather I never show with <b>Please don't show</b>." : "") +
-      " When you are done, press <b>Send my picks</b>.";
+    const bold = t => { const b = document.createElement("b"); b.textContent = t; return b; };
+    how.textContent = "";
+    if (P.retouch) how.append("Open any photo and choose ", bold("Retouch"),
+      " for up to " + P.retouch + " favorites, with a note on what to fix.");
+    else how.append("Open any photo to see it full size.");
+    if (P.market) how.append(" I choose up to " + P.market + " for my portfolio: ", bold("Suggest"),
+      " your favorites, and mark any you would rather I never show with ", bold("Please don't show"), ".");
+    how.append(" When you are done, press ", bold("Send my picks"), ".");
   }
   paint();
   $("pr").onclick = e => { e.stopPropagation(); const p = picks[cur] = picks[cur] || {};

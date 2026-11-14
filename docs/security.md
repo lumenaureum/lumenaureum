@@ -63,6 +63,18 @@ the link and fetches the encrypted files by name could still get them until the 
 does on its next check while unlocked. The host keeps only a hash of the key proof, never the proof or the key.
 Galleries on a plain S3 bucket are removed by the app, which needs to be unlocked to do it.
 
+What a gallery link can and can't protect:
+- **The link is the key.** Anyone holding the full link (with what follows the `#`) can open the gallery, the same as
+  the client. A codeword adds a second thing they must know. On a PHP host the gate also refuses the encrypted files
+  to anyone who can't prove they hold the key, so a codeword can't be guessed offline there; on a host without PHP,
+  someone with the link could download the files and guess the codeword at their own pace, which is why the app
+  refuses short or common codewords.
+- **The host serves the page.** A web host that turns hostile could change the gallery page so that it sends the key
+  somewhere when a client opens it. Use a host you trust.
+- **Expiry needs the host's help.** The window is kept in two small files on the host (the first-visit stamp and the
+  limits file). A host that alters them can keep a gallery up longer; the app still removes it on its next check.
+- **What was downloaded stays downloaded.** A client who saved photos while the gallery was open keeps them.
+
 ## On the network
 - HTTPS only, always: a certificate the app makes on first start (its SHA-256 fingerprint is printed in the container
   log to check against the browser), or your own. Lumen Aureum never serves plain HTTP. Session
@@ -84,10 +96,36 @@ Pages are sent with `Cache-Control: no-store`, so the browser does not keep clie
 no access log (request lines can carry search terms).
 
 ## Deleting a client
-Settings has no undo for it: their galleries come down, their photos and archives are destroyed, and every record and
+There is no undo: their galleries come down, their photos and archives are destroyed, and every record and
 history line about them is erased. Sealed daily backups still contain the record until they age out (the 30 most recent daily backups are kept, and the
-second location's copies on the same schedule). A small encrypted list of deletions is kept outside the database: if
-an older backup is ever restored, those clients are deleted again at the next sign-in.
+second location's copies on the same schedule). A small list of deletions, `deletions.json`, is kept outside the
+database: if an older backup is ever restored, those clients are deleted again at the next sign-in. The list holds
+only record numbers and creation times, no names.
+
+Each entry in that list is signed with a key kept inside the encrypted database, so someone who can write to the data
+folder but has no key cannot add an entry and have a client deleted at the next sign-in. An entry whose signature does
+not check is never applied: it is moved to `deletions.unverified.json` and a line in the history says how many were
+set aside. The key outlives a data-key rotation and comes back with any backup, so a restored backup still honors
+deletions made after it (a backup from before 1.0.1, restored after a key rotation, cannot check them; those entries
+are set aside the same way, not applied). Lists written by 1.0.0 carry no signatures: at the first sign-in on 1.0.1,
+an entry whose client is already gone is signed (the deletion already happened), and an entry whose client is still
+there is set aside and noted on that client's history instead of deleting them, because an unsigned file cannot prove
+you asked for it.
+
+Nothing set aside is ever applied on its own, but it isn't forgotten either. If a set-aside entry names a client who is
+still here (for example after restoring a backup from before 1.0.1 following a key rotation, where genuine deletions
+can't be checked), Today says so and links to a page listing those clients by name, with the date each was deleted
+when it is known. **Apply these deletions** deletes them through the normal Delete, so each deletion is recorded again,
+signed with the current key. **Keep them** leaves the clients as they are and marks those entries dismissed in
+`deletions.unverified.json`, so the notice doesn't come back. Both are ordinary signed-in forms.
+
+## Record numbers
+Session, client, step (to-do), and event numbers are never handed out twice, even after the newest one is deleted. A
+page left open on a deleted session, client, step, or event can't save into a new, unrelated one: anything sent from it
+gets a page saying it was deleted, and nothing is changed. The highest number issued is kept in `doc-numbers.json` beside the
+database (it survives restoring an older backup) and in a small table inside it (the database alone is enough if that
+file is lost); at each sign-in both are raised to at least every number the database, its History and the deletions
+list have seen.
 
 ## Rotating the data key
 Changing your password or turning off unattended unlock stops the old password or key file from opening the
@@ -100,13 +138,20 @@ running the command again, and the app will not start until it is. It refuses to
 Older backups keep their own keyring and still open with the master key.
 
 ## Restoring a backup
-`python -m vault.cli restore <name> <new-folder>` asks for the master key and writes `crm.db`, `keyring.json`,
-`settings.json` and `storage.json` (backups made before settings were included have only the first two) into a new
-folder, checked; it never touches the running install. `--settings-only` writes just `settings.json`. **On a new machine** (the old one lost), nothing else is
-needed: copy or mount the vault folder (or download the backup's `db/...age` file into a folder of the same layout) and
-add `--from <that folder>`. The master key opens the backup, and the keyring inside it opens the database. To run
-from the restored copy, put `crm.db`, `keyring.json` and `storage.json` in a fresh data folder and sign in with the password that was current when the
-backup was made (or reset it with the master key).
+Follow **Restoring a backup** in [operations.md](operations.md#restoring-a-backup). It is the one place with the
+steps, and it lists every file a restore involves. Moving only the database and its keyring is not enough: without
+`deletions.json` and `doc-numbers.json`, clients you deleted come back and invoice and receipt numbers repeat.
+
+What matters for security: `restore` asks for the master key, checks the backup, and writes into a new folder; it
+never touches the running install. The master key opens the backup, and the keyring inside it opens the database, so
+on a new machine the vault folder and the master key are all you need.
+
+If the data key was rotated after the backup was made, `python -m vault.cli relink-photos` puts each photo's current
+key back into the restored database. The key sealed beside each photo is sealed to the master *public* key, so anyone
+able to write to the photos folder could write one, with a photo to match. Relink only takes a key whose record carries
+a tag made with the key the restored database holds (each rotation adds one, with the key it retires); anything else is
+refused and left for `recover-photos <folder> --from <photos folder>`, which decrypts photos into a separate folder without touching the database.
+Photos rotated under 1.0.0 have no such tag, so relink refuses them too; that command still opens them.
 
 ## One process
 The data key lives in the memory of one process. Run the app as a single process (threads are fine); several worker

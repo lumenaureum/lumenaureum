@@ -5,6 +5,14 @@
 <h1>{{ {'general': 'General', 'fees': 'Prices', 'documents': 'Documents: review status', 'file': 'Settings file', 'system': 'System'}.get(tab, 'Settings') }}</h1>
 {% include "_import_msg.html" %}{% if request.args.get('saved') %}<p class="ok-msg" style="color:var(--gold)">Saved.</p>{% endif %}
 {% if tab == 'general' %}
+{% set tzp = tz_prompt() %}{% if tzp %}<form method="post" action="{{ url_for('settings_timezone') }}" class="card f" id="tz" style="max-width:620px;margin-top:4px;border-left:3px solid var(--gold)">
+  <h2>Set your time zone</h2>
+  <p style="font-size:13px;margin:0">No time zone has been chosen, so Lumen Aureum is using {{ tzp.now }}{{ ", this machine's own" if tzp.host == tzp.now else "" }}. If that isn't where you work, an invoice made in the evening can carry tomorrow's date. Pick yours below. It applies from now on: invoices, receipts, and other documents already issued keep the dates they have.</p>
+  <label class="l" for="tz-pick">Your time zone</label>
+  <select id="tz-pick" name="timezone" required{% if tzp.host %} data-keep="1"{% endif %}><option value="">Pick one</option>{% for z in tzp.zones %}<option{{ ' selected' if z == tzp.host }}>{{ z }}</option>{% endfor %}</select>
+  <input type="hidden" name="browser_tz" value="">
+  <div><button class="primary">Save time zone</button></div>
+</form><script src="{{ url_for('static', filename='setup.js', v=static_v('setup.js')) }}"></script>{% endif %}
 <form method="post" class="card f" style="max-width:620px;margin-top:4px"><input type="hidden" name="main_posted" value="1">
   <div class="f2"><div><label class="l">Your name</label><input name="photographer_name" maxlength="200" value="{{ photographer }}"></div>
     <div><label class="l">Brand name, if different</label><input name="studio_name" maxlength="200" value="{{ studio }}"></div></div>
@@ -20,9 +28,14 @@
   <div class="f2"><div><label class="l">Age of majority{{ help("Under this age a person is a minor, and a parent or guardian signs their release. 18 in most US states; 19 in Alabama and Nebraska, 21 in Mississippi; check where you work.") }}</label><input type="number" name="age_majority" min="14" max="25" value="{{ majority_age() }}" style="width:90px"></div>
     <div><label class="l">Gallery address{{ help("The web address your online galleries are served from. Set it up in Online galleries.") }}</label><input value="{{ gallery_base or 'Not set up' }}" disabled></div></div>
   <label class="row" style="gap:6px"><input type="checkbox" name="credit" value="1" {{ 'checked' if setting('credit_off') != '1' }}>Credit Lumen Aureum on quotes, invoices and galleries{{ help("One small line: " ~ C.CREDIT ~ ". Never on agreements or releases.") }}</label>
-  {% if n_demo %}<label class="row" style="gap:6px"><input type="checkbox" name="clear_demo" value="1">Delete the {{ n_demo }} demo clients</label>{% endif %}
   <div><button class="primary">Save</button></div>
 </form>
+{% if n_demo %}<form method="post" action="{{ url_for('settings_clear_demo') }}" class="card f" style="max-width:620px"
+  data-confirm="Delete the {{ n_demo }} demo client{{ '' if n_demo == 1 else 's' }}, with their sessions, galleries, and photos? This can't be undone. Your own clients aren't touched.">
+  <h2>Demo clients</h2>
+  <p class="mute" style="font-size:13px;margin:0">{{ n_demo }} made-up client{{ '' if n_demo == 1 else 's' }} to try things on. Deleting them also removes their sessions, galleries, and photos. Your own clients aren't touched. The progress shows at the bottom of the page.</p>
+  <div><button class="quiet">Delete the {{ n_demo }} demo client{{ '' if n_demo == 1 else 's' }}</button></div>
+</form>{% endif %}
 <div class="card f" style="max-width:620px"><h2>Logo on your documents</h2>
   <p class="mute" style="font-size:13px;margin:0">Printed at the top of quotes, invoices, receipts, agreements, releases, session details, statements and the price list. PNG or JPEG; it is resized to fit.</p>
   {% if setting('logo_png') %}<div style="margin:10px 0"><img src="{{ logo_src() }}" alt="Your logo" style="max-height:70px;max-width:280px;background:#fff;padding:6px;border-radius:6px"></div>{% endif %}

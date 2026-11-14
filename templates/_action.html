@@ -19,9 +19,9 @@
         <span class="seg">{% for c in ['text','call','email','in person','note'] %}<label><input type="radio" name="channel" value="{{ c }}"{{ ' checked' if loop.first }}><span>{{ c }}</span></label>{% endfor %}</span>
         <input name="summary" class="grow" style="width:auto" placeholder="Note" required><button class="primary">Save</button></form>
     {% elif a.form == 'intake_done' %}
-      <form method="post" action="{{ url_for('session_intake', sid=a.sid) }}" class="intake-grid"><input type="hidden" name="back" value="{{ back }}">
+      <form method="post" action="{{ url_for('session_intake', sid=a.sid) }}" class="intake-grid"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seen" value="{{ edit_stamp('intake', a.sid) }}">
         {% for k, label in C.INTAKE.get(a.type, []) %}<label><span>{{ label }}</span><input name="{{ k }}" value="{{ a.intake.get(k, '') }}"></label>{% endfor %}
-        <div><button class="primary">Save</button></div>{% set n_q = C.INTAKE.get(a.type, [])|length %}{% set need_ = [1, n_q // 2]|max %}<div class="intake-note mute" data-need="{{ need_ }}">All optional. Answer at least {{ need_ }} of {{ n_q }} to tick this step off; save as many as you have now.</div></form>
+        <div><button class="primary">Save</button></div>{% set n_q = C.INTAKE.get(a.type, [])|length %}{% set need_ = [1, n_q // 2]|max %}<div class="intake-note mute" data-need="{{ need_ }}">Needed to tick this step off: {{ need_ }} of {{ n_q }} answers. Save what you have now.</div></form>
     {% elif a.form == 'quote_built' %}
       <form method="post" action="{{ url_for('money_add', sid=a.sid) }}" class="row"><input type="hidden" name="what" value="line"><input type="hidden" name="back" value="{{ back }}">
         <input name="label" maxlength="200" value="{{ type_label[a.type] }} session" class="grow" style="width:auto" required><input type="number" step="0.01" name="amount" placeholder="$" required style="width:110px"><button class="primary">Add to quote</button></form>
@@ -31,10 +31,10 @@
         <input name="ref" maxlength="40" placeholder="Check #" style="width:90px" data-show-if="method=check">
         <input type="date" name="received" value="{{ today.isoformat() }}" style="width:auto"><button class="primary">Record</button></form>
     {% elif a.form == 'date_set' %}
-      <form method="post" action="{{ url_for('quick', sid=a.sid) }}" class="row"><input type="hidden" name="act" value="date"><input type="hidden" name="back" value="{{ back }}">
+      <form method="post" action="{{ url_for('quick', sid=a.sid) }}" class="row"><input type="hidden" name="act" value="date"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seen" value="{{ edit_stamp('when', a.sid) }}">
         <input type="date" name="shoot_date" required style="width:auto" data-avail="{{ a.sid }}"><input type="time" name="start_time" style="width:auto"><input name="where" maxlength="200" placeholder="Where" style="width:auto;min-width:180px"><button class="primary">Set</button></form>
     {% elif a.form == 'favorites' %}
-      <form method="post" action="{{ url_for('quick', sid=a.sid) }}" class="row"><input type="hidden" name="act" value="favorites"><input type="hidden" name="back" value="{{ back }}">
+      <form method="post" action="{{ url_for('quick', sid=a.sid) }}" class="row"><input type="hidden" name="act" value="favorites"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seen" value="{{ edit_stamp('picks', a.sid) }}">
         <textarea name="retouch_picks" rows="2" placeholder="Retouch" class="grow" style="width:auto"></textarea><input name="favorites" placeholder="Portfolio suggestions" class="grow" style="width:auto"><input name="veto" placeholder="Don't show" class="grow" style="width:auto"><button class="primary">Save</button></form>
     {% endif %}
   </div>{% endif %}

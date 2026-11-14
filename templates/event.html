@@ -29,9 +29,10 @@
     {% else %}<div class="pickgrid" style="margin-top:8px">{% for x_ in households %}<form method="post" action="{{ url_for('event_billing', eid=e.id) }}" class="inline"><input type="hidden" name="payer_hid" value="{{ x_.id }}"><button class="pick" style="border:0;background:none;width:100%">{{ avatar(x_.id, 44) }}<span>{{ x_.name }}</span></button></form>{% endfor %}
       <a class="pick" href="{{ url_for('contact_new') }}"><span style="font-size:28px">+</span><span>Organizer</span></a></div>{% endif %}
   {% endif %}
+  {% with clash_form='event_rights' %}{% include "_edit_clash.html" %}{% endwith %}
   <form method="post" action="{{ url_for('event_billing', eid=e.id) }}" class="row" style="flex-wrap:wrap;gap:10px;margin-top:10px">
     {{ seg('rights', [('families', 'I own; families and organizer licensed'), ('organizer', 'Organizer owns; families licensed'), ('custom', 'Custom')], e.rights or 'families', attrs='data-autosubmit') }}
-    {% if e.rights == 'custom' %}<input name="rights_note" value="{{ e.rights_note }}" class="grow" style="width:auto" placeholder="Rights"><button class="quiet">Save</button>{% endif %}</form>
+    {% if e.rights == 'custom' %}<input type="hidden" name="seen" value="{{ edit_stamp('event_rights', e.id) }}"><input name="rights_note" value="{{ e.rights_note }}" class="grow" style="width:auto" placeholder="Rights"><button class="quiet">Save</button>{% endif %}</form>
 </section>
 
 <section class="sec" id="families"><h2 class="sec-h">Families</h2>
@@ -51,7 +52,7 @@
     <td data-v="{{ f.n_signed - f.n_docs }}">{% if f.released %}<span class="pill">{{ f.n_signed }}/{{ f.n_docs }} signed</span>
       {% else %}<form method="post" action="{{ url_for('event_releases', eid=e.id) }}" class="inline" data-confirm="Mark the {{ f.s.household }} release signed? Do this once you have the signed copy back."><input type="hidden" name="session_id" value="{{ f.s.id }}">
         <button class="pillbtn {{ 'red' if e.date and e.date < today.isoformat() else ('amber' if e.date and e.date <= (today + delta3).isoformat() else 'plain') }}">{{ f.n_signed }}/{{ f.n_docs }} - sign</button></form>{% endif %}</td>
-    {% if f.t is not none %}<td data-v="{{ f.t.due }}">{% if not f.t.quoted %}<span class="mute">no price</span>{% elif f.t.due <= 0.005 %}<span class="pill">paid</span>{% else %}{{ money(f.t.paid) }} of {{ money(f.t.quoted) }}{% endif %}</td>{% endif %}
+    {% if f.t is not none %}<td data-v="{{ f.t.due }}">{% if not f.t.quoted %}<span class="mute">no price</span>{% elif f.t.due < -0.005 %}<span class="pill">paid, {{ money(-f.t.due) }} credit</span>{% elif f.t.due <= 0.005 %}<span class="pill">paid</span>{% else %}{{ money(f.t.paid) }} of {{ money(f.t.quoted) }}{% endif %}</td>{% endif %}
     <td>{{ stage_pill(f.s.stage) }}</td></tr>
   {% endfor %}
   <tr><form method="post" action="{{ url_for('event_family', eid=e.id) }}" id="fnew"></form>
@@ -73,7 +74,8 @@
 </section>
 
 <section class="sec" id="details"><h2 class="sec-h">Details</h2>
-  <form method="post" action="{{ url_for('event_edit', eid=e.id) }}" class="f" style="max-width:640px">
+  {% with clash_form='event' %}{% include "_edit_clash.html" %}{% endwith %}
+  <form method="post" action="{{ url_for('event_edit', eid=e.id) }}" class="f" style="max-width:640px"><input type="hidden" name="seen" value="{{ edit_stamp('events', e.id) }}">
     <div><label class="l">Name</label><input name="name" maxlength="200" value="{{ e.name }}"></div>
     <div class="f2"><div><label class="l">Date</label><input type="date" name="date" value="{{ e.date or '' }}"></div>
       <div><label class="l">Venue</label><input name="venue" maxlength="200" value="{{ e.venue }}"></div></div>

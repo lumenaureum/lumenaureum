@@ -77,6 +77,6 @@ The word is normalized first: Unicode NFKC, trimmed, lowercase, runs of spaces m
 sent anywhere. The link alone, or the word alone, opens nothing; with the link, every guess at the word costs the
 600,000 rounds. Someone who has the link (a found letter, say) can guess offline, so a single dictionary word would
 not hold for long: the app accepts only three or more different words of three letters or more, or 14 or more letters, and suggests
-four random words. The key proof and the picks use this final key. Whether a gallery has a codeword is fixed when it is
+five random words. The key proof and the picks use this final key. Whether a gallery has a codeword is fixed when it is
 first published, so a link already sent always keeps working. Test vectors: `tests/vectors/gallery-codeword.json`.
 

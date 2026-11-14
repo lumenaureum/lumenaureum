@@ -57,6 +57,30 @@ def migrate(con):
     con.commit()
 
 
+def ensure_trail(con):
+    """key_trail: for each key a photo had before a rotation, a tag only that key could make (trail_tag). It lets
+    relink-photos tell a key the vault really issued from a key record anyone could write to the master PUBLIC key.
+    init_db adds the column; this is for the tools that open a database init_db may not have seen (rotate, relink)."""
+    if "key_trail" not in [r[1] for r in con.execute("PRAGMA table_info(photo_files)")]:
+        con.execute("ALTER TABLE photo_files ADD COLUMN key_trail TEXT DEFAULT '[]'")
+
+
+def trail_tag(fkey, fid):
+    """HMAC-SHA256 under a photo's key, over its id: proof that whoever wrote it held that key. One way: it reveals
+    nothing about the key."""
+    import hmac
+    return hmac.new(bytes.fromhex(fkey), b"lumen-aureum key trail|" + fid.encode(), hashlib.sha256).hexdigest()
+
+
+def key_trail(row):
+    import json
+    try:
+        t = json.loads(row["key_trail"] or "[]")
+    except (IndexError, KeyError, ValueError, TypeError):
+        return []
+    return [x for x in t if isinstance(x, str)] if isinstance(t, list) else []
+
+
 class UploadError(ValueError):
     pass
 
@@ -119,7 +143,7 @@ def write_key(row, master_pub, label="", path=None):
     if not master_pub:
         return
     body = json.dumps(dict(v=1, id=row["id"], session=row["session_id"], label=label, kind=row["kind"], name=row["name"],
-                           size=row["size"], fkey=row["fkey"])).encode()
+                           size=row["size"], fkey=row["fkey"], trail=key_trail(row))).encode()
     p = Path(path) if path else key_path(row["id"])
     p.parent.mkdir(parents=True, exist_ok=True)
     tmp = p.with_name(p.name + f".{secrets.token_hex(4)}.tmp")

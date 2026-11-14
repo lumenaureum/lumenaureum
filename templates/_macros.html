@@ -11,9 +11,14 @@
 {% macro event_avatar(eid, name, size=32) -%}<span class="av ev" style="width:{{ size }}px;height:{{ size }}px;font-size:{{ (size * 0.38)|int }}px">{{ (name.split()|map('first')|select('upper')|list)[:2]|join('') if name else 'EV' }}</span>{%- endmacro %}
 {% macro sym(name, status='next', size=22) -%}<span class="ms g-{{ sym_group(name) }} s-{{ status }}" style="font-size:{{ size }}px" aria-hidden="true">{{ name }}</span>{%- endmacro %}
 {% macro close_menu(a, back, more=[]) -%}
-{%- if a.close or more -%}<details class="closemenu"><summary title="More">&hellip;</summary><div class="cm-pop">
+{%- if a.close or more -%}
+{#- the ... button names itself (screen readers, and a tooltip on hover); the menu says what its choices do -#}
+{%- set opts_ = (more|map(attribute='verb')|map('lower')|list) + (['mark it waived, not needed, or client declined'] if a.close else []) -%}
+{%- set tip_ = "More for " ~ (a.what or "this step") ~ ": " ~ opts_|join(", ") -%}
+<details class="closemenu"><summary aria-label="{{ tip_ }}" data-tip="{{ tip_ }}">&hellip;</summary><div class="cm-pop">
 {% for m in more %}<form method="post" action="{{ m.post }}">{% for fk, fv in m.fields.items() %}<input type="hidden" name="{{ fk }}" value="{{ fv }}">{% endfor %}<input type="hidden" name="back" value="{{ back }}"><button class="cm-act">{{ m.verb }}</button></form>{% endfor %}
 {% if a.close %}<form method="post" action="{{ url_for('close_step') }}">{% for fk, fv in a.close.items() %}<input type="hidden" name="{{ fk }}" value="{{ fv }}">{% endfor %}
+<div class="cm-head">{{ 'Or close' if more else 'Close' }} this step without doing it:</div>
 <input type="hidden" name="back" value="{{ back }}">
 <textarea name="note_why" placeholder="Note" rows="2"></textarea>
 <input type="datetime-local" name="said_at" title="When they said it">

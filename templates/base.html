@@ -17,7 +17,7 @@
 </nav>
 <main>{% set notice = take_notice() %}{% if notice %}<div class="clash toast" role="status">{{ notice }}<button type="button" class="toast-x" aria-label="Dismiss" data-dismiss>&times;</button></div>{% endif %}{% if ep != 'home' %}<a class="back" href="{{ url_for('home') }}">&lsaquo; Today</a>{% endif %}{% set sp_ = ep in SETTINGS_ENDPOINTS %}{% if sp_ %}<div class="setwrap">{% include "_settings_nav.html" %}<div class="setmain">{% endif %}{% block body %}{% endblock %}{% if sp_ %}</div></div>{% endif %}</main>
 {% set jobs_ = jobs_visible() %}{% if jobs_ %}<aside class="jobs" aria-live="polite">{% for j in jobs_ %}
-  <div class="job {{ j.state }}"><b>{{ j.label }}</b> <span>{% if j.state == 'running' %}working...{% elif j.state == 'error' %}{{ j.message }}{% else %}{{ j.message }}{% endif %}</span></div>{% endfor %}
+  <div class="job {{ j.state }}"><b>{{ j.label }}</b> <span>{% if j.state == 'running' %}working...{% if j.total %} ({{ j.done }} of {{ j.total }} done){% endif %}{% elif j.state == 'error' %}{{ j.message }}{% else %}{{ j.message }}{% endif %}</span></div>{% endfor %}
   {% if jobs_|selectattr('state', 'equalto', 'running')|list %}<span hidden data-poll="{{ url_for('jobs_state') }}"></span>{% endif %}</aside>{% endif %}
 <script src="{{ url_for('static', filename='ui.js', v=static_v('ui.js')) }}"></script>
 </body></html>

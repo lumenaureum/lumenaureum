@@ -21,6 +21,7 @@ import shutil
 import threading
 from datetime import date, timedelta
 from pathlib import Path
+from typing import NamedTuple
 
 from flask import abort, jsonify, redirect, request, send_from_directory, url_for
 
@@ -143,7 +144,7 @@ def codeword_strong(word):
 
 
 def suggest_codeword():
-    return " ".join(secrets.choice(CODEWORD_WORDS) for _ in range(4))   # four from the list: about 17 million
+    return " ".join(secrets.choice(CODEWORD_WORDS) for _ in range(5))   # five from the list: about a billion
 
 
 def norm_codeword(w):
@@ -153,7 +154,7 @@ def norm_codeword(w):
     import unicodedata
     w = unicodedata.normalize("NFKC", w or "")
     w = _re.sub("[\u200b-\u200d\u2060\ufeff\u00ad]", "", w)                 # zero-width and soft-hyphen: dropped
-    w = _re.sub(r"[\x00-\x1f\x7f\s\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+", " ", w)  # any space: one space
+    w = _re.sub(r"[\x00-\x1f\x7f-\x9f\s\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+", " ", w)  # any space: one space
     return w.strip().lower()
 
 
@@ -223,10 +224,19 @@ def list_jpegs(folder):
                    and not p.name.startswith(".")), key=natural)
 
 
-def build(gid, src, key, progress=lambda done, total: None, picks=None, credit="", brand=None, codeword=False):
+class Built(NamedTuple):
+    """What build() made: the gallery folder, how many photos it holds, and the files it skipped (not a JPEG it can read)."""
+    out_dir: Path
+    n: int
+    skipped: list
+
+
+def build(gid, src, key, progress=lambda done, total: None, picks=None, credit="", brand=None):
     """Write the encrypted gallery for gid from src: a folder of JPEGs, or a list of (name, open) where open() gives a
-    file object (an uploaded, sealed export decrypted in memory). Returns (out_dir, n_photos). Atomic: the old build is
-    replaced at the end."""
+    file object (an uploaded, sealed export decrypted in memory). key is the final key (the link's own, or the one
+    codeword_key derived); whether the page asks for a word rides in the link (&c=1), never in the page. Returns
+    Built(out_dir, n, skipped): the skipped names are part of the result, so builds running at once never mix them.
+    Atomic: the old build is replaced at the end."""
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     aes = AESGCM(key_bytes(key))
     files = [opener for _, opener in src] if isinstance(src, list) else list_jpegs(src)
@@ -264,7 +274,6 @@ def build(gid, src, key, progress=lambda done, total: None, picks=None, credit="
     if not items:
         shutil.rmtree(tmp, ignore_errors=True)
         raise ValueError("None of these files is a JPEG photo this can read: " + ", ".join(skipped[:5]))
-    build.skipped = skipped                     # the caller names them in the result
     brand = dict(brand or {})                   # studio, logo, client, date: inside the encrypted manifest, never in the page
     manifest = dict(v=1, title=brand.pop("client", "") or "Your photos", items=items, picks=picks or {}, brand=brand)
     (tmp / "manifest.bin").write_bytes(seal(aes, json.dumps(manifest, separators=(",", ":")).encode(), "manifest.bin"))
@@ -290,7 +299,7 @@ def build(gid, src, key, progress=lambda done, total: None, picks=None, credit="
         final.rename(old)
     tmp.rename(final)
     shutil.rmtree(old, ignore_errors=True)
-    return final, len(items)
+    return Built(final, len(items), skipped)
 
 
 SYNC_MIN = 30
@@ -329,7 +338,13 @@ def put_limits(gid, days, unopened_until):
     import io
     if not GID_OK.match(gid):
         raise ValueError("bad gallery id")
-    body = f"days={int(days)}\nunopened_until={unopened_until}\n".encode()
+    body = f"days={int(days)}\nunopened_until={unopened_until}\n"
+    try:                                  # a viewer that sends the key proof with every fetch: the gate can require it
+        if "async function keyProof" in (OUT_ROOT / gid / "index.html").read_text():
+            body += "proof=1\n"
+    except OSError:
+        pass                              # no built copy here: an older gallery, whose page never sends one
+    body = body.encode()
     gallery_host().put_stream(f"{gid}/limits.txt", io.BytesIO(body), content_type="text/plain")
 
 
@@ -431,18 +446,22 @@ def _hmac_eq(a, b):
     return _hmac.compare_digest(a.replace("-", ""), b.replace("-", ""))
 
 
+PICKS_MAX = 262144                 # bytes: picks.php and the viewer use the same limit
+PICKS_MAX_ENTRIES = 5000           # more than any gallery's photos: every pick sent is read
+
+
 def open_picks(blob, key):
     """picks.bin -> the picks, checked: 'LAK1' | 12-byte nonce | AES-256-GCM under the gallery key. Anything else
     (or anything that doesn't decrypt) is ignored."""
     import json as _json
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    if not blob or blob[:4] != b"LAK1" or len(blob) < 32 or len(blob) > 65536:
+    if not blob or blob[:4] != b"LAK1" or len(blob) < 32 or len(blob) > PICKS_MAX:
         raise ValueError("not a picks file")
     data = _json.loads(AESGCM(key_bytes(key)).decrypt(blob[4:16], blob[16:], PICKS_AAD))
     if not isinstance(data, dict) or not isinstance(data.get("picks"), list):
         raise ValueError("not picks")
     out = dict(retouch=[], suggest=[], veto=[])
-    for p_ in data["picks"][:500]:
+    for p_ in data["picks"][:PICKS_MAX_ENTRIES]:
         if not isinstance(p_, dict):
             continue
         name = str(p_.get("name") or f"photo {int(p_.get('i', 0)) + 1}")[:200]
@@ -633,7 +652,7 @@ def register(ctx):
             lk = locks.session(sid)                     # takes turns with sealing and deleting the session's photos
             lk.acquire()
             try:
-                out, n = build(gid, src, key, progress, picks=picks_cfg, credit=credit, brand=brand, codeword=bool(norm_codeword(word)))
+                out, n, skipped = build(gid, src, key, progress, picks=picks_cfg, credit=credit, brand=brand)
                 with app.app_context():
                     gone = not q("SELECT 1 FROM sessions WHERE id=?", (sid,), one=True) or (
                         q("SELECT 1 FROM sqlite_master WHERE name='retention'", one=True)
@@ -644,13 +663,12 @@ def register(ctx):
                     x("UPDATE galleries SET built_at=?, n_files=?, out_dir=?, ekey=? WHERE session_id=?",
                       (date.today().isoformat(), n, str(out) + "/", key, sid))
                     x("UPDATE sessions SET gallery_built=? WHERE id=?", (date.today().isoformat(), sid))
-                    sk_ = getattr(build, "skipped", [])
-                    ctx.audit(f"Gallery built: {n} photos encrypted" + (f"; skipped (not a JPEG this can read): {', '.join(sk_[:10])}" if sk_ else ""),
+                    ctx.audit(f"Gallery built: {n} photos encrypted" + (f"; skipped (not a JPEG this can read): {', '.join(skipped[:10])}" if skipped else ""),
                               sid=sid, who="Lumen Aureum")
                     ctx.advance(sid)
                 job["state"] = "done"
-                if getattr(build, "skipped", []):
-                    job["error"] = "Skipped, not a JPEG this can read: " + ", ".join(build.skipped[:10])
+                if skipped:
+                    job["error"] = "Skipped, not a JPEG this can read: " + ", ".join(skipped[:10])
             except Exception as e:  # shown in the block
                 app.logger.exception("gallery build failed")
                 job.update(state="error", error=str(e) or e.__class__.__name__)
@@ -684,8 +702,8 @@ def register(ctx):
                       "; they differ from the gallery, so ask which are final"), sid=sid)
             if not same and not q("SELECT 1 FROM tasks WHERE session_id=? AND title=? AND done IS NULL",
                                   (sid, "Ask the client which picks are final"), one=True):
-                x("INSERT INTO tasks (session_id, title, due, sort, stage, own) VALUES (?,?,?,999,?,1)",
-                  (sid, "Ask the client which picks are final", date.today().isoformat(), s["stage"]))
+                x("INSERT INTO tasks (id, session_id, title, due, sort, stage, own) VALUES (?,?,?,?,999,?,1)",
+                  (ctx.next_id("tasks"), sid, "Ask the client which picks are final", date.today().isoformat(), s["stage"]))
             ctx.advance(sid)
         return redirect(ctx.safe_back(request.form.get("back")) or url_for("session_view", sid=sid) + "#delivery")
 

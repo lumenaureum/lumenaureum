@@ -4,3 +4,4 @@ data/
 *.db
 .pytest_cache/
 .coverage
+!tests/fixtures/**/*.db

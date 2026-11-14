@@ -17,10 +17,11 @@ USAGE = """Command line for the vault. The master key is read from the terminal 
     python -m vault.cli open-orphan <archive> <dir> [--from <vault folder>]
                                                 open one of those archives into a NEW folder with the master key
     python -m vault.cli recover-photos <dir> [--from <photos folder>]
-    python -m vault.cli relink-photos           after restoring a backup older than a key rotation: puts each photo's
-                                                current key (sealed beside it to the master key) back into the database
                                                 uploaded photos this database doesn't know: decrypted into a NEW folder
                                                 with the master key (each photo's key is sealed beside it)
+    python -m vault.cli relink-photos           after restoring a backup older than a key rotation: puts each photo's
+                                                current key (sealed beside it to the master key) back into the database,
+                                                only when it traces back to the key this database holds
 """
 import getpass
 import os
@@ -123,7 +124,8 @@ def main(argv):
         ident = K.parse_secret(secret)
         datakey.set_unlocked(datakey.unwrap_master(secret))
         con = D.connect(DB)
-        fixed = same = missing = bad = 0
+        P.ensure_trail(con)                               # the trail moves with the key (a later rotation extends it)
+        fixed = same = missing = bad = untraced = 0
 
         class _Null:
             def write(self, b):
@@ -139,18 +141,31 @@ def main(argv):
             if m["fkey"] == r[1]:
                 same += 1
                 continue
-            try:                                          # the key record is sealed to the PUBLIC key, so anyone could
-                P.read_file_plain(P.path_of(r[0]), r[0], m["fkey"], _Null(), size=r[2])   # write one: only a key
-            except Exception:  # noqa: BLE001                   # that really opens the photo is taken
+            # The key record is sealed to the PUBLIC key, so anyone could write one, along with a photo file to match.
+            # A key is taken only if the record traces back to the key this database holds: each rotation adds a tag
+            # made with the key it retired (photostore.trail_tag), and only the vault ever held that key.
+            import hmac
+            want = P.trail_tag(r[1], r[0])
+            trail = m.get("trail") if isinstance(m.get("trail"), list) else []
+            if not any(isinstance(t_, str) and hmac.compare_digest(t_, want) for t_ in trail):
+                print(f"skipped {r[0]}: its key record does not trace back to the key this database holds "
+                      "(recover-photos <folder> --from <photos folder> still opens it with the master key)")
+                untraced += 1
+                continue
+            try:                                          # and the key must really open the photo
+                P.read_file_plain(P.path_of(r[0]), r[0], m["fkey"], _Null(), size=r[2])
+            except Exception:  # noqa: BLE001
                 print(f"skipped {r[0]}: its key record does not open the photo")
                 bad += 1
                 continue
-            con.execute("UPDATE photo_files SET fkey=?, mirrored=NULL WHERE id=?", (m["fkey"], r[0]))   # mirror re-copied
+            con.execute("UPDATE photo_files SET fkey=?, mirrored=NULL, key_trail=? WHERE id=?",   # mirror re-copied
+                        (m["fkey"], json.dumps([t_ for t_ in trail if isinstance(t_, str)]), r[0]))
             fixed += 1
         con.commit()
         con.close()
         print(f"{fixed} photo key(s) restored, {same} already right, {missing} with no sealed key beside them"
-              + (f", {bad} refused (the key did not open the photo)." if bad else "."))
+              + (f", {bad} refused (the key did not open the photo)" if bad else "")
+              + (f", {untraced} refused (the key record did not trace back to this database)" if untraced else "") + ".")
         return 0
     if cmd == "recover-photos" and len(argv) in (2, 4):
         import json

@@ -95,6 +95,7 @@ def test_a_changed_invoice_after_sending_gets_a_new_number(tmp_path, monkeypatch
     A, c = _app(tmp_path, monkeypatch)
     sid = _new(A, c, "family", subject_name="Ava")
     c.post(f"/session/{sid}/money", data={"what": "line", "label": "Session", "amount": "225"}, environ_base=E)
+    c.post(f"/session/{sid}/invoice/issue", environ_base=E)
     first = c.get(f"/session/{sid}/invoice", environ_base=E)
     num1 = _q(A, "SELECT number FROM doc_numbers WHERE session_id=? AND kind='INV'", (sid,))
     assert first.status_code == 200 and num1
@@ -103,6 +104,7 @@ def test_a_changed_invoice_after_sending_gets_a_new_number(tmp_path, monkeypatch
         A._invoice_marked_sent(sid)
         A._commit()
     c.post(f"/session/{sid}/money", data={"what": "line", "label": "Late fee", "amount": "25"}, environ_base=E)
+    c.post(f"/session/{sid}/invoice/issue", environ_base=E)
     page = c.get(f"/session/{sid}/invoice", environ_base=E).get_data(as_text=True)
     num2 = _q(A, "SELECT number FROM doc_numbers WHERE session_id=? AND kind='INV'", (sid,))
     assert num2 and num2[0][0] != num1[0][0] and "Replaces" in page and num1[0][0] in page

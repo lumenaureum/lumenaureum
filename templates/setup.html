@@ -42,7 +42,9 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
       <label class="l">Business phone{{ help("Printed with your email and address at the top of quotes, invoices and session details, so clients can reach you.") }}</label><input type="tel" name="business_phone" maxlength="40" value="{{ get('business_phone') }}"></div>
     <div><label class="l">Mailing address</label><textarea name="business_address" rows="2" maxlength="400">{{ get('business_address') }}</textarea></div></div>
   <label class="l">Time zone <b class="hardtag">hard to change later</b>{{ help("Every date and deadline is stored in this time zone. Changing it later moves due dates and the sunset times already worked out.") }}</label>
-  <select name="timezone" required><option value="">Pick one</option>{% for z in zones %}<option{{ ' selected' if z == tz }}>{{ z }}</option>{% endfor %}</select>
+  <select name="timezone" required{% if tz_saved %} data-keep="1"{% endif %}><option value="">Pick one</option>{% for z in zones %}<option{{ ' selected' if z == tz }}>{{ z }}</option>{% endfor %}</select>
+  <input type="hidden" name="browser_tz" value="">
+  {% if not tz_saved %}<div class="hint">Filled in from this device's time zone. Change it if your business keeps a different one.</div>{% endif %}
   <label class="l">Home ZIP code, for sunset times</label><input name="home_zip" value="{{ get('home_zip') }}" inputmode="numeric" maxlength="5" style="width:120px">
   <div class="hint">Or latitude and longitude:</div>
   <div class="two"><input name="home_lat" placeholder="Latitude" value="{{ get('home_lat') if not get('home_zip') }}"><input name="home_lon" placeholder="Longitude" value="{{ get('home_lon') if not get('home_zip') }}"></div>

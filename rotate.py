@@ -3,6 +3,7 @@ leaked. Everything is re-encrypted under a new key into staged files first (data
 database copy is opened and checked; only then are they swapped in, keyring last. A marker file records that a swap is under way: if the run
 is interrupted, running the command again finishes it, and the app refuses to start until it has.
 Older backups keep their own keyring, so the master key still opens them."""
+import json
 import os
 import secrets
 from pathlib import Path
@@ -96,17 +97,22 @@ def _stage_photos(db_new, new):
     try:
         if not con.execute("SELECT 1 FROM sqlite_master WHERE name='photo_files'").fetchone():
             return
+        photostore.ensure_trail(con)
         for r in con.execute("SELECT * FROM photo_files").fetchall():
             src = photostore.path_of(r["id"])
             if not src.exists() or r["records"] == 0:
                 continue
             fkey, ct_len = photostore.rekey(r, Path(str(src) + STAGED))
-            con.execute("UPDATE photo_files SET fkey=?, ct_len=?, mirrored=NULL WHERE id=?", (fkey, ct_len, r["id"]))
+            # the trail gains a tag made with the key being retired: a database restored from before this rotation
+            # holds that key, so relink-photos can check the new key record really came from here
+            trail = json.dumps(photostore.key_trail(r) + [photostore.trail_tag(r["fkey"], r["id"])])
+            con.execute("UPDATE photo_files SET fkey=?, ct_len=?, mirrored=NULL, key_trail=? WHERE id=?",
+                        (fkey, ct_len, trail, r["id"]))
             kp = photostore.key_path(r["id"])
             if kp.exists():                          # the sealed key beside it follows (staged, swapped in by finish)
                 lab = con.execute("""SELECT h.name, s.type, s.shoot_date FROM sessions s JOIN households h ON h.id=s.household_id
                                      WHERE s.id=?""", (r["session_id"],)).fetchone()
-                photostore.write_key(dict(dict(r), fkey=fkey), datakey.master_pub(),
+                photostore.write_key(dict(dict(r), fkey=fkey, key_trail=trail), datakey.master_pub(),
                                      " - ".join(str(v) for v in lab if v) if lab else "", path=Path(str(kp) + STAGED))
         con.commit()
     finally:

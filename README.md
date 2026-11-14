@@ -24,7 +24,8 @@ laptop or a stolen drive exposes no client records.
 - **Billing and finances**: deposits, payments, refunds, mileage, expenses, and sales tax counted when payments are received.
 - **Proofing galleries**, encrypted in the browser; the key is in the link printed on the letter you mail. Galleries
   come down after the window you set: by themselves on a web host that runs PHP with Apache rewrite rules, otherwise
-  the next time the app is unlocked.
+  the next time the app is unlocked. A session type can ask for a codeword the client chooses, so the link alone
+  doesn't open the gallery. What a link can and can't protect is in [docs/security.md](docs/security.md).
 - **Photos**: drop RAWs and edited JPEGs onto the session page; they are encrypted as they arrive, galleries are
   built from them, and after delivery they are sealed into the vault and deleted when their time is up.
 

@@ -21,8 +21,8 @@ with A.app.app_context():
         raise SystemExit("demo data already loaded")
 
     def household(name, source="", **kw):
-        return x("INSERT INTO households (name, source, address, demo) VALUES (?,?,?,1)",
-                 (name, source, kw.get("address", "")))
+        return x("INSERT INTO households (id, name, source, address, demo) VALUES (?,?,?,?,1)",
+                 (A.next_id("households"), name, source, kw.get("address", "")))
 
     REL = {"Dana Harlow": ("mother", "F", 46), "Ava Harlow": ("daughter", "F", None), "Chidi Okafor": ("father", "M", 44),
            "Ngozi Okafor": ("daughter", "F", None), "Tobe Okafor": ("son", "M", 12), "Mara Brennan": ("self", "F", 38),
@@ -116,7 +116,7 @@ with A.app.app_context():
     x("INSERT INTO log (household_id, session_id, at, channel, summary) VALUES (?,?,?,?,?)", (h6, s6, D(-20), "email", "Went with their usual photographer"))
 
     # group event
-    e = x("INSERT INTO events (name, date, venue, demo) VALUES (?,?,?,1)", ("Spring team photo day", D(12), "Maple Grove Club"))
+    e = x("INSERT INTO events (id, name, date, venue, demo) VALUES (?,?,?,?,1)", (A.next_id("events"), "Spring team photo day", D(12), "Maple Grove Club"))
     for fam, kids_, parent, signed in [("The Duffys", ["Owen"], "Kate Duffy", True), ("The Ruiz family", ["Sofia", "Mateo"], "Ana Ruiz", True),
                                        ("The Kowalskis", ["Jan"], "Ewa Kowalski", False), ("The Bells", ["Grace"], "Tom Bell", False)]:
         hh = household(fam, "Spring team photo day")

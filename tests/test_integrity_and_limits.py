@@ -39,7 +39,7 @@ def test_altered_backup_is_refused(tmp_path, monkeypatch):
     assert not (tmp_path / "r1").exists()
 
 
-def test_deleting_a_session_keeps_its_payments(tmp_path, monkeypatch):
+def test_deleting_a_refunded_session_keeps_its_payments(tmp_path, monkeypatch):
     monkeypatch.setenv("CRM_DB", str(tmp_path / "crm.db"))
     monkeypatch.setenv("CRM_STORAGE_CFG", str(tmp_path / "storage.json"))
     fresh_modules()
@@ -50,7 +50,12 @@ def test_deleting_a_session_keeps_its_payments(tmp_path, monkeypatch):
     con.execute("INSERT INTO sessions (household_id, type, shoot_date, stage) VALUES (1, 'portrait', '2026-03-02', 'shot')")
     con.execute("INSERT INTO payments (session_id, kind, amount, received) VALUES (1, 'deposit', 120, '2026-02-01')")
     con.commit(); con.close()
-    c.post("/session/1/delete", environ_base=E)
+    c.post("/session/1/delete", environ_base=E)              # 1.0.1: refused while the session holds money
+    con = A.connect()
+    assert con.execute("SELECT 1 FROM sessions WHERE id=1").fetchone()
+    con.close()
+    c.post("/session/1/money", data={"what": "payment", "kind": "refund", "amount": "120"}, environ_base=E)
+    c.post("/session/1/delete", environ_base=E)              # refunded in full: the delete goes through
     con = A.connect()
     assert not con.execute("SELECT 1 FROM sessions WHERE id=1").fetchone()
     assert con.execute("SELECT amount FROM books WHERE received='2026-02-01'").fetchone()[0] == 120

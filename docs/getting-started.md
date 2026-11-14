@@ -15,7 +15,9 @@ Settings, but a few are hard to change once real clients exist. Those are marked
   when your computer is off. A host that runs PHP also lets galleries expire on time and send the client's picks back
   by themselves. With a folder on your own network, the web server must be able to write in it (run it as the app's
   user, or give it the folder's group with write permission); otherwise first visits and picks aren't recorded and
-  galleries stay up a year.
+  galleries stay up a year. In that folder alone, Lumen Aureum makes its gallery files readable by everyone and
+  writable by the group (folders 775, files 664), so the web server can serve them; they are all encrypted, and the
+  app never follows a link out of the folder. Everything else it writes is readable by its own user only.
 - **A printer** for the master key, which you keep on paper.
 
 The software is free.

@@ -20,37 +20,77 @@ older one refuses to open it: restore the **upgrade** backup made just before th
 folder and point `./data` at it. Copy `deletions.json` and `doc-numbers.json` from the current data folder into the
 new one, so clients deleted since the upgrade stay deleted and numbers don't repeat. (A version from before 1.0 reads
 these as `deletions.enc` and `doc-numbers.enc`, so on those, check the clients list and the next invoice number.)
-A rollback cannot
+Going back from 1.0.1 to 1.0.0 is always this restore: 1.0.1 updates the database at its first sign-in (refunds
+recorded the 1.0.0 way become credits), and 1.0.0 refuses the updated database. Anything entered after the upgrade
+is not in that backup: note it before rolling back. A rollback cannot
 undo a leak: if you rolled back because of a security problem, also follow "If you suspect a compromise".
 
 ## Restoring a backup
 Each nightly backup holds your data (the database, with clients, money and settings), the key that opens it, your
 settings as a separate file, and your storage settings (where backups go and how to sign in there).
-`python -m vault.cli backups` lists them. Keep a copy of your `compose.yaml`. Uploaded photos are not in the
-nightly backup (they are large). Instead each one is mirrored, still encrypted, to your second backup location (or the
-vault when there is none): one copy, kept while the photo is kept and deleted with it, so photos take twice their
-size. Their keys are in the database, so after restoring the database the app fetches any photo missing from the
-photos folder back from the mirror.
+Keep a copy of your `compose.yaml`. Uploaded photos are not in the nightly backup (they are large). Instead each one
+is mirrored, still encrypted, to your second backup location (or the vault when there is none): one copy, kept while
+the photo is kept and deleted with it, so photos take twice their size. Their keys are in the database, so after
+restoring the database the app fetches any photo missing from the photos folder back from the mirror.
 
-**Everything (after a loss).** `docker compose exec lumen python -m vault.cli restore <backup name> /data/restored`
-(or, on a new machine with a copy of the vault folder, add `--from <folder>`). It asks for your master key and writes
-`crm.db`, `keyring.json`, `settings.json`, `storage.json`, `deletions.json` and `doc-numbers.json` into
-`restored` inside your data folder, so you can see them from the NAS too. Then:
-1. Stop the app (`docker compose stop`).
-2. Move `crm.db`, `keyring.json` and `storage.json` from `restored` into the data folder itself, replacing the ones
-   there.
-3. **`deletions.json` and `doc-numbers.json`:** if the data folder still has its own, keep those (they are newer than
-   any backup). If it doesn't, use the restored ones. With them, clients deleted after the backup was made are
-   deleted again, and invoice and receipt numbers carry on instead of repeating. Restoring an older backup after a
-   loss? Restore the newest backup too, into another folder, and take these two files from it.
-4. `restore` writes the files as the app's own user, so moving them is enough. Only if you copied files in some other
-   way: give them the same owner as the rest of the data folder (see it with `ls -ln <data folder>`; 568 on TrueNAS,
-   10001 with the example compose file), for example `sudo chown 568:568 <data folder>/*.db <data folder>/*.json`.
-5. Start it (`docker compose up -d`) and sign in with the password that was current when the backup was made (or
-   reset it with the master key). Delete the `restored` folder afterward.
+This section is the one place with the restore steps; docs/security.md points here.
+
+**The files.** A restore writes these into a new folder. Here is where each one goes:
+
+| File | What it is | Where it goes |
+|---|---|---|
+| `crm.db` | Your data: clients, sessions, money, and settings | Into the data folder |
+| `keyring.json` | The key that opens `crm.db` | Into the data folder |
+| `storage.json` | Where backups go and how to sign in there | Into the data folder |
+| `deletions.json` | The clients you deleted, so they stay deleted | Step 6 decides |
+| `doc-numbers.json` | The highest invoice, receipt, session, and client numbers used, so none repeat | Step 6 decides |
+| `settings.json` | A copy of your settings, for Settings, Import settings | Leave it; `crm.db` already holds your settings |
+| `deletions.unverified.json` | Deletions that could not be confirmed. Never in a backup | Leave the data folder's own copy where it is |
+
+A backup made before you ever deleted a client has no `deletions.json`. That is expected: there was nothing to list.
+Backups from before settings were included have only `crm.db` and `keyring.json`.
+
+**Everything (on this machine, or after a loss).** Run each command in the folder that holds your `compose.yaml`.
+1. **Find the backup's name.** `docker compose exec lumen python -m vault.cli backups`. It asks for your password
+   (or the master key), because the list is kept in the encrypted database. Each line shows the date, the kind, the
+   size, and last the name, for example `db/3f9c1e7a5b2d4c6e8a0b1c2d3e4f5a6b.age`. Pick a line whose kind is `db`,
+   `manual`, or `upgrade` (`faces` lines hold only face photos) and copy the whole name, `db/` included. Settings,
+   Backups shows the same dates and sizes, so you can match them up there. On a new
+   machine there is no database to ask yet: start the app once (`docker compose up -d`) and use the newest file in
+   the `db` folder of your vault.
+2. **Restore it.** `docker compose exec lumen python -m vault.cli restore db/3f9c...6b.age /data/restored`, with your
+   backup's full name. It asks for your master key. On a new machine, add `--from /vault` (the vault folder as the
+   app sees it). The files appear in a folder named `restored` inside your data folder.
+3. **Stop the app.** `docker compose stop`.
+4. **Move three files.** Move `crm.db`, `keyring.json`, and `storage.json` from `restored` into the data folder,
+   replacing the ones there.
+5. **Leave `settings.json`** in `restored`. You need it only for a settings-only restore (below).
+6. **`deletions.json` and `doc-numbers.json`.**
+   - The data folder still has its own: keep those. They are newer than any backup.
+   - The data folder lost them: move the restored ones in.
+   - Restoring an older backup after a loss: restore the newest backup too, into another folder (for example
+     `/data/restored-newest`), and take these two files from it.
+   - Either way, leave `deletions.unverified.json` where it is, if the data folder has one.
+
+   With these, clients deleted after the backup was made are deleted again, and numbers carry on instead of
+   repeating.
+7. **Check the owner (only if you copied files some other way).** `restore` writes as the app's own user, so moving
+   is enough. Otherwise give the files the same owner as the rest of the data folder (see it with
+   `ls -ln <data folder>`; 568 on TrueNAS, 10001 with the example compose file), for example
+   `sudo chown 10001:10001 <data folder>/*.db <data folder>/*.json`.
+8. **Start and sign in.** `docker compose up -d`, then sign in with the password that was current when the backup
+   was made (or reset it with the master key).
+9. **Tidy up.** Delete the `restored` folder.
+
+After restoring:
 - **If you rotated the data key after this backup was made**, the photos' keys in the restored database are older
   than the photos. Run `python -m vault.cli relink-photos` (it asks for your master key): each photo's current key,
-  sealed beside it to your master key, goes back into the database.
+  sealed beside it to your master key, goes back into the database. It takes only keys that trace back to the
+  key the restored database holds; any it refuses are listed, and `python -m vault.cli recover-photos <folder> --from <photos folder>` still
+  decrypts those into a separate folder.
+- **If Today says clients you may have deleted are back**, this copy of your data couldn't confirm some deletions
+  (usually a backup from before 1.0.1 restored after a key rotation). Open the list, and either apply the deletions
+  or keep the clients. Nothing is deleted until you choose.
 
 **Settings only.** Add `--settings-only` to the restore command. It writes just `settings.json`; import it in
 Settings (Import settings). Your clients and money are not touched.

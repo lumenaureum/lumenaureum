@@ -1,7 +1,7 @@
 {% from "_doc_bar.html" import doc_bar, draft with context %}<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Quote - {{ v.client }}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 {% include "_doc_style.html" %}</head><body>
-{% if preview %}<div class="bar"><span class="sent" style="margin-right:auto">Preview: nothing has been sent or saved</span><form method="post" action="{{ url_for('quote_send', sid=v.sid) }}" class="inline"><input type="hidden" name="total" value="{{ total_shown }}"><button class="linkish strong">Send this quote</button></form><a href="{{ v.back }}" data-close>Close</a></div>
+{% if preview %}<div class="bar"><span class="sent" style="margin-right:auto">Preview: nothing has been sent or saved</span><form method="post" action="{{ url_for('quote_send', sid=v.sid) }}" class="inline"><input type="hidden" name="total" value="{{ total_shown }}"><button class="linkish strong" title="Numbers this quote and opens it to email, print, or mark sent">Prepare this quote</button></form><a href="{{ v.back }}" data-close>Close</a></div>
 {% elif not pdf %}{{ doc_bar(url_for('quote_doc_pdf', vid=v.id), v.back, send, v.review if not v.reviewed) }}{% endif %}
 <div class="page">
   {% include "_doc_logo.html" %}

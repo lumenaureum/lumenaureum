@@ -30,10 +30,11 @@
 </section>
 
 <section class="sec" id="people"><h2 class="sec-h">People</h2>
+  {% with clash_form='person' %}{% include "_edit_clash.html" %}{% endwith %}
   <datalist id="rels">{% for r in RELATIONS %}<option value="{{ r }}">{% endfor %}</datalist>
   <table class="data"><thead><tr><th>Name</th><th>Who</th>{% if show_gender %}<th>Gender</th>{% endif %}<th>Age</th><th>Minor</th>{% if show_born %}<th>Born or due</th>{% endif %}{% if show_grad %}<th>Grad year</th>{% endif %}<th>Email</th><th>Phone</th><th></th></tr></thead><tbody>
   {% for p in people %}<tr>
-    <form method="post" action="{{ url_for('person_save', pid=p.id) }}" id="p{{ p.id }}"></form>
+    <form method="post" action="{{ url_for('person_save', pid=p.id) }}" id="p{{ p.id }}"><input form="p{{ p.id }}" type="hidden" value="{{ edit_stamp('people', p.id) }}" name="seen"></form>
     <td><input form="p{{ p.id }}" name="name" maxlength="200" value="{{ p.name }}"></td>
     <td><input form="p{{ p.id }}" name="relation" list="rels" value="{{ p.relation or '' }}" placeholder="Who" style="width:120px"></td>
     {% if show_gender %}<td>{{ seg('gender', ['F','M'], p.gender, form='p%s' % p.id) }}</td>{% endif %}
@@ -62,7 +63,8 @@
 
 <section class="sec" id="details"><h2 class="sec-h">Details</h2>
   <p style="margin:0 0 8px"><a class="go" href="{{ url_for('statement', hid=h.id) }}" target="_blank">Monthly statement &rsaquo;</a></p>
-  <form method="post" action="{{ url_for('client_save', hid=h.id) }}" class="f" style="max-width:640px">
+  {% include "_edit_clash.html" %}
+  <form method="post" action="{{ url_for('client_save', hid=h.id) }}" class="f" style="max-width:640px"><input type="hidden" name="seen" value="{{ edit_stamp('households', h.id) }}">
     <div class="f2"><div><label class="l">Name</label><input name="name" maxlength="200" value="{{ h.name }}"></div>
       <div><label class="l">Company, if they bill as one</label><input name="company" maxlength="200" value="{{ h.company or '' }}"></div></div>
     <div><label class="l">Mailing address</label><textarea name="address">{{ h.address }}</textarea></div>

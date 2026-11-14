@@ -18,7 +18,8 @@ A laptop that sleeps or travels is a poor choice.
 After any restart the app is locked until you sign in (see [Security](security.md)).
 
 Minimum: a 64-bit Intel or AMD processor (x86-64), 1 GB of free memory, and room for your photos. In our tests the app used about 150 MB of
-memory even while sealing a 12 GB session; the database stays small (under a few megabytes for hundreds of sessions).
+memory while sealing a 12 GB session, about 120 MB while building a client gallery of 45-megapixel photos, and about
+180 MB with two galleries building at once; the database stays small (under a few megabytes for hundreds of sessions).
 
 ## A server in the cloud
 It runs on any machine that runs Docker, including a rented server. We recommend a computer you own, for one reason.

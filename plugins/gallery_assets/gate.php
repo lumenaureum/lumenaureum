@@ -15,6 +15,15 @@ if ($lim === false || !isset($lim['days'], $lim['unopened_until'])) { http_respo
                  : strtotime($lim['unopened_until'] . 'T23:59:59Z');
     if ($end === false || time() > $end) { http_response_code(410); exit; }   // an unreadable date closes it too
 }
+// Galleries whose page sends the key proof (limits.txt proof=1): every file needs it, so the encrypted files never
+// leave the host for someone holding only the link, and a codeword can't be guessed offline. A wrong proof waits a
+// second, so guessing through the host is slow. Older galleries (no proof=1) are served as before.
+if (!empty($lim['proof'])) {
+    $raw = @file_get_contents(__DIR__ . '/seen-key.php');
+    $want = $raw === false ? false : trim(substr($raw, strpos($raw, "\n") + 1));
+    $proof = trim((string)($_SERVER['HTTP_X_PROOF'] ?? ''));
+    if ($want === false || !hash_equals($want, hash('sha256', $proof))) { sleep(1); http_response_code(403); exit; }
+}
 $p = __DIR__ . '/' . $name;
 if (!is_file($p)) { http_response_code(404); exit; }
 header('Content-Type: application/octet-stream');

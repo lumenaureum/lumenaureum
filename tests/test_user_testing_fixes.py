@@ -210,7 +210,7 @@ def test_quote_preview_saves_nothing(tmp_path, monkeypatch):
         sid = A.create_session(1, "family")
     c.post(f"/session/{sid}/money", data={"what": "line", "label": "Session", "amount": "300"}, environ_base=E)
     page = c.get(f"/session/{sid}/quote/preview", environ_base=E).get_data(as_text=True)
-    assert "Preview: nothing has been sent or saved" in page and "Send this quote" in page and "$300" in page
+    assert "Preview: nothing has been sent or saved" in page and "Prepare this quote" in page and "$300" in page
     assert _q(A, "SELECT COUNT(*) FROM quote_versions")[0][0] == 0
     c.post(f"/session/{sid}/quote/send", data={"total": "300.00"}, environ_base=E)
     assert _q(A, "SELECT COUNT(*) FROM quote_versions")[0][0] == 1

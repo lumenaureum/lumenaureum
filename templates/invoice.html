@@ -1,18 +1,39 @@
-{% from "_doc_bar.html" import doc_bar, draft with context %}<!doctype html><html lang="en"><head><meta charset="utf-8"><title>{{ 'Receipt' if v.receipt else 'Invoice' }} {{ v.number }} - {{ v.client }}</title>
+{% from "_doc_bar.html" import doc_bar, draft with context %}{% set word = 'Receipt' if v.receipt else 'Invoice' %}{% set lword = word|lower %}<!doctype html><html lang="en"><head><meta charset="utf-8"><title>{{ word }} {{ v.number or '(not issued yet)' }} - {{ v.client }}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-{% include "_doc_style.html" %}</head><body>
-{% if not pdf %}{{ doc_bar(v.pdf_url, v.back, send, v.review if not v.reviewed) }}{% endif %}
+{% include "_doc_style.html" %}
+<style>
+  .bar .primary { background: #8a5a6b; border-color: #8a5a6b; color: #fff; font-weight: 700; }
+  .bar .primary:hover { background: #74495a; }
+  .bar .note { color: #4f6b42; font-weight: 600; padding: 0 6px; }
+  .bar .since { color: #6b6459; padding: 0 6px; }
+  .drafthead { margin: 0 0 14px; padding: 8px 12px; border: 2px solid #b86f86; color: #8a5a6b; font-weight: 700; letter-spacing: .04em; }
+  .wm { position: fixed; top: 40%; left: 0; right: 0; text-align: center; font: 700 120px/1 sans-serif; color: rgba(184, 111, 134, .14);
+    transform: rotate(-30deg); z-index: 0; pointer-events: none; }
+</style></head><body{% if then %} data-then="{{ then }}"{% endif %}>
+{% if not pdf and v.waiting %}<div class="bar">{% if notice %}<span class="note" role="status">{{ notice }}</span>{% endif %}
+  <span>Nothing to receipt yet: a receipt is for a session paid in full{% if v.due_now > 0.005 %}, and this one has {{ money(v.due_now) }} still to pay{% endif %}.</span>
+  <a href="{{ v.inv_url }}">Open the invoice</a><a href="{{ v.back }}" data-close>Close</a></div>
+{%- elif not pdf and v.number %}{{ doc_bar(v.pdf_url, v.back, send, v.review if not v.reviewed, before=(('<span class="note" role="status">' ~ (notice|e) ~ '</span>')|safe if notice else '')) }}
+{%- if v.since %}<div class="bar"><span class="since">{{ v.since }}</span></div>{% endif %}
+{%- elif not pdf %}<div class="bar">{% if notice %}<span class="note" role="status">{{ notice }}</span>{% endif %}
+  <form method="post" action="{{ v.issue_url }}" class="inline"><button class="primary">Issue this {{ lword }}</button></form>
+  {%- for then_, label_ in (('download', 'Download PDF'), ('print', 'Print'), ('email', 'Email it')) %}
+  <form method="post" action="{{ v.issue_url }}" class="inline"><input type="hidden" name="then" value="{{ then_ }}"><button title="Issues it first, then {{ label_|lower }}">{{ label_ }}</button></form>
+  {%- endfor %}
+  <span>Not issued yet. Issuing gives it the next {{ lword }} number and keeps it exactly as it is; Download, Print, and Email issue it first.</span><a href="{{ v.back }}" data-close>Close</a></div>{% endif %}
+{% if not v.number %}<div class="wm" aria-hidden="true">DRAFT</div>{% endif %}
 <div class="page">
   {% include "_doc_logo.html" %}
+  {% if not v.number %}<div class="drafthead">DRAFT: not issued. This {{ lword }} has no number yet and is not {{ 'a receipt for payment' if v.receipt else 'a bill' }}.</div>{% endif %}
   {% if not v.reviewed %}{{ draft(v.review, 'wording') }}{% endif %}
   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
-    <div style="flex:1;min-width:0"><h1>{{ 'Receipt' if v.receipt else 'Invoice' }}</h1>
-      <p class="sub">{{ v.photographer }}{% if v.business %}, {{ v.business }}{% endif %}</p>{% include "_doc_contact.html" %}</div>
-    <table class="facts headfacts" style="width:auto;flex:none"><tr><td>{{ 'Receipt' if v.receipt else 'Invoice' }}</td><td>{{ v.number }}</td></tr>
+    <div style="flex:1;min-width:0"><h1>{{ word }}{% if not v.number %} (draft){% endif %}</h1>
+      <p class="sub">{{ v.photographer }}{% if v.business %}{% if v.photographer %}, {% endif %}{{ v.business }}{% endif %}</p>{% include "_doc_contact.html" %}</div>
+    <table class="facts headfacts" style="width:auto;flex:none"><tr><td>{{ word }}</td><td>{{ v.number or ('Draft, not issued' if pdf else 'Assigned when issued') }}</td></tr>
       <tr><td>Date</td><td>{{ v.date_long }}</td></tr>
       {% if v.replaces %}<tr><td>Replaces</td><td>{{ v.replaces }}</td></tr>{% endif %}
       {% if v.po %}<tr><td>PO / reference</td><td>{{ v.po }}</td></tr>{% endif %}{% if v.tax_id %}<tr><td>Tax ID</td><td>{{ v.tax_id }}</td></tr>{% endif %}
-      {% if not v.receipt %}<tr><td>Balance due</td><td>{{ v.due_rule }}</td></tr>{% endif %}</table>
+      {% if not v.receipt %}<tr><td>Balance due</td><td>{{ v.due_rule if v.balance > 0.005 else 'Paid in full' }}</td></tr>{% endif %}</table>
   </div>
   <table class="facts" style="margin-top:14px">
     <tr><td>{{ 'Received from' if v.receipt else 'Bill to' }}</td><td>{{ v.bill_to }}{% if v.attn %}<br>Attn: {{ v.attn }}{% endif %}{% if v.client_address %}<br>{{ v.client_address|replace('\n', '<br>'|safe) }}{% endif %}</td></tr>
@@ -24,14 +45,18 @@
     <tr><td><b>Total</b></td><td class="n"><b>{{ money(v.total) }}</b></td></tr></table>
   <h2>Payments</h2>
   <table>{% for p in v.payments %}<tr><td>{{ p.date }} - {{ p.kind }}{% if p.method %}, {{ p.method }}{% endif %}{% if p.ref %} #{{ p.ref }}{% endif %}</td><td class="n">{{ money(p.amount) }}</td></tr>{% else %}<tr><td>None yet</td><td></td></tr>{% endfor %}
-    <tr><td><b>{{ 'Paid in full' if v.receipt else 'Balance due' }}</b></td><td class="n"><b>{{ money(v.paid if v.receipt else v.balance) }}</b></td></tr></table>
+    {% if v.receipt %}<tr><td><b>Total paid</b></td><td class="n"><b>{{ money(v.paid) }}</b></td></tr>
+    {% else %}<tr><td><b>Balance due</b></td><td class="n"><b>{{ money(v.balance) }}</b></td></tr>{% endif %}
+    {% if v.credit %}<tr><td>Credit due to you (paid beyond the total)</td><td class="n">{{ money(v.credit) }}</td></tr>{% endif %}</table>
   {% if v.receipt %}
   <div class="promise"><b>Paid in full. Thank you.</b> {% if v.event_family %}Your photos are yours to print, share, and post for personal use.{% elif v.license %}Your license to use the photos is set out in your agreement.{% else %}With this payment, the copyright in your delivered photos is yours.{% endif %}</div>
-  {% else %}
+  {% elif v.balance > 0.005 %}
   <h2>How to pay</h2>
-  <p>{{ v.pay_words }}.{% if v.checks %} Checks are made out to {{ v.business or v.photographer }}{% if v.address %} and mailed to {{ v.address|oneline }}{% endif %}.{% endif %}{% if v.pay_details %} {{ v.pay_details }}{% endif %} {{ v.due_sentence }}</p>
+  <p>{{ v.pay_words }}.{% if v.checks and (v.business or v.photographer) %} Checks are made out to {{ v.business or v.photographer }}{% if v.address %} and mailed to {{ v.address|oneline }}{% endif %}.{% endif %}{% if v.pay_details %} {{ v.pay_details }}{% endif %} {{ v.due_sentence }}</p>
   {% if v.bank %}<p>Bank transfer: {{ v.bank|replace('\n', '<br>'|safe) }}</p>{% endif %}
+  {% else %}
+  <div class="promise"><b>Paid in full. Thank you.</b></div>
   {% endif %}
-  <p class="foot">{{ v.number }}{% if v.quote_id %} - quote {{ v.quote_id }}{% endif %}. Questions about this {{ 'receipt' if v.receipt else 'invoice' }}? Just reply or call.</p>
+  <p class="foot">{{ v.number or 'Draft, not issued' }}{% if v.quote_id %} - quote {{ v.quote_id }}{% endif %}. Questions about this {{ lword }}? Just reply or call.</p>
 {% include "_credit.html" %}
 </div>{% if not pdf %}<script src="{{ url_for('static', filename='ui.js', v=static_v('ui.js')) }}"></script>{% endif %}</body></html>

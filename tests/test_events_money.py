@@ -67,6 +67,7 @@ def test_company_billing_job_address_search_and_statement(tmp_path, monkeypatch)
         con.execute("INSERT INTO lines (session_id, label, amount, kind) VALUES (?, 'Listing', 175, 'custom')", (i,))
     con.execute("INSERT INTO payments (session_id, kind, amount, received) VALUES (1, 'balance', 175, '2027-03-05')")
     con.commit(); con.close()
+    c.post("/session/2/invoice/issue", environ_base=E)          # issued, not merely opened: it gets its number
     inv = c.get("/session/2/invoice", environ_base=E).get_data(as_text=True)
     assert "Hearthstone Realty" in inv and "Attn: Dana Whitfield" in inv and "4 Mill Road" in inv
     r = c.get("/search?q=Orchard", environ_base=E)

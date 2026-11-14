@@ -20,6 +20,11 @@
 {% if clock_paused %}<section class="clash" role="alert" style="margin:10px 0;padding:10px 14px;font-size:14px">
   <b>Automatic deletions are paused.</b> The date moved from {{ nice(clock_paused[0]) }} to {{ nice(clock_paused[1]) }} since the last check, which can mean the clock is wrong. Nothing is sealed or deleted on its own until you confirm today's date.
   <form method="post" action="{{ url_for('clock_confirm') }}" class="inline" style="margin-left:8px"><button class="primary" data-confirm="Today is {{ today.strftime('%A, %B %-d, %Y') }}. Is that right?">Today's date is right</button></form></section>{% endif %}
+{% if unconfirmed %}<section class="clash" role="alert" id="unconfirmed" style="margin:10px 0;padding:10px 14px;font-size:14px">
+  <b>{{ unconfirmed|length }} client{{ '' if unconfirmed|length == 1 else 's' }} you may have deleted {{ 'is' if unconfirmed|length == 1 else 'are' }} back:</b>
+  {% for r_ in unconfirmed %}{{ r_.name }}{{ ', ' if not loop.last }}{% endfor %}.
+  This copy of your data could not confirm the deletion{{ '' if unconfirmed|length == 1 else 's' }}, so nothing was deleted.
+  <a href="{{ url_for('unconfirmed_view') }}">Review and decide</a></section>{% endif %}
 {% if loose %}
 <section class="finish also"><b>Also</b>
   <ul>{% for it in loose %}<li><a href="{{ it.link }}">{{ it.text }}</a>{% if it.sub %} <span class="mute">{{ it.sub }}</span>{% endif %}</li>{% endfor %}</ul>

@@ -18,9 +18,15 @@
     } catch (e) { out.textContent = 'No answer'; out.style.color = 'var(--crit)'; }
   }));
 })();
-// time zone: preselect the browser's own when none is chosen yet
+// time zone: send the browser's own, and preselect it unless one was saved (data-keep: a saved zone, or in the
+// Settings prompt the machine's own TZ, wins)
 (() => {
   const tz = document.querySelector('select[name=timezone]');
-  if (!tz || tz.value) return;
-  try { const z = Intl.DateTimeFormat().resolvedOptions().timeZone; if ([...tz.options].some(o => o.value === z || o.text === z)) tz.value = z; } catch (e) {}
+  if (!tz) return;
+  let z = '';
+  try { z = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
+  const bt = tz.form && tz.form.elements.browser_tz;
+  if (bt) bt.value = z;
+  if (tz.dataset.keep && tz.value) return;
+  if ([...tz.options].some(o => o.value === z)) tz.value = z;
 })();

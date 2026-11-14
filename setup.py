@@ -52,6 +52,42 @@ def timezones():
     return [z for z in us if z in zs] + [z for z in zs if z not in us]
 
 
+def host_tz():
+    """The machine's or container's own TZ, as it was when the app started (apply_settings overwrites the variable),
+    when it names a real zone; else ''."""
+    import sys
+    tz = getattr(sys.modules.get("app") or sys.modules.get("__main__"), "HOST_TZ", "")
+    return tz if tz in zoneinfo.available_timezones() else ""
+
+
+def _data_and_program():
+    data = os.path.dirname(os.path.realpath(os.environ.get("CRM_DB", str(ROOT / "data" / "crm.db"))))
+    return data, os.path.realpath(str(ROOT))
+
+
+def suggested_vault():
+    """A backup folder the storage step can offer that its own checks accept: /vault when the container mounts one,
+    else a vault folder beside the database when that is outside the program, else one beside the program folder."""
+    import settings_io
+    data, prog = _data_and_program()
+    for p_ in ("/vault", os.path.join(data, "vault"), os.path.join(os.path.dirname(prog), "lumen-aureum-vault")):
+        if (p_ != "/vault" or os.path.isdir(p_)) and not settings_io._inside_private(p_):
+            return p_
+    return ""
+
+
+def inside_private_message(key):
+    """Why a path inside the data or program folder is refused, and what would work instead."""
+    data, prog = _data_and_program()
+    if key != "path":
+        return (f"That file is inside Lumen Aureum's own data folder ({data}) or program folder ({prog}). Keep keys"
+                " somewhere else, for example a folder mounted only for them.")
+    ex = suggested_vault()
+    return (f"That folder is inside Lumen Aureum's own data folder ({data}) or program folder ({prog}), where a backup"
+            " would be lost along with the app. Choose a folder outside both, ideally on another disk"
+            + (f", for example {ex}." if ex else "."))
+
+
 def same_disk(path, other):
     """True when two folders are on the same filesystem (a backup there dies with the database)."""
     try:
@@ -154,7 +190,7 @@ def _test_backend(cfg, init_local, made):
     import settings_io
     for k in ("path", "key_file", "known_hosts"):
         if cfg.get(k) and settings_io._inside_private(cfg[k]):
-            return "That location is inside Lumen Aureum's own data folder or program. Choose another."
+            return inside_private_message(k)
     ep = (cfg.get("endpoint") or "") if cfg.get("type") == "s3" else ""
     if ep and not (ep.startswith("https://") or re.match(r"http://(127\.0\.0\.1|localhost)(:\d+)?(/|$)", ep)):
         return "The S3 endpoint must start with https:// (credentials and files would otherwise cross the network unencrypted)."
@@ -296,10 +332,11 @@ def register(app, connect, apply_settings, audit, allow_nets):
         err = None
         f = request.form
         if request.method == "POST":
-            if f.get("skip") and not dict((s, r) for s, _, r in STEPS)[step]:
+            skip = f.get("skip") and not dict((s, r) for s, _, r in STEPS)[step]
+            if skip and (step != SLUGS[-1] or complete()):
                 mark(step)
                 return nxt(step)
-            err = save(step, f)
+            err = None if skip else save(step, f)    # "Use the defaults" on the last step finishes, like Finish
             if not err:
                 mark(step)
                 if step == SLUGS[-1] and not complete():
@@ -352,6 +389,8 @@ def register(app, connect, apply_settings, audit, allow_nets):
             con.close()
         cfg = VW.config()
         items = []
+        if not get("timezone"):
+            items.append(("Set your time zone, so evening work gets today's date", url_for("settings_view") + "#tz"))
         if get("atrest_upgraded"):
             items.append(("Delete the unencrypted snapshots and copies made before the upgrade", url_for("security")))
         if get("doc_reviews") in (None, "", "{}"):
@@ -374,6 +413,34 @@ def register(app, connect, apply_settings, audit, allow_nets):
 
     app.config["finish_items"] = finish_items
 
+    # ------------------------------------------------------------ time zone, for installs set up without one
+
+    def tz_prompt():
+        """For Settings: shown once, until a time zone is saved. None when there is one (or setup isn't finished)."""
+        if not complete() or get("timezone"):
+            return None
+        import sys
+        cur = getattr(sys.modules.get("app") or sys.modules.get("__main__"), "TZ", None)
+        return dict(zones=timezones(), host=host_tz(), now=getattr(cur, "key", "UTC"))
+
+    app.jinja_env.globals["tz_prompt"] = tz_prompt
+
+    @app.post("/settings/timezone", endpoint="settings_timezone")
+    def settings_timezone():
+        """Save the time zone from the Settings prompt. Only dates made from now on follow it: documents already
+        issued keep the dates stored on them."""
+        from flask import g, session as fs
+        tz = request.form.get("timezone", "") or request.form.get("browser_tz", "")
+        if tz not in zoneinfo.available_timezones():
+            g.refused = True
+            fs["notice"] = "Pick your time zone from the list. Nothing was changed."
+            return redirect(url_for("settings_view") + "#tz")
+        put(timezone=tz)
+        apply_settings()
+        audit(f"Set the time zone to {tz}")
+        fs["notice"] = f"Time zone set to {tz}. Documents already issued keep their dates."
+        return redirect(url_for("settings_view"))
+
     @app.post("/setup/hide-list", endpoint="setup_hide_list")
     def setup_hide_list():
         put(finish_hidden="1")
@@ -385,7 +452,7 @@ def register(app, connect, apply_settings, audit, allow_nets):
         if step == "business":
             if not f.get("business_name", "").strip() or not f.get("photographer_name", "").strip():
                 return "Your business name and your own name, please."
-            tz = f.get("timezone", "")
+            tz = f.get("timezone", "") or f.get("browser_tz", "")    # the browser's own zone, sent by the page
             if tz not in zoneinfo.available_timezones():
                 return "Pick your time zone."
             lat = lon = ""
@@ -545,13 +612,17 @@ def register(app, connect, apply_settings, audit, allow_nets):
         r = dict(C.current_rules())
         base = dict(get=get, rules=r, types=C.SESSION_TYPES, **extra_)
         if step == "business":
-            base.update(zones=timezones(), tz=get("timezone", "") or os.environ.get("TZ", ""))   # the NAS's TZ, until chosen
+            base.update(zones=timezones(), tz=get("timezone", "") or host_tz(),   # until chosen: the browser's (setup.js),
+                        tz_saved=bool(get("timezone", "")))                       # else the machine's TZ
         elif step == "storage":
             def is_marked(c):
                 return c.get("type") == "local" and os.path.isfile(os.path.join(c.get("path", ""), B.LocalBackend.MARKER))
+            import settings_io
             primary = dict(cfg.get("primary", {}))
-            if primary.get("type", "local") == "local" and not is_marked(primary) and os.path.isdir("/vault"):
-                primary["path"] = "/vault"           # the folder the container mounts for backups (its own dataset on TrueNAS)
+            if primary.get("type", "local") == "local" and not is_marked(primary) and (
+                    os.path.isdir("/vault") or settings_io._inside_private(primary.get("path", ""))):
+                primary["path"] = suggested_vault()  # the folder the container mounts for backups, else one the
+                                                     # checks accept (never the default inside the program folder)
             secondary = cfg.get("secondary", {})
             if request.method == "POST":           # a refused save shows what was typed, not the old settings
                 primary = backend_from_form(request.form, "primary_", primary) or primary

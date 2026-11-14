@@ -139,8 +139,9 @@ document.addEventListener('submit', e => {
 document.addEventListener('click', e => {
   const b = e.target.closest('button[data-confirm], input[data-confirm], a[data-confirm]');
   if (b && !confirm(b.dataset.confirm)) { e.preventDefault(); e.stopPropagation(); return; }
-  // a document still printing the SAMPLE banner: ask once before it goes out
-  const o = e.target.closest('[data-did-output]');
+  // a document still printing the SAMPLE banner: ask once before it goes out (Email it, Text it). A download or a
+  // print sends nothing, so it is never asked.
+  const o = e.target.closest('[data-did-output][data-sends]');
   if (o && document.querySelector('.draft') && !document.body.dataset.sampleOk) {
     if (!confirm('This still prints SAMPLE: the wording has not been reviewed yet. Send it anyway?')) {
       e.preventDefault(); e.stopPropagation(); const r = document.querySelector('.bar a.review'); if (r) r.focus(); return; }
@@ -181,6 +182,21 @@ document.addEventListener('click', e => {
 // Email it / Text it / Print / Download don't prove the client got it: afterwards the bar asks "Did you send it?"
 document.addEventListener('click', e => {
   if (e.target.closest('[data-did-output]')) document.querySelectorAll('.marksent').forEach(f => f.classList.add('asking')); });
+// A draft issued by Download, Print, or Email carries on with what was asked once it has its number.
+(() => { const then = document.body && document.body.dataset.then; if (!then) return;
+  setTimeout(() => {
+    if (then === 'print') { window.print(); return; }
+    const a = document.querySelector(then === 'download' ? '.bar a[download]' : '.bar a[data-sends][href^="mailto:"]');
+    if (a) a.click(); }, 300); })();
+// a payment above the balance is asked about first (it is still recorded if you say yes: the extra shows as a credit)
+document.addEventListener('submit', e => {
+  const f = e.target, bal = f.dataset && f.dataset.balance; if (bal === undefined || e.defaultPrevented) return;
+  const kind = (f.querySelector('[name=kind]:checked') || f.querySelector('[name=kind]') || {}).value;
+  const amt = parseFloat((f.querySelector('[name=amount]') || {}).value || '0');
+  if (kind === 'refund' || !(amt > parseFloat(bal) + 0.005)) return;
+  const over = (amt - Math.max(parseFloat(bal), 0)).toFixed(2);
+  if (!confirm('That is $' + over + ' more than the balance. Record it anyway? The extra shows as a credit on the session.'))
+    e.preventDefault(); });
 // After a form posts back to the same page, return to the same scroll spot instead of the top.
 document.addEventListener('submit', e => {
   const f = e.target; if ((f.getAttribute('method') || '').toLowerCase() !== 'post' || f.target === '_blank') return;

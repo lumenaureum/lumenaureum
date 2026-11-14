@@ -45,11 +45,13 @@ def test_lines_payments_refunds_and_voids(tmp_path, monkeypatch):
     assert _tot(A, sid)["paid"] == 100
     c.post(f"/session/{sid}/money", data={"what": "payment", "kind": "refund", "amount": "40", "method": "cash"}, environ_base=E)
     assert _tot(A, sid)["paid"] == 60
-    assert _tot(A, sid)["due"] == 200 and _tot(A, sid)["quoted"] == 260     # money back never makes the client owe more (E1)
+    assert _tot(A, sid)["due"] == 200 and _tot(A, sid)["quoted"] == 300     # money back never makes the client owe more (E1),
+    #                                                                          and since 1.0.1 never lowers the quoted price
     con = A.connect()
     pid = con.execute("SELECT id FROM payments WHERE session_id=? AND amount=100", (sid,)).fetchone()[0]
     rid = con.execute("SELECT id FROM payments WHERE session_id=? AND kind='refund'", (sid,)).fetchone()[0]
-    lid = con.execute("SELECT id FROM lines WHERE session_id=? AND kind!='credit'", (sid,)).fetchone()[0]
+    lid = con.execute("SELECT id FROM lines WHERE session_id=?", (sid,)).fetchone()[0]
+    assert con.execute("SELECT COUNT(*) FROM lines WHERE session_id=?", (sid,)).fetchone()[0] == 1   # no "Refund" quote line
     con.close()
     c.post(f"/money/payment/{pid}/delete", environ_base=E)
     assert _tot(A, sid)["paid"] == -40                     # voided: kept, out of the totals
@@ -59,11 +61,11 @@ def test_lines_payments_refunds_and_voids(tmp_path, monkeypatch):
     assert con.execute("SELECT COUNT(*) FROM payments WHERE session_id=?", (sid,)).fetchone()[0] == 2   # never erased
     con.close()
     c.post(f"/money/payment/{rid}/delete", data={"set": "void"}, environ_base=E)
-    assert _tot(A, sid)["quoted"] == 300 and _tot(A, sid)["paid"] == 100   # the refund voided: its price line goes too
+    assert _tot(A, sid)["quoted"] == 300 and _tot(A, sid)["paid"] == 100 and _tot(A, sid)["due"] == 200   # refund voided: its credit too
     c.post(f"/money/payment/{rid}/delete", data={"set": "restore"}, environ_base=E)
-    assert _tot(A, sid)["quoted"] == 260 and _tot(A, sid)["due"] == 200
+    assert _tot(A, sid)["quoted"] == 300 and _tot(A, sid)["due"] == 200
     c.post(f"/money/line/{lid}/delete", environ_base=E)
-    assert _tot(A, sid)["quoted"] == -40                   # the refund's own line stays until the refund is voided
+    assert _tot(A, sid)["quoted"] == 0 and _tot(A, sid)["refund_credit"] == 40   # the refund's credit stays until it is voided
 
 
 def test_fees_discount_requote_and_send(tmp_path, monkeypatch):

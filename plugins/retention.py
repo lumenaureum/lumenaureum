@@ -333,7 +333,7 @@ def register(ctx):
         ctx.audit("Sealed the RAWs and exports (encrypted; plaintext removed)", sid=s["id"], who="Lumen Aureum")
         return True
 
-    def purge(s, r):
+    def purge(s, r, why=None):
         """Delete everything of a session's photos, once. Takes the session's turn (waits for a seal or a gallery build
         to finish) so nothing it removes is being written at the same time."""
         import locks
@@ -342,12 +342,12 @@ def register(ctx):
             raise RuntimeError("the session's photos are busy (a seal or gallery build); purge tried again later")
         locks.SEALING.add(s["id"])
         try:
-            return _purge(s, row(s["id"]))
+            return _purge(s, row(s["id"]), why)
         finally:
             locks.SEALING.discard(s["id"])
             lk.release()
 
-    def _purge(s, r):
+    def _purge(s, r, why=None):
         gone = []
         con = ctx.connect()
         try:
@@ -379,7 +379,10 @@ def register(ctx):
             shutil.rmtree(GALLERIES / s["gallery_id"]); gone.append("local gallery")
         x("""INSERT INTO retention (session_id, purged_at) VALUES (?,?)
              ON CONFLICT(session_id) DO UPDATE SET purged_at=excluded.purged_at""", (s["id"], date.today().isoformat()))
-        ctx.audit(f"Deleted {ctx.C.days_words(keep_days(s, r))} after delivery: " + (", ".join(gone) or "nothing on disk"), sid=s["id"], who="Lumen Aureum")
+        if why:                                          # deleted with its session (or client), not at the end of its days
+            ctx.audit(f"Photos deleted {why}: " + (", ".join(gone) if gone else "none were stored"), sid=s["id"], who="Lumen Aureum")
+        else:
+            ctx.audit(f"Deleted {ctx.C.days_words(keep_days(s, r))} after delivery: " + (", ".join(gone) or "nothing on disk"), sid=s["id"], who="Lumen Aureum")
 
     SEAL_NOTICE_DAYS = 3      # an automatic seal waits until Today has shown it coming for this long
     PURGE_NOTICE_DAYS = 7     # and an automatic deletion for this long (a mistyped date shows up as a warning first)
@@ -457,7 +460,7 @@ def register(ctx):
     if not os.environ.get("CRM_TESTING"):      # tests never start background jobs
         threading.Thread(target=loop, name="retention", daemon=True).start()
     app.config["retention_pass"] = pass_once
-    app.config["retention_purge_now"] = lambda sid: purge(q("SELECT * FROM sessions WHERE id=?", (sid,), one=True), row(sid))
+    app.config["retention_purge_now"] = lambda sid: purge(q("SELECT * FROM sessions WHERE id=?", (sid,), one=True), row(sid), why="with the session")
 
     def block(s):
         if s["stage"] not in ("shot", "delivered", "closed"):

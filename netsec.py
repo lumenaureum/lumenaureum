@@ -289,7 +289,7 @@ def claim_code():
         try:
             p = code_file()
             p.parent.mkdir(parents=True, exist_ok=True)
-            fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+            fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)   # a secret: owner only, whatever the umask
             with os.fdopen(fd, "w") as f:
                 f.write(f"Lumen Aureum setup code: {CLAIM['code']}\n\nType it on the first setup page. This file is "
                         f"deleted once setup is done. If Lumen Aureum restarts before then, a new code replaces this one.\n")

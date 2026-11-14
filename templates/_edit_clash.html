@@ -1,0 +1,77 @@
+{# A save refused because another tab or window changed the record first (see _stale_edit in app.py). The form below
+   is rendered with the latest saved values and a fresh fingerprint; the script puts what was typed back into it, field by
+   field, with the latest saved value beside each, so saving again is a deliberate choice made seeing both. Without the
+   script, what was typed is still listed here. A page with more than one guarded form includes this beside each, with
+   clash_form naming it; only the refused one shows. #}
+{% if g.edit_clash is defined and (g.get('edit_clash_form') or '') == (clash_form|default('')) %}<div class="clash edit-clash" id="edit-clash" tabindex="-1">
+  <p style="margin:0 0 6px" role="alert"><strong>This {{ g.edit_clash_what }} was changed in another tab or window. Your edits were not saved; reload to see the latest.</strong>
+    {% if g.edit_clash %}<span data-clash-plain>The form below shows the latest version. What you typed is listed here, so you can copy back anything you still want, then save again.</span>
+    <span data-clash-filled hidden>What you typed is back in the form below, and the latest saved version is shown here beside it. Choose which to keep for each, then save again.</span>
+    {%- else %}The form below shows the latest version.{% endif %}</p>
+  {% if g.edit_clash %}<table class="clash-list">
+    <thead><tr><th scope="col">Field</th><th scope="col">What you typed</th><th scope="col" data-clash-col hidden>Latest saved</th><th data-clash-col hidden><span class="vh">Choose</span></th></tr></thead>
+    <tbody>{% for item in g.edit_clash %}{% set lab, val = item[0], item[1] %}
+    <tr data-field="{{ item[2] if item|length > 2 else '' }}" data-mine="{{ val }}"><th scope="row">{{ lab }}</th>
+      <td class="clash-mine-v">{{ val or '(left empty)' }}</td><td data-clash-col data-latest hidden></td>
+      <td data-clash-col hidden><button type="button" class="clash-use" data-use></button></td></tr>{% endfor %}</tbody>
+  </table>{% endif %}
+  <p style="margin:8px 0 0"><a class="btn" href="{{ g.get('edit_clash_reload') or request.path }}">{{ 'Reload and discard what I typed' if g.edit_clash else 'Reload' }}</a></p>
+</div>
+<script nonce="{{ csp_nonce() }}">
+(function () {
+  "use strict";
+  var box = document.getElementById("edit-clash");
+  // land with the whole message in view, clear of the sticky header (scroll-margin-top in style.css)
+  function land() { if (box && box.scrollIntoView) box.scrollIntoView({ block: "start" }); }
+  function fill() {
+    land();
+    try { box.focus({ preventScroll: true }); } catch (e) {}
+    var form = box.nextElementSibling;
+    while (form && form.tagName !== "FORM") form = form.nextElementSibling;
+    if (!form) return;
+    var filled = 0;
+    Array.prototype.forEach.call(box.querySelectorAll("tr[data-field]"), function (tr) {
+      var name = tr.getAttribute("data-field"), mine = tr.getAttribute("data-mine") || "";
+      if (!name) return;
+      var els = Array.prototype.filter.call(form.elements, function (e) { return e.name === name; });
+      if (!els.length) return;
+      var radios = els[0].type === "radio";
+      var get = function () {
+        if (!radios) return els[0].value;
+        var on = els.filter(function (e) { return e.checked; })[0];
+        return on ? on.value : "";
+      };
+      var shown = function (v) {
+        if (radios) { var r = els.filter(function (e) { return e.value === v; })[0]; v = r && r.parentNode ? r.parentNode.textContent.trim() : v; }
+        return v === "" ? "(empty)" : v;
+      };
+      var set = function (v) {
+        if (radios) els.forEach(function (e) { e.checked = e.value === v; }); else els[0].value = v;
+        els.forEach(function (e) { e.dispatchEvent(new Event("input", { bubbles: true })); e.dispatchEvent(new Event("change", { bubbles: true })); });
+      };
+      var mark = radios ? (els[0].closest(".seg") || els[0]) : els[0];
+      var latest = get(), btn = tr.querySelector("[data-use]"), usingMine = true;
+      tr.querySelector("[data-latest]").textContent = shown(latest);
+      set(mine);
+      if (get() !== mine) { set(latest); btn.hidden = true; return; }   // not a value the form offers any more: the latest stays
+      filled++;
+      var paint = function () {
+        btn.textContent = usingMine ? "Use the latest" : "Use mine";
+        btn.setAttribute("aria-label", (usingMine ? "Use the latest saved " : "Use what I typed for ") + tr.querySelector("th").textContent);
+        mark.classList.toggle("clash-mine", usingMine);
+        tr.classList.toggle("clash-took-latest", !usingMine);
+      };
+      btn.onclick = function () { usingMine = !usingMine; set(usingMine ? mine : latest); paint(); };
+      paint();
+    });
+    if (filled) {
+      Array.prototype.forEach.call(box.querySelectorAll("[data-clash-col]"), function (c) { c.hidden = false; });
+      box.querySelector("[data-clash-plain]").hidden = true;
+      box.querySelector("[data-clash-filled]").hidden = false;
+    }
+  }
+  if (!box) return;
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", fill); else fill();
+  window.addEventListener("load", land);     // after the browser's own scroll restoration, which can land below it
+})();
+</script>{% endif %}

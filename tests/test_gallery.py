@@ -71,8 +71,8 @@ def decrypt(G, key, blob, name):
 def test_build_encrypts_and_strips_metadata(env):
     A, c, G, tmp, src = env
     key = G.new_key()
-    out, n = G.build("gal_test_1", src, key, credit="Made <with> care")
-    assert n == 3
+    out, n, skipped = G.build("gal_test_1", src, key, credit="Made <with> care")
+    assert n == 3 and skipped == []
     names = sorted(p.name for p in out.iterdir())
     assert {"index.html", "manifest.bin", "seen.php", "gate.php", "seen-key.php", ".htaccess"} <= set(names) and "seen.key" not in names
     page = (out / "index.html").read_text()
@@ -93,6 +93,21 @@ def test_build_encrypts_and_strips_metadata(env):
     empty.mkdir()
     with pytest.raises(ValueError):
         G.build("gal_test_2", empty, key)
+
+
+def test_build_returns_its_own_skipped_files(env):
+    """The skipped names come back in build()'s result, not on a shared attribute two builds at once would race on."""
+    A, c, G, tmp, src = env
+    other = tmp / "photos" / "export" / "other"
+    other.mkdir()
+    jpeg_with_metadata(other / "good.jpg", "red")
+    (other / "broken.jpg").write_bytes(b"not a jpeg at all")
+    key = G.new_key()
+    r1 = G.build("gal_skip_1", other, key)
+    r2 = G.build("gal_skip_2", src, key)
+    assert (r1.n, r1.skipped) == (1, ["broken.jpg"])
+    assert (r2.n, r2.skipped) == (3, [])
+    assert not hasattr(G.build, "skipped")
 
 
 def test_build_route_reads_only_under_photos(env):
