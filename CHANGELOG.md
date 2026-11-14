@@ -1,8 +1,12 @@
 # Changes
 
-Security fixes, visible changes, and behavior changes in each release.
+New features, behavior changes, security fixes, and other fixes in each release.
 
 ## 1.0.1 (2026-11-13)
+
+### Features
+
+- None in this release.
 
 ### Behavior changes
 
