@@ -312,11 +312,35 @@ PRESETS = {
                        {"key": "food_dish", "label": "Additional dish", "amount": 35, "unit": "each", "type": "food"}]),
 }
 PERSONAL_TYPE = dict(key="portfolio", label="Personal project", kind="personal", minutes=120)
+PRESETS["personal"] = dict(label="Personal projects", types=[PERSONAL_TYPE], fees=[])
 BASIC_PRESETS = ("portraits", "families", "events")
 
+def shipped_type(key):
+
+    return next((t for pr in PRESETS.values() for t in pr["types"] if t["key"] == key), None)
+
+def deposit_follows_setup(t):
+
+    if t.get("deposit_own"):
+        return False
+    s_ = shipped_type(t.get("key"))
+    keys = ("deposit_pct", "deposit_amount")
+    return bool(s_) and any(s_.get(k) is not None for k in keys) and all(t.get(k) == s_.get(k) for k in keys)
+
+def deposit_rule(t):
+
+    if deposit_follows_setup(t):
+        return ("pct", EVENT_DEPOSIT_PCT) if t.get("deposit_pct") is not None else ("amt", DEPOSIT_AMOUNT)
+    return (("pct", t["deposit_pct"]) if t.get("deposit_pct") is not None else
+            ("amt", t["deposit_amount"]) if t.get("deposit_amount") is not None else None)
+
+def setup_pct_types():
+
+    return [t["label"] for t in TYPES if t.get("kind") != "event" and t.get("deposit_pct") is not None
+            and deposit_follows_setup(t)]
+
 def preset_types(names):
-    out = [t for n in names if n in PRESETS for t in PRESETS[n]["types"]]
-    return out + [PERSONAL_TYPE]
+    return [t for n in names if n in PRESETS for t in PRESETS[n]["types"]]
 
 def preset_fees(names):
     return [f for n in names if n in PRESETS for f in PRESETS[n]["fees"]] + _ADDONS
@@ -374,8 +398,7 @@ def build_types():
     g["SUBJECT_TYPES"] = {t["key"] for t in types if KINDS[t["kind"]]["subjects"]}
     g["GRAD_TYPES"] = {t["key"] for t in types if t.get("grad")}
     g["ALL_SIGN"] = {t["key"]: bool(t.get("all_sign")) for t in types}
-    g["DEPOSIT_RULE"] = {t["key"]: (("pct", t["deposit_pct"]) if t.get("deposit_pct") is not None else
-                                    ("amt", t["deposit_amount"]) if t.get("deposit_amount") is not None else None) for t in types}
+    g["DEPOSIT_RULE"] = {t["key"]: deposit_rule(t) for t in types}
     g["PORTFOLIO_DISCOUNT"] = {t["key"]: (("pct", t["portfolio_pct"]) if t.get("portfolio_pct") else
                                          ("amt", t["portfolio_amount"]) if t.get("portfolio_amount") else None) for t in types}
     g["PRODUCT_TYPES"] = {t["key"] for t in types if t.get("products")}
@@ -385,6 +408,8 @@ def build_types():
     g["EVENT_TYPE"] = next((t["key"] for t in types if t["kind"] == "event"), "event")
     g["NEW_SESSION_TYPES"] = [t["key"] for t in types if t["kind"] != "event"]
 
+DEPOSIT_AMOUNT = 100
+EVENT_DEPOSIT_PCT = 50
 build_types()
 GALLERY_DAYS = 30
 CLOSED_CLIENT_YEARS = 7
@@ -396,8 +421,6 @@ DEFAULT_FEES = preset_fees(BASIC_PRESETS)
 DISCOUNTS = [("", "No discount", 0), ("intro", "Introductory rate", 25), ("friends", "Friends and family", 20),
              ("nonprofit", "Nonprofit", 15)]
 QUOTE_TERM_DAYS = 30
-DEPOSIT_AMOUNT = 100
-EVENT_DEPOSIT_PCT = 50
 DELIVERY_DAYS = 14
 RESCHEDULE_FEE = 50
 RETOUCH_PICKS = 5

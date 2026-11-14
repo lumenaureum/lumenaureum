@@ -22,7 +22,7 @@ laptop or a stolen drive exposes no client records.
   quote already sent.
 - **Scheduling**: a month calendar, sunset and golden hour for each session, and a check for clashes.
 - **Billing and finances**: deposits, payments, refunds, mileage, expenses, and sales tax counted when payments are received.
-- **Proofing galleries**, encrypted in the browser; the key is in the link printed on the letter you mail. Galleries
+- **Proofing and delivery galleries**, encrypted in the browser; the key is in the link printed on the letter you mail. Galleries
   come down after the window you set: by themselves on a web host that runs PHP with Apache rewrite rules, otherwise
   the next time the app is unlocked. A session type can ask for a codeword the client chooses, so the link alone
   doesn't open the gallery. What a link can and can't protect is in [docs/security.md](docs/security.md).
@@ -32,7 +32,8 @@ laptop or a stolen drive exposes no client records.
 ## What you shoot
 Setup asks what you shoot: portraits, seniors, families, weddings, sports, newborns, engagements, headshots, pets,
 group events, real estate, products and brands, or food. Pick any mix. Each choice adds a session type with its steps and starter prices.
-Skip it and you get a small neutral set. Change any of it, or add your own types, in Settings.
+You get only the types you pick. Skip it and you start with portraits, families, and group events. Change any of it,
+or add your own types, in Settings.
 
 Settings, prices and session types export to a single file (Settings, Export settings), and setup can start from one,
 so you can move to a new machine or start over without entering them again.
@@ -72,12 +73,17 @@ echo "LUMEN_HOST_IP=192.168.1.10" > .env      # the address your computers reach
 mkdir data photos /path/to/another/disk/lumen-vault
 sudo chown 10001:10001 data photos /path/to/another/disk/lumen-vault   # or set "user" in compose.yaml to their owner
 docker compose up -d
-docker compose logs lumen          # shows the certificate fingerprint
+docker compose logs lumen          # shows the certificate fingerprint and the setup code
 ```
+
+The app sees only the folders mounted under `volumes:` in compose.yaml. A second backup disk, or a folder a web server
+on this machine serves for galleries, needs a line there too: see
+[Folders outside the container](docs/where-it-runs.md#folders-outside-the-container).
 
 Then open `https://<that machine's address>:8780` from a device on your network. Your browser will warn that it
 doesn't know the certificate: check that the fingerprint it shows matches the one in the log, then accept it. Setup
-asks for the setup code (in the file `SETUP-CODE.txt` in your `data` folder, and in the container log), then your account, two-factor, your master key, your business details, where
+asks for the setup code (in the container log, and in the file `SETUP-CODE.txt` in your `data` folder, which only
+the app's user can read: `sudo cat data/SETUP-CODE.txt`), then your account, two-factor, your master key, your business details, where
 backups go, your terms and prices. If you reach it by a name (for example `nas.local`) rather than an address, add
 that name to `CRM_HOSTNAMES` in compose.yaml.
 [docs/getting-started.md](docs/getting-started.md) walks through it and marks the choices that are hard to change later.

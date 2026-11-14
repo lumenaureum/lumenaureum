@@ -102,13 +102,41 @@ def is_dark(bg):
     c = _rgb(clean_look("", bg, "", "", 20)["gallery_bg"])
     return _contrast(c, [0, 0, 0]) < _contrast(c, [255, 255, 255])
 
+LOGO_MAX_PIXELS = 40_000_000
+LOGO_BOX = (600, 240)
+
+def clean_logo(data):
+
+    import io
+    from PIL import Image, ImageOps
+    try:
+        im = Image.open(io.BytesIO(data))
+        if im.format not in ("PNG", "JPEG") or im.width * im.height > LOGO_MAX_PIXELS:
+            raise ValueError("not a logo")
+        im = ImageOps.exif_transpose(im).convert("RGBA")
+        im.thumbnail(LOGO_BOX, Image.LANCZOS)
+        buf = io.BytesIO()
+        im.save(buf, "PNG", optimize=True)
+    except ValueError:
+        raise
+    except Exception as e:
+        raise ValueError("not a logo") from e
+    return buf.getvalue()
+
+def _small_logo(im):
+
+    return im.width * im.height <= 4 * LOGO_BOX[0] * LOGO_BOX[1]
+
 def white_logo(b64):
 
     import base64
     import io
     from PIL import Image
     try:
-        im = Image.open(io.BytesIO(base64.b64decode(b64))).convert("RGBA")
+        im = Image.open(io.BytesIO(base64.b64decode(b64)))
+        if not _small_logo(im):
+            return b64
+        im = im.convert("RGBA")
     except Exception:
         return b64
     a = im.getchannel("A")
@@ -393,11 +421,9 @@ def parse(text, current_storage):
             import base64
             import binascii
             try:
-                ok = base64.b64decode(settings[lk_], validate=True)[:8] == b"\x89PNG\r\n\x1a\n"
+                settings[lk_] = base64.b64encode(clean_logo(base64.b64decode(settings[lk_], validate=True))).decode()
             except (binascii.Error, ValueError):
-                ok = False
-            if not ok:
-                raise ImportProblem(f"settings.{lk_}: not a PNG picture")
+                raise ImportProblem(f"settings.{lk_}: not a PNG or JPEG picture this can use")
     look = clean_look(settings.get("gallery_font"), settings.get("gallery_bg"), settings.get("proof_mark"),
                       settings.get("proof_mark_text"), settings.get("proof_mark_strength"))
     settings.update({k: v for k, v in look.items() if k in settings})

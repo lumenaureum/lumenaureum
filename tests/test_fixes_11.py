@@ -93,6 +93,10 @@ def test_rebuild_of_an_online_gallery_goes_online(env):
     assert (host / gid / "manifest.bin").read_bytes() == (out / "manifest.bin").read_bytes()
     assert (host / gid / "index.html").read_bytes() == (out / "index.html").read_bytes()
     now = {p.name for p in (host / gid).glob("*.bin")}
+    assert old - {"manifest.bin"} <= now
+    assert row(A, "SELECT prune_due FROM galleries WHERE session_id=1")[0]
+    G.prune_host(gid)
+    now = {p.name for p in (host / gid).glob("*.bin")}
     assert not (old - {"manifest.bin"}) & now
     assert (host / gid / "picks.bin").read_bytes() == b"LAK1 the client's picks" and (host / gid / "seen.txt").exists()
     assert (host / gid / "limits.txt").exists() and not (host / gid / G.ONLINE_MARK).exists()

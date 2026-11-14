@@ -49,9 +49,9 @@
   <label class="row" style="gap:6px;flex-wrap:wrap">What to wear and bring: "You plan the look: <input name="wear" maxlength="200" value="{{ policy.wear or C.DEFAULT_WEAR }}" class="grow" style="width:auto;min-width:240px;margin:0">, and any props."</label>
   <div class="row" style="gap:14px;font-size:14px"><a class="go" href="{{ url_for('wording_edit', doc='agreement', type=t.key) }}">Agreement wording for {{ t.label }} &rsaquo;</a><a class="go" href="{{ url_for('wording_edit', doc='release', type=t.key) }}">Release wording &rsaquo;</a></div>
   <div class="row" style="gap:8px;flex-wrap:wrap"><span id="dep-l">Deposit for this type</span>
-    <input type="number" name="deposit_value" aria-labelledby="dep-l" min="0" value="{{ t.get('deposit_pct') if t.get('deposit_pct') is not none else (t.get('deposit_amount') if t.get('deposit_amount') is not none else '') }}" placeholder="general rule" style="width:130px">
+    <input type="number" name="deposit_value" aria-labelledby="dep-l" min="0" value="{{ '' if dep_setup else (t.get('deposit_pct') if t.get('deposit_pct') is not none else (t.get('deposit_amount') if t.get('deposit_amount') is not none else '')) }}" placeholder="{{ (dep_rule[1] ~ '%' if dep_rule[0] == 'pct' else '$' ~ dep_rule[1]) if dep_setup and dep_rule else 'from setup' }}" style="width:130px">
     <select name="deposit_mode" aria-label="Deposit in" style="width:auto"><option value="amt"{{ ' selected' if t.get('deposit_amount') is not none }}>dollars</option><option value="pct"{{ ' selected' if t.get('deposit_pct') is not none }}>% of the price</option></select>
-    <span class="mute" style="font-size:12px">Blank uses the general deposit.</span></div>
+    <span class="mute" style="font-size:12px">Blank uses your answer in Payments and terms.</span></div>
   <div class="row" style="gap:8px;flex-wrap:wrap"><span id="folio-l">Portfolio permission discount</span>
     <input type="number" name="portfolio_value" aria-labelledby="folio-l" min="0" value="{{ t.portfolio_pct or t.portfolio_amount or '' }}" placeholder="none" style="width:110px">
     <select name="portfolio_mode" aria-label="Discount in" style="width:auto"><option value="amt"{{ ' selected' if t.portfolio_amount }}>dollars</option><option value="pct"{{ ' selected' if t.portfolio_pct }}>% of the price</option></select>

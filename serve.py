@@ -9,8 +9,14 @@ if __name__ == "__main__":
         sys.exit(problem)
     port = os.environ.get("CRM_PORT", "8780")
     names = [n.strip() for n in os.environ.get("CRM_TLS_SAN", "").split(",") if n.strip()]
-    print(f"Lumen Aureum starts locked, as it does after every restart: open https://{names[0] if names else '<this machine>'}:"
-          f"{port} and sign in to unlock. Until then, backups and gallery checks wait.", file=sys.stderr, flush=True)
+    import datakey
+    where = (f"https://{names[0] if names else '<this machine>'}:{port} (or the port you published in compose.yaml,"
+             " if it maps another)")
+    if not datakey.exists():
+        print(f"Lumen Aureum is new here: open {where} to set it up.", file=sys.stderr, flush=True)
+    else:
+        print(f"Lumen Aureum starts locked, as it does after every restart: open {where} and sign in to unlock."
+              " Until then, backups and gallery checks wait.", file=sys.stderr, flush=True)
     args = ["gunicorn", "--bind", f"0.0.0.0:{port}", "--workers", "1", "--threads", os.environ.get("CRM_THREADS", "8"),
             "--worker-class", "gthread", "--timeout", "120", "--graceful-timeout", "30",
             "--no-control-socket"]

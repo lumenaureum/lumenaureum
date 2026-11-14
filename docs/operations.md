@@ -2,29 +2,40 @@
 
 ## Upgrading
 1. Read what changed in the new version on its release page.
-2. Make sure a recent backup exists (Settings > Backups shows the last one) and that you have your master key.
+2. Make sure a recent backup exists (Settings, Backups shows the last one) and that you have your master key.
 3. In `compose.yaml`, change the image tag to the new version (from the old version number to the new one).
 4. `docker compose pull && docker compose up -d`, then sign in to unlock.
 
 The database records which version of its layout it has. When a new version needs to change it, the change runs at
 the first sign-in, after the app has made an encrypted **upgrade** backup (listed under Backups); if that backup
-can't be made, nothing is changed and sign-in says why. The change runs all at once or not at all. An older version
-never opens a database a newer one has changed: it says so and points here.
+can't be made, nothing is changed and sign-in says why. The change runs all at once or not at all. After an upgrade,
+Today shows a one-time note with the new version number, saying a backup was made before the update. An older
+version never opens a database a newer one has changed: it says so and points here.
 
 Images are signed. To check one before running it:
 `cosign verify ghcr.io/lumenaureum/lumenaureum:<version> --certificate-identity-regexp 'https://github.com/lumenaureum/lumenaureum/' --certificate-oidc-issuer https://token.actions.githubusercontent.com`
 
 ## Rolling back
-Set the previous tag in `compose.yaml` and `docker compose up -d`. If the newer version changed the database, the
-older one refuses to open it: restore the **upgrade** backup made just before the upgrade (below) into a fresh data
-folder and point `./data` at it. Copy `deletions.json` and `doc-numbers.json` from the current data folder into the
-new one, so clients deleted since the upgrade stay deleted and numbers don't repeat. (A version from before 1.0 reads
-these as `deletions.enc` and `doc-numbers.enc`, so on those, check the clients list and the next invoice number.)
+1. Set the previous tag in `compose.yaml` and run `docker compose up -d`.
+2. If the newer version didn't change the database, that's all.
+3. If it did, the older version refuses to open the database and says so. Put the newer tag back and run
+   `docker compose up -d` (the older version can't read the list of backups). Then follow **Restoring a backup**
+   below, steps 1 to 9. In step 1, pick the line whose kind is `upgrade`: the backup made at the first sign-in on the
+   newer version, just before it changed anything. After step 3, set the older tag in `compose.yaml`, so step 8
+   starts the older version.
+
+Those steps move only the restored files into your existing data folder. Everything else in it stays, including the
+`tls` folder that holds the app's HTTPS certificate, so your devices don't warn about a new certificate. Keep the data
+folder's own `deletions.json` and `doc-numbers.json` (step 6), so clients deleted since the upgrade stay deleted and
+numbers don't repeat. (A version from before 1.0 reads these as `deletions.enc` and `doc-numbers.enc`, so on those,
+check the clients list and the next invoice number.)
+
 Going back to an earlier version is always this restore: each version that changes the database updates it at the
-first sign-in (1.0.1 turned refunds recorded the 1.0.0 way into credits; 1.1 added the gallery draft fields), and an
-earlier version refuses the updated database. Anything entered after the upgrade
-is not in that backup: note it before rolling back. A rollback cannot
-undo a leak: if you rolled back because of a security problem, also follow "If you suspect a compromise".
+first sign-in (1.0.1 turned refunds recorded the 1.0.0 way into credits; 1.1 added the gallery draft fields; 1.1.1
+keeps a copy of each issued invoice and receipt), and an earlier version refuses the updated database. Anything
+entered after the upgrade is not in that backup: before rolling back, look through each client's History and the
+audit log for what changed since, and note it. A rollback cannot undo a leak: if you rolled back because of a security
+problem, also follow "If you suspect a compromise".
 
 ## Restoring a backup
 Each nightly backup holds your data (the database, with clients, money and settings), the key that opens it, your
@@ -34,7 +45,10 @@ is mirrored, still encrypted, to your second backup location (or the vault when 
 the photo is kept and deleted with it, so photos take twice their size. Their keys are in the database, so after
 restoring the database the app fetches any photo missing from the photos folder back from the mirror.
 
-This section is the one place with the restore steps; docs/security.md points here.
+This section is the one place with the restore steps; docs/security.md points here. A restore needs the command
+line: there is no restore button in the app yet. Settings, Backups has **Check the newest backup opens**, which tests
+a backup with your master key without changing anything. Each step below is one command or one file move; type them
+as shown, in a terminal on the machine that runs Docker.
 
 **The files.** A restore writes these into a new folder, each in the place shown:
 
@@ -56,7 +70,7 @@ Backups from before settings were included have only `crm.db` and `keyring.json`
    (or the master key), because the list is kept in the encrypted database. Each line shows the date, the kind, the
    size, and last the name, for example `db/3f9c1e7a5b2d4c6e8a0b1c2d3e4f5a6b.age`. Pick a line whose kind is `db`,
    `manual`, or `upgrade` (`faces` lines hold only face photos) and copy the whole name, `db/` included. Settings,
-   Backups shows the same dates and sizes, so you can match them up there. On a new
+   Backups (the Vault page) shows the same dates and sizes, so you can match them up there. On a new
    machine there is no database to ask yet: start the app once (`docker compose up -d`) and use the newest file in
    the `db` folder of your vault.
 2. **Restore it.** `docker compose exec lumen python -m vault.cli restore db/3f9c...6b.age /data/restored`, with your

@@ -180,7 +180,7 @@ CREATE TABLE IF NOT EXISTS stage_log (
   id INTEGER PRIMARY KEY, session_id INTEGER REFERENCES sessions(id) ON DELETE CASCADE,
   stage TEXT NOT NULL, at TEXT DEFAULT (date('now','localtime')));
 CREATE TABLE IF NOT EXISTS bill_snapshots (number TEXT PRIMARY KEY, session_id INTEGER REFERENCES sessions(id) ON DELETE CASCADE,
-  kind TEXT NOT NULL, at TEXT, sig TEXT, data TEXT NOT NULL);
+  kind TEXT NOT NULL, at TEXT, sig TEXT, data TEXT NOT NULL, html TEXT);
 CREATE INDEX IF NOT EXISTS bill_snapshots_sid ON bill_snapshots(session_id);
 CREATE TABLE IF NOT EXISTS refund_credits (payment_id INTEGER PRIMARY KEY REFERENCES payments(id) ON DELETE CASCADE,
   session_id INTEGER, amount REAL NOT NULL);
@@ -452,7 +452,9 @@ def describe(ep, va, f):
             act = f"Closed '{AUTO.get(f.get('step'), (f.get('step'),))[0]}' as {outcome}"
     elif ep == "quick":
         a = f.get("act")
-        act = {"sign": f"Marked the {f.get('kind', 'release')} signed",
+        signer_ = (q("""SELECT p.name FROM documents d JOIN people p ON p.id=d.about_person WHERE d.id=?""",
+                     (int(f["did"]),), one=True) if str(f.get("did") or "").isdigit() else None)
+        act = {"sign": f"Marked the {f.get('kind', 'release')} signed" + (f" by {signer_['name']}" if signer_ else ""),
                "mark": f"Marked '{MARKABLE.get(f.get('field'), f.get('field'))}' for today",
                "pay": f"Recorded the balance paid ({money(totals(sid)['due']) if sid else ''})",
                "extend": "Gave the gallery its one extension",
@@ -1455,13 +1457,43 @@ app.jinja_env.globals["booked_hint"] = booked_hint
 
 BOOKING_HOLD_DAYS = 7
 
-def booking_due(sid, s):
+def _booked_day(sid, s):
     r = q("SELECT MIN(at) a FROM stage_log WHERE session_id=? AND stage='booked'", (sid,), one=True)
-    base = d((r["a"] or "")[:10]) if r and r["a"] else d((s["stage_changed"] or "")[:10]) if s["stage_changed"] else today()
-    due = base + timedelta(days=BOOKING_HOLD_DAYS)
+    return d((r["a"] or "")[:10]) if r and r["a"] else d((s["stage_changed"] or "")[:10]) if s["stage_changed"] else today()
+
+def booking_due(sid, s):
+    due = _booked_day(sid, s) + timedelta(days=BOOKING_HOLD_DAYS)
     if s["shoot_date"] and d(s["shoot_date"]) < due:
         due = d(s["shoot_date"])
     return due.isoformat()
+
+def priced_on(sid, s, quoted):
+
+    if "priced_on" in s.keys() and s["priced_on"]:
+        return d(s["priced_on"][:10])
+    if quoted <= 0.005:
+        return None
+    r_ = q("SELECT MIN(at) a FROM quote_versions WHERE session_id=? AND at IS NOT NULL", (sid,), one=True)
+    day = d(r_["a"][:10]) if r_ and r_["a"] else today()
+    x("UPDATE sessions SET priced_on=? WHERE id=? AND priced_on IS NULL", (day.isoformat(), sid))
+    return day
+
+def deposit_due(sid, s, priced=None):
+
+    due = d(_deposit_due(sid, s))
+    return max(due, priced or due).isoformat()
+
+def _deposit_due(sid, s):
+    if s["type"] not in C.NEEDS_AGREEMENT:
+        return booking_due(sid, s)
+    head = s["plan_of"] if "plan_of" in s.keys() and s["plan_of"] else sid
+    docs = q("SELECT status, signed FROM documents WHERE session_id=? AND kind='agreement'", (head,))
+    if not docs or any(r_["status"] != "signed" for r_ in docs) or (head != sid and q(
+            "SELECT 1 FROM tasks WHERE session_id=? AND title=? AND done IS NULL", (head, PLAN_RESIGN), one=True)):
+        return booking_due(sid, s)
+    signed = max((d(r_["signed"][:10]) for r_ in docs if r_["signed"]), default=None)
+    booked = today() if s["stage"] in ("inquiry", "quoted") else _booked_day(sid, s)
+    return max(signed or booked, booked).isoformat()
 
 def _workflow(sid):
 
@@ -1472,6 +1504,7 @@ def _workflow(sid):
     tasks = {(r["stage"], r["title"]): r for r in q("SELECT * FROM tasks WHERE session_id=? AND own=0", (sid,))}
     own = q("SELECT * FROM tasks WHERE session_id=? AND own=1 ORDER BY id", (sid,))
     flow = flow_for(sid)
+    priced = priced_on(sid, s, ctx["t"]["quoted"])
     closes = {r["step"]: r["outcome"] for r in q("SELECT step, outcome FROM step_closes WHERE session_id=?", (sid,))}
     extra = {}
     for fn in hooks.steps:
@@ -1488,7 +1521,8 @@ def _workflow(sid):
                     continue
                 label, fn, tab = AUTO[step[1]]
                 ov = closes.get(step[1])
-                due_ = booking_due(sid, s) if (st == "booked" and step[1] in ("deposit_paid", "agreement_signed", "releases_signed")) else \
+                due_ = deposit_due(sid, s, priced) if (st == "booked" and step[1] == "deposit_paid") else \
+                    booking_due(sid, s) if (st == "booked" and step[1] in ("agreement_signed", "releases_signed")) else \
                     balance_due_date(s["shoot_date"], s["type"], sid=sid) if step[1] == "balance_paid" else None
                 steps.append(dict(label=label, done=bool(ov) or fn(ctx), kind="auto", tab=tab, key=step[1], due=due_,
                                   outcome=ov if ov and ov != "done" else None))
@@ -2189,11 +2223,16 @@ def quick(sid):
     f = request.form
     act = f.get("act")
     day = today().isoformat()
-    if act == "sign":
+    if act == "sign" and str(f.get("did") or "").isdigit():
+        x("""UPDATE documents SET status='signed', signed=?, sent=COALESCE(sent, ?)
+             WHERE id=? AND session_id=? AND kind=? AND status!='signed'""", (day, day, int(f["did"]), sid, f.get("kind", "release")))
+    elif act == "sign":
         x("""UPDATE documents SET status='signed', signed=?, sent=COALESCE(sent, ?)
              WHERE session_id=? AND kind=? AND status!='signed'""", (day, day, sid, f.get("kind", "release")))
     elif act == "mark" and f.get("field") in MARKABLE:
-        if f["field"] in ("letter_mailed", "sd_shipped") and release_blocked(sid):
+        proofs_ = app.config.get("gallery_proofs")
+        if f["field"] in ("letter_mailed", "sd_shipped") and release_blocked(sid) and not (
+                f["field"] == "letter_mailed" and proofs_ and proofs_(sid)):
             return redirect(safe_back(f.get("back")) or url_for("home"))
         on = f.get("on") or ""
         if on and not _past_day(on):
@@ -2311,7 +2350,15 @@ def home():
     rost = roster(acts)
     busy_ = [r_ for r_ in rost if r_["next"] or r_["shoot"] or r_.get("owed")]
     quiet_ = [r_ for r_ in rost if r_ not in busy_]
-    return render_template("today.html", clock_paused=paused.split("|") if paused else None, quiet=quiet_,
+    upd_ = setting("update_notice")
+    if upd_:
+        x("DELETE FROM settings WHERE key='update_notice'")
+        g.tx = True
+        try:
+            upd_ = json.loads(upd_)
+        except ValueError:
+            upd_ = None
+    return render_template("today.html", clock_paused=paused.split("|") if paused else None, quiet=quiet_, updated=upd_,
                            unconfirmed=unconfirmed_deletions(),
                            finish=app.config["finish_items"](), loose=loose, acts=acts, kpi=kpi, shoots=shoots, year=year,
                            days=two_weeks(acts), focus=focus, roster=busy_,
@@ -2413,7 +2460,8 @@ def roster(acts):
         ent["next"] = real_first[0] if real_first else None
         ent["then"] = real_first[1:4]
         ent["more"] = max(0, len(real_first) - 4)
-        upcoming_shoot = next((f for f in ent["flows"] if f["date"] and f["date"] >= t), None)
+        upcoming_shoot = next((f for f in ent["flows"] if f["date"] and f["date"] >= t
+                               and f["stage"] in ("inquiry", "quoted", "booked")), None)
         ent["shoot"] = upcoming_shoot
         top = (ent["late"] or ent["now"] or ent["coming"] or [None])[0]
         ent["top"] = dict(what=top["what"], when=top.get("when"), status=("late" if ent["late"] else ("done" if top.get("primary") else "next") if ent["now"] else status_of(top.get("when"))),
@@ -3967,7 +4015,7 @@ def paying_means_yes(sid):
       (today().isoformat(), sid))
     t_ = totals(sid)
     if t_["quoted"] > 0.005 and t_["due"] <= 0.005:
-        x("UPDATE tasks SET done=?, outcome='done' WHERE session_id=? AND title=? AND done IS NULL",
+        x("UPDATE tasks SET done=?, outcome='na' WHERE session_id=? AND title=? AND done IS NULL",
           (today().isoformat(), sid, SEND_TASKS["invoice"]))
     lock_tax_rate(sid)
     s_ = q("SELECT stage FROM sessions WHERE id=?", (sid,), one=True)
@@ -4237,13 +4285,44 @@ def _send_ctx(sid, kind, subject, lines):
     body = "\n\n".join([f"Hi {first}," if first else "Hello,"] + lines + [f"Thank you,\n{sign}" if sign else "Thank you"])
     step_ = SEND_TASKS.get(kind, "")
     task = q("SELECT id FROM tasks WHERE session_id=? AND title=? AND done IS NULL", (sid, step_), one=True) if step_ else None
-    sent = q("SELECT done FROM tasks WHERE session_id=? AND title=? AND done IS NOT NULL ORDER BY done DESC", (sid, step_), one=True) if step_ else None
+    sent = q("""SELECT done FROM tasks WHERE session_id=? AND title=? AND done IS NOT NULL
+                AND COALESCE(outcome, 'done') = 'done' ORDER BY done DESC""", (sid, step_), one=True) if step_ else None
     sms_body = (re.sub(r"\b(is|are) attached\b", r"\1 ready", lines[0]) + " I'll send you the PDF.") if lines else subject
     return dict(mailto=f"mailto:{_qu(who['email'] if who else '', safe='@')}?subject={_qu(subject)}&body={_qu(body)}",
                 to=who["email"] if who else "", sid=sid, phone=(reach["phone"] if reach else ""),
                 sms=f"sms:{phone_}?&body={_qu(sms_body)}" if len(phone_) >= 7 else "", task=task["id"] if task else None, sent=nice(sent["done"]) if sent and not task else "", back=request.full_path.rstrip("?"))
 
 app.config.setdefault("quiet_endpoints", set()).update({"photos_status", "photos_upload"})
+
+def _audit_upload(sid, row):
+
+    import photostore
+    kind = row["kind"]
+    what = photostore.KINDS[kind].lower()
+    one = what[:-1]
+    route_ = f"photos-batch:{kind}"
+    last = q("SELECT id, at, route, data FROM audit WHERE session_id=? ORDER BY id DESC LIMIT 1", (sid,), one=True)
+    batch = None
+    if last and last["route"] == route_:
+        try:
+            batch = json.loads(last["data"] or "{}")
+            fresh = datetime.now(TZ).replace(tzinfo=None) - datetime.strptime(last["at"], "%Y-%m-%d %H:%M:%S") <= timedelta(minutes=10)
+        except (ValueError, TypeError):
+            batch, fresh = None, False
+        if not fresh or not isinstance(batch, dict):
+            batch = None
+    names = (batch or {}).get("names", []) + [row["name"]]
+    n, size = len(names), int((batch or {}).get("bytes", 0)) + int(row["size"] or 0)
+    mb = f"{size / 1048576:.1f} MB"
+    label = ("RAWs" if kind == "raw" else what) if n > 1 else one.replace("raw", "RAW")
+    text = (f"Uploaded {n} {label} ({mb}, sealed)" if n > 1 else f"Uploaded {label} {row['name']} (sealed)")
+    note = "" if n == 1 else ", ".join(names[:3]) + (f" and {n - 3} more" if n > 3 else "")
+    data = json.dumps(dict(names=names[-500:], bytes=size))
+    if batch is not None:
+        x("UPDATE audit SET action=?, note=?, data=?, at=? WHERE id=?",
+          (text, note, data, datetime.now(TZ).strftime("%Y-%m-%d %H:%M:%S"), last["id"]))
+    else:
+        audit(text, sid=sid, note=note, route=route_, data=data)
 
 @app.get("/session/<int:sid>/photos/status")
 def photos_status(sid):
@@ -4309,7 +4388,7 @@ def photos_upload(sid):
             lk.release()
         done = got == row["size"]
         if done:
-            audit(f"Uploaded {photostore.KINDS[row['kind']].lower()[:-1]} {row['name']} (sealed)", sid=sid)
+            _audit_upload(sid, row)
             if row["kind"] == "raw":
                 x("UPDATE tasks SET done=? WHERE session_id=? AND title='Back up photos' AND done IS NULL",
                   (today().isoformat(), sid))
@@ -4878,16 +4957,37 @@ def _bill_nav(sid, receipt):
                 reviewed=doc_reviewed("terms", t_), review=review_url("terms", t_),
                 pdf_url=url_for("receipt_pdf" if receipt else "invoice_pdf", sid=sid))
 
+def bill_doc_html(data):
+
+    return render_template("_bill_doc.html", v=data)
+
 def freeze_bill(sid, receipt, number):
 
-    r_ = q("SELECT data FROM bill_snapshots WHERE number=?", (number,), one=True)
+    r_ = q("SELECT data, html FROM bill_snapshots WHERE number=?", (number,), one=True)
     if r_:
-        return json.loads(r_["data"])
+        data = json.loads(r_["data"])
+        if r_["html"] is None:
+            html = bill_doc_html(data)
+            x("UPDATE bill_snapshots SET html=? WHERE number=? AND html IS NULL", (html, number))
+        else:
+            html = r_["html"]
+        return dict(data, frozen_html=Markup(html))
     v = bill_ctx(sid, receipt, live=True)
     data = {k_: v_ for k_, v_ in v.items() if k_ not in BILL_LIVE_KEYS}
-    x("INSERT OR IGNORE INTO bill_snapshots (number, session_id, kind, at, sig, data) VALUES (?,?,?,?,?,?)",
-      (number, sid, "R" if receipt else "INV", now_local(), _lines_sig(sid), json.dumps(data)))
-    return data
+    html = bill_doc_html(data)
+    x("INSERT OR IGNORE INTO bill_snapshots (number, session_id, kind, at, sig, data, html) VALUES (?,?,?,?,?,?,?)",
+      (number, sid, "R" if receipt else "INV", now_local(), _lines_sig(sid), json.dumps(data), html))
+    return dict(data, frozen_html=Markup(html))
+
+def _freeze_bill_pages():
+
+    for r_ in q("SELECT number FROM bill_snapshots WHERE html IS NULL ORDER BY number"):
+        try:
+            row = q("SELECT data FROM bill_snapshots WHERE number=?", (r_["number"],), one=True)
+            x("UPDATE bill_snapshots SET html=? WHERE number=? AND html IS NULL",
+              (bill_doc_html(json.loads(row["data"])), r_["number"]))
+        except Exception:
+            app.logger.exception("freezing issued document %s", r_["number"])
 
 def bill_ctx(sid, receipt=False, live=False):
 
@@ -5208,7 +5308,10 @@ def agreement(sid):
     who = setting("photographer_name") or setting("business_name") or "your photographer"
     send = send_ctx(sid, "agreement", f"Your session agreement with {who}",
                     ["Your session agreement is attached." + ("" if not a.get("unsigned") else " Please read it, sign it and send it back.")])
-    return render_template("agreement.html", a=a, send=send, signed_on=_signed_on(sid, "agreement"))
+    rows_, _ = agreement_signers(sid)
+    pending = [dict(did=r_["id"], name=r_["pname"] or "") for r_ in rows_ if r_["status"] != "signed"]
+    return render_template("agreement.html", a=a, send=send, signed_on=_signed_on(sid, "agreement"), pending=pending,
+                           signed_n=sum(1 for r_ in rows_ if r_["status"] == "signed"))
 
 def _signed_on(sid, kind, did=None):
 
@@ -5745,7 +5848,6 @@ def save_look(form):
 @app.post("/settings/logo")
 def logo_upload():
 
-    from PIL import Image, ImageOps
     import base64
     import io as _io
     dark = request.form.get("which") == "dark"
@@ -5758,14 +5860,9 @@ def logo_upload():
         audit("Removed " + what_)
         return redirect(back_)
     f_ = request.files.get("logo")
+    import settings_io as _sio
     try:
-        im = Image.open(f_.stream)
-        if im.format not in ("PNG", "JPEG") or im.width * im.height > 40_000_000:
-            raise ValueError
-        im = ImageOps.exif_transpose(im).convert("RGBA")
-        im.thumbnail((600, 240), Image.LANCZOS)
-        buf = _io.BytesIO()
-        im.save(buf, "PNG", optimize=True)
+        buf = _io.BytesIO(_sio.clean_logo(f_.stream.read(64 * 1024 * 1024)))
     except Exception:
         session["notice"] = "That file isn't a PNG or JPEG picture we can use."
         g.refused = True
@@ -5960,7 +6057,7 @@ def doc_review(doc):
             t_ = next(t for t in types if t["key"] == stype)
             shipped = next((t for pr in C.PRESETS.values() for t in pr["types"] if t["key"] == stype), None)
             t_["policy"] = dict((shipped or {}).get("policy") or {})
-            t_.pop("deposit_pct", None); t_.pop("deposit_amount", None)
+            t_.pop("deposit_pct", None); t_.pop("deposit_amount", None); t_.pop("deposit_own", None)
             for k_ in ("deposit_pct", "deposit_amount"):
                 if shipped and shipped.get(k_) is not None:
                     t_[k_] = shipped[k_]
@@ -6021,9 +6118,11 @@ def wording_edit(doc):
     if t_:
         own = (t_.get(key) or "").strip()
         text = own or general
+        own = own if own.split() != (general or "").split() else ""
     else:
         own = setting(key).strip()
         text = own or wording.STANDARD[doc]
+        own = own if own.split() != wording.STANDARD[doc].split() else ""
     return render_template("wording_edit.html", doc=doc, label=wording.LABELS.get(doc, doc.capitalize()), text=text, own=bool(own), stype=t_,
                            typed=[t for t in types if (t.get(key) or "").strip()], all_types=types,
                            fields=wording.FIELDS[doc], saved=request.args.get("saved"))
@@ -6127,10 +6226,16 @@ def type_edit(key):
         pv_ = _int_or_none(f.get("portfolio_value"))
         if pv_ and f.get("portfolio_mode") in ("pct", "amt"):
             t["portfolio_pct" if f["portfolio_mode"] == "pct" else "portfolio_amount"] = min(pv_, 100 if f["portfolio_mode"] == "pct" else 100000)
-        t.pop("deposit_pct", None); t.pop("deposit_amount", None)
         dv = _int_or_none(f.get("deposit_value"))
+        t.pop("deposit_pct", None); t.pop("deposit_amount", None); t.pop("deposit_own", None)
         if dv is not None and f.get("deposit_mode") in ("pct", "amt"):
             t["deposit_pct" if f["deposit_mode"] == "pct" else "deposit_amount"] = max(0, min(dv, 100 if f["deposit_mode"] == "pct" else 100000))
+            t["deposit_own"] = True
+        else:
+            shipped = C.shipped_type(key)
+            for k_ in ("deposit_pct", "deposit_amount"):
+                if shipped and shipped.get(k_) is not None:
+                    t[k_] = shipped[k_]
         t["policy"] = dict(free_reschedule=bool(f.get("free_reschedule")), outfits=bool(f.get("outfits")),
                            wear=((f.get("wear") or "").strip().rstrip(".")[:200] or C.DEFAULT_WEAR),
                            **{k_: (f.get(k_) or "").strip()[:200] for k_, _, _ in C.FILL_INS},
@@ -6162,6 +6267,7 @@ def type_edit(key):
         return redirect(url_for("type_edit", key=key, saved=1))
     flow = C.WORKFLOW[key]
     return render_template("type_edit.html", t=t, flow=flow, stages=C.STEP_STAGES, policy=C.POLICY[key],
+                           dep_setup=C.deposit_follows_setup(t) or C.DEPOSIT_RULE.get(key) is None, dep_rule=C.DEPOSIT_RULE.get(key),
                            questions="\n".join(q_[1] for q_ in C.INTAKE[key]),
                            auto_label={k_: v_[0] for k_, v_ in AUTO.items()}, saved=request.args.get("saved"))
 
@@ -6272,7 +6378,7 @@ def _wipe_after_backup(saved):
     con.execute("VACUUM")
     return saved
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 MIGRATIONS = {}
 
 def _migrate_2(con):
@@ -6311,6 +6417,13 @@ def _migrate_4(con):
 
 MIGRATIONS[4] = _migrate_4
 
+def _migrate_5(con):
+
+    if "html" not in dbmod.columns(con, "bill_snapshots"):
+        dbmod.add_column(con, "bill_snapshots", "html", "TEXT")
+
+MIGRATIONS[5] = _migrate_5
+
 class SchemaTooNew(RuntimeError):
     pass
 
@@ -6332,10 +6445,37 @@ def _upgrade_backup(con):
         con.execute("SELECT 1 FROM settings WHERE key='vault_master_pub' AND COALESCE(value,'') != ''").fetchone())
     if has_master:
         from vault import backup as vault_backup
+        _tz_from_settings(con)
         try:
             vault_backup.sealed_backup(str(DB_PATH), str(FACES) if FACES.exists() else None, kind="upgrade")
         except Exception as e:
             raise UpgradeBlocked(f"{type(e).__name__}: {e}"[:200]) from e
+        _UPGRADE_BACKED.append(True)
+
+_UPGRADE_BACKED = []
+
+def _tz_from_settings(con):
+
+    import time as _time
+    try:
+        r_ = con.execute("SELECT value FROM settings WHERE key='timezone'").fetchone()
+        zone = ZoneInfo((r_[0] if r_ and r_[0] else "") or HOST_TZ or "UTC")
+    except (sqlite3.Error, ZoneInfoNotFoundError, ValueError):
+        return
+    os.environ["TZ"] = zone.key
+    _time.tzset()
+
+def _note_update():
+
+    import about as _ab
+    now_v = _ab.version()
+    was = setting("app_version")
+    if was == now_v:
+        return
+    x("INSERT OR REPLACE INTO settings (key, value) VALUES ('app_version', ?)", (now_v,))
+    if was or _UPGRADE_BACKED:
+        x("INSERT OR REPLACE INTO settings (key, value) VALUES ('update_notice', ?)",
+          (json.dumps(dict(version=now_v, backup=bool(_UPGRADE_BACKED))),))
 
 def _migrate(con, have, backed_up=False):
 
@@ -6357,15 +6497,40 @@ def _migrate(con, have, backed_up=False):
 
 @app.errorhandler(SchemaTooNew)
 def _schema_too_new(e):
-    return (f"This data was written by a newer version of Lumen Aureum (database version {e.args[0]}; this version reads "
-            f"up to {SCHEMA_VERSION}). Run the newer version again, or restore the backup taken before the upgrade "
-            "(docs/operations.md, Rolling back).", 409, {"Content-Type": "text/plain; charset=utf-8"})
+    import about as _ab
+    return render_template("schema_too_new.html", have=e.args[0], reads=SCHEMA_VERSION, version=_ab.version()), 409
+
+SCHEMA_MARK = DB_PATH.parent / "schema-version"
+
+def _schema_mark():
+
+    try:
+        v_, ino_ = SCHEMA_MARK.read_text().split()[:2]
+        return int(v_) if int(ino_) == DB_PATH.stat().st_ino else 0
+    except (OSError, ValueError):
+        return 0
+
+def _write_schema_mark(v):
+    if _schema_mark() != v:
+        try:
+            tmp_ = SCHEMA_MARK.with_name(SCHEMA_MARK.name + ".tmp")
+            tmp_.write_text(f"{int(v)} {DB_PATH.stat().st_ino}\n")
+            os.replace(tmp_, SCHEMA_MARK)
+        except OSError:
+            app.logger.warning("could not write %s", SCHEMA_MARK)
+
+@app.before_request
+def _refuse_newer_data_early():
+    if request.endpoint in ("login", "login_2fa", "unlock_master") and _schema_mark() > SCHEMA_VERSION:
+        import about as _ab
+        return render_template("schema_too_new.html", have=_schema_mark(), reads=SCHEMA_VERSION, version=_ab.version()), 409
 
 def init_db():
     con = connect()
     have = _schema_version(con)
     if have > SCHEMA_VERSION:
         con.close()
+        _write_schema_mark(have)
         raise SchemaTooNew(have)
     had_snaps = bool(con.execute("SELECT 1 FROM sqlite_master WHERE name='doc_snapshots'").fetchone())
     had_docs = bool(con.execute("SELECT 1 FROM sqlite_master WHERE name='documents'").fetchone())
@@ -6425,8 +6590,9 @@ CREATE TABLE IF NOT EXISTS quotes (session_id INTEGER PRIMARY KEY REFERENCES ses
                            ("sessions", "plan_of", "INTEGER"), ("sessions", "po_number", "TEXT DEFAULT ''"),
                            ("sessions", "lic_term", "TEXT DEFAULT ''"), ("sessions", "lic_territory", "TEXT DEFAULT ''"),
                            ("sessions", "lic_exclusive", "INTEGER DEFAULT 0"), ("payments", "ref", "TEXT DEFAULT ''"),
-                           ("people", "age_approx", "INTEGER DEFAULT 0"),
-                           ("sessions", "tax_rate", "REAL"), ("photo_files", "key_trail", "TEXT DEFAULT '[]'")):
+                           ("people", "age_approx", "INTEGER DEFAULT 0"), ("sessions", "priced_on", "TEXT"),
+                           ("sessions", "tax_rate", "REAL"), ("photo_files", "key_trail", "TEXT DEFAULT '[]'"),
+                           ("bill_snapshots", "html", "TEXT")):
         if col not in dbmod.columns(con, tbl):
             dbmod.add_column(con, tbl, col, decl)
             if (tbl, col) == ("sessions", "tax_rate"):
@@ -6470,6 +6636,7 @@ CREATE INDEX IF NOT EXISTS audit_sid ON audit(session_id);""")
         con.commit()
         have = 1
     _migrate(con, have, backed_up=backed_up)
+    _write_schema_mark(_schema_version(con))
     con.close()
 
 from vault import keys as vault_keys, web as vault_web
@@ -6540,6 +6707,8 @@ def _unlock_work():
             _seed_number_marks()
             _seed_id_marks()
             _freeze_reviewed_wording()
+            _freeze_bill_pages()
+            _note_update()
             _seal_missing_photo_keys()
             g.db.commit()
     except Exception:

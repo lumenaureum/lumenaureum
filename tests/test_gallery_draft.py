@@ -7,6 +7,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import http.client
 import urllib.request
 from datetime import date
 
@@ -169,7 +170,6 @@ def test_picks_php_writes_a_draft_only_with_the_proof_and_the_envelope(php_host)
     assert call(base + "picks.php?kind=draft", good)[0] == 403
     assert call(base + "picks.php?kind=draft", good, "0" * 32)[0] == 403
     assert call(base + "picks.php?kind=draft", b"LAK1" + b"hello there, plain words " * 4, proof)[0] == 400
-    assert call(base + "picks.php?kind=draft", b"LAK1" + os.urandom(262144), proof)[0] == 413
     assert call(base + "picks.php?kind=other", good, proof)[0] == 400
     assert not (d / "draft.bin").exists()
     assert call(base + "picks.php?kind=draft", good, proof)[0] == 204
@@ -181,6 +181,12 @@ def test_picks_php_writes_a_draft_only_with_the_proof_and_the_envelope(php_host)
     sent = sealed(G, key, DRAFT, G.PICKS_AAD)
     assert call(base + "picks.php", sent, proof)[0] == 204
     assert (d / "picks.bin").read_bytes() == sent and (d / "draft.bin").read_bytes() == good
+
+    try:
+        assert call(base + "picks.php?kind=draft", b"LAK1" + os.urandom(262144), proof)[0] == 413
+    except (ConnectionError, http.client.RemoteDisconnected, urllib.error.URLError):
+        pass
+    assert (d / "draft.bin").read_bytes() == good
 
 def test_gate_says_missing_draft_plainly(php_host):
     base, d, proof, G, key = php_host

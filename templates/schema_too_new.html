@@ -1,0 +1,8 @@
+{% extends "auth_base.html" %}{% block title %}Newer data - Lumen Aureum{% endblock %}{% block body %}
+<h1>This data needs a newer version</h1>
+<div class="card f">
+  <p>Your data was last opened by a newer version of Lumen Aureum (database version {{ have }}). This version, {{ version }}, reads up to database version {{ reads }}, so it doesn't open the data. Nothing was changed.</p>
+  <p>To carry on, run the newer version again. To go back to this version, restore the backup taken before the update. The steps are in docs/operations.md, under Rolling back.</p>
+</div>
+<p style="margin-top:12px;font-size:13px"><a href="{{ url_for('about') }}">About</a></p>{% endblock %}
+

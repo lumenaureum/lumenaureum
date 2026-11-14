@@ -43,7 +43,8 @@ def test_plain_http_always_refused(env):
     assert c.get("/healthz", environ_base=E, base_url="http://localhost").status_code == 200
     assert c.get("/setup/owner", environ_base=E).status_code == 200
 
-def test_tls_off_only_behind_a_trusted_proxy(monkeypatch):
+def test_tls_off_only_behind_a_trusted_proxy(tmp_path, monkeypatch):
+    monkeypatch.setenv("CRM_DB", str(tmp_path / "crm.db"))
     monkeypatch.setenv("CRM_TLS", "off")
     monkeypatch.delenv("CRM_TRUSTED_PROXIES", raising=False)
     monkeypatch.setenv("CRM_PLAIN_HTTP_OK", "1")

@@ -35,7 +35,7 @@ def register(ctx):
             return None
 
     def load(sid):
-        s = q("""SELECT s.*, h.name AS household, h.address AS address FROM sessions s
+        s = q("""SELECT s.*, h.name AS household, h.address AS address, h.company AS company FROM sessions s
                  JOIN households h ON h.id=s.household_id WHERE s.id=?""", (sid,), one=True)
         if not s:
             abort(404)
@@ -74,9 +74,21 @@ def register(ctx):
             return ("your products" if s["type"] in ctx.C.PRODUCT_TYPES else
                     "your food" if s["type"] in ctx.C.INDOOR_TYPES else "the property")
         subjects = [p for p in subjects if (p["role"] if "role" in p.keys() else "") != "pet"] or subjects
-        if s["type"] == "family" or len(subjects) > 3 or not subjects:
-            return "your family"
+        if family_wording(s):
+            if s["type"] == "family" or len(subjects) > 3 or not subjects:
+                return "your family"
+        elif len(subjects) > 3 or not subjects:
+            return "you"
         return oxford([first(p["name"]) for p in subjects])
+
+    def family_wording(s):
+
+        if ctx.C.TYPE_KIND.get(s["type"]) != "portrait" or s["event_id"]:
+            return False
+        if ("company" in s.keys() and (s["company"] or "").strip()):
+            return False
+        t = next((t for t in ctx.C.TYPES if t.get("key") == s["type"]), None) or ctx.C.shipped_type(s["type"]) or {}
+        return not t.get("license")
 
     def studio():
         return setting("studio_name", "") or ""
@@ -104,7 +116,8 @@ def register(ctx):
                   sd=any(st == ("auto", "sd_shipped") for steps in ctx.C.WORKFLOW[s["type"]].values() for st in steps),
                   license=ctx.licensed(sid), delivery=ctx.C.delivery_text(s["type"], s["delivery_method"]),
                   credit="" if setting("credit_off") == "1" else ctx.C.CREDIT, logo=__import__("app").logo_src(),
-                  codeword=bool(link and "&c=1" in link), event_family=bool(s["event_id"]))
+                  codeword=bool(link and "&c=1" in link), event_family=bool(s["event_id"]),
+                  proofs=bool(app.config.get("gallery_proofs") and app.config["gallery_proofs"](sid)))
         if not draft:
             first = not q("SELECT 1 FROM letters_printed WHERE session_id=?", (sid,), one=True)
             x("""INSERT INTO letters_printed (session_id, at) VALUES (?, date('now','localtime'))
@@ -186,7 +199,8 @@ def register(ctx):
     def step_action(label, s):
         if label != STEP or s["letter_mailed"] or printed_on(s["id"]):
             return None
-        owed = ctx.release_blocked(s["id"])
+        proofs_ = app.config.get("gallery_proofs")
+        owed = 0 if proofs_ and proofs_(s["id"]) else ctx.release_blocked(s["id"])
         if owed:
             return dict(verb=f"Collect {ctx.money(owed)} first", href=url_for("client_stage", hid=s["household_id"]) + f"?s={s['id']}")
         return dict(verb="Print letter",
@@ -224,16 +238,18 @@ body { margin: 0; font: 12.5pt/17.5pt "Times New Roman", Times, serif; color: #0
 <div class="abs date">{{ today }}</div>
 <div class="body">
   <p>{{ greeting }}</p>
-  <p>Thank you for letting me photograph {{ who }}{{ when }}. Your photos are finished, and I think you are going to love them.</p>
+  <p>Thank you for letting me photograph {{ who }}{{ when }}. {% if proofs %}Your proofs are ready to pick from.{% else %}Your photos are finished, and I think you are going to love them.{% endif %}</p>
   <p>Scan the code below with your phone's camera to open your private gallery. The code on this letter is the key to it, so keep the letter somewhere safe.{% if codeword %} When the gallery asks, enter the word you chose with {{ studio or photographer or 'your photographer' }}.{% endif %}</p>
   {% if qr %}<div class="qr">{{ qr|safe }}</div>{% else %}<div class="qr noqr">QR code goes here<br>(gallery not linked yet)</div>{% endif %}
-  <div class="cap">Scan to open your photos</div>
+  <div class="cap">Scan to open your {{ 'proofs' if proofs else 'photos' }}</div>
   <p>The gallery is available for {{ days }} days after you first open it, so open it when you have some quiet time to enjoy them.</p>
+  {% if proofs %}<p>Once you have picked, I'll finish your photos and send them to you.</p>{% else %}
   {% if delivery and delivery != 'as full-resolution digital files, with an online gallery' %}<p>You will also receive every edited photo {{ delivery }}.</p>{% elif sd %}<p>Every edited photo will also come to you on an SD card.</p>{% endif %}
-  <p>{% if event_family %}Your photos are for your family's personal use: to print, share and post, not to sell. The license letter with your photos has the details.{% elif license %}Your license to use the photos is set out in your agreement, and your license letter is a print release for any print lab.{% else %}The photos are yours to print and use however you like.{% endif %}</p>
+  <p>{% if event_family %}Your photos are for your family's personal use: to print, share and post, not to sell. The license letter with your photos has the details.{% elif license %}Your license to use the photos is set out in your agreement, and your license letter is a print release for any print lab.{% else %}The photos are yours to print and use however you like.{% endif %}</p>{% endif %}
   <p>With thanks,</p>
   <div class="sig">{% if photographer %}{{ photographer }}{% endif %}{% if studio %}<i>{{ studio }}</i>{% endif %}</div>
-</div>{% if credit %}<div class="abs sans" style="left:0;right:0;bottom:0.45in;text-align:center;font-size:8pt;color:#8a8478">{{ credit }}</div>{% endif %}</body></html>"""
+{% if credit %}<p class="sans" style="margin-top:18pt;text-align:center;font-size:8pt;color:#8a8478">{{ credit }}</p>{% endif %}
+</div></body></html>"""
 
 TRANSFER = """<!doctype html><html><head><meta charset="utf-8"><style>
 @page { size: Letter; margin: 0.85in 1in 0.8in; }

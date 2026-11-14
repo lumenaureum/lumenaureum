@@ -11,7 +11,7 @@
 # Then: docker compose up -d, and open https://<that address>:8780 from another device on your network.
 services:
   lumen:
-    image: ghcr.io/lumenaureum/lumenaureum:1.1.0     # a fixed version; change it deliberately to upgrade
+    image: ghcr.io/lumenaureum/lumenaureum:1.1.1     # a fixed version; change it deliberately to upgrade
     restart: unless-stopped
     user: "10001:10001"                              # the user and group that own the folders below
     ports:
@@ -20,8 +20,13 @@ services:
       - ./data:/data                                 # database, keyring, settings
       - /path/to/another/disk/lumen-vault:/vault     # backups: a different disk or dataset from ./data
       - ./photos:/photos                             # uploaded RAWs and exports, stored encrypted: make room for them
+    # The app sees only the folders listed here. To use another folder on this machine, add a line and type the name
+    # after the colon in setup (docs/where-it-runs.md, Folders outside the container). Give it the owner in "user".
+    #  - /mnt/usb-backup/lumen:/backup2              # a second backup copy on another disk: type /backup2 in setup
+    #  - /srv/www/galleries:/galleries               # a folder a web server here serves: type /galleries in setup
     # Optional: unattended unlock (see docs/security.md). The key file must be on a different volume from ./data.
     #  - /path/to/other-volume/lumen-unlock:/unlock
+    # Settings such as CRM_ALLOW_ONLY are lines under environment: (docs/where-it-runs.md, Settings in compose.yaml).
     # environment:
     #   CRM_UNLOCK_KEY_FILE: /unlock/unlock.key
     #   CRM_ALLOW_ONLY: "192.168.1.0/24"             # only these addresses may connect

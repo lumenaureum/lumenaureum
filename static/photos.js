@@ -51,12 +51,12 @@
     for (const f of list) if (await send(zone, f)) ok++;          // one file at a time: steady on a home network
     if (ok && !busy) setTimeout(() => (window.laRefresh ? window.laRefresh() : location.reload()), 400);   // the panel updates in place
   }
-  document.querySelectorAll('.dropzone').forEach(zone => {
-    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('over'); });
-    zone.addEventListener('dragleave', () => zone.classList.remove('over'));
-    zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('over'); take(zone, [...e.dataTransfer.files]); });
-    const inp = zone.querySelector('input[type=file]');
-    inp && inp.addEventListener('change', () => take(zone, [...inp.files]));
-  });
+  const zoneOf = e => e.target && e.target.closest ? e.target.closest('.dropzone') : null;
+  document.addEventListener('dragover', e => { const zone = zoneOf(e); if (!zone) return; e.preventDefault(); zone.classList.add('over'); });
+  document.addEventListener('dragleave', e => { const zone = zoneOf(e); if (zone) zone.classList.remove('over'); });
+  document.addEventListener('drop', e => { const zone = zoneOf(e); if (!zone) return;
+    e.preventDefault(); zone.classList.remove('over'); take(zone, [...e.dataTransfer.files]); });
+  document.addEventListener('change', e => { const zone = zoneOf(e);
+    if (zone && e.target.matches('input[type=file]')) take(zone, [...e.target.files]); });
 })();
 

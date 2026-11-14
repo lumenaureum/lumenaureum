@@ -159,11 +159,13 @@ def _wait_threads(prefix):
         t.join(timeout=60)
         assert not t.is_alive(), f"{t.name} did not finish"
 
-def scenario_101(x, made_with):
+def scenario_101(x, made_with, more=None):
 
     A, work, post, get, one, rows, in_request = x.A, x.work, x.post, x.get, x.one, x.rows, x.in_request
     post("/settings/timezone", timezone=TIME_ZONE)
-    post("/setup/shoot", preset_families="1")
+    post("/setup/shoot", **(more.shoot if more else dict(preset_families="1")))
+    if more:
+        more.setup(x)
     post("/contact/new", contact_name="Avery Lane", household_name="Lane", email="avery@example.com")
     post("/contact/new", contact_name="Maria Ortiz", household_name="Ortiz", phone="555-0100")
     lane, ortiz = (one("SELECT id FROM households WHERE name=?", (n,))[0] for n in ("Lane", "Ortiz"))
@@ -195,6 +197,8 @@ def scenario_101(x, made_with):
     post(f"/session/{s_lane}/gallery/build", source_dir=str(src))
     _wait_threads(f"gallery-{s_lane}")
     assert one("SELECT built_at FROM galleries WHERE session_id=?", (s_lane,))[0], "the gallery did not build"
+    if more:
+        more.gallery(x, s_lane)
 
     post(f"/client/{ortiz}/session", type="family", stage="inquiry", title="Ortiz family", shoot_date=f"{YEAR}-06-06")
     s_ortiz = one("SELECT MAX(id) FROM sessions")[0]
@@ -224,6 +228,9 @@ def scenario_101(x, made_with):
     post(f"/session/{s_bell}/money", what="payment", kind="balance", amount="60", method="cash", received=f"{YEAR}-05-16")
     get(f"/session/{s_bell}/receipt")
     post(f"/session/{s_chen}/invoice/issue")
+
+    if more:
+        more.data(x)
 
     post("/contact/new", contact_name="Sam Doe", household_name="Doe")
     doe = one("SELECT MAX(id) FROM households")[0]
@@ -286,11 +293,144 @@ def scenario_101(x, made_with):
         finances=finances,
     )
     con.close()
+    if more:
+        expected.update(more.measure(x, expected))
     return expected
+
+LOOK = dict(gallery_font="elegant", gallery_bg="#262422", proof_mark="tiled", proof_mark_text="SAMPLE",
+            proof_mark_strength="35")
+
+def _png(color, size=(120, 48)):
+    import io
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGBA", size, color).save(buf, "PNG")
+    return buf.getvalue()
+
+def doc_text(html):
+
+    import html as _h
+    import re
+    start, end = html.find("<h1>"), html.find("Just reply or call.")
+    assert start >= 0 and end > start, "not an invoice or receipt page"
+    body = re.sub(r"<[^>]+>", " ", html[start:end + len("Just reply or call.")])
+    return " ".join(_h.unescape(body).split())
+
+class More110:
+
+    shoot = dict(preset_families="1", preset_headshots="1")
+
+    def setup(self, x):
+        post, work = x.post, x.work
+        post("/setup/documents", rights_family="transfer", rights_headshot="license")
+        host = Path(work, "host")
+        host.mkdir()
+        post("/setup/galleries", gallery_type="local", gallery_path=str(host), gallery_init="1",
+             gallery_base_url="https://photos.example.com/g/", gallery_days="30", unopened_days="365")
+        from vault import web as VW
+        assert (VW.config().get("gallery_host") or {}).get("type") == "local", "the gallery host was not saved"
+        r = x.c.post("/settings/logo", data={"logo": (__import__("io").BytesIO(_png("#8a5a6b")), "logo.png")},
+                     environ_base=x.E, content_type="multipart/form-data")
+        assert r.status_code in (302, 303)
+        r = x.c.post("/settings/logo", data={"which": "dark", "look_posted": "1", **LOOK,
+                                             "logo": (__import__("io").BytesIO(_png("#eee7dc")), "logo-dark.png")},
+                     environ_base=x.E, content_type="multipart/form-data")
+        assert r.status_code in (302, 303)
+        post("/settings", look_posted="1", **LOOK)
+        got = {k: x.one("SELECT value FROM settings WHERE key=?", (k,)) for k in LOOK}
+        assert {k: v[0] if v else None for k, v in got.items()} == LOOK, got
+        assert x.one("SELECT value FROM settings WHERE key='logo_dark_png'")[0]
+
+    def gallery(self, x, s_lane):
+
+        post, one = x.post, x.one
+        from plugins import gallery as G
+        post(f"/session/{s_lane}/gallery/upload")
+        _wait_threads(f"gal-up-{s_lane}")
+        assert one("SELECT upload_state FROM galleries WHERE session_id=?", (s_lane,))[0] == "up", \
+            one("SELECT upload_state, upload_error FROM galleries WHERE session_id=?", (s_lane,))
+        gid, ekey = one("SELECT s.gallery_id, g.ekey FROM sessions s JOIN galleries g ON g.session_id=s.id WHERE s.id=?",
+                        (s_lane,))
+        folder = Path(x.work, "host", gid)
+        assert folder.is_dir(), "the gallery is not on the host"
+        names = sorted(p.name for p in Path(x.work, "photos", "export", "lane").glob("*.jpg"))
+
+        def sealed(picks, aad, at):
+            import secrets as _s
+            from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+            iv = _s.token_bytes(12)
+            return b"LAK1" + iv + AESGCM(G.key_bytes(ekey)).encrypt(
+                iv, json.dumps({"v": 1, "at": at, "picks": picks}).encode(), aad)
+        draft = [dict(i=0, name=names[0], r=True, note="soften the light", m=False, v=False),
+                 dict(i=1, name=names[1], r=False, note="", m=True, v=False),
+                 dict(i=2, name=names[2], r=False, note="", m=False, v=True)]
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        stamp = lambda hours: (now - timedelta(hours=hours)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        (folder / "seen.txt").write_text(stamp(30)[:19] + "Z")
+        (folder / "picks.bin").write_bytes(sealed(draft[:1], G.PICKS_AAD, stamp(26)))
+        (folder / "draft.bin").write_bytes(sealed(draft, G.DRAFT_AAD, stamp(2)))
+        post("/gallery/sync")
+        n, at = one("SELECT draft_n, draft_at FROM galleries WHERE session_id=?", (s_lane,))
+        assert n == 3 and at, (n, at)
+        assert one("SELECT retouch_picks FROM sessions WHERE id=?", (s_lane,))[0]
+        self.s_lane = s_lane
+
+    def data(self, x):
+
+        post, one = x.post, x.one
+        post("/contact/new", contact_name="Jordan Price", household_name="Price", email="jordan@example.com")
+        price = one("SELECT id FROM households WHERE name='Price'")[0]
+        post(f"/client/{price}/session", type="headshot", stage="inquiry", title="Price headshots", shoot_date=f"{YEAR}-07-10")
+        s_price = one("SELECT MAX(id) FROM sessions")[0]
+        post(f"/session/{s_price}/money", what="line", label="Headshot session", amount="175")
+        post(f"/session/{s_price}/quote/send")
+        post(f"/session/{s_price}/stage", stage="booked")
+        self.hint_before = x.in_request(lambda: x.A.booked_hint(s_price))
+        post(f"/session/{s_price}/quick", act="sign", kind="agreement")
+        x.get(f"/session/{s_price}/agreement")
+        self.s_price = s_price
+
+    def measure(self, x, expected):
+        A, one, rows, in_request = x.A, x.one, x.rows, x.in_request
+        import hashlib
+        sids = [r[0] for r in rows("SELECT id FROM sessions ORDER BY id")]
+        s_lane, s_price = self.s_lane, self.s_price
+        gcols = ("key", "ekey", "n_files", "built_at", "cw_fixed", "upload_state", "uploaded_at", "removed_at",
+                 "draft_n", "draft_at", "picks_hash", "limits_days")
+        g = one(f"SELECT {', '.join(gcols)} FROM galleries WHERE session_id=?", (s_lane,))
+        picks = one("SELECT first_visit, retouch_picks, favorites, veto FROM sessions WHERE id=?", (s_lane,))
+        picking = in_request(lambda: [a_["what"] for fn in A.hooks.session_actions
+                                      for a_ in fn(A.q("SELECT * FROM sessions WHERE id=?", (s_lane,), one=True)) or []])
+        assert picking == [f"Client is still picking ({g[8]} photos marked)"], (picking, tuple(g))
+        issued = {}
+        for number, sid, kind in rows("SELECT number, session_id, kind FROM doc_numbers WHERE issued IS NOT NULL ORDER BY number"):
+            issued[number] = doc_text(x.get(f"/session/{sid}/{'receipt' if kind == 'R' else 'invoice'}").get_data(as_text=True))
+        settings = {r[0]: r[1] for r in rows("SELECT key, value FROM settings WHERE key IN (%s)" % ",".join("?" * 7),
+                                             tuple(LOOK) + ("timezone", "credit_off"))}
+        logos = {k: hashlib.sha256((one("SELECT value FROM settings WHERE key=?", (k,)) or [""])[0].encode()).hexdigest()
+                 for k in ("logo_png", "logo_dark_png")}
+        return dict(
+            settings=settings, logos=logos,
+            license_types=sorted(A.C.LICENSE_TYPES),
+            licensed={str(s_): bool(in_request(lambda: A.licensed(s_))) for s_ in sids},
+            booked_hint={str(s_): in_request(lambda: A.booked_hint(s_)) for s_ in sids},
+            booked_hint_before_signing=self.hint_before,
+            gallery=dict(expected["gallery"], **{k: g[i] for i, k in enumerate(gcols)},
+                         first_visit=picks[0], retouch_picks=picks[1], favorites=picks[2], veto=picks[3],
+                         still_picking=picking),
+            issued_text=issued,
+            sessions_by_name=dict(expected["sessions_by_name"], price=s_price),
+        )
+
+def scenario_110(x, made_with):
+    return scenario_101(x, made_with, more=More110())
 
 VERSIONS = {
     "1.0.0": dict(commit="a0966c9", scenario=scenario_100, files=("crm-before-delete.db",), env={}),
     "1.0.1": dict(commit="v1.0.1", scenario=scenario_101, files=(),
+                  env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
+    "1.1.0": dict(commit="v1.1.0", scenario=scenario_110, files=(),
                   env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
 }
 

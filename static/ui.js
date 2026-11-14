@@ -194,7 +194,9 @@ document.querySelectorAll('[data-poll]').forEach(el => { const t = setInterval(a
     if (r.state !== 'running') { clearInterval(t); location.reload(); return; }
     const bar = document.getElementById(el.dataset.bar), n = document.getElementById(el.dataset.count);
     if (bar) bar.style.width = (r.total ? 100 * r.done / r.total : 0) + '%';
-    if (n) n.textContent = r.done + ' / ' + r.total; } catch (e) {} }, 700); });
+    if (n) n.textContent = r.done + ' / ' + r.total;
+    const lab = el.dataset.label && document.getElementById(el.dataset.label);   // what the job is doing now, if it says
+    if (lab && r.label && lab.textContent !== r.label) lab.textContent = r.label; } catch (e) {} }, 700); });
 document.querySelectorAll('[data-go-after]').forEach(el => setTimeout(() => location.href = el.dataset.href, +el.dataset.goAfter));
 })();
 

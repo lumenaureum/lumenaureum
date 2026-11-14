@@ -1,7 +1,7 @@
 name: ci
 on:
   push:
-    branches: [main]
+    branches: [main, candidate]   # candidate: a release snapshot tested here before main and the tag move
     tags: ["v*"]
   pull_request:
 permissions:
@@ -19,7 +19,7 @@ jobs:
       - name: Install (locked, hash-checked)
         run: pip install --require-hashes --no-deps -r requirements.lock && pip install --require-hashes -r requirements-ci.lock
       - name: Tests
-        run: python -m pytest -q -rs tests/
+        run: python -m pytest -q -rs -n auto --dist loadfile tests/   # one worker per core; a file keeps its order
       - name: Known vulnerabilities in dependencies
         run: pip-audit -r requirements.lock --require-hashes --disable-pip
       - name: Secrets anywhere in the history

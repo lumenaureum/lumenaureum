@@ -5,6 +5,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); exit; }
 $kind = (string)($_GET['kind'] ?? '');
 if ($kind !== '' && $kind !== 'draft') { http_response_code(400); exit; }
 $name = $kind === 'draft' ? 'draft.bin' : 'picks.bin';
+$lim = @parse_ini_file(__DIR__ . '/limits.txt');
+if ($lim === false || !isset($lim['days'], $lim['unopened_until'])) { http_response_code(410); exit; }
+$seen = @file_get_contents(__DIR__ . '/seen.txt');
+$end = $seen ? strtotime(trim($seen)) + 86400 * (int)$lim['days'] : strtotime($lim['unopened_until'] . 'T23:59:59Z');
+if ($end === false || time() > $end) { http_response_code(410); exit; }
 $raw = @file_get_contents(__DIR__ . '/seen-key.php');
 $want = $raw === false ? false : trim(substr($raw, strpos($raw, "\n") + 1));
 $proof = (string)($_SERVER['HTTP_X_PROOF'] ?? '');

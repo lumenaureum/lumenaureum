@@ -38,14 +38,35 @@ JPEG_EXT = {".jpg", ".jpeg"}
 GID_OK = re.compile(r"^[A-Za-z0-9_-]{6,64}$")
 
 JOBS = {}
+UPDATING = {}
 LOCK = threading.Lock()
+PRUNE_GRACE_MIN = 20
+
+def release_memory():
+
+    import gc
+    gc.collect()
+    try:
+        import ctypes
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except (OSError, AttributeError):
+        pass
+
+def _now_iso(plus_min=0):
+    from datetime import datetime
+    return (datetime.now() + timedelta(minutes=plus_min)).isoformat(timespec="seconds")
+
+def _same_picks(a, b):
+
+    return all(sorted(a.get(k_) or []) == sorted(b.get(k_) or []) for k_ in ("retouch", "suggest", "veto"))
 
 BLOCK = """
 <div id="gallery" class="f" style="gap:8px">
 {% if job and job.state == 'running' %}
   <div class="row"><span class="mbar big"><span id="gal-bar" style="width:{{ pct }}%"></span></span>
     <span id="gal-n" class="sub">{{ job.done }} / {{ job.total }}</span></div>
-  <span hidden data-poll="{{ url_for('gallery_status', sid=s.id) }}" data-bar="gal-bar" data-count="gal-n"></span>
+  <div id="gal-what" class="sub" style="font-size:13px" role="status">{{ job.label or 'Building the gallery' }}</div>
+  <span hidden data-poll="{{ url_for('gallery_status', sid=s.id) }}" data-bar="gal-bar" data-count="gal-n" data-label="gal-what"></span>
 {% elif s.stage == 'closed' %}
   {% if not (g and g.built_at) %}<div class="mute" style="font-size:13px">No gallery</div>{% endif %}
 {% else %}
@@ -79,12 +100,14 @@ BLOCK = """
   {% elif us == 'removed' %}<span class="grow">Removed from the web {{ nice(g.removed_at) }}</span>
   {% elif not has_host %}<span class="grow mute">Previews work here; putting it online needs a web host.</span>
     <a class="go" href="{{ url_for('setup_step', step='galleries') }}">Set up galleries &rsaquo;</a>
-  {% elif owed %}<span class="grow">{{ money(owed) }} still due. Your terms release the gallery on payment.</span>
+  {% elif owed and not proof %}<span class="grow">{{ money(owed) }} still due. Your terms release the gallery on payment.</span>
     <form method="post" action="{{ url_for('upload_gallery_req', sid=s.id) }}" class="inline" data-confirm="Put the gallery online before the balance is paid? Use this for a proofing gallery the client picks from."><input type="hidden" name="early" value="1"><button class="quiet">Upload before payment</button></form>
-  {% else %}<span class="grow">{% if us == 'declined' %}Upload declined{% elif us == 'expired' %}Tap expired{% elif us == 'error' and not (g.upload_error or '').startswith('balance') %}<span style="color:var(--red)">Upload failed: {{ g.upload_error }}</span>{% else %}Ready to upload{% endif %}</span>
+  {% else %}<span class="grow">{% if us == 'declined' %}Upload declined{% elif us == 'expired' %}Tap expired{% elif us == 'error' and not (g.upload_error or '').startswith('balance') %}<span style="color:var(--red)">Upload failed: {{ g.upload_error }}</span>{% elif owed and proof %}These proofs carry your mark, so they can go online before payment{% else %}Ready to upload{% endif %}</span>
     <form method="post" action="{{ url_for('upload_gallery_req', sid=s.id) }}" class="inline"><button class="primary">Upload</button></form>{% endif %}
   </div>
-  {% if us == 'up' and stale %}<div class="row" style="font-size:14px"><span class="grow" style="color:var(--amber, #b07a12)">The copy online is older than this build{% if g.upload_error %}. The upload didn't finish: {{ g.upload_error }}{% endif %}</span>
+  {% if us == 'up' and updating %}{% if not (job and job.state == 'running') %}<div class="row" style="font-size:14px"><span class="grow" role="status"><span id="gal-up-what">Updating the copy online{% if updating.total %}: file {{ updating.done }} of {{ updating.total }}{% endif %}</span>. The client's link keeps working meanwhile.</span></div>
+  <span hidden data-poll="{{ url_for('gallery_status', sid=s.id) }}" data-label="gal-up-what"></span>{% endif %}
+  {% elif us == 'up' and stale %}<div class="row" style="font-size:14px"><span class="grow" style="color:var(--amber, #b07a12)">The copy online is older than this build{% if g.upload_error %}. The upload didn't finish: {{ g.upload_error }}{% endif %}</span>
     <form method="post" action="{{ url_for('upload_gallery_req', sid=s.id) }}" class="inline"><button class="primary">Upload the new build</button></form></div>{% endif %}
   {% if expires %}
   <div class="row" style="font-size:14px">
@@ -197,7 +220,14 @@ def watermark(img, mark):
         m = int(min(W, H) * 0.04)
         logo = mark.get("logo")
         if logo:
-            lg = Image.open(io.BytesIO(logo)).convert("RGBA")
+            try:
+                lg = Image.open(io.BytesIO(logo))
+                if lg.width * lg.height > 4 * 600 * 240:
+                    raise ValueError("logo too large")
+                lg = lg.convert("RGBA")
+            except Exception:
+                logo = None
+        if logo:
             if lg.getchannel("A").getextrema()[0] >= 250:
                 logo = None
         if logo:
@@ -353,7 +383,7 @@ def gallery_host():
 MIME = {".html": "text/html; charset=utf-8", ".php": "application/x-httpd-php", ".bin": "application/octet-stream",
         ".txt": "text/plain", ".key": "text/plain", ".htaccess": "text/plain", ".woff2": "font/woff2"}
 
-def put_limits(gid, days, unopened_until):
+def put_limits(gid, days, unopened_until, host=None):
 
     import io
     if not GID_OK.match(gid):
@@ -365,20 +395,23 @@ def put_limits(gid, days, unopened_until):
     except OSError:
         pass
     body = body.encode()
-    gallery_host().put_stream(f"{gid}/limits.txt", io.BytesIO(body), content_type="text/plain")
+    (host or gallery_host()).put_stream(f"{gid}/limits.txt", io.BytesIO(body), content_type="text/plain")
 
-def upload_gallery(gid, days=None, unopened_until=None):
+def upload_gallery(gid, days=None, unopened_until=None, progress=lambda done, total: None):
 
     if not GID_OK.match(gid):
         raise ValueError("bad gallery id")
     host = gallery_host()
-    if days is not None:
-        put_limits(gid, days, unopened_until)
     files = sorted((p for p in (OUT_ROOT / gid).iterdir() if p.is_file() and p.name != ONLINE_MARK),
                    key=lambda p: (p.name == "index.html", p.name == "manifest.bin"))
-    for p in files:
-        with open(p, "rb") as f:
-            host.put_stream(f"{gid}/{p.name}", f, content_type=MIME.get(p.suffix or p.name))
+    with host.session():
+        if days is not None:
+            put_limits(gid, days, unopened_until, host=host)
+        progress(0, len(files))
+        for i, p in enumerate(files):
+            with open(p, "rb") as f:
+                host.put_stream(f"{gid}/{p.name}", f, content_type=MIME.get(p.suffix or p.name))
+            progress(i + 1, len(files))
     return len(files) + (1 if days is not None else 0)
 
 ONLINE_MARK = ".online"
@@ -395,19 +428,25 @@ HOST_KEEPS = {"limits.txt", "seen.txt", "picks.bin", "draft.bin", ".htaccess"}
 
 def prune_host(gid):
 
+    import logging
     if not GID_OK.match(gid):
         raise ValueError("bad gallery id")
     host = gallery_host()
     have = {p.name for p in (OUT_ROOT / gid).iterdir() if p.is_file()}
-    gone = 0
-    for n in host.list(f"{gid}/"):
-        base = n.rsplit("/", 1)[-1]
-        if base in have or base in HOST_KEEPS:
-            continue
-        if re.fullmatch(r"[0-9a-f]{24}\.bin", base) or base == THEME_FONT_FILE:
-            host.delete(n)
-            gone += 1
-    return gone
+    gone, skipped = 0, []
+    with host.session():
+        for n in host.list(f"{gid}/"):
+            base = n.rsplit("/", 1)[-1]
+            if base in have or base in HOST_KEEPS:
+                continue
+            if re.fullmatch(r"[0-9a-f]{24}\.bin", base) or base == THEME_FONT_FILE:
+                try:
+                    host.delete(n)
+                    gone += 1
+                except Exception as e:
+                    logging.getLogger(__name__).warning("gallery prune: skipped %s: %s", n, e)
+                    skipped.append(base)
+    return gone, skipped
 
 def seen_at(gid):
 
@@ -526,12 +565,13 @@ def delete_gallery(gid):
     if not GID_OK.match(gid):
         raise ValueError("bad gallery id")
     host = gallery_host()
-    names = host.list(f"{gid}/") + [f"{gid}/.htaccess"]
-    for n in names:
-        host.delete(n)
-    if any(host.stat(n) is not None for n in names):
-        raise IOError("gallery files still on the host after delete")
-    host.remove_dir(f"{gid}/")
+    with host.session():
+        names = host.list(f"{gid}/") + [f"{gid}/.htaccess"]
+        for n in names:
+            host.delete(n)
+        if any(host.stat(n) is not None for n in names):
+            raise IOError("gallery files still on the host after delete")
+        host.remove_dir(f"{gid}/")
     return len(names)
 
 def register(ctx):
@@ -554,6 +594,10 @@ def register(ctx):
         if "draft_n" not in _gcols:
             ctx.add_column(_con, "galleries", "draft_n", "INTEGER")
             ctx.add_column(_con, "galleries", "draft_at", "TEXT")
+        if "proof" not in _gcols:
+            ctx.add_column(_con, "galleries", "proof", "INTEGER DEFAULT 0")
+        if "prune_due" not in _gcols:
+            ctx.add_column(_con, "galleries", "prune_due", "TEXT")
         if "cw_fixed" not in _gcols:
             ctx.add_column(_con, "galleries", "cw_fixed", "TEXT")
             if "uploaded_at" in _gcols:
@@ -695,9 +739,9 @@ def register(ctx):
                                    + ", so that stays as it is: the link you sent keeps working.")
             return redirect(back)
         with LOCK:
-            if JOBS.get(sid, {}).get("state") == "running":
+            if JOBS.get(sid, {}).get("state") == "running" or sid in UPDATING:
                 return redirect(back)
-            JOBS[sid] = dict(state="running", done=0, total=0, error="")
+            JOBS[sid] = dict(state="running", done=0, total=0, error="", label="")
 
         em = q("SELECT value FROM settings WHERE key='business_email'", one=True)
 
@@ -738,8 +782,8 @@ def register(ctx):
                     if gone:
                         shutil.rmtree(out, ignore_errors=True)
                         raise RuntimeError("the session's photos were deleted while the gallery was building")
-                    x("UPDATE galleries SET built_at=?, n_files=?, out_dir=?, ekey=? WHERE session_id=?",
-                      (date.today().isoformat(), n, str(out) + "/", key, sid))
+                    x("UPDATE galleries SET built_at=?, n_files=?, out_dir=?, ekey=?, proof=? WHERE session_id=?",
+                      (date.today().isoformat(), n, str(out) + "/", key, 1 if mark else 0, sid))
                     x("UPDATE sessions SET gallery_built=? WHERE id=?", (date.today().isoformat(), sid))
                     ctx.audit(f"Gallery built: {n} photos encrypted" + (f"; skipped (not a JPEG this can read): {', '.join(skipped[:10])}" if skipped else ""),
                               sid=sid, who="Lumen Aureum")
@@ -750,7 +794,8 @@ def register(ctx):
                     try:
                         if not ctx.hooks.guard("gallery_upload", lambda: do_update(sid, gid), sid=sid, gallery_id=gid,
                                                n_files=n, update=True):
-                            do_update(sid, gid)
+                            job.update(done=0, total=0, label="Updating the copy online")
+                            do_update(sid, gid, job)
                     except Exception as e_:
                         app.logger.exception("gallery update")
                         with app.app_context():
@@ -768,6 +813,7 @@ def register(ctx):
                     app.logger.exception("gallery audit failed")
             finally:
                 lk.release()
+                release_memory()
 
         threading.Thread(target=run, name=f"gallery-{sid}", daemon=True).start()
         return redirect(back)
@@ -799,6 +845,10 @@ def register(ctx):
     @app.get("/session/<int:sid>/gallery/status", endpoint="gallery_status")
     def gallery_status(sid):
         j = JOBS.get(sid) or dict(state="idle", done=0, total=0, error="")
+        u = UPDATING.get(sid)
+        if u and j.get("state") != "running":
+            j = dict(state="running", done=u["done"], total=u["total"], error="",
+                     label=f"Updating the copy online: file {u['done']} of {u['total']}" if u["total"] else "Updating the copy online")
         return jsonify(j)
 
     @app.get("/gallery-preview/<gid>/", endpoint="gallery_preview")
@@ -854,13 +904,22 @@ def register(ctx):
             with app.app_context():
                 x("UPDATE galleries SET upload_state='error', upload_error=? WHERE session_id=?", (str(e)[:200], sid))
 
-    def do_update(sid, gid):
+    def do_update(sid, gid, job=None):
 
-        with app.app_context():
-            x("UPDATE galleries SET upload_error='' WHERE session_id=?", (sid,))
+        with LOCK:
+            if sid in UPDATING:
+                return
+            UPDATING[sid] = dict(done=0, total=0)
         try:
-            k = upload_gallery(gid)
-            gone_ = prune_host(gid)
+            with app.app_context():
+                x("UPDATE galleries SET upload_error='' WHERE session_id=?", (sid,))
+
+            def progress(done, total):
+                UPDATING[sid].update(done=done, total=total)
+                if job is not None:
+                    job.update(done=done, total=total, label=f"Updating the copy online: file {done} of {total}."
+                                                             " The client's link keeps working meanwhile.")
+            k = upload_gallery(gid, progress=progress)
             with app.app_context():
                 still = q("SELECT 1 FROM galleries WHERE session_id=? AND upload_state='up' AND removed_at IS NULL", (sid,), one=True)
             if not still:
@@ -868,12 +927,16 @@ def register(ctx):
                 return
             mark_online(gid)
             with app.app_context():
-                ctx.audit(f"Gallery updated on the web ({k} files" + (f", {gone_} old ones removed" if gone_ else "") + ")",
+                x("UPDATE galleries SET prune_due=? WHERE session_id=?", (_now_iso(PRUNE_GRACE_MIN), sid))
+                ctx.audit(f"Gallery updated on the web ({k} files; the earlier files are removed at the next check)",
                           sid=sid, who="Lumen Aureum")
         except Exception as e:
             app.logger.exception("gallery update")
             with app.app_context():
                 x("UPDATE galleries SET upload_error=? WHERE session_id=?", (str(e)[:200], sid))
+        finally:
+            with LOCK:
+                UPDATING.pop(sid, None)
 
     @app.post("/session/<int:sid>/gallery/upload", endpoint="upload_gallery_req")
     def upload_gallery_req(sid):
@@ -884,6 +947,10 @@ def register(ctx):
             return redirect(back)
         if g["upload_state"] == "up" and not g["removed_at"]:
             gid = s["gallery_id"]
+            if JOBS.get(sid, {}).get("state") == "running" or sid in UPDATING:
+                from flask import g as _g
+                _g.refused = True
+                return redirect(back)
             if gid and not online_is_current(gid):
                 try:
                     if not ctx.hooks.guard("gallery_upload", lambda: do_update(sid, gid), sid=sid, gallery_id=gid,
@@ -892,7 +959,7 @@ def register(ctx):
                 except Exception as e:
                     x("UPDATE galleries SET upload_error=? WHERE session_id=?", (f"held upload failed: {e}"[:200], sid))
             return redirect(back)
-        owed = ctx.release_blocked(sid)
+        owed = 0 if proof_built(sid) else ctx.release_blocked(sid)
         if owed and not request.form.get("early"):
             x("UPDATE galleries SET upload_state='error', upload_error=? WHERE session_id=?",
               (f"balance {ctx.money(owed)} due - the gallery is released on payment", sid))
@@ -923,6 +990,7 @@ def register(ctx):
                     JOIN sessions s ON s.id=g.session_id WHERE g.upload_state='up' AND g.removed_at IS NULL""")
         for r in rows:
             gid = r["gallery_id"]
+            first = r["first_visit"]
             try:
                 if gid not in _HAS_LIMITS:
                     host = gallery_host()
@@ -940,7 +1008,6 @@ def register(ctx):
                     up = date.fromisoformat((r["uploaded_at"] or date.today().isoformat())[:10])
                     put_limits(gid, want_days, (up + timedelta(days=ctx.C.GALLERY_UNOPENED_DAYS)).isoformat())
                     x("UPDATE galleries SET limits_days=? WHERE session_id=?", (want_days, r["sid"]))
-                first = r["first_visit"]
                 if not first:
                     st = seen_at(gid)
                     if st:
@@ -968,19 +1035,34 @@ def register(ctx):
                                           sid=r["sid"], who="Lumen Aureum")
                                 ctx.advance(r["sid"])
                     draft_status(r, blob)
+            except Exception:
+                app.logger.exception("gallery sync %s", gid)
+            try:
                 if first:
                     gone = date.fromisoformat(first[:10]) + timedelta(days=gdays(r["sid"]) * (2 if r["extension_used"] else 1))
                 else:
-                    gone = date.fromisoformat(r["uploaded_at"][:10]) + timedelta(days=ctx.C.GALLERY_UNOPENED_DAYS)
-                if gone:
-                    if date.today() > gone and app.config["clock_ok"]():
-                        n = delete_gallery(gid)
-                        x("UPDATE galleries SET removed_at=?, upload_state='removed' WHERE session_id=?",
-                          (date.today().isoformat(), r["sid"]))
-                        ctx.audit(f"Gallery removed from the web ({n} files), " + (f"{gdays(r['sid'])} day window over" if first else "never opened in a year"),
-                                  sid=r["sid"], who="Lumen Aureum")
+                    gone = date.fromisoformat((r["uploaded_at"] or date.today().isoformat())[:10]) + timedelta(days=ctx.C.GALLERY_UNOPENED_DAYS)
+                if date.today() > gone and app.config["clock_ok"]():
+                    n = delete_gallery(gid)
+                    x("UPDATE galleries SET removed_at=?, upload_state='removed' WHERE session_id=?",
+                      (date.today().isoformat(), r["sid"]))
+                    ctx.audit(f"Gallery removed from the web ({n} files), " + (f"{gdays(r['sid'])} day window over" if first else "never opened in a year"),
+                              sid=r["sid"], who="Lumen Aureum")
+                    continue
             except Exception:
-                app.logger.exception("gallery sync %s", gid)
+                app.logger.exception("gallery expiry %s", gid)
+            try:
+                due_ = r["prune_due"] if "prune_due" in r.keys() else None
+                if due_ and due_ <= _now_iso():
+                    if GID_OK.match(gid or "") and (OUT_ROOT / gid).is_dir() and online_is_current(gid):
+                        gone_, bad_ = prune_host(gid)
+                        if gone_ or bad_:
+                            ctx.audit(f"Removed {gone_} old file{'' if gone_ == 1 else 's'} from the copy online"
+                                      + (f"; {len(bad_)} could not be removed: {', '.join(bad_[:5])}" if bad_ else ""),
+                                      sid=r["sid"], who="Lumen Aureum")
+                    x("UPDATE galleries SET prune_due=NULL WHERE session_id=?", (r["sid"],))
+            except Exception:
+                app.logger.exception("gallery prune %s", gid)
 
     def draft_status(r, sent):
 
@@ -993,7 +1075,7 @@ def register(ctx):
                 dp = None
             if dp is not None:
                 try:
-                    same = sent is not None and open_picks(sent, r["ekey"] or r["key"]) == dp
+                    same = sent is not None and _same_picks(open_picks(sent, r["ekey"] or r["key"]), dp)
                 except Exception:
                     same = False
                 if same or (sent is None and not n):
@@ -1004,7 +1086,7 @@ def register(ctx):
             try:
                 from datetime import datetime as _dt
                 at = _dt.fromisoformat(at.replace("Z", "+00:00")).astimezone().isoformat(timespec="minutes")
-            except ValueError:
+            except Exception:
                 at = ""
         at = (at or None) if n is not None else None
         if (r["draft_n"], r["draft_at"]) != (n, at):
@@ -1037,6 +1119,13 @@ def register(ctx):
             delete_gallery(r["gallery_id"])
 
     app.config["gallery_take_down"] = take_down
+
+    def proof_built(sid):
+
+        g_ = gal(sid)
+        return bool(g_ and g_["built_at"] and "proof" in g_.keys() and g_["proof"])
+
+    app.config["gallery_proofs"] = proof_built
     app.config["gallery_brand"] = gallery_brand
 
     def gdays(sid):
@@ -1091,7 +1180,9 @@ def register(ctx):
                                       n_up=len(uploaded(s["id"])), folders=FOLDERS,
                                       preview=preview, expires=expires, exp_status=exp_status, ext_date=ext_date,
                                       days=days, nice=ctx.nice, money=ctx.money, has_host=has_host(),
-                                      owed=ctx.release_blocked(s["id"]), cw_on=bool(ctx.C.POLICY[s["type"]].get("gallery_codeword")),
+                                      owed=ctx.release_blocked(s["id"]), proof=proof_built(s["id"]),
+                                      updating=UPDATING.get(s["id"]),
+                                      cw_on=bool(ctx.C.POLICY[s["type"]].get("gallery_codeword")),
                                       stale_cw=bool(g and g["built_at"] and not g["cw_fixed"] and codeword_key_cached(
                                           g["key"], gid, (s["gallery_codeword"] if "gallery_codeword" in s.keys() else "") or "")
                                           != (g["ekey"] or g["key"])),

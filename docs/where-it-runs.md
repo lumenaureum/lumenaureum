@@ -17,9 +17,11 @@ A laptop that sleeps or travels is a poor choice.
 
 After any restart the app is locked until you sign in (see [Security](security.md)).
 
-Minimum: a 64-bit Intel or AMD processor (x86-64), 1 GB of free memory, and room for your photos. In our tests the app used about 150 MB of
-memory while sealing a 12 GB session, about 120 MB while building a client gallery of 45-megapixel photos, and about
-180 MB with two galleries building at once; the database stays small (under a few megabytes for hundreds of sessions).
+Minimum: a 64-bit Intel or AMD processor (x86-64), 1 GB of free memory, and room for your photos. In our tests the app
+used about 70 MB at rest and about 150 MB while sealing a 12 GB session. Building a client gallery takes the most: about
+310 MB for 52 photos of 4,000 pixels, and up to about 470 MB for 200 photos of 24 megapixels. The app hands that memory
+back once the build ends. `docker stats` also counts the system's file cache, so it can read well above these figures.
+The database stays small (under a few megabytes for hundreds of sessions).
 
 ## A server in the cloud
 It runs on any machine that runs Docker, including a rented server. We recommend a computer you own, for one reason.
@@ -61,8 +63,45 @@ enforces its own expiry date, so it comes down on time even if the app is locked
 back to the app by themselves. A plain S3 bucket can't;
 there the app removes galleries, and a bucket lifecycle rule (delete after, say, 400 days) is a good outer limit.
 
+Give galleries an address of their own, such as `photos.example.com`, rather than a folder on your main website. The
+gallery page keeps the client's picks and notes in the browser's storage for that address, and any script on the same
+address (a website plugin, an analytics script) could read them.
+
+On a PHP host, use Apache with `.htaccess` files allowed (most shared hosting is). The gallery's `.htaccess` rules keep
+its encrypted files behind the gate script; other web servers need the same rules added by hand. See
+[Security](security.md), "The PHP files on a gallery host".
+
+When you rebuild a gallery that is already online, the new files go up first. The old photo files are removed at the
+app's next gallery check, about 30 minutes later, so a page a client already has open keeps working.
+
+## Folders outside the container
+The app runs inside a container and sees only the folders `compose.yaml` mounts into it. A folder that exists on the
+machine, such as a USB disk at `/mnt/usb-backup`, doesn't exist for the app until a line under `volumes:` maps it in.
+Setup says "That folder doesn't exist" until then. The example compose file mounts three: `./data` as `/data`, your
+vault folder as `/vault`, and `./photos` as `/photos`.
+
+To add one, put a line under `volumes:` in the form `- <folder on this machine>:<name inside the container>`, then type
+the name inside the container in setup. For example:
+
+```
+    volumes:
+      - ./data:/data
+      - /path/to/another/disk/lumen-vault:/vault
+      - ./photos:/photos
+      - /mnt/usb-backup/lumen:/backup2       # a second backup copy: type /backup2 in setup, Backups
+      - /srv/www/galleries:/galleries        # a folder a web server here serves: type /galleries in setup, Online galleries
+```
+
+Then:
+1. Create the folder on the machine and give it the owner in the compose file's `user` line, for example
+   `sudo chown 10001:10001 /mnt/usb-backup/lumen`. For a gallery folder, the web server must also be able to write in
+   it: run the web server as that user, or give the folder a group the web server is in, with group write permission.
+2. Run `docker compose up -d`. The app restarts with the new folder, and you sign in again.
+3. In setup (or Settings), choose "A folder on this machine or a mounted share" for backups, or "A folder a web server
+   here serves" for galleries, and type the name inside the container (`/backup2`, `/galleries`).
+
 ## Reaching the app
-On your home network, open `https://<address>:8780` in a browser and accept its certificate once, after checking the
+On your home network, open `https://<address>:8780` in a browser (or the port you published, if you changed it) and accept its certificate once, after checking the
 fingerprint against the container log. Keep it on your local network; do not expose it to the internet.
 
 - **Names.** If you reach it by a name rather than an address, list the name in `CRM_HOSTNAMES`; requests for other
@@ -77,12 +116,14 @@ fingerprint against the container log. Keep it on your local network; do not exp
   network (for example a separate storage network) has an address on each: use the one on your computers' network.
 - **Never plain HTTP.** The app serves HTTPS only.
 - **When Docker hides where a visitor came from.** Some connections reach the app through Docker's port proxy,
-  which replaces the visitor's address with Docker's: connections from the machine running Docker, connections over
-  IPv6 when the port is published on every interface, and every connection on Docker Desktop (macOS, Windows) and
-  rootless Docker. The app refuses them, because it can't tell who they are. The safe fixes, in order: publish the
+  which replaces the visitor's address with Docker's: opening `localhost` or `127.0.0.1` on the machine running
+  Docker (when the port is published there), connections over IPv6 when the port is published on every interface, and
+  every connection on Docker Desktop (macOS, Windows) and rootless Docker. The app refuses them, because it can't tell
+  who they are. Opening the machine's LAN address from the machine itself usually works. The safe fixes, in order: publish the
   port on the machine's LAN IPv4 address (`"192.168.1.10:8780:8780"`, as in the example compose file) and open it by
   that address. Allowing the gateway address
-  with `CRM_ALLOW` lets in anyone who reaches the published port, so do it only when nothing outside this machine can.
+  with `CRM_ALLOW` (a line under `environment:` in `compose.yaml`) lets in anyone who reaches the published port, so do
+  it only when nothing outside this machine can.
 - **Your proxy must append to `X-Forwarded-For`**, not pass on what the visitor sent.
 
 ## Settings in compose.yaml

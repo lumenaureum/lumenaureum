@@ -122,6 +122,15 @@ body.lbopen #tray { display: none; }
 #count.warn { color: #ece5d8 !important; font-size: 14px; }
 #lberr { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); max-width: 320px; text-align: center; color: #ece5d8; font-size: 15px; }
 #lberr[hidden] { display: none; }
+#lbload { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); padding: 8px 16px; border-radius: 18px;
+  background: rgba(11,10,9,.75); color: #ece5d8; font-size: 15px; pointer-events: none; }
+#lbload[hidden] { display: none; }
+#lb img.ph { filter: blur(6px); opacity: .7; }
+#lb #pickbar button:disabled, #note:disabled { opacity: .35; cursor: default; }
+#upd { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; gap: 12px; align-items: center;
+  max-width: calc(100vw - 20px); padding: 10px 14px; border-radius: 10px; background: rgba(20,18,16,.97); color: #ece5d8; font-size: 14px; }
+#upd[hidden] { display: none; }
+#upd button, #lb #lberr button.reload { font: 600 14px/1 -apple-system, sans-serif; padding: 9px 18px; border: 0; border-radius: 18px; background: #e3aa48; color: #1a1308; cursor: pointer; }
 #lb #lberr button { position: static; font: 600 14px/1 -apple-system, sans-serif; padding: 9px 18px; margin-top: 12px; border: 1px solid rgba(236,229,216,.45); border-radius: 18px; }
 #note { width: 260px; max-width: 48vw; padding: 7px 10px; border-radius: 16px; border: 1px solid #26221e; background: #171513; color: #ece5d8; font-size: 13px; }
 
@@ -152,6 +161,7 @@ body.lbopen #tray { display: none; }
 <div id="msg" hidden><div><div id="msgsay" role="status" aria-live="polite" aria-atomic="true"></div><div id="msgerr" role="alert" aria-atomic="true"></div><div id="msgact"></div></div></div>
 <div id="tray"><span id="trayn"></span><a id="send" href="#" role="button">Send my picks</a><span id="sent" role="status" aria-live="polite"></span></div>
 <div id="live" class="sr" role="status" aria-live="polite" aria-atomic="true"></div>
+<div id="upd" role="status" hidden><span>These photos were just updated. Reload to see the new version.</span><button id="updgo" type="button">Reload</button></div>
 <div id="welcome" role="dialog" aria-modal="true" aria-labelledby="wtitle" hidden><div class="box">
   <h2 id="wtitle">Picking your photos</h2>
   <p>Open a photo, then press:</p>
@@ -165,7 +175,8 @@ body.lbopen #tray { display: none; }
 </div></div>
 <div id="lb" role="dialog" aria-modal="true">
   <img id="big" alt="">
-  <div id="lberr" hidden><div>This photo can't load right now. Check your connection.</div><button id="lbagain" type="button">Try again</button></div>
+  <div id="lbload" role="status" aria-live="polite" hidden>Loading photo...</div>
+  <div id="lberr" role="alert" hidden><div id="lbsay">This photo can't load right now. Check your connection.</div><button id="lbagain" type="button">Try again</button></div>
   <button id="prev" aria-label="Previous">&lsaquo;</button>
   <button id="next" aria-label="Next">&rsaquo;</button>
   <button id="close" aria-label="Close">&times;</button>
@@ -239,12 +250,12 @@ async function reach(u, opts) {
   try { return await fetch(u, opts); }
   catch (e) { throw Object.assign(new Error("network"), { network: true }); }
 }
-async function fetchBin(name) {                // the encrypted bytes of one file, as the host sends them
+async function fetchBin(name, fresh) {         // the encrypted bytes of one file, as the host sends them
   let r = await reach(GATE ? "gate.php?f=" + encodeURIComponent(name) : name, { credentials: PREVIEW ? "same-origin" : "omit",
-    headers: GATE && subtle ? { "X-Proof": await keyProof() } : {} });
+    headers: GATE && subtle ? { "X-Proof": await keyProof() } : {}, cache: fresh ? "no-store" : "default" });
   if (GATE && !r.ok && r.status !== 404 && r.status !== 410 && r.status !== 403) r = null;   // the gate isn't running here (no PHP)
   if (GATE && r && r.ok && (r.headers.get("content-type") || "").includes("php")) r = null;
-  if (!r) r = await reach(name, { credentials: PREVIEW ? "same-origin" : "omit" });
+  if (!r) r = await reach(name, { credentials: PREVIEW ? "same-origin" : "omit", cache: fresh ? "no-store" : "default" });
   if (!r.ok) throw Object.assign(new Error("http"), { status: r.status });
   try { return await r.arrayBuffer(); }
   catch (e) { throw Object.assign(new Error("network"), { network: true }); }   // the connection dropped mid-file
@@ -259,6 +270,9 @@ async function url(name) {
   if (!blobs.has(name)) blobs.set(name, get(name).then(b => URL.createObjectURL(new Blob([b], { type: "image/jpeg" })),
     e => { blobs.delete(name); throw e; }));
   return blobs.get(name);
+}
+function keepNear(names) {                     // release every big photo not in names
+  for (const [n, p] of blobs) if (!names.has(n)) { blobs.delete(n); p.then(u => URL.revokeObjectURL(u), () => {}); }
 }
 function say(head, line, error) {
   const to = $(error ? "msgerr" : "msgsay"), other = $(error ? "msgsay" : "msgerr");
@@ -326,10 +340,10 @@ async function main() {
       }
     }
   }
-  let m;
+  let m, mText = "";
   for (;;) {
     if (!plain) say("", OPENING);
-    try { m = JSON.parse(new TextDecoder().decode(plain || await manifest())); break; }
+    try { mText = new TextDecoder().decode(plain || await manifest()); m = JSON.parse(mText); break; }
     catch (e) {
       if (e.insecure) fail("This gallery must be opened over https", "Check the address starts with https://.");
       else if (isClosed(e)) fail("This gallery has closed");
@@ -378,14 +392,21 @@ async function main() {
   const grid = $("grid");
   document.addEventListener("contextmenu", e => { if (e.target && e.target.tagName === "IMG") e.preventDefault(); });
   document.addEventListener("dragstart", e => { if (e.target && e.target.tagName === "IMG") e.preventDefault(); });
+  let updP = null;
+  const updated = () => updP || (updP = fetchBin("manifest.bin", true).then(b => open(b, "manifest.bin"))
+    .then(b => new TextDecoder().decode(b) !== mText, () => false)
+    .then(yes => { if (yes) $("upd").hidden = false; else updP = null; return yes; }));
+  $("updgo").onclick = () => location.reload();
+  const thumbs = [];                            // each grid photo's thumbnail, once it has loaded
   const io = new IntersectionObserver(es => es.forEach(e => {
     if (!e.isIntersecting) return;
     io.unobserve(e.target);
-    const img = e.target.firstChild;
-    get(m.items[+e.target.dataset.i].t).then(b => {
-      img.onload = () => img.classList.add("on");
-      img.src = URL.createObjectURL(new Blob([b], { type: "image/jpeg" }));
-    }).catch(() => {});
+    const img = e.target.firstChild, i = +e.target.dataset.i;
+    get(m.items[i].t).then(b => {
+      const u = URL.createObjectURL(new Blob([b], { type: "image/jpeg" }));
+      img.onload = () => { img.classList.add("on"); thumbs[i] = u; };
+      img.src = u;
+    }).catch(err => { if (err && err.status === 404) updated(); });
   }), { rootMargin: "600px 0px" });
   m.items.forEach((it, i) => {
     const c = document.createElement("button");
@@ -403,16 +424,34 @@ async function main() {
     return m.items.map((it, i) => { const n = it.n ? "n:" + it.n : "#" + i; seen[n] = (seen[n] || 0) + 1;
       return seen[n] > 1 ? n + "#" + seen[n] : n; }); })();
   const pk = i => KEYS[i];
-  const sigOf = (pp, ks) => JSON.stringify(ks.filter(k => pp[k] && (pp[k].r || pp[k].m || pp[k].v)).map(k => [k, pp[k]]));
+  const canon = p => { const c = {}; if (p.r) { c.r = true; if (p.n) c.n = String(p.n).slice(0, 200); }   // one spelling per pick
+    if (p.m) c.m = true; if (p.v) c.v = true; return c; };
+  const sigOf = (pp, ks) => JSON.stringify(ks.filter(k => pp[k] && (pp[k].r || pp[k].m || pp[k].v)).map(k => [k, canon(pp[k])]));
+  const resig = s => { try { const o = {}; JSON.parse(s || "[]").forEach(([k, p]) => { if (p && typeof p === "object") o[k] = p; });
+    return s ? sigOf(o, KEYS) : ""; } catch (e) { return ""; } };
+  function fromList(list) {
+    const got = {}, byName = {};
+    KEYS.forEach((k, i) => { const n = m.items[i].n; if (n && !(("n:" + n) in byName)) byName["n:" + n] = k; });
+    list.forEach(p => {
+      if (!p || typeof p !== "object") return;
+      const k = KEYS.includes(p.k) ? p.k : byName["n:" + (p.name || "")] || (Number.isInteger(p.i) && !p.name ? KEYS[p.i] : null);
+      if (!k || !(p.r || p.m || p.v)) return;
+      const q = {}; if (p.r) { q.r = true; if (p.note) q.n = String(p.note).slice(0, 200); } if (p.m) q.m = true; if (p.v) q.v = true;
+      got[k] = q; });
+    return got;
+  }
   const DRAFTS = GATE && !!P.post && !PREVIEW && !!subtle;
   let hostOk = false, pending = false, timer = null;
   let picks = {}, sentSig = "", changed = "";   // changed: when the picks on this device last changed (ISO time)
+  let legacySig = "";                           // picks carried over from a page before 1.1, which kept no record of sending
   let sendNote = "";                            // a problem sending, shown until the picks change
   const announce = t => { $("live").textContent = ""; setTimeout(() => { $("live").textContent = t; }, 50); };
   try {
     const st = JSON.parse(localStorage.getItem(KEY) || "{}") || {};
     sentSig = localStorage.getItem(KEY + ":sent") || "";
-    if (st.v === 2) { picks = st.picks && typeof st.picks === "object" ? st.picks : {}; changed = typeof st.at === "string" ? st.at : ""; }
+    legacySig = localStorage.getItem(KEY + ":legacy") || "";
+    if (st.v === 2) { picks = st.picks && typeof st.picks === "object" ? st.picks : {}; changed = typeof st.at === "string" ? st.at : "";
+      sentSig = resig(sentSig); legacySig = resig(legacySig); }
     else if (Object.keys(st).length) {       // kept by place, by an older page: moved over only if every place is still here
       const ix = Object.keys(st);
       if (ix.every(i => /^\d+$/.test(i) && +i < m.items.length)) {
@@ -420,7 +459,9 @@ async function main() {
         const was = {}; try { JSON.parse(sentSig || "[]").forEach(([i, p]) => { if (+i < m.items.length) was[pk(+i)] = p; }); } catch (e) {}
         sentSig = sentSig ? sigOf(was, KEYS) : "";
       } else sentSig = "";
+      if (!sentSig) legacySig = sigOf(picks, KEYS);   // sent or not, that page never said: see quietLegacy
       localStorage.setItem(KEY, JSON.stringify({ v: 2, picks })); localStorage.setItem(KEY + ":sent", sentSig);
+      localStorage.setItem(KEY + ":legacy", legacySig);
     }
   } catch (e) {}
   Object.keys(picks).forEach(k => { if (!KEYS.includes(k) || !picks[k] || typeof picks[k] !== "object") delete picks[k]; });   // gone in a rebuild
@@ -429,9 +470,11 @@ async function main() {
   const keep = () => { try { localStorage.setItem(KEY, JSON.stringify({ v: 2, picks, at: changed })); } catch (e) {} };
   const save = () => { changed = new Date().toISOString(); keep(); sendNote = ""; if (DRAFTS) hostOk = false; paint(); later(); };
   const sig = () => sigOf(picks, KEYS);
-  const unsent = () => sig() !== "[]" && sig() !== sentSig;
-  const markSent = () => { sentSig = sig(); try { localStorage.setItem(KEY + ":sent", sentSig); } catch (e) {} paint(); };
+  const quietLegacy = () => !P.post && !!legacySig && sig() === legacySig;
   const isSent = () => sig() !== "[]" && sig() === sentSig;
+  const unsent = () => sig() !== "[]" && !isSent() && !quietLegacy();
+  const setSent = s => { sentSig = s; try { localStorage.setItem(KEY + ":sent", sentSig); } catch (e) {} };
+  const markSent = () => { setSent(sig()); paint(); };
   window.addEventListener("beforeunload", e => { if (unsent()) { e.preventDefault(); e.returnValue = ""; } });
   function marks(tag, p) {                      // the same badges on a grid photo and on the big photo
     const mark = (t, cls) => { const i = document.createElement("i"); i.textContent = t; if (cls) i.className = cls; return i; };
@@ -495,7 +538,8 @@ async function main() {
     $("trayn").textContent = "";
     $("trayn").append(span("long", "Retouch " + r + "/" + (P.retouch || 0) + "  \u00b7  Suggested " + mk + "  \u00b7  Don't show " + vt),
                       span("short", short.join("  \u00b7  ")));
-    const state = typeof unsent === "function" && unsent() ? (hostOk ? "Saved" : "Saved on this device") + "  \u00b7  Not sent yet" : "";
+    const state = typeof unsent !== "function" ? "" : unsent() ? (hostOk ? "Saved" : "Saved on this device") + "  \u00b7  Not sent yet"
+      : quietLegacy() ? "Saved on this device" : "";
     if (state) $("trayn").append(span("saved", state));
     if (state && state !== painted && painted !== null) announce(state.replace("  \u00b7  ", ". "));
     painted = state;
@@ -521,7 +565,7 @@ async function main() {
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const ct = new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv,
       additionalData: new TextEncoder().encode("lumen-aureum-gallery:" + name) }, ek,
-      new TextEncoder().encode(JSON.stringify(Object.assign({ v: 1, at, picks: listOf() }, name === "draft.bin" ? { sent: isSent() } : {})))));
+      new TextEncoder().encode(JSON.stringify({ v: 1, at, picks: listOf() }))));
     const body = new Uint8Array(4 + 12 + ct.length);
     body.set(new TextEncoder().encode("LAK1")); body.set(iv, 4); body.set(ct, 16);
     return body;
@@ -543,6 +587,23 @@ async function main() {
     window.addEventListener("pagehide", flush);
     document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flush(); });
   }
+  async function verifySent() {
+    if (!DRAFTS) return;
+    let host = null;
+    try {
+      const r = await fetch("gate.php?f=picks.bin", { credentials: "omit", cache: "no-store", headers: { "X-Proof": await keyProof() } });
+      if (r.status === 404) host = "";                                       // nothing sent from any device
+      else if (!r.ok || (r.headers.get("content-type") || "").includes("php")) return;
+      else {
+        const b = new Uint8Array(await r.arrayBuffer());
+        let d = null;
+        try { if (b.length >= 32 && String.fromCharCode(...b.subarray(0, 4)) === "LAK1")
+          d = JSON.parse(new TextDecoder().decode(await open(b.subarray(4), "picks.bin"))); } catch (e) {}
+        host = d && Array.isArray(d.picks) ? sigOf(fromList(d.picks), KEYS) : "";   // unreadable: not what the app gets either
+      }
+    } catch (e) { return; }
+    if (host !== sentSig) { setSent(host); paint(); }
+  }
   async function pullDraft() {
     let d = null;
     try {
@@ -555,17 +616,9 @@ async function main() {
     } catch (e) { return; }
     const at = d && typeof d.at === "string" && !isNaN(Date.parse(d.at)) ? d.at : "";
     if (!at || !Array.isArray(d.picks)) return;
+    if (Date.parse(at) > Date.now() + 5 * 60000) { if (sig() !== "[]") later(); return; }   // from the future: not trusted
     if (changed && Date.parse(changed) > Date.parse(at)) { later(); return; }     // this device is newer: it goes up
-    const got = {}, byName = {};
-    KEYS.forEach((k, i) => { const n = m.items[i].n; if (n && !(("n:" + n) in byName)) byName["n:" + n] = k; });
-    d.picks.forEach(p => {
-      if (!p || typeof p !== "object") return;
-      const k = KEYS.includes(p.k) ? p.k : byName["n:" + (p.name || "")] || (Number.isInteger(p.i) && !p.name ? KEYS[p.i] : null);
-      if (!k || !(p.r || p.m || p.v)) return;
-      const q = {}; if (p.r) { q.r = true; if (p.note) q.n = String(p.note).slice(0, 200); } if (p.m) q.m = true; else if (p.v) q.v = true;
-      got[k] = q; });
-    picks = got; changed = at; keep(); hostOk = true;
-    if (d.sent === true && sig() !== "[]") { sentSig = sig(); try { localStorage.setItem(KEY + ":sent", sentSig); } catch (e) {} }
+    picks = fromList(d.picks); changed = at; keep(); hostOk = true;                // its "sent", if any, is never read
     if (cur >= 0) bar();
     paint();
   }
@@ -578,9 +631,10 @@ async function main() {
         sendNote = "That is too many picks to send at once. Please send fewer, or tell your photographer."; paint(); return; }
       const proof = [...new Uint8Array(await subtle.digest("SHA-256", raw))].map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
       const r = await fetch("picks.php", { method: "POST", credentials: "omit", cache: "no-store", body, headers: { "X-Proof": proof } });
+      if (r.status === 410) { sendNote = "This gallery has closed, so picks can't be sent now. Please tell your photographer."; paint(); return; }
       if (!r.ok) throw new Error("http " + r.status);
       sendNote = ""; markSent();                                     // Sent shows until the picks change
-      if (DRAFTS) { clearTimeout(timer); pushDraft(false); }       // the draft on the host matches what was sent, and says so
+      if (DRAFTS) { clearTimeout(timer); pushDraft(false); verifySent(); }   // the draft follows; picks.bin is read back
     } catch (err) {
       if (P.email) location.href = $("send").href;    // the script isn't there: the email draft instead
       else { sendNote = "Couldn't send. Please tell your photographer."; paint(); }
@@ -613,7 +667,7 @@ async function main() {
     if (!seen && !PREVIEW) openW();
   }
   paint();
-  if (DRAFTS) pullDraft();
+  if (DRAFTS) pullDraft().then(verifySent);
   $("pr").onclick = e => { e.stopPropagation(); const p = picks[pk(cur)] = picks[pk(cur)] || {};
     if (p.r && p.n) { askRemove(cur, "r", bar); return; }
     if (!p.r && nR() >= (P.retouch || 0)) { const t = "You've picked " + (P.retouch || 0) + " to retouch already. Remove one to pick this one.";
@@ -666,22 +720,52 @@ async function main() {
     document.body.style.overflow = "hidden";
     $("count").textContent = (cur + 1) + " / " + n; bar();
     lb.setAttribute("aria-label", "Photo " + (cur + 1) + " of " + n);
-    big.classList.remove("on"); $("lberr").hidden = true;
-    const want = cur, u = await url(m.items[cur].f).catch(() => null);
+    const want = cur, th = thumbs[cur];
+    big.onload = big.onerror = null;
+    $("lberr").hidden = true; picking(false);
+    if (th) { big.src = th; big.classList.add("on", "ph"); } else { big.removeAttribute("src"); big.classList.remove("on", "ph"); }
+    $("lbload").hidden = false;
+    const near = new Set([-2, -1, 0, 1, 2].map(d => m.items[((cur + d) % n + n) % n].f));
+    keepNear(near);
+    let u = null, err = null;
+    try { u = await url(m.items[cur].f); } catch (e) { err = e; }
     if (want !== cur) return;
-    if (!u) { big.removeAttribute("src"); $("lberr").hidden = false; return; }
-    big.onload = () => { big.classList.add("on"); placeTag(); };
+    if (!u) { lbFail(err); return; }
+    const arrived = () => {
+      if (want !== cur || big.getAttribute("src") !== u) return;
+      big.classList.remove("ph"); big.classList.add("on"); $("lbload").hidden = true; picking(true); placeTag();
+      [cur + 1, cur - 1].forEach(j => url(m.items[(j + n) % n].f).catch(() => {}));   // the neighbors, now the photo is here
+    };
+    big.onload = arrived;
+    big.onerror = () => { if (want === cur) lbFail({}); };
     big.src = u;
-    [cur + 1, cur - 1].forEach(j => url(m.items[(j + n) % n].f).catch(() => {}));
+  }
+  function picking(on) {                        // the pick buttons and the note, for the photo on screen
+    ["pr", "pm", "pv", "note"].forEach(id => { $(id).disabled = !on; });
+  }
+  async function lbFail(e) {                    // the big photo didn't come: say why, as far as the page can tell
+    const want = cur;
+    big.removeAttribute("src"); big.classList.remove("on", "ph"); $("lbload").hidden = true;
+    const again = $("lbagain");
+    let text = "This photo can't load right now.", label = "Try again", reload = false;
+    if (e && e.network) text += " Check your connection.";
+    else if (e && e.status === 410) { text = "This gallery has closed."; label = ""; }
+    else if (e && e.status === 404 && await updated()) { text = "These photos were just updated. Reload to see the new version.";
+      label = "Reload"; reload = true; }
+    if (want !== cur) return;
+    $("lbsay").textContent = text;
+    again.textContent = label; again.hidden = !label; again.classList.toggle("reload", reload); again.dataset.reload = reload ? "1" : "";
+    $("lberr").hidden = false;
   }
   function hide() { const cell = document.querySelector('.cell[data-i="' + cur + '"]') || opener;   // back to the photo last seen
-    lb.classList.remove("open"); document.body.style.overflow = ""; big.removeAttribute("src"); cur = -1;
+    lb.classList.remove("open"); document.body.style.overflow = ""; big.onload = big.onerror = null; big.removeAttribute("src");
+    big.classList.remove("on", "ph"); $("lbload").hidden = true; cur = -1;
     behind().forEach(el => el.inert = false); document.body.classList.remove("lbopen");
     if (cell && cell.focus) cell.focus(); opener = null; }
   $("prev").onclick = e => { e.stopPropagation(); step(-1); };
   $("next").onclick = e => { e.stopPropagation(); step(1); };
   $("close").onclick = e => { e.stopPropagation(); hide(); };
-  $("lbagain").onclick = e => { e.stopPropagation(); if (cur >= 0) show(cur); };
+  $("lbagain").onclick = e => { e.stopPropagation(); if ($("lbagain").dataset.reload === "1") location.reload(); else if (cur >= 0) show(cur); };
   lb.onclick = e => { if (e.target === lb) hide(); };
   document.addEventListener("keydown", e => {
     if (cur < 0 || !$("ask").hidden) return;                       // the ask box has its own keys

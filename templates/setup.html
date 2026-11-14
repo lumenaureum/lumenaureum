@@ -55,7 +55,8 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
   <label class="l" for="f-{{ p }}type">{{ label }}{% if hard %} <b class="hardtag">hard to change later</b>{{ help(hard) }}{% endif %}</label>
   <select id="f-{{ p }}type" name="{{ p }}type" data-be-select="{{ p }}">{% if optional %}<option value="">None</option>{% endif %}
     {% for v, lab in [('local', 'A folder on this machine or a mounted share'), ('sftp', 'SFTP server'), ('s3', 'S3-compatible storage')] %}<option value="{{ v }}"{{ ' selected' if cur.get('type', '' if optional else 'local') == v }}>{{ lab }}</option>{% endfor %}</select>
-  <div class="be" data-be="{{ p }}local"><input name="{{ p }}path" placeholder="/vault" value="{{ cur.path if cur.type == 'local' }}">
+  <div class="be" data-be="{{ p }}local"><input name="{{ p }}path" placeholder="{{ '/backup2' if optional else '/vault' }}" value="{{ cur.path if cur.type == 'local' }}" aria-label="Folder path, as the app sees it">
+    {% if optional %}<div class="hint">A folder outside the app's own folders must be mounted into its container first: see docs/where-it-runs.md, Folders outside the container.</div>{% endif %}
     <label class="choice"><input type="checkbox" name="{{ p }}init" value="1"{{ ' checked' if not marked.get(p) or request.form.get(p ~ 'init') }}><span>New empty folder: set it up</span></label></div>
   <div class="be" data-be="{{ p }}sftp"><div class="two"><input name="{{ p }}host" placeholder="Host" value="{{ cur.host if cur.type == 'sftp' }}"><input name="{{ p }}user" placeholder="User" value="{{ cur.user if cur.type == 'sftp' }}"></div>
     <div class="two"><input name="{{ p }}root" placeholder="Folder on the server" value="{{ cur.root if cur.type == 'sftp' }}"><input name="{{ p }}port" placeholder="Port (22)" value="{{ cur.port if cur.type == 'sftp' and cur.port }}"></div>
@@ -83,7 +84,7 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
 {% elif step == 'money' %}
   <table class="r"><tbody>
     <tr><td><label for="f-deposit">Deposit to hold a date</label>{{ help("Asked for when the client books. A session type can have its own deposit in Settings, Session types.") }}</td><td><span class="pre">$</span><input type="number" id="f-deposit" name="deposit" min="0" value="{{ rules.DEPOSIT_AMOUNT }}"></td></tr>
-    <tr><td><label for="f-event_pct">Deposit for events</label></td><td><span class="pre"></span><input type="number" id="f-event_pct" name="event_pct" min="0" max="100" value="{{ rules.EVENT_DEPOSIT_PCT }}">% of the price</td></tr>
+    <tr><td><label for="f-event_pct">Deposit for {{ (C.setup_pct_types() + ['events'])|join(' and ')|lower if C.setup_pct_types() else 'events' }}</label></td><td><span class="pre"></span><input type="number" id="f-event_pct" name="event_pct" min="0" max="100" value="{{ rules.EVENT_DEPOSIT_PCT }}">% of the price</td></tr>
     <tr><td><label for="f-reschedule_fee">Reschedule fee (after the free one)</label>{{ help("Printed in your terms. Whether a type gets a free reschedule, and how much notice, is set per session type.") }}</td><td><span class="pre">$</span><input type="number" id="f-reschedule_fee" name="reschedule_fee" min="0" value="{{ rules.RESCHEDULE_FEE }}"></td></tr>
     <tr><td><label for="f-delivery_days">Photos ready within</label></td><td><span class="pre"></span><input type="number" id="f-delivery_days" name="delivery_days" min="1" value="{{ rules.DELIVERY_DAYS }}"> days; events <input type="number" name="event_delivery_days" aria-label="Event photos ready within, days" min="1" value="{{ rules.EVENT_DELIVERY_DAYS }}"> days</td></tr>
     <tr><td><label for="f-quote_term_days">Quotes good for</label>{{ help("How long the prices on a sent quote hold. After that the quote shows as expired and you can requote at current prices.") }}</td><td><span class="pre"></span><input type="number" id="f-quote_term_days" name="quote_term_days" min="1" value="{{ get('quote_term_days') or C.QUOTE_TERM_DAYS }}"> days</td></tr>
@@ -135,7 +136,7 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
   <label class="l" for="f-gallery_type">Where galleries are uploaded</label>
   <select id="f-gallery_type" name="gallery_type" data-be-select="gallery_"><option value="">No online galleries for now</option>
     {% for v, lab in [('sftp', 'Web hosting over SFTP'), ('s3', 'S3-compatible storage with a public web address'), ('local', 'A folder a web server here serves')] %}<option value="{{ v }}"{{ ' selected' if cur.get('type') == v }}>{{ lab }}</option>{% endfor %}</select>
-  <div class="be" data-be="gallery_local"><div class="hint">The web server must run as this app's user (or share its group with write permission): it records the client's first visit and saves their picks in each gallery's folder. Without that, galleries still open, but stay up a year instead of their window.</div><input name="gallery_path" placeholder="/srv/www/galleries" value="{{ cur.path if cur.type == 'local' }}">
+  <div class="be" data-be="gallery_local"><div class="hint">The web server must run as this app's user (or share its group with write permission): it records the client's first visit and saves their picks in each gallery's folder. Without that, galleries still open, but stay up a year instead of their window. The folder must also be mounted into the app's container (for example - /srv/www/galleries:/galleries in compose.yaml, then type /galleries here): see docs/where-it-runs.md, Folders outside the container.</div><input name="gallery_path" placeholder="/galleries" aria-label="Gallery folder path, as the app sees it" value="{{ cur.path if cur.type == 'local' }}">
     <label class="choice"><input type="checkbox" name="gallery_init" value="1"{{ ' checked' if not gallery_marked }}><span>New empty folder: set it up</span></label></div>
   <div class="be" data-be="gallery_sftp"><div class="two"><input name="gallery_host" placeholder="Host" value="{{ cur.host if cur.type == 'sftp' }}"><input name="gallery_user" placeholder="User" value="{{ cur.user if cur.type == 'sftp' }}"></div>
     <div class="two"><input name="gallery_root" placeholder="Web folder on the server" value="{{ cur.root if cur.type == 'sftp' }}"><input name="gallery_port" placeholder="Port (22)" value="{{ cur.port if cur.type == 'sftp' and cur.port }}"></div>
@@ -164,7 +165,7 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
   {% else %}<p>Devices on your home network can open Lumen Aureum. Nothing on the internet can.</p>{% endif %}
   <details><summary>Details</summary>
     <div class="mono" style="margin-top:6px">{{ nets|join(', ') }}</div>
-    <div class="hint">This device: {{ me }}. To narrow the list, set CRM_ALLOW_ONLY in the app's settings on your NAS.</div></details>
+    <div class="hint">This device: {{ me }}. To narrow the list, add a CRM_ALLOW_ONLY line under environment: in compose.yaml, then restart the app.</div></details>
 {% endif %}
 
   <div class="sbar">

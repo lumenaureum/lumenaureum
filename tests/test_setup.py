@@ -75,7 +75,7 @@ def test_money_types_documents_tax_feed_the_app(env):
              event_delivery_days="20", net_days="15")
     assert b"at least one way" in r.data
     post(c, "/setup/shoot", preset_families="1", preset_realestate="1")
-    assert set(C.SESSION_TYPES) == {"family", "realestate", "portfolio"}
+    assert set(C.SESSION_TYPES) == {"family", "realestate"}
     assert C.TYPE_KIND["realestate"] == "property" and C.EVENT_TYPE == "event"
     with A.app.test_request_context():
         keys = [it["key"] for it in A.current_schedule()["items"]]
@@ -178,6 +178,8 @@ def test_custom_types_regional_tax_and_demo(env, tmp_path, monkeypatch):
     page = c.get("/setup/shoot", environ_base=E).get_data(as_text=True)
     assert "Boats" in page and "Galas" in page
     post(c, "/setup/shoot", preset_seniors="1", keep_boats="1", keep_gala="1")
+    assert {"senior", "boats", "gala"} == set(C.SESSION_TYPES)
+    post(c, "/setup/shoot", preset_seniors="1", preset_personal="1", keep_boats="1", keep_gala="1")
     assert {"senior", "boats", "gala", "portfolio"} == set(C.SESSION_TYPES)
     assert C.WORKFLOW["no-such-type"] is C.PORTRAIT_FLOW
 
@@ -265,7 +267,7 @@ def test_every_preset_loads_with_its_own_questions_and_prices():
             for t in pr["types"]:
                 qs = [k for k, _ in C.INTAKE[t["key"]]]
                 assert qs and len(qs) == len(set(qs)), t["key"]
-                assert any(f.get("type") == t["key"] for f in pr["fees"]), t["key"]
+                assert any(f.get("type") == t["key"] for f in pr["fees"]) or t is C.PERSONAL_TYPE, t["key"]
         assert "outfits" not in dict(C.INTAKE["newborn"]) and "address" not in dict(C.INTAKE["product"])
         assert "address" in dict(C.INTAKE["food"]) and "food" in C.LICENSE_TYPES
         assert "promoting this business" in C.fill("food", "license_use")

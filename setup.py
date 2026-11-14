@@ -180,6 +180,11 @@ def _test_backend(cfg, init_local, made):
                 B.LocalBackend.init_root(p)
                 made.append(os.path.join(p, B.LocalBackend.MARKER))
             elif not os.path.isdir(p):
+                if os.path.exists("/.dockerenv") or os.environ.get("LUMEN_BUILD"):
+                    return ("That folder doesn't exist inside the app's container. A folder on your machine must be mounted"
+                            " into the container first: add a line under volumes: in compose.yaml (for example"
+                            " - /mnt/usb-backup/lumen:/backup2), restart the app, then type the path after the colon"
+                            " (/backup2). See docs/where-it-runs.md, Folders outside the container.")
                 return "That folder doesn't exist. Create it (and mount the share, if it is one) and try again."
         be = B.from_config(cfg)
         name = f"setup-test/{secrets.token_hex(6)}.txt"
@@ -563,10 +568,10 @@ def register(app, connect, apply_settings, audit, allow_nets):
         cfg = VW.config()
         extra_ = dict(app_pub=app_ssh_key()[1], host_fp=B.host_key_fingerprint) if step in ("storage", "galleries") else {}
         if step == "shoot":
-            preset_keys = {t["key"] for pr in C.PRESETS.values() for t in pr["types"]} | {C.PERSONAL_TYPE["key"]}
+            preset_keys = {t["key"] for pr in C.PRESETS.values() for t in pr["types"]}
             have = {t["key"] for t in C.TYPES}
             chosen = [k for k, pr in C.PRESETS.items() if all(t["key"] in have for t in pr["types"])] \
-                if "shoot" in done() else []
+                if "shoot" in done() or rules().get("TYPES") else []
             return dict(get=get, rules=C.current_rules(), types=C.SESSION_TYPES, presets=C.PRESETS, chosen=chosen,
                         custom=[t for t in C.TYPES if t["key"] not in preset_keys])
         if step == "tax":

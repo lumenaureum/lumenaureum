@@ -179,7 +179,7 @@ def test_walkthrough_keeps_changes_and_skips(tmp_path, monkeypatch):
     assert C.delivery_days("wedding") == 45
     c.post(f"/settings/type/wedding/walk/{ids.index('weather')}", data={"act": "skip"}, environ_base=E)
     c.post(f"/settings/type/wedding/walk/{ids.index('deposit')}", data={"act": "keep"}, environ_base=E)
-    assert C.DEPOSIT_RULE["wedding"] == ("pct", 30)
+    assert C.DEPOSIT_RULE["wedding"] == ("pct", C.EVENT_DEPOSIT_PCT)
     page = c.get(f"/settings/type/wedding/walk/{len(ids)}", environ_base=E).get_data(as_text=True)
     assert "Skipped" in page and "SAMPLE" in page
     assert "Fine-tune your session types" not in c.get("/", environ_base=E).get_data(as_text=True) or True

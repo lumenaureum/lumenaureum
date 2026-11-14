@@ -1,3 +1,4 @@
+import contextlib
 import hashlib
 import base64
 import os
@@ -41,6 +42,11 @@ class Backend:
 
     def remove_dir(self, prefix):
         pass
+
+    @contextlib.contextmanager
+    def session(self):
+
+        yield self
 
     def delete_verified(self, name):
         self.delete(name)
@@ -143,6 +149,62 @@ class SFTPBackend(Backend):
         self.host, self.user, self.key_file, self.root, self.port = host, user, os.path.expanduser(key_file or ""), root.rstrip("/"), port
         self.known_hosts = os.path.expanduser(known_hosts)
         self.private_key, self.host_key = private_key, host_key
+        self._held = None
+        self._depth = 0
+
+    @contextlib.contextmanager
+    def session(self):
+
+        self._depth += 1
+        try:
+            yield self
+        finally:
+            self._depth -= 1
+            if not self._depth and self._held:
+                cli, sf = self._held
+                self._held = None
+                try:
+                    sf.close()
+                finally:
+                    cli.close()
+
+    @staticmethod
+    def _dropped(e):
+
+        import socket
+        try:
+            import paramiko
+            ssh_err = (paramiko.SSHException,)
+        except ImportError:
+            ssh_err = ()
+        return isinstance(e, (EOFError, ConnectionError, socket.timeout) + ssh_err)
+
+    def _run(self, fn):
+
+        if not self._depth:
+            cli, sf = self._open()
+            try:
+                return fn(sf)
+            finally:
+                sf.close(); cli.close()
+        for attempt in (0, 1):
+            if self._held is None or not self._held[0].get_transport() or not self._held[0].get_transport().is_active():
+                if self._held:
+                    try:
+                        self._held[0].close()
+                    except Exception:
+                        pass
+                self._held = self._open()
+            try:
+                return fn(self._held[1])
+            except Exception as e:
+                if attempt or not self._dropped(e):
+                    raise
+                try:
+                    self._held[0].close()
+                except Exception:
+                    pass
+                self._held = None
 
     def _open(self):
         try:
@@ -178,57 +240,62 @@ class SFTPBackend(Backend):
                 sf.mkdir(cur)
 
     def put_stream(self, name, reader, content_type=None):
-        cli, sf = self._open()
         dst = self._p(name)
-        tmp = posixpath.join(posixpath.dirname(dst), f".{secrets.token_hex(6)}.part")
-        hr = _Hashing(reader)
-        try:
-            self._mkdirs(sf, posixpath.dirname(dst))
-            with sf.open(tmp, "wb") as f:
-                f.set_pipelined(True)
-                while True:
-                    b = hr.read(CHUNK)
-                    if not b:
-                        break
-                    f.write(b)
+        start = reader.tell() if hasattr(reader, "seek") and hasattr(reader, "tell") else None
+
+        def put(sf):
+            if start is not None:
+                reader.seek(start)
+            tmp = posixpath.join(posixpath.dirname(dst), f".{secrets.token_hex(6)}.part")
+            hr = _Hashing(reader)
             try:
-                sf.posix_rename(tmp, dst)
-            except IOError:
-                sf.rename(tmp, dst)
-            return hr.n, hr.h.hexdigest()
-        except Exception:
-            try:
-                sf.remove(tmp)
-            except IOError:
-                pass
-            raise
-        finally:
-            sf.close(); cli.close()
+                self._mkdirs(sf, posixpath.dirname(dst))
+                with sf.open(tmp, "wb") as f:
+                    f.set_pipelined(True)
+                    while True:
+                        b = hr.read(CHUNK)
+                        if not b:
+                            break
+                        f.write(b)
+                try:
+                    sf.posix_rename(tmp, dst)
+                except IOError:
+                    sf.rename(tmp, dst)
+                return hr.n, hr.h.hexdigest()
+            except Exception as e:
+                if not self._dropped(e):
+                    try:
+                        sf.remove(tmp)
+                    except (IOError, OSError):
+                        pass
+                if start is None and self._dropped(e):
+                    raise IOError(f"sftp: connection dropped while writing {name}") from e
+                raise
+        return self._run(put)
 
     def get_stream(self, name, writer):
-        cli, sf = self._open()
-        try:
+        def get(sf):
             with sf.open(self._p(name), "rb") as f:
                 f.prefetch()
                 shutil.copyfileobj(f, writer, CHUNK)
-        finally:
-            sf.close(); cli.close()
+        return self._run(get)
 
     def stat(self, name):
-        cli, sf = self._open()
-        try:
-            return sf.stat(self._p(name)).st_size
-        except FileNotFoundError:
-            return None
-        except IOError as e:
-            if getattr(e, "errno", None) == 2:
+        def st(sf):
+            try:
+                return sf.stat(self._p(name)).st_size
+            except FileNotFoundError:
                 return None
-            raise
-        finally:
-            sf.close(); cli.close()
+            except IOError as e:
+                if getattr(e, "errno", None) == 2:
+                    return None
+                raise
+        return self._run(st)
 
     def list(self, prefix=""):
-        cli, sf = self._open()
+        return self._run(lambda sf: self._list(sf, prefix))
+
+    def _list(self, sf, prefix):
         out = []
 
         def walk(d, rel):
@@ -245,32 +312,27 @@ class SFTPBackend(Backend):
                     walk(posixpath.join(d, e.filename), r)
                 elif r.startswith(prefix):
                     out.append(r)
-        try:
-            walk(self.root, "")
-        finally:
-            sf.close(); cli.close()
+        walk(self.root, "")
         return sorted(out)
 
     def delete(self, name):
-        cli, sf = self._open()
-        try:
-            sf.remove(self._p(name))
-        except FileNotFoundError:
-            pass
-        except IOError as e:
-            if getattr(e, "errno", None) != 2:
-                raise
-        finally:
-            sf.close(); cli.close()
+        def rm(sf):
+            try:
+                sf.remove(self._p(name))
+            except FileNotFoundError:
+                pass
+            except IOError as e:
+                if getattr(e, "errno", None) != 2:
+                    raise
+        return self._run(rm)
 
     def remove_dir(self, prefix):
-        cli, sf = self._open()
-        try:
-            sf.rmdir(self._p(prefix.rstrip("/")))
-        except IOError:
-            pass
-        finally:
-            sf.close(); cli.close()
+        def rmd(sf):
+            try:
+                sf.rmdir(self._p(prefix.rstrip("/")))
+            except IOError:
+                pass
+        return self._run(rmd)
 
 class S3Backend(Backend):
 

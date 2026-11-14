@@ -31,8 +31,10 @@ def steps_for(t):
              preview=lambda: ""),
         dict(id="deposit", title="The deposit that holds the date",
              why=("The client pays the deposit when they book, and it holds the date. Weddings and events usually take a"
-                  " percentage of the price, and portraits a flat amount. Leave it blank to use your general deposit."),
-             field=("deposit", "", ""), get=lambda: ("pct", t["deposit_pct"]) if t.get("deposit_pct") is not None else
+                  " percentage of the price, and portraits a flat amount. Leave it blank to use your answer in Payments"
+                  " and terms."),
+             field=("deposit", "", ""), get=lambda: ("", "") if C.deposit_follows_setup(t) else
+             ("pct", t["deposit_pct"]) if t.get("deposit_pct") is not None else
              ("amt", t["deposit_amount"]) if t.get("deposit_amount") is not None else ("", ""),
              put=lambda f: _put_deposit(t, f),
              preview=lambda: dict(C.build_terms(key)).get("Booking", "")),
@@ -104,11 +106,19 @@ def steps_for(t):
     return out
 
 def _put_deposit(t, f):
+
     t.pop("deposit_pct", None)
     t.pop("deposit_amount", None)
+    t.pop("deposit_own", None)
     mode, v = f.get("deposit_mode"), _num(f.get("deposit_value"), 0, 100000)
     if v is not None and mode in ("pct", "amt"):
         t["deposit_pct" if mode == "pct" else "deposit_amount"] = min(v, 100) if mode == "pct" else v
+        t["deposit_own"] = True
+        return
+    shipped = C.shipped_type(t.get("key"))
+    for k in ("deposit_pct", "deposit_amount"):
+        if shipped and shipped.get(k) is not None:
+            t[k] = shipped[k]
 
 def _put_portfolio(t, f):
     t.pop("portfolio_pct", None)

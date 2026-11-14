@@ -102,7 +102,7 @@ def test_shoot_step_keeps_imported_types_as_they_are(tmp_path, monkeypatch):
     import config as C
     t = dict(C.PRESETS["families"]["types"][0], label="Families (mine)", steps={"booked": [["do", "Charge batteries", -1]]})
     upload(c, {"lumen_aureum_settings": 1, "rules": {"TYPES": [t, dict(C.PERSONAL_TYPE, label="Portfolio (mine)")]}}, back="/setup/shoot")
-    c.post("/setup/shoot", data={"preset_families": "1"}, environ_base=E)
+    c.post("/setup/shoot", data={"preset_families": "1", "preset_personal": "1"}, environ_base=E)
     import config as C2
     fam = next(x for x in C2.TYPES if x["key"] == "family")
     assert fam["label"] == "Families (mine)" and fam["steps"]["booked"] == [["do", "Charge batteries", -1]]

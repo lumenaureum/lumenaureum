@@ -2,6 +2,47 @@
 
 New features, behavior changes, security fixes, and other fixes in each release.
 
+## 1.1.1 (2026-11-14)
+
+### Features
+
+- Today says once when the app was updated, and that a backup was made first.
+
+### Behavior changes
+
+- Issued invoices and receipts keep their exact wording, even after an update.
+- With a proof mark on, a gallery can go online before the balance is paid.
+- Setup's deposit answers apply to every type they cover, weddings included.
+- Setup adds only the session types you pick.
+- The deposit is due the day the agreement is signed, as the agreement says.
+- The QR letter says "your family" only to family clients.
+- Updating a gallery that's online shows its progress, and clients who have it open aren't cut off.
+
+### Security
+
+- An expired gallery is always removed, whatever the client's picks file says.
+- Settings import checks logos the same way as a logo upload.
+- The gallery host refuses picks after the gallery closes.
+- A gallery shows Sent only when the host holds the picks.
+- The security guide explains the gallery host's checks, and which need Apache.
+
+### Fixed
+
+- Each signer of an agreement can be marked signed separately.
+- Picks sent from a gallery made before 1.1 showed as not sent after a rebuild.
+- An invoice for a paid session showed as sent.
+- Issuing an invoice or receipt showed code instead of a message.
+- Photo drop boxes stopped working after an upload.
+- The upgrade backup showed its time in UTC.
+- Today showed a finished session's shoot as next.
+
+### Upgrading
+
+- Upgrading takes an encrypted backup first. To go back to 1.1.0, restore that backup; 1.1.0 won't open a 1.1.1 database.
+- Invoices and receipts issued before 1.1.1 keep the wording they show on the first sign-in after the update.
+- Galleries online before 1.1.1 get these fixes when you rebuild them.
+- If you serve galleries from a folder on this machine, mount it in compose.yaml. The docs show how.
+
 ## 1.1.0 (2026-11-14)
 
 ### Features

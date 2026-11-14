@@ -57,23 +57,62 @@ rest for availability; leave it off unless you need it.
 - **A running, unlocked machine** that is taken while on is protected only by the network allow-list and sign-in.
 
 Galleries on a web host that runs PHP expire by themselves: the gallery page fetches every encrypted file through a
-small gate script that refuses once the window is over (or if its window file is missing). On Apache, the folder's
-.htaccess also refuses the encrypted files except through the gate. On other web servers, someone who already holds
-the link and fetches the encrypted files by name could still get them until the app removes the gallery, which it
-does on its next check while unlocked. The host keeps only a hash of the key proof, never the proof or the key.
-Galleries on a plain S3 bucket are removed by the app, which needs to be unlocked to do it.
+small gate script that refuses once the window is over (or if its window file is missing). The host keeps only a hash
+of the key proof, never the proof or the key. Galleries on a plain S3 bucket are removed by the app, which needs to be
+unlocked to do it. The app also removes every gallery on its first check after the window ends, on any host.
 
 What a gallery link can and can't protect:
 - **The link is the key.** Anyone holding the full link (with what follows the `#`) can open the gallery, the same as
-  the client. A codeword adds a second thing they must know. On a PHP host the gate also refuses the encrypted files
-  to anyone who can't prove they hold the key, so a codeword can't be guessed offline there; on a host without PHP,
-  someone with the link could download the files and guess the codeword at their own pace, which is why the app
-  refuses short or common codewords.
+  the client. A codeword adds a second thing they must know. On a PHP host running Apache (or with the same rules
+  added), the gate also refuses the encrypted files to anyone who can't prove they hold the key, so a codeword can't
+  be guessed offline there. On any other host, someone with the link could download the files and guess the codeword
+  at their own pace, which is why the app refuses short or common codewords.
 - **The host serves the page.** A web host that turns hostile could change the gallery page so that it sends the key
   somewhere when a client opens it. Use a host you trust.
 - **Expiry needs the host's help.** The window is kept in two small files on the host (the first-visit stamp and the
   limits file). A host that alters them can keep a gallery up longer; the app still removes it on its next check.
+  Nothing a visitor writes to the gallery folder (picks, a draft) can stop that check.
 - **What was downloaded stays downloaded.** A client who saved photos while the gallery was open keeps them.
+
+### The PHP files on a gallery host
+Each gallery folder holds a few small PHP files and two small text files beside the encrypted photos. What each does:
+
+| File | What it does |
+|---|---|
+| `limits.txt` | The gallery's window: how many days after the first visit, and the date it closes if nobody opens it. The app writes it at upload and on every change. |
+| `seen-key.php` | The SHA-256 of the key proof (the proof is the first 32 hex characters of the SHA-256 of the gallery key). It starts with `<?php exit; ?>`, so fetching it shows nothing. |
+| `seen.php` | Records the first visit in `seen.txt`, once, and only for a visitor who sends the key proof. A stamp left empty is replaced. |
+| `gate.php` | Serves the encrypted photo files, `manifest.bin`, `draft.bin` and `picks.bin`, and only while the window is open. A missing or unreadable `limits.txt` counts as closed. On galleries built since 1.1 it also asks for the key proof for every file. `draft.bin` and `picks.bin` always need the proof. |
+| `picks.php` | Saves the client's picks (`picks.bin`) or the picks still being made (`draft.bin`). It takes only an encrypted body of the right shape, up to 256 KB, from a visitor who sends the key proof, and only while the window is open. |
+| `.htaccess` | Apache rules: refuse `seen.txt`, `seen-key.php`, `limits.txt`, `picks.bin` and `draft.bin` to everyone, and send every photo file and `manifest.bin` through `gate.php`. |
+
+How the gate answers:
+- A request with no key proof is refused at once.
+- A wrong key proof waits one second before the refusal, on purpose. It slows anyone guessing a codeword through the
+  host. Each wrong guess holds one PHP worker for that second.
+- The gallery page reads `picks.bin` through the gate, with the proof, to check what was really sent. The app reads
+  it over the upload connection, not through the gate.
+
+**The key proof protection relies on Apache.** The `.htaccess` rules are what stop someone fetching the files by
+name, around the gate. Apache reads them; other web servers ignore them. On nginx with PHP-FPM, on LiteSpeed without
+rewrite support, or on `php -S`, anyone with the gallery address can download `manifest.bin`, `draft.bin`,
+`picks.bin` and `limits.txt` directly, without the proof. What they get is encrypted (plus the dates in
+`limits.txt`). But with `manifest.bin` or `draft.bin` and the link, someone who doesn't know the codeword can guess it
+offline, at their own pace. Use Apache with `.htaccess` allowed, or add the same rules to your web server. For nginx,
+inside the server block for your gallery address:
+
+```
+location ~ /(seen\.txt|seen-key\.php|limits\.txt|(picks|draft)\.bin.*)$ { return 403; }
+location ~ ^/(.+)/([0-9a-f]{24}\.bin|manifest\.bin)$ { rewrite ^/(.+)/([^/]+)$ /$1/gate.php?f=$2 last; }
+```
+
+Adjust the paths if your galleries sit under a folder (for example `/g/`). Then check that fetching
+`<gallery address>/<gallery>/limits.txt` gives 403 and `manifest.bin` without the proof gives 403.
+
+**Serve galleries from their own address.** Use a subdomain only for galleries (for example
+`photos.example.com`), not a folder on your main website. The gallery page keeps the client's picks, notes included,
+in the browser's storage for the gallery's address. Any script on the same address, such as a website plugin or an
+analytics script, could read them. The gallery key itself is never stored.
 
 ## On the network
 - HTTPS only, always: a certificate the app makes on first start (its SHA-256 fingerprint is printed in the container
