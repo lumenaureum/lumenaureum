@@ -1,5 +1,3 @@
-// Runs the gallery viewer's script against a small stub DOM and a scripted fetch, and prints what a visitor would see
-// at each prompt as JSON. Used by tests/test_gallery_clash_101.py:  node viewer_harness.js <viewer.html>
 "use strict";
 const fs = require("fs");
 const html = fs.readFileSync(process.argv[2], "utf8");
@@ -17,7 +15,7 @@ function el(tag, id) {
     append(...c) { c.forEach(x => { if (typeof x !== "string") { if (x.parent) x.remove(); x.parent = this; } this.children.push(x); }); },
     prepend(...c) { this.children.unshift(...c); },
     remove() { if (this.parent) { this.parent.children = this.parent.children.filter(x => x !== this); this.parent = null; } },
-    setAttribute(k, v) { this.attrs[k] = String(v); }, getAttribute(k) { return this.attrs[k]; },
+    setAttribute(k, v) { this.attrs[k] = String(v); }, getAttribute(k) { return this.attrs[k]; }, removeAttribute(k) { delete this.attrs[k]; },
     focus() { focused = this; }, addEventListener() {}, querySelector() { return el("x"); },
   };
   return e;
@@ -36,7 +34,7 @@ async function run({ fetchPlan, words = [], key, gid = "galX", wordMode = false,
   let fetches = 0;
   const fetch = async u => { fetches++; return fetchPlan.shift()(u); };
   const location = { hash: "#k=" + Buffer.from(key).toString("base64url") + (wordMode ? "&c=1" : ""), pathname: "/g/x/" };
-  const g = { document, fetch, location, window: { crypto: globalThis.crypto }, crypto: globalThis.crypto,
+  const g = { document, fetch, location, window: { crypto: globalThis.crypto, addEventListener() {}, innerWidth: 1024 }, crypto: globalThis.crypto,
     localStorage: { getItem() { return null; }, setItem() {} },
     IntersectionObserver: class { observe() {} unobserve() {} }, URL, Blob, TextEncoder, TextDecoder, atob, setTimeout };
   const seen = [];
@@ -93,3 +91,4 @@ const status = s => async () => ({ ok: false, status: s, headers: { get: () => "
   process.stdout.write(JSON.stringify(out));
   process.exit(0);
 })();
+

@@ -1,4 +1,4 @@
--- The schema of a fresh install at SCHEMA_VERSION 3. Do not edit by hand: regenerate with
+-- The schema of a fresh install at SCHEMA_VERSION 4. Do not edit by hand: regenerate with
 -- python tools/pin_schema.py (see the schema versions checklist in app.py).
 index audit_hh: CREATE INDEX audit_hh ON audit(household_id, at)
 index audit_sid: CREATE INDEX audit_sid ON audit(session_id)
@@ -29,7 +29,7 @@ table documents: CREATE TABLE documents ( id INTEGER PRIMARY KEY, session_id INT
 table events: CREATE TABLE events ( id INTEGER PRIMARY KEY, name TEXT NOT NULL, date TEXT, venue TEXT DEFAULT '', notes TEXT DEFAULT '', demo INTEGER DEFAULT 0, "billing" TEXT DEFAULT 'free', "rights" TEXT DEFAULT 'families', "rights_note" TEXT DEFAULT '', "payer_hid" INTEGER, "contact_hid" INTEGER, "family_price" REAL)
 table expenses: CREATE TABLE expenses ( id INTEGER PRIMARY KEY, session_id INTEGER REFERENCES sessions(id) ON DELETE CASCADE, date TEXT, label TEXT NOT NULL, amount REAL DEFAULT 0, miles REAL DEFAULT 0, "rate" REAL)
 table fee_schedules: CREATE TABLE fee_schedules (id INTEGER PRIMARY KEY AUTOINCREMENT, created TEXT, items TEXT NOT NULL, note TEXT DEFAULT '')
-table galleries: CREATE TABLE galleries ( session_id INTEGER PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE, source_dir TEXT DEFAULT '', built_at TEXT, n_files INTEGER DEFAULT 0, out_dir TEXT DEFAULT '', key TEXT NOT NULL, "picks_hash" TEXT DEFAULT '', "limits_days" INTEGER, "ekey" TEXT DEFAULT '', "cw_fixed" TEXT, "upload_state" TEXT DEFAULT '', "uploaded_at" TEXT, "removed_at" TEXT, "upload_error" TEXT DEFAULT '')
+table galleries: CREATE TABLE galleries ( session_id INTEGER PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE, source_dir TEXT DEFAULT '', built_at TEXT, n_files INTEGER DEFAULT 0, out_dir TEXT DEFAULT '', key TEXT NOT NULL, "picks_hash" TEXT DEFAULT '', "limits_days" INTEGER, "ekey" TEXT DEFAULT '', "draft_n" INTEGER, "draft_at" TEXT, "cw_fixed" TEXT, "upload_state" TEXT DEFAULT '', "uploaded_at" TEXT, "removed_at" TEXT, "upload_error" TEXT DEFAULT '')
 table households: CREATE TABLE households ( id INTEGER PRIMARY KEY, name TEXT NOT NULL, address TEXT DEFAULT '', source TEXT DEFAULT '', referred_by INTEGER REFERENCES households(id), notes TEXT DEFAULT '', demo INTEGER DEFAULT 0, created TEXT DEFAULT CURRENT_TIMESTAMP, "company" TEXT DEFAULT '')
 table id_marks: CREATE TABLE id_marks (name TEXT PRIMARY KEY, n INTEGER NOT NULL)
 table invoice_sent: CREATE TABLE invoice_sent (session_id INTEGER PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE, number TEXT NOT NULL, sig TEXT NOT NULL)

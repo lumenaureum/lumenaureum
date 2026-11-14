@@ -1,4 +1,3 @@
-// Setup steps: show the fields for the chosen storage kind, and test a connection before saving.
 (() => {
   const be = (p, v) => document.querySelectorAll('[data-be^="' + p + '"]').forEach(e =>
     e.classList.toggle('on', e.dataset.be === p + v || (v && e.dataset.be === p + 'any')));
@@ -18,8 +17,6 @@
     } catch (e) { out.textContent = 'No answer'; out.style.color = 'var(--crit)'; }
   }));
 })();
-// time zone: send the browser's own, and preselect it unless one was saved (data-keep: a saved zone, or in the
-// Settings prompt the machine's own TZ, wins)
 (() => {
   const tz = document.querySelector('select[name=timezone]');
   if (!tz) return;
@@ -30,3 +27,4 @@
   if (tz.dataset.keep && tz.value) return;
   if ([...tz.options].some(o => o.value === z)) tz.value = z;
 })();
+

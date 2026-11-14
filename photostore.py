@@ -1,22 +1,3 @@
-"""Photos uploaded into the app and sealed as they arrive.
-
-RAWs and edited exports are dropped onto the session page and uploaded in pieces. Each piece of the request body is
-read straight from the network and encrypted in memory before anything is written: there is no form parsing (which
-would spool large uploads to a temporary file), no plaintext temporary or partial file, and no file content in any log.
-
-On disk a photo is a series of records, each AES-256-GCM under the file's own random key:
-    "LAP1" | (4-byte length | ciphertext of up to 1 MiB of the photo) ...
-The nonce is the record number; the associated data names the file, the record number and whether it is the last
-record, so records can't be reordered, swapped between files, or cut short without the read failing. The file key
-lives in the database (itself encrypted), so the photo store holds nothing readable on its own. A data-key rotation
-also gives every photo a fresh key and rewrites its file (rekey), so an old database copy opens none of them.
-
-An upload interrupted part way resumes from the last whole record written; anything after it is cut off first.
-
-Each finished photo is mirrored, still encrypted, to the backup location (the second location when there is one, else
-the vault): one copy, kept while the photo is kept and deleted with it - a mirror, not a daily backup, so photos cost
-twice their size, not more. A photo whose local file is lost is fetched back from the mirror.
-"""
 import hashlib
 import os
 import re
@@ -29,9 +10,9 @@ _DATA = Path(os.environ.get("CRM_DB", Path(__file__).resolve().parent / "data" /
 PHOTOS_ROOT = Path(os.environ.get("CRM_PHOTOS_ROOT", _DATA / "photos"))
 ROOT = PHOTOS_ROOT / "sealed"
 MAGIC = b"LAP1"
-REC = 1 << 20                          # photo bytes per record
-PIECE = 8 * REC                        # bytes per upload request (the browser sends this much at a time)
-MAX_FILE = 4 << 30                     # 4 GB per file
+REC = 1 << 20
+PIECE = 8 * REC
+MAX_FILE = 4 << 30
 KINDS = {"raw": "RAWs", "export": "Edited exports"}
 
 SCHEMA = """CREATE TABLE IF NOT EXISTS photo_files (
@@ -43,9 +24,8 @@ CREATE TABLE IF NOT EXISTS photo_deleted (id TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS photo_orphans (id TEXT PRIMARY KEY, first_seen TEXT NOT NULL);"""
 UNIQUE = "CREATE UNIQUE INDEX IF NOT EXISTS photo_files_name ON photo_files(session_id, kind, name)"
 
-
 def migrate(con):
-    """One row per name: keep the most complete copy of any duplicate, then enforce it."""
+
     con.executescript(SCHEMA)
     for sid, kind, name in con.execute("""SELECT session_id, kind, name FROM photo_files GROUP BY session_id, kind, name
                                           HAVING COUNT(*) > 1""").fetchall():
@@ -56,21 +36,15 @@ def migrate(con):
     con.execute(UNIQUE)
     con.commit()
 
-
 def ensure_trail(con):
-    """key_trail: for each key a photo had before a rotation, a tag only that key could make (trail_tag). It lets
-    relink-photos tell a key the vault really issued from a key record anyone could write to the master PUBLIC key.
-    init_db adds the column; this is for the tools that open a database init_db may not have seen (rotate, relink)."""
+
     if "key_trail" not in [r[1] for r in con.execute("PRAGMA table_info(photo_files)")]:
         con.execute("ALTER TABLE photo_files ADD COLUMN key_trail TEXT DEFAULT '[]'")
 
-
 def trail_tag(fkey, fid):
-    """HMAC-SHA256 under a photo's key, over its id: proof that whoever wrote it held that key. One way: it reveals
-    nothing about the key."""
+
     import hmac
     return hmac.new(bytes.fromhex(fkey), b"lumen-aureum key trail|" + fid.encode(), hashlib.sha256).hexdigest()
-
 
 def key_trail(row):
     import json
@@ -80,36 +54,29 @@ def key_trail(row):
         return []
     return [x for x in t if isinstance(x, str)] if isinstance(t, list) else []
 
-
 class UploadError(ValueError):
     pass
 
-
 def clean_name(name):
-    """A file name as the photographer's computer had it, without any folder part or control characters."""
+
     name = re.sub(r"[\x00-\x1f\x7f/\\]", "_", (name or "").split("/")[-1].split("\\")[-1]).strip().lstrip(".")
     if not name:
         raise UploadError("A file needs a name.")
     return name[:200]
-
 
 def path_of(fid):
     if not re.fullmatch(r"[0-9a-f]{32}", fid or ""):
         raise UploadError("bad file id")
     return ROOT / fid[:2] / f"{fid}.lap"
 
-
 def _aad(fid, index, last):
     return f"{fid}:{index}:{'last' if last else 'more'}".encode()
-
 
 class DiskFull(UploadError):
     pass
 
-
 def _write_all(fd, data):
-    """Write every byte or raise: a short write (a full disk writes part of a record before refusing the rest) is never
-    counted as a whole record, so a resumed upload can't pad the file and leave it unreadable."""
+
     view = memoryview(data)
     while view:
         try:
@@ -124,19 +91,14 @@ def _write_all(fd, data):
             raise DiskFull("The photos folder is full. Free some space, then drop the file again.")
         view = view[n:]
 
-
 def _nonce(index):
     return b"\0\0\0\0" + index.to_bytes(8, "big")
-
 
 def key_path(fid):
     return path_of(fid).with_suffix(".key")
 
-
 def write_key(row, master_pub, label="", path=None):
-    """Beside the photo, its key and what it is, sealed to the master key: if the database is ever restored from a
-    backup older than the photo, the master key alone still opens it (vault.cli recover-photos). Rewritten whenever
-    the photo's key changes (a key rotation)."""
+
     import json
     import pyrage
     from vault import keys as VK
@@ -150,10 +112,8 @@ def write_key(row, master_pub, label="", path=None):
     tmp.write_bytes(pyrage.encrypt(body, [VK.recipient(master_pub)]))
     os.replace(tmp, p)
 
-
 def read_file_plain(path, fid, fkey, out, size=None):
-    """Decrypt a photo with only its file and key (no database row): records are read until the end of the file. With
-    the recorded size, the total must match it (the spec's check)."""
+
     aes = AESGCM(bytes.fromhex(fkey))
     total = 0
     with open(path, "rb") as f:
@@ -172,12 +132,8 @@ def read_file_plain(path, fid, fkey, out, size=None):
     if size is not None and total != int(size):
         raise ValueError("a sealed photo is not the size it was")
 
-
 def start(con, sid, kind, name, size, create=True, master_pub=None, label=""):
-    """The row for an upload. One name per session and kind: the same file resumes (or, finished, reports itself
-    done, so a lost reply on the last piece is not an error); a different file of that name is refused. Only the
-    status check creates a row (create=True); a piece arriving for a row that is gone (deleted meanwhile) is refused,
-    so a deleted photo never comes back."""
+
     if kind not in KINDS:
         raise UploadError("Unknown kind of photo.")
     name = clean_name(name)
@@ -190,7 +146,7 @@ def start(con, sid, kind, name, size, create=True, master_pub=None, label=""):
                        ON CONFLICT(session_id, kind, name) DO NOTHING""",
                     (secrets.token_hex(16), sid, kind, name, size, secrets.token_bytes(32).hex()))
         con.commit()
-        r = get()                                   # two at once: both get the same row
+        r = get()
         if r and r["received"] == 0:
             write_key(r, master_pub, label)
     if not r:
@@ -199,15 +155,11 @@ def start(con, sid, kind, name, size, create=True, master_pub=None, label=""):
         raise UploadError(f"A different {name} is already here. Delete it first to replace it.")
     return r
 
-
 class Gone(UploadError):
     pass
 
-
 def append(con, row, offset, stream, length):
-    """Encrypt `length` bytes read from `stream` (the request body) onto the file, starting at photo byte `offset`.
-    Only whole records (or the file's last, short one) are ever written; what was written is recorded even if the
-    stream breaks part way, so the next request resumes there. Returns bytes received so far."""
+
     fid, size = row["id"], row["size"]
     start_at = row["received"]
     if row["state"] != "partial" or offset != start_at:
@@ -218,11 +170,11 @@ def append(con, row, offset, stream, length):
     p.parent.mkdir(parents=True, exist_ok=True)
     aes = AESGCM(bytes.fromhex(row["fkey"]))
     index, received, ct_len = row["records"], row["received"], row["ct_len"]
-    fd = os.open(p, os.O_RDWR | (os.O_CREAT if row["ct_len"] == 0 else 0), 0o600)   # never recreate a deleted file
+    fd = os.open(p, os.O_RDWR | (os.O_CREAT if row["ct_len"] == 0 else 0), 0o600)
     import fcntl
-    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)  # one writer per file (the app also holds a per-file lock)
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     try:
-        os.ftruncate(fd, ct_len)                     # anything after the last recorded record is cut off
+        os.ftruncate(fd, ct_len)
         if ct_len == 0:
             _write_all(fd, MAGIC)
             ct_len = len(MAGIC)
@@ -244,9 +196,9 @@ def append(con, row, offset, stream, length):
                     ct_len += 4 + len(ct)
                     received += len(buf)
                     index += 1
-                    buf = bytearray()                 # the plaintext is dropped as soon as it is encrypted
+                    buf = bytearray()
                 elif left == 0:
-                    break                             # a piece that ends mid-record: the rest comes in the next request
+                    break
         finally:
             os.fsync(fd)
             done = received == size
@@ -254,22 +206,19 @@ def append(con, row, offset, stream, length):
                                  done_at=CASE WHEN ? THEN datetime('now') END WHERE id=? AND received=? AND state='partial'""",
                               (received, ct_len, index, "done" if done else "partial", done, fid, start_at))
             con.commit()
-            if cur.rowcount != 1:                    # moved on (or deleted) by someone else meanwhile: not ours to record
+            if cur.rowcount != 1:
                 raise UploadError("resume at -1")
     finally:
         os.close(fd)
     return received
 
-
 def read_plain(row, out):
-    """Decrypt a finished file into `out` (anything with write), record by record, checking every one."""
+
     for b in iter_plain(row):
         out.write(b)
 
-
 def iter_plain(row):
-    """The photo's bytes, record by record (for a download or a gallery build). Nothing is written to disk."""
-    # records are 1 MiB: read one at a time, so a 4 GB RAW never sits in memory at once
+
     aes = AESGCM(bytes.fromhex(row["fkey"]))
     if row["state"] != "done":
         raise UploadError("That file isn't complete yet.")
@@ -288,13 +237,10 @@ def iter_plain(row):
     if total != row["size"]:
         raise ValueError("a sealed photo is not the size it was")
 
-
 def plain_bytes(row):
     return b"".join(iter_plain(row))
 
-
 class PlainReader:
-    """A file-like reader over a sealed photo, for tar (sealing to the vault) without a plaintext copy."""
 
     def __init__(self, row):
         self._it, self._buf = iter_plain(row), b""
@@ -311,54 +257,46 @@ class PlainReader:
             out, self._buf = self._buf[:n], self._buf[n:]
         return out
 
-
 def files(con, sid, kind=None, done_only=False):
     sql = "SELECT * FROM photo_files WHERE session_id=?" + (" AND kind=?" if kind else "") + (" AND state='done'" if done_only else "")
     return con.execute(sql + " ORDER BY kind, name", (sid, kind) if kind else (sid,)).fetchall()
 
-
 def delete(con, row, commit=True):
-    """Remove one file: the bytes are overwritten before the file is unlinked, then its key is forgotten."""
+
     p = path_of(row["id"])
     try:
         n = p.stat().st_size
         with open(p, "r+b") as f:
-            f.write(b"\0" * min(n, 1 << 20))         # the head (and the whole of small files); the key going is what counts
+            f.write(b"\0" * min(n, 1 << 20))
             f.flush(); os.fsync(f.fileno())
         p.unlink()
     except FileNotFoundError:
         pass
     key_path(row["id"]).unlink(missing_ok=True)
     con.execute("DELETE FROM photo_files WHERE id=?", (row["id"],))
-    con.execute("INSERT OR IGNORE INTO photo_deleted (id) VALUES (?)", (row["id"],))   # its mirror copy goes next pass
+    con.execute("INSERT OR IGNORE INTO photo_deleted (id) VALUES (?)", (row["id"],))
     if commit:
         con.commit()
-
 
 def delete_session(con, sid):
     for r in con.execute("SELECT * FROM photo_files WHERE session_id=?", (sid,)).fetchall():
         delete(con, r, commit=False)
-    con.commit()                                       # one commit for the whole session
-
+    con.commit()
 
 def orphan_age(con, fids, days=30):
-    """Files no record points to (after a reset, or a restore to an earlier backup) can only be read with the database
-    copy that still has their keys, so they are kept for `days` counted from when they were FIRST SEEN without a record
-    - not from how old the file is. Returns the ids now old enough to remove; remembers when the rest were first seen."""
+
     from datetime import date, timedelta
     today_ = date.today()
     con.executemany("INSERT OR IGNORE INTO photo_orphans (id, first_seen) VALUES (?,?)", [(f, today_.isoformat()) for f in fids])
     cutoff = (today_ - timedelta(days=days)).isoformat()
     old = {r[0] for r in con.execute("SELECT id FROM photo_orphans WHERE first_seen <= ?", (cutoff,))}
-    con.execute("DELETE FROM photo_orphans WHERE id IN (SELECT id FROM photo_files)")      # back on record
+    con.execute("DELETE FROM photo_orphans WHERE id IN (SELECT id FROM photo_files)")
     con.commit()
     return [f for f in fids if f in old]
-
 
 def forget_orphans(con, fids):
     con.executemany("DELETE FROM photo_orphans WHERE id=?", [(f,) for f in fids])
     con.commit()
-
 
 def sweep_orphans(con, days=30):
     known = {r[0] for r in con.execute("SELECT id FROM photo_files")}
@@ -374,10 +312,8 @@ def sweep_orphans(con, days=30):
     forget_orphans(con, gone)
     return n
 
-
 def rekey(row, dst):
-    """Write the photo again under a fresh key to `dst`, record by record (nothing readable written). Returns
-    (new key hex, ciphertext length). Unfinished uploads are rewritten too, so they can still be resumed."""
+
     old = AESGCM(bytes.fromhex(row["fkey"]))
     new_key = secrets.token_bytes(32)
     new = AESGCM(new_key)
@@ -402,21 +338,13 @@ def rekey(row, dst):
         os.close(fd)
     return new_key.hex(), n
 
-
-# ---------------------------------------------------------------- sealing: one format from upload to vault
-# A sealed photo is the same encrypted file it was on upload, now in the vault, beside its key sealed to the master
-# key. Sealing copies both into the vault (verified), forgets the key in the database and deletes the local copy: the
-# app can no longer open it; the master key can, one photo at a time.
 VAULT_PREFIX = "p/"
-
 
 def vault_name(row):
     return f"{VAULT_PREFIX}{row['session_id']}/{row['id']}.lap"
 
-
 def seal_to_vault(con, rows, backends, master_pub, label=""):
-    """Seal finished photos (rows) into the vault. Returns how many. Each photo is copied and checked on every backend
-    before the app forgets its key; if anything fails, that photo stays as it was."""
+
     import io
     from vault import seal as VS
     n = 0
@@ -424,7 +352,7 @@ def seal_to_vault(con, rows, backends, master_pub, label=""):
         if r["state"] != "done":
             continue
         if not key_path(r["id"]).exists():
-            write_key(r, master_pub, label)                # older uploads: their sealed key is made now
+            write_key(r, master_pub, label)
         name = vault_name(r)
         with open(path_of(r["id"]), "rb") as f:
             lap = f.read() if r["ct_len"] < (64 << 20) else None
@@ -442,7 +370,7 @@ def seal_to_vault(con, rows, backends, master_pub, label=""):
                 raise IOError(f"the vault copy of {r['name']} did not verify")
             copies.append(bk)
         import hashlib
-        if lap is None:                                   # hashed in pieces: a 4 GB file never sits in memory
+        if lap is None:
             h_ = hashlib.sha256()
             with open(path_of(r["id"]), "rb") as f:
                 for piece in iter(lambda: f.read(1 << 20), b""):
@@ -454,17 +382,15 @@ def seal_to_vault(con, rows, backends, master_pub, label=""):
         VS.record(con, r["session_id"], "photo-key", name[:-4] + ".key",
                   [(b_, len(kb), hashlib.sha256(kb).hexdigest()) for b_ in copies])
         con.execute("UPDATE photo_files SET state='sealed', fkey='', mirrored=NULL WHERE id=?", (r["id"],))
-        con.execute("INSERT OR IGNORE INTO photo_deleted (id) VALUES (?)", (r["id"],))   # the mirror copy goes too
+        con.execute("INSERT OR IGNORE INTO photo_deleted (id) VALUES (?)", (r["id"],))
         con.commit()
         path_of(r["id"]).unlink(missing_ok=True)
         key_path(r["id"]).unlink(missing_ok=True)
         n += 1
     return n
 
-
 def open_sealed(con, sid, master_secret, backend, dest_dir, only=()):
-    """Open sealed photos of a session with the master key, one file at a time, into dest_dir (a reprint). `only`:
-    file names (or parts of them) to open; empty opens all. Returns how many were opened."""
+
     import io
     import json
     import pyrage
@@ -480,11 +406,11 @@ def open_sealed(con, sid, master_secret, backend, dest_dir, only=()):
         backend.get_stream(name[:-4] + ".key", kb)
         m = json.loads(pyrage.decrypt(kb.getvalue(), [ident]))
         if m.get("id") != r["id"] or int(m.get("session") or 0) != int(sid) or int(m.get("size") or -1) != int(r["size"]):
-            raise ValueError(f"the key record for {r['name']} belongs to another file")   # never trust a swapped record
+            raise ValueError(f"the key record for {r['name']} belongs to another file")
         out = _P(dest_dir) / r["kind"] / clean_name(r["name"])
         out.parent.mkdir(parents=True, exist_ok=True)
         tmp = out.with_name(out.name + ".lap")
-        with open(tmp, "wb") as f:                        # straight to disk: a 4 GB file never sits in memory
+        with open(tmp, "wb") as f:
             backend.get_stream(name, f)
         try:
             with open(out, "wb") as f:
@@ -494,15 +420,10 @@ def open_sealed(con, sid, master_secret, backend, dest_dir, only=()):
         n += 1
     return n
 
-
 MIRROR = "photos/"
 
-
 def mirror_pass(con, backend, audit=False):
-    """Copy each finished photo not yet mirrored (its ciphertext and sealed key, as stored), fetch back any whose local
-    file is gone, and remove mirror copies of photos that no longer exist. The `mirrored` mark is checked by size when it
-    is written, so an ordinary pass only looks at new photos; audit=True (once a day) re-checks every copy on the
-    backup location. Returns (copied, fetched, removed)."""
+
     copied = fetched = removed = 0
     rows = con.execute("SELECT * FROM photo_files WHERE state='done'").fetchall()
     for r in rows:
@@ -516,13 +437,13 @@ def mirror_pass(con, backend, audit=False):
                 tmp.unlink()
                 raise IOError(f"the mirror copy of {r['name']} is not the size it should be")
             os.replace(tmp, p)
-            kp = key_path(r["id"])                       # its sealed key comes back too: recovery without the database
-            if not kp.exists():                          # needs it
+            kp = key_path(r["id"])
+            if not kp.exists():
                 try:
                     with open(kp.with_name(kp.name + ".fetch"), "wb") as f:
                         backend.get_stream(MIRROR + f"{r['id']}.key", f)
                     os.replace(kp.with_name(kp.name + ".fetch"), kp)
-                except Exception:  # noqa: BLE001 - an older mirror without keys: the next upload pass reseals it
+                except Exception:
                     kp.with_name(kp.name + ".fetch").unlink(missing_ok=True)
             fetched += 1
             continue
@@ -530,7 +451,7 @@ def mirror_pass(con, backend, audit=False):
             continue
         with open(p, "rb") as f:
             backend.put_stream(name, f)
-        if key_path(r["id"]).exists():                 # its sealed key goes with it
+        if key_path(r["id"]).exists():
             with open(key_path(r["id"]), "rb") as f:
                 backend.put_stream(MIRROR + f"{r['id']}.key", f)
         if backend.stat(name) != r["ct_len"]:
@@ -540,18 +461,18 @@ def mirror_pass(con, backend, audit=False):
         con.commit()
         copied += 1
     deleted = [r[0] for r in con.execute("SELECT id FROM photo_deleted")]
-    for fid in deleted:                                 # deleted on purpose: the copy goes now
+    for fid in deleted:
         for ext in (".lap", ".key"):
             try:
                 if backend.stat(MIRROR + fid + ext) is not None:
                     backend.delete(MIRROR + fid + ext)
                     removed += ext == ".lap"
-            except Exception:  # noqa: BLE001 - tried again next pass
+            except Exception:
                 break
         else:
             con.execute("DELETE FROM photo_deleted WHERE id=?", (fid,))
     con.commit()
-    if audit:                                           # once a day: copies no record points to wait 30 days, then go
+    if audit:
         keep = {r["id"] for r in rows}
         strays = [n_[len(MIRROR):-4] for n_ in backend.list(MIRROR) if n_.endswith(".lap") and n_[len(MIRROR):-4] not in keep
                   and not con.execute("SELECT 1 FROM photo_files WHERE id=?", (n_[len(MIRROR):-4],)).fetchone()]
@@ -560,12 +481,11 @@ def mirror_pass(con, backend, audit=False):
             for ext in (".lap", ".key"):
                 try:
                     backend.delete(MIRROR + fid + ext)
-                except Exception:  # noqa: BLE001
+                except Exception:
                     pass
             removed += 1
         forget_orphans(con, old)
     return copied, fetched, removed
-
 
 def fingerprint(row):
     h = hashlib.sha256()

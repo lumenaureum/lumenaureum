@@ -1,9 +1,6 @@
-"""Schema versions: a new database records the 1.0 baseline; numbered steps run once, in order, in one transaction;
-a failing step leaves the database as it was; a database newer than the app is refused."""
 import pytest
 
 from helpers import fresh_modules, signed_in_client
-
 
 def fresh_app(tmp_path, monkeypatch, backups=None):
     for k, v in (("CRM_DB", "crm.db"), ("CRM_STORAGE_CFG", "storage.json"), ("CRM_PHOTOS_ROOT", "photos")):
@@ -15,13 +12,12 @@ def fresh_app(tmp_path, monkeypatch, backups=None):
     monkeypatch.setattr(B, "sealed_backup", lambda *a, **kw: (backups if backups is not None else []).append(kw.get("kind")))
     return A, c
 
-
 def test_baseline_and_numbered_steps(tmp_path, monkeypatch):
     taken = []
     A, c = fresh_app(tmp_path, monkeypatch, taken)
     con = A.connect()
     base = A.SCHEMA_VERSION
-    assert A._schema_version(con) == base                     # a fresh install starts at the current version
+    assert A._schema_version(con) == base
     con.close()
     ran = []
     monkeypatch.setattr(A, "SCHEMA_VERSION", base + 2)
@@ -30,11 +26,10 @@ def test_baseline_and_numbered_steps(tmp_path, monkeypatch):
     A.init_db()
     con = A.connect()
     assert ran == [1, 2] and A._schema_version(con) == base + 2 and con.execute("SELECT x FROM t2").fetchone()[0] == 1
-    assert taken == ["upgrade"]                              # a sealed backup came first
+    assert taken == ["upgrade"]
     con.close()
     A.init_db()
-    assert ran == [1, 2]                                     # never twice
-
+    assert ran == [1, 2]
 
 def test_failed_step_changes_nothing(tmp_path, monkeypatch):
     A, c = fresh_app(tmp_path, monkeypatch)
@@ -51,7 +46,6 @@ def test_failed_step_changes_nothing(tmp_path, monkeypatch):
     assert not con.execute("SELECT 1 FROM sqlite_master WHERE name='half'").fetchone()
     con.close()
 
-
 def test_newer_database_is_refused(tmp_path, monkeypatch):
     A, c = fresh_app(tmp_path, monkeypatch)
     con = A.connect()
@@ -59,7 +53,6 @@ def test_newer_database_is_refused(tmp_path, monkeypatch):
     con.commit(); con.close()
     with pytest.raises(A.SchemaTooNew):
         A.init_db()
-
 
 def test_no_upgrade_when_the_backup_fails(tmp_path, monkeypatch):
     A, c = fresh_app(tmp_path, monkeypatch)
@@ -76,9 +69,8 @@ def test_no_upgrade_when_the_backup_fails(tmp_path, monkeypatch):
     assert A._schema_version(con) == base and not con.execute("SELECT 1 FROM sqlite_master WHERE name='t9'").fetchone()
     con.close()
 
-
 def test_an_install_from_before_1_0_upgrades_with_a_backup(tmp_path, monkeypatch):
-    """A version-1 database (an early release candidate) moves to the current version, taking a sealed backup first."""
+
     taken = []
     A, c = fresh_app(tmp_path, monkeypatch, taken)
     con = A.connect()

@@ -75,7 +75,7 @@ list, filled in from your answers. Every client document prints **SAMPLE** (supp
 Documents, Review status; read each document's wording on its own page, change what you need, then press **Reviewed -
 remove SAMPLE**. Saving is not a review. Once reviewed, a document stays reviewed ("Revert to default" puts the shipped wording back, marked SAMPLE); a
 session type given its own wording is reviewed on its own. A settings file never brings reviews with it.
-- **Which law applies** fills the "The law of ___ applies" line in the agreement (for example, Pennsylvania).
+- **Which law applies** fills the "The law of ___ applies" line in the agreement (for example, Oregon).
 
 The agreement, release and other documents that come with Lumen Aureum are examples only. They are not legal advice, and the makers of Lumen Aureum make no promise that they suit your business or hold up where you work. Read them, change them for your business and the laws where you work, and have a lawyer review them before you use them. You are responsible for the documents you give your clients.
 

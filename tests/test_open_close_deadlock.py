@@ -1,5 +1,3 @@
-"""sqlcipher3 0.6 deadlocked the whole process when one thread closed a connection while another opened one (found
-under load). db.connect and close are serialized; three threads opening and closing for a few seconds keep going."""
 import os
 import secrets
 import sys
@@ -7,7 +5,6 @@ import threading
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 
 def test_open_and_close_from_many_threads_never_freezes(tmp_path):
     import db as D

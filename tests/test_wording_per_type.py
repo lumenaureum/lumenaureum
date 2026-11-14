@@ -1,4 +1,3 @@
-"""A session type can have its own agreement or release wording; other types keep the general wording (or the standard). It travels in the settings file, and an import with it clears the reviewed tick."""
 import json
 import os
 import sys
@@ -6,10 +5,9 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import fresh_modules, signed_in_client  # noqa: E402
+from helpers import fresh_modules, signed_in_client
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
-
 
 def _app(tmp_path, monkeypatch):
     for k, v in (("CRM_DB", "crm.db"), ("CRM_STORAGE_CFG", "storage.json"), ("CRM_PHOTOS_ROOT", "photos"), ("CRM_GALLERY_ROOT", "galleries")):
@@ -28,7 +26,6 @@ def _app(tmp_path, monkeypatch):
         p = A.create_session(1, "pet")
     return A, c, w, p
 
-
 def test_type_wording_stays_with_its_type(tmp_path, monkeypatch):
     A, c, w, p = _app(tmp_path, monkeypatch)
     c.post("/settings/wording/agreement?type=pet", data={"text": "# Animals\nYour pet [CLIENT] clause."}, environ_base=E)
@@ -40,7 +37,6 @@ def test_type_wording_stays_with_its_type(tmp_path, monkeypatch):
     assert "Wording for Pets only." in page
     c.post("/settings/wording/agreement?type=pet", data={"reset": "1"}, environ_base=E)
     assert "Your pet" not in c.get(f"/session/{p}/agreement", environ_base=E).data.decode()
-
 
 def test_type_wording_travels_and_clears_reviewed(tmp_path, monkeypatch):
     A, c, w, p = _app(tmp_path, monkeypatch)
@@ -54,9 +50,8 @@ def test_type_wording_travels_and_clears_reviewed(tmp_path, monkeypatch):
     if cleaned is not None:
         assert any(t.get("release_text") == "# Okay\nI agree, [PERSON]." for t in cleaned)
 
-
 def test_revert_terms_to_default(tmp_path, monkeypatch):
-    """A type's Revert to default puts its terms back to what ships and marks them SAMPLE again."""
+
     import importlib
     mod = importlib.import_module("test_wording_and_sending")
     A, c = mod._app(tmp_path, monkeypatch)

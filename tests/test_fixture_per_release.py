@@ -1,10 +1,7 @@
-"""Every released version has a saved database fixture, so the upgrade from it stays tested for good. Released means
-a dated heading in CHANGELOG.md ("## 1.0.0 (2026-11-13)"); the version being built (VERSION) needs none yet."""
 import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-
 
 def test_every_released_version_has_a_fixture():
     current = (ROOT / "VERSION").read_text().strip()
@@ -13,5 +10,5 @@ def test_every_released_version_has_a_fixture():
     missing = [v for v in released if v != current and not (ROOT / "tests" / "fixtures" / f"db-{v}" / "crm.db").exists()]
     assert not missing, (
         f"No database fixture for released version(s) {', '.join(missing)}. Before releasing, save one made by that "
-        "version's own code (see tools/make_fixture_100.py and tests/fixtures/db-1.0.0/README.md), and add an upgrade "
-        "test like tests/test_upgrade_from_100.py.")
+        "version's own code (tools/make_fixture.py --version <v>: add the version's scenario there; see "
+        "tests/fixtures/db-1.0.1/README.md), and add an upgrade test like tests/test_upgrade_from_101.py.")

@@ -3,16 +3,17 @@
 {% block body %}
 <div class="row"><h1 class="grow">New contact</h1></div>
 <form method="post" class="card f" style="max-width:640px;margin-top:16px">
-  <div class="f3"><input name="contact_name" maxlength="200" placeholder="Name" required autofocus><input type="email" name="email" maxlength="200" placeholder="Email"><input type="tel" name="phone" maxlength="200" placeholder="Phone"></div>
-  <div class="f3"><input name="contact_relation" list="rels" placeholder="Their role: mother, agent, owner...">
-    <span class="row" style="gap:6px"><span class="mute" style="font-size:12px">Their gender</span>{{ seg('contact_gender', ['F','M']) }}</span>
-    <span class="agebox"><input type="number" name="contact_age" min="0" max="120" placeholder="Their age (optional)"><label><input type="checkbox" name="contact_age_approx" value="1">approximate</label></span></div>
+  <div class="f3"><input name="contact_name" maxlength="200" placeholder="Name (required)" aria-label="Name" required autofocus><input type="email" name="email" maxlength="200" placeholder="Email" aria-label="Email"><input type="tel" name="phone" maxlength="200" placeholder="Phone" aria-label="Phone"></div>
+  <div class="f3"><input name="contact_relation" list="rels" placeholder="Role (mother, agent, owner)" aria-label="Role">
+    <span class="row" style="gap:6px"><span class="mute" style="font-size:12px" id="gender-l">Their gender</span>{{ seg('contact_gender', ['F','M'], by='gender-l') }}</span>
+    <span class="agebox"><input type="number" name="contact_age" min="0" max="120" placeholder="Age" aria-label="Age (optional)"><label><input type="checkbox" name="contact_age_approx" value="1">approximate</label></span></div>
   <datalist id="rels">{% for r in RELATIONS %}<option value="{{ r }}">{% endfor %}</datalist>
-  <input name="household_name" maxlength="200" placeholder="Family or company (blank: their name)">
-  <div class="f2"><input name="source" placeholder="How they found you">
-    <select name="referred_by"><option value="">Not referred</option>{% for h in households %}<option value="{{ h.id }}">{{ h.name }}</option>{% endfor %}</select></div>
-  <div class="row">{{ seg('channel', ['email','text','call','in person']) }}
-    <input name="note" class="grow" style="width:auto" placeholder="What they said"></div>
-  <div class="row"><button class="primary">Save contact</button><button name="then" value="inquiry">Save and start an inquiry</button></div>
+  <input name="household_name" maxlength="200" placeholder="Family or company (blank: their name)" aria-label="Family or company">
+  <div class="f2"><input name="source" placeholder="How they found you" aria-label="How they found you">
+    <select name="referred_by" aria-label="Referred by"><option value="">Not referred</option>{% for h in households %}<option value="{{ h.id }}">{{ h.name }}</option>{% endfor %}</select></div>
+  <div class="row">{{ seg('channel', ['email','text','call','in person'], label='How they got in touch') }}
+    <input name="note" class="grow" style="width:auto" placeholder="What they said" aria-label="What they said"></div>
+  <div class="row"><button class="primary" name="then" value="inquiry">Save and start an inquiry</button><button>Save contact only</button></div>
 </form>
 {% endblock %}
+

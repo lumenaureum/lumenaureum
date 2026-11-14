@@ -1,5 +1,3 @@
-"""Backups in-process (so coverage sees them): sealed_backup -> list -> restore round trip, pruning to KEEP, and the
-command line's listing and refusal to restore over an existing folder."""
 import io
 import json
 import os
@@ -11,8 +9,7 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import fresh_modules, unlock_new_install  # noqa: E402
-
+from helpers import fresh_modules, unlock_new_install
 
 def test_backup_restore_round_trip_and_cli(tmp_path, monkeypatch):
     store = tmp_path / "store"; store.mkdir(); (store / ".vault-root").write_text("")
@@ -28,7 +25,7 @@ def test_backup_restore_round_trip_and_cli(tmp_path, monkeypatch):
     con = A.connect()
     live = [r[0] for r in con.execute("SELECT DISTINCT name FROM vault_objects WHERE kind='db' AND deleted IS NULL")]
     con.close()
-    assert len(live) == 2 and names[0] not in live                       # pruned to KEEP
+    assert len(live) == 2 and names[0] not in live
     out = io.StringIO()
     with redirect_stdout(out):
         assert cli.main(["backups"]) == 0
@@ -38,18 +35,17 @@ def test_backup_restore_round_trip_and_cli(tmp_path, monkeypatch):
     import datakey, db
     k = datakey.unwrap_master(secret, ring_path=str(dest / "keyring.json"))
     assert db.connect(dest / "crm.db", key=k).execute("SELECT name FROM households").fetchone()[0] == "The Harlows"
-    assert (dest / "settings.json").exists() and (dest / "storage.json").exists()     # everything to recover after a loss
+    assert (dest / "settings.json").exists() and (dest / "storage.json").exists()
     assert json.loads((dest / "settings.json").read_text()).get("lumen_aureum_settings")
     assert (dest / "storage.json").read_bytes() == (tmp_path / "storage.json").read_bytes()
     only = tmp_path / "settings-only"
-    BK.restore(names[-1], secret, str(only), settings_only=True)          # settings on their own, to import
+    BK.restore(names[-1], secret, str(only), settings_only=True)
     assert sorted(p.name for p in only.iterdir()) == ["settings.json"]
     with pytest.raises(FileExistsError):
-        BK.restore(names[-1], secret, str(dest))                          # never over an existing folder
+        BK.restore(names[-1], secret, str(dest))
     with pytest.raises(Exception):
         BK.restore(names[-1], "AGE-SECRET-KEY-1" + "Q" * 58, str(tmp_path / "wrong"))
-    assert not (tmp_path / "wrong").exists()                              # a failed restore leaves nothing behind
-
+    assert not (tmp_path / "wrong").exists()
 
 def test_master_key_replacement(tmp_path, monkeypatch):
     store = tmp_path / "store"; store.mkdir(); (store / ".vault-root").write_text("")
@@ -65,9 +61,9 @@ def test_master_key_replacement(tmp_path, monkeypatch):
     K.session_pub(con, 1)
     new_secret, new_pub = K.generate_master()
     with pytest.raises(Exception):
-        K.replace_master(con, K.generate_master()[0], new_pub)          # a wrong old key changes nothing
+        K.replace_master(con, K.generate_master()[0], new_pub)
     assert K.replace_master(con, old, new_pub) == 1
-    K.session_identity(con, 1, new_secret)                              # the session key opens with the new key
+    K.session_identity(con, 1, new_secret)
     with pytest.raises(Exception):
         K.session_identity(con, 1, old)
     con.close()
@@ -76,7 +72,6 @@ def test_master_key_replacement(tmp_path, monkeypatch):
     assert datakey.unwrap_master(new_secret) == datakey.dk()
     with pytest.raises(ValueError):
         datakey.unwrap_master(old)
-
 
 def test_vault_page_back_up_now_list_and_check(tmp_path, monkeypatch):
     store = tmp_path / "store"; store.mkdir(); (store / ".vault-root").write_text("")
@@ -99,7 +94,6 @@ def test_vault_page_back_up_now_list_and_check(tmp_path, monkeypatch):
     c.post("/vault/check", data={"secret": "AGE-SECRET-KEY-1" + "Q" * 58}, environ_base=E)
     page = c.get("/vault", environ_base=E).get_data(as_text=True)
     assert "intact" not in page and "Backups:" in page
-
 
 def test_back_up_now_never_pushes_out_a_nightly(tmp_path, monkeypatch):
     store = tmp_path / "store"; store.mkdir(); (store / ".vault-root").write_text("")

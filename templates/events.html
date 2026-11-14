@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block body %}
+{% block title %}Events - Lumen Aureum{% endblock %}{% block body %}
 <div class="page-head"><div class="grow"><div class="kicker">Events</div><h1>Group events</h1>
   {% if contact %}<p class="mute">Add the event below; {{ contact.name }} is kept as its organizer contact.</p>{% endif %}</div></div>
 <div class="surface wrapx"><table class="data">
@@ -9,7 +9,8 @@
     <td class="opt mute">{{ e.venue }}</td><td class="n">{{ e.n }}</td></tr>
   {% else %}<tr><td colspan="4" class="empty">None yet</td></tr>{% endfor %}
   <tr><form method="post" id="enew">{% if contact %}<input type="hidden" name="contact" value="{{ contact.id }}">{% endif %}</form>
-    <td><input form="enew" type="date" name="date"></td><td><input form="enew" name="name" maxlength="200" placeholder="New event" required></td>
+    <td><input form="enew" type="date" name="date" aria-label="New event date"></td><td><input form="enew" name="name" maxlength="200" placeholder="New event" required></td>
     <td class="opt"><input form="enew" name="venue" maxlength="200" placeholder="Venue"></td><td class="n"><button form="enew">Add</button></td></tr>
   </tbody></table></div>
 {% endblock %}
+

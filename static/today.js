@@ -1,6 +1,5 @@
-// Today: pick a client, filter by the numbers, drag a client to a stage or a day.
 (() => {
-  /* ---- select: faces, people, shoots, numbers ---- */
+  
   async function select(key) {
     if (!key) return;
     const [k, id] = key.split(':');
@@ -20,7 +19,7 @@
   mark(sel);
   if (sel) { const op = document.querySelector('.client.open'); if (op) op.scrollIntoView({ block: 'start' }); }
 
-  /* ---- numbers filter the everyone list ---- */
+  
   const labels = { overdue: 'Clients with something late', week: 'Clients with something due this week', money: 'Clients who owe you', lead: 'Leads' };
   const attr = { overdue: 'late', week: 'week', money: 'money', lead: 'lead' };
   let on = null;
@@ -36,7 +35,7 @@
   document.querySelectorAll('.kpi').forEach(k => k.addEventListener('click', () => filter(k.dataset.filter)));
   const clr = document.querySelector('[data-clear]'); if (clr) clr.addEventListener('click', () => filter(on));
 
-  /* ---- drag: pointer events, so it works by mouse and by finger ---- */
+  
   let d = null;
   const target = (x, y) => {
     const el = document.elementFromPoint(x, y); const t = el && el.closest('[data-drop]');
@@ -89,3 +88,4 @@
     location.reload();
   });
 })();
+

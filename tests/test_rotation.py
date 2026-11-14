@@ -1,5 +1,3 @@
-"""Rotating the data key: refused while the app runs; afterwards the old key opens nothing, the password and the master
-key both open the new one, and the data is intact. A rotation interrupted before the swap blocks start until finished."""
 import os
 import sys
 
@@ -8,8 +6,7 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import TEST_PASSWORD, fresh_modules, unlock_new_install  # noqa: E402
-
+from helpers import TEST_PASSWORD, fresh_modules, unlock_new_install
 
 @pytest.fixture
 def install(tmp_path, monkeypatch):
@@ -25,16 +22,15 @@ def install(tmp_path, monkeypatch):
     con.commit(); con.close()
     return A, secret
 
-
 def test_rotation(install, monkeypatch):
     A, secret = install
     import datakey
     import rotate
     old = datakey.dk()
     with pytest.raises(rotate.AppRunning):
-        rotate.rotate(old, TEST_PASSWORD)                    # refused while the app runs
+        rotate.rotate(old, TEST_PASSWORD)
     monkeypatch.setattr(rotate, "app_running", lambda: False)
-    monkeypatch.setattr(rotate, "hold_exclusive", __import__("contextlib").nullcontext)   # the test process is the app
+    monkeypatch.setattr(rotate, "hold_exclusive", __import__("contextlib").nullcontext)
     rotate.rotate(old, TEST_PASSWORD)
     fresh_modules()
     import datakey as K2
@@ -45,28 +41,25 @@ def test_rotation(install, monkeypatch):
     assert new and new != old and K2.unwrap_master(secret) == new
     assert db.connect(key=new).execute("SELECT name FROM households").fetchone()[0] == "Harlow Family"
 
-
 def test_interrupted_rotation_blocks_start_until_finished(install):
     A, secret = install
     import datakey
     import rotate
     import secrets
-    rotate.stage(datakey.dk(), secrets.token_bytes(32), TEST_PASSWORD)    # crash before the swap
+    rotate.stage(datakey.dk(), secrets.token_bytes(32), TEST_PASSWORD)
     fresh_modules()
     with pytest.raises(SystemExit):
-        import app  # noqa: F401
+        import app
     fresh_modules()
     import rotate as R
     R.finish()
     fresh_modules()
-    import app as A2  # noqa: F401
+    import app as A2
     import datakey as K2
     assert K2.unwrap_password(TEST_PASSWORD)
 
-
 def test_rotation_rekeys_uploaded_photos(install, monkeypatch):
-    """After a rotation every uploaded photo (finished or not) has a fresh key and a rewritten file: the old keys open
-    nothing, the new ones open the same photo, and an unfinished upload still resumes."""
+
     import io
     A, secret = install
     import datakey
@@ -84,7 +77,7 @@ def test_rotation_rekeys_uploaded_photos(install, monkeypatch):
     old_rows = {r["id"]: r for r in con.execute("SELECT * FROM photo_files").fetchall()}
     con.close()
     monkeypatch.setattr(rotate, "app_running", lambda: False)
-    monkeypatch.setattr(rotate, "hold_exclusive", __import__("contextlib").nullcontext)   # the test process is the app
+    monkeypatch.setattr(rotate, "hold_exclusive", __import__("contextlib").nullcontext)
     rotate.rotate(datakey.dk(), TEST_PASSWORD)
     fresh_modules()
     import datakey as K2
@@ -96,7 +89,7 @@ def test_rotation_rekeys_uploaded_photos(install, monkeypatch):
         assert new_rows[fid]["fkey"] != old["fkey"] and new_rows[fid]["mirrored"] is None
         if old["state"] == "done":
             with pytest.raises(Exception):
-                P2.plain_bytes(old)                                     # the old key opens nothing now
+                P2.plain_bytes(old)
             assert P2.plain_bytes(new_rows[fid]) == full
     r2n = new_rows[r2["id"]]
     assert P2.append(con, r2n, 1 << 20, io.BytesIO(part[1 << 20:]), len(part) - (1 << 20)) == len(part)

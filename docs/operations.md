@@ -20,8 +20,9 @@ older one refuses to open it: restore the **upgrade** backup made just before th
 folder and point `./data` at it. Copy `deletions.json` and `doc-numbers.json` from the current data folder into the
 new one, so clients deleted since the upgrade stay deleted and numbers don't repeat. (A version from before 1.0 reads
 these as `deletions.enc` and `doc-numbers.enc`, so on those, check the clients list and the next invoice number.)
-Going back from 1.0.1 to 1.0.0 is always this restore: 1.0.1 updates the database at its first sign-in (refunds
-recorded the 1.0.0 way become credits), and 1.0.0 refuses the updated database. Anything entered after the upgrade
+Going back to an earlier version is always this restore: each version that changes the database updates it at the
+first sign-in (1.0.1 turned refunds recorded the 1.0.0 way into credits; 1.1 added the gallery draft fields), and an
+earlier version refuses the updated database. Anything entered after the upgrade
 is not in that backup: note it before rolling back. A rollback cannot
 undo a leak: if you rolled back because of a security problem, also follow "If you suspect a compromise".
 
@@ -35,7 +36,7 @@ restoring the database the app fetches any photo missing from the photos folder 
 
 This section is the one place with the restore steps; docs/security.md points here.
 
-**The files.** A restore writes these into a new folder. Here is where each one goes:
+**The files.** A restore writes these into a new folder, each in the place shown:
 
 | File | What it is | Where it goes |
 |---|---|---|

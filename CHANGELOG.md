@@ -2,6 +2,47 @@
 
 New features, behavior changes, security fixes, and other fixes in each release.
 
+## 1.1.0 (2026-11-14)
+
+### Features
+
+- A menu across the top of every page: Today, Clients, Sessions, Calendar, and Finances.
+- Choose the gallery font and background color in Settings.
+- Add a logo for dark backgrounds.
+- Add a proof mark to gallery photos.
+- Copy a client's gallery link from the session page.
+- Client galleries have quick filters for retouch, suggested, and don't show.
+- Clients can remove a pick from the grid.
+- Clients can pick on one device and finish on another.
+- The session shows when a client is still picking.
+- Galleries credit your studio.
+
+### Behavior changes
+
+- Rebuilding a gallery that is already online updates it. The client's link stays the same.
+- Booked sessions show when the deposit or agreement is still open.
+- Times read the same way everywhere, like 4:10 pm.
+- Finances shows months like Oct 2026.
+- Clients are asked before leaving a gallery with unsent picks.
+- Right-click saving and dragging photos out of a gallery are off.
+- On phones, the large photo fills the screen and can be zoomed.
+
+### Fixed
+
+- A session could say Quoted while its page still said Inquiry.
+- Pressing Enter could choose the wrong button on some forms.
+- Adding a billing line lost your place on the page.
+- Every page now has its own title in the browser tab.
+- Screen readers now hear button names, form labels, and gallery picks.
+- Unsent picks stay on the right photos after a gallery is rebuilt.
+- Retouch instructions show when a client declined portfolio use.
+
+### Upgrading
+
+- Upgrading takes an encrypted backup first. To go back to 1.0.1, restore that backup; 1.0.1 won't open a 1.1.0 database.
+- Galleries built before 1.1.0 keep their look until you rebuild them.
+- Saving picks across devices works for galleries on a web host that runs PHP.
+
 ## 1.0.1 (2026-11-13)
 
 ### Features

@@ -1,5 +1,3 @@
-// Steps never overlap: measure each mark as drawn and give it the first row where it clears
-// every mark already there; the strip grows a row when it must. Runs again on resize (phone vs desktop widths).
 (() => {
   const ROW = 26, GAP = 6;
   const lay = (box, fromBottom) => {
@@ -19,7 +17,6 @@
   const run = () => { document.querySelectorAll('.j-past').forEach(b => lay(b, true)); document.querySelectorAll('.j-future').forEach(b => lay(b, false)); };
   run(); addEventListener('resize', run); document.fonts && document.fonts.ready.then(run);
 })();
-// Add with no line picked: say so beside the button (the server says the same if this script didn't run).
 document.addEventListener('submit', e => {
   const f = e.target; if (!f.matches || !f.matches('form.qnewf')) return;
   const sel = f.querySelector('select[name=fee_key]'), msg = f.querySelector('.qmsg');
@@ -28,8 +25,6 @@ document.addEventListener('submit', e => {
 document.addEventListener('change', e => {
   const f = e.target.form; if (f && f.matches('form.qnewf')) { const m = f.querySelector('.qmsg'); if (m) m.hidden = true; }
 });
-// Prepare quote: numbered and opened in its own window; a refusal (the quote changed meanwhile) shows here, in this
-// same tab, with the latest prices. Pressing it twice opens the same quote: the server never numbers it again.
 document.addEventListener('submit', async e => {
   const f = e.target; if (!f.matches || !f.matches('form[data-quote-send]')) return;
   e.preventDefault(); e.stopImmediatePropagation();
@@ -41,3 +36,4 @@ document.addEventListener('submit', async e => {
   } catch (_) {}
   location.reload();     // this tab now shows Open quote N, or the refusal with the latest prices
 }, true);
+

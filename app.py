@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-"""Lumen Aureum: a private back office for photographers. It runs on your own machine and only answers the
-networks you allow (by default: this machine and private networks)."""
 import importlib.util
 import ipaddress
 import json
@@ -10,7 +7,7 @@ import secrets
 import threading
 import datakey
 import db as dbmod
-from db import sqlite3   # SQLCipher, same API
+from db import sqlite3
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -19,22 +16,21 @@ from markupsafe import Markup
 
 import config as C
 import sun
+from formats import clock, month_label
 
-os.umask(0o077)       # everything the app creates (database, journal, faces, backups) is readable by its owner only
+os.umask(0o077)
 
 ROOT = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get("CRM_DB", ROOT / "data" / "crm.db"))
 
-
 def static_v(filename):
-    """Cache-buster: the file's mtime as ?v=, so a CSS edit reaches the browser without a hard refresh."""
+
     try:
         return int((ROOT / "static" / filename).stat().st_mtime)
     except OSError:
         return 0
 PORT = int(os.environ.get("CRM_PORT", "8780"))
-# Networks allowed to reach the app at all (the login is the real lock; this keeps it off the open internet).
-# CRM_ALLOW_ONLY replaces the default list, e.g. "127.0.0.0/8,100.64.0.0/10" to allow only a VPN.
+
 _DEFAULT_NETS = ["127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "fc00::/7"]
 ALLOW = [ipaddress.ip_network(n.strip()) for n in
          (os.environ.get("CRM_ALLOW_ONLY", "").split(",") if os.environ.get("CRM_ALLOW_ONLY") else _DEFAULT_NETS)
@@ -45,23 +41,19 @@ if netsec.startup_problem():
     raise SystemExit(netsec.startup_problem())
 from flask import Request as _Request
 
-
 class _MemRequest(_Request):
-    """Uploaded files in a form (face photos, the logo, a settings file) stay in memory: never spooled to a plaintext
-    temporary file on disk. Photos never come this way; they are read from the raw request and sealed as they arrive.
-    MAX_CONTENT_LENGTH caps the size."""
+
     def _get_file_stream(self, total_content_length=None, content_type=None, filename=None, content_length=None):
         import io as _io
         return _io.BytesIO()
 
-
 app = Flask(__name__)
 app.request_class = _MemRequest
-app.wsgi_app = netsec.ProxyGate(app.wsgi_app)          # forwarded headers believed only from CRM_TRUSTED_PROXIES
-app.config["MAX_CONTENT_LENGTH"] = 40 * 1024 * 1024   # face photos and forms
+app.wsgi_app = netsec.ProxyGate(app.wsgi_app)
+app.config["MAX_CONTENT_LENGTH"] = 40 * 1024 * 1024
 app.jinja_env.globals["static_v"] = static_v
 def _fee_short(label):
-    """'Senior portrait session (1.5 hr, up to 2 locations), every edited image included' -> 'Senior 1.5 hr'."""
+
     import re as _re
     lab = label.split(", every edited image")[0]
     m = _re.search(r"\(([^)]*)\)", lab)
@@ -72,57 +64,60 @@ def _fee_short(label):
         lab = lab.replace(a, b)
     return " ".join(x for x in (lab.strip(" ,"), dur) if x)
 app.jinja_env.filters["feeshort"] = _fee_short
+app.jinja_env.filters["clock"] = clock
+app.jinja_env.filters["month"] = month_label
 def credit_on():
     return setting("credit_off") != "1"
 
-
 app.jinja_env.globals["credit_on"] = credit_on
 app.jinja_env.filters["oneline"] = lambda t: ", ".join(l_.strip() for l_ in (t or "").splitlines() if l_.strip())
-app.jinja_env.filters["todo"] = lambda label: todo_word(label)   # open steps read as tasks, not states
+app.jinja_env.filters["todo"] = lambda label: todo_word(label)
 app.jinja_env.globals["setting"] = lambda k, d="": setting(k, d)
-
 
 def setup_done():
     try:
         return setting("setup_complete") == "1"
     except Exception:
-        return False                        # locked: no database to ask
-
+        return False
 
 SETTINGS_ENDPOINTS = {"settings_view", "wording_edit", "type_edit", "type_walk", "vault_view", "security", "setup_step", "about"}
 app.jinja_env.globals["setup_done"] = setup_done
 app.jinja_env.globals["SETTINGS_ENDPOINTS"] = SETTINGS_ENDPOINTS
+
+NAV = [("today", "Today", "home"), ("clients", "Clients", "clients"), ("sessions", "Sessions", "sessions"),
+       ("calendar", "Calendar", "month_view"), ("finances", "Finances", "money_view")]
+NAV_SECTION = {"home": "today", "focus_client": "today", "focus_event": "today",
+               "clients": "clients", "client_view": "clients", "client_stage": "clients", "contact_new": "clients",
+               "sessions": "sessions", "pipeline": "sessions", "session_view": "sessions", "inquiry": "sessions",
+               "events": "sessions", "event_view": "sessions",
+               "month_view": "calendar", "year_view": "calendar",
+               "money_view": "finances", "fees_view": "finances"}
+app.jinja_env.globals["NAV"] = NAV
+app.jinja_env.globals["NAV_SECTION"] = NAV_SECTION
 C.galleries_on = lambda: bool(setting("gallery_base_url"))
 def _setting_anywhere(k):
     try:
         return setting(k)
-    except RuntimeError:                                  # outside a request: read it in an app context, if unlocked
+    except RuntimeError:
         try:
             with app.app_context():
                 return setting(k)
-        except Exception:  # noqa: BLE001
+        except Exception:
             return ""
-
 
 C.pay_details = lambda: _setting_anywhere("pay_details")
 C.mileage_rate = lambda: _setting_anywhere("mileage_rate")
 
-
 def contact_bits():
-    """How a client reaches the photographer, for the top of every document: email, phone, mailing address."""
+
     return [b for b in (setting("business_email").strip(), setting("business_phone").strip(),
                         ", ".join(l_.strip() for l_ in setting("business_address").splitlines() if l_.strip())) if b]
 
-
 app.jinja_env.globals["contact_bits"] = contact_bits
 
-# Tables also made on their own by code that can open a database init_db has not seen yet (a restored backup, before
-# its first unlock): the deletion MAC key (_deletion_key) and the id marks (_db_id_mark).
 _SIDE_KEYS = "CREATE TABLE IF NOT EXISTS side_keys (name TEXT PRIMARY KEY, key TEXT NOT NULL)"
 _ID_TABLE = "CREATE TABLE IF NOT EXISTS id_marks (name TEXT PRIMARY KEY, n INTEGER NOT NULL)"
 
-# The core schema. init_db runs it, then adds the columns that came later, then the numbered MIGRATIONS
-# (see "schema versions" below for how to change any of it).
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS households (
   id INTEGER PRIMARY KEY, name TEXT NOT NULL, address TEXT DEFAULT '', source TEXT DEFAULT '',
@@ -193,48 +188,39 @@ CREATE TABLE IF NOT EXISTS quote_marks (vid INTEGER PRIMARY KEY REFERENCES quote
   session_id INTEGER, at TEXT NOT NULL);
 """ + _SIDE_KEYS + ";\n" + _ID_TABLE + ";\n"
 
-
-# ---------------------------------------------------------------- db helpers
-
 def db():
     if "db" not in g:
         g.db = connect()
     return g.db
 
-
 def connect():
-    """The encrypted database (db.py). Raises datakey.Locked until the owner has signed in since the last restart."""
+
     return dbmod.connect(DB_PATH)
 
-
-UNLOCKED_POSTS = {"photos_upload", "photos_status"}     # uploads: one writer per file instead (photostore, locks.photo)
-
+UNLOCKED_POSTS = {"photos_upload", "photos_status"}
 
 @app.before_request
 def _one_write_at_a_time():
-    """Saving requests take turns: two at once (a double click, two windows, an in-place save beside another) never
-    interleave their reads and writes. Uploads use their own per-file lock and don't wait here."""
+
     if request.method == "POST" and request.endpoint not in UNLOCKED_POSTS:
         import locks
         if not locks.WRITES.acquire(timeout=45):
             return "Busy finishing another change. Try again in a moment.", 503
         g.write_lock = True
-        g.tx = True                      # this request's changes commit together at the end, or not at all
-
+        g.tx = True
 
 @app.teardown_request
 def _release_write(_exc):
-    if g.pop("tx", None) and "db" in g:          # the request failed before it could commit: undo all of it
+    if g.pop("tx", None) and "db" in g:
         try:
             g.db.rollback()
             if g.pop("applied", None):
-                apply_settings()                  # the rules in memory follow the database again
+                apply_settings()
         except Exception:
             pass
     if g.pop("write_lock", None):
         import locks
         locks.WRITES.release()
-
 
 @app.teardown_appcontext
 def _close(_exc):
@@ -242,38 +228,31 @@ def _close(_exc):
     if con is not None:
         con.close()
 
-
 def q(sql, args=(), one=False):
     rows = db().execute(sql, args).fetchall()
     return (rows[0] if rows else None) if one else rows
 
-
 def _commit():
-    """Inside a saving request the changes wait for the end of the request (all or nothing); elsewhere (background
-    work, jobs, setup) each change commits at once."""
+
     if not g.get("tx"):
         db().commit()
     for k in ("wf_cache", "tot_cache", "needs_you"):
         g.pop(k, None)
-
 
 def x(sql, args=()):
     cur = db().execute(sql, args)
     _commit()
     return cur.lastrowid
 
-
 def setting(key, default=""):
     r = q("SELECT value FROM settings WHERE key=?", (key,), one=True)
     return r["value"] if r else default
 
-
 def d(s):
     return date.fromisoformat(s) if s else None
 
-
 def num(v, default=0.0, lo=-1e7, hi=1e7):
-    """A number typed into a form: a bad, infinite or NaN value gives the default; the result is kept in range."""
+
     try:
         n = float(str(v).replace(",", "").replace("$", "").strip()) if v not in (None, "") else default
     except ValueError:
@@ -282,24 +261,19 @@ def num(v, default=0.0, lo=-1e7, hi=1e7):
         return default
     return max(lo, min(hi, n))
 
-
 def safe_back(target):
-    """A "back" address from a form or link: local paths only, never another site (no open redirects)."""
+
     from urllib.parse import urlsplit
     t = (target or "").strip()
     if not t.startswith("/") or t.startswith("//") or "\\" in t or any(ord(c) < 32 or ord(c) == 127 for c in t):
-        return None                          # a TAB or newline is dropped by browsers: "/\t/evil" would become "//evil"
+        return None
     u = urlsplit(t)
     return t if not u.scheme and not u.netloc else None
 
-
 def trailing_age(s, commas=True, newline_ok=False):
-    """A name typed with an age after it: "Ada (7)", "Ada 7", "Ada, 7" -> ("Ada", "7"); None when it doesn't end in a
-    one- or two-digit number. The same answer as the pattern  ^(.*?)[\\s,(]+(\\d{1,2})\\s*\\)?$  (with commas=False:
-    ^(.*?)[\\s(]+(\\d{1,2})\\)?$ ), worked from the end in one pass: that pattern took seconds on a long run of tabs.
-    newline_ok: the name part may hold a newline (as re.sub with the pattern's tail allowed)."""
+
     sep = (lambda c: c.isspace() or c in ",(") if commas else (lambda c: c.isspace() or c == "(")
-    t = s[:-1] if s.endswith("\n") else s          # "$" also matches before one final newline
+    t = s[:-1] if s.endswith("\n") else s
     t = t[:-1] if t.endswith(")") else t
     if commas:
         t = t.rstrip()
@@ -311,34 +285,30 @@ def trailing_age(s, commas=True, newline_ok=False):
     j = k
     while j > 0 and sep(t[j - 1]):
         j -= 1
-    return (t[:j], t[k:]) if j < k and (newline_ok or "\n" not in t[:j]) else None   # "." never matched a newline
-
+    return (t[:j], t[k:]) if j < k and (newline_ok or "\n" not in t[:j]) else None
 
 def today():
     return datetime.now(TZ).date()
 
-
-# ---------------------------------------------------------------- plugins
-
 class Hooks:
-    """What a plugin can attach to. See plugins/README.md."""
 
     def __init__(self):
-        self.nav = []             # (label, endpoint)
-        self.session_panels = []  # fn(session_row) -> html or None (shown under Details)
-        self.session_tabs = []    # fn(session_row) -> (label, count_or_None, html) or None
-        self.today = []           # fn() -> [dict(text=, link=, kind=)]
-        self.steps = []           # fn(session_row) -> [(stage, label, done, tab)]  extra workflow steps
-        self.step_actions = []    # fn(step_label, session_row) -> dict(verb=, href=) or None: dashboard verb for a step
-        self.stage_blocks = []    # fn(session_row) -> [(title, html)]: sections in the client screen's right column
+        self.nav = []
+        self.session_panels = []
+        self.session_tabs = []
+        self.today = []
+        self.steps = []
+        self.step_actions = []
+        self.stage_blocks = []
+        self.step_notes = []
+        self.session_actions = []
         self.on = {"session_created": [], "stage_changed": [], "gallery_window_changed": []}
-        self.guards = {}          # action -> [fn(proceed, **details) -> bool]: True = the plugin holds the action and calls proceed() later
-        self.detail_locations = []   # fn(session) -> [dict(time=, name=, town=, what=, light=)] or None: locations on the client details sheet
-        self.search = []          # fn(term) -> [dict(title=, rows=[dict(text=, sub=, link=)])]: extra search results
-        self.step_icons = []      # (words, Material Symbol) checked before the built-in icons
-        self.step_labels = {}     # step title -> short label for tiles (TODO_WORDS for a plugin's own steps)
-        # A regional sales-tax rule (Settings > Sales tax > Regional): dict(name=, areas=[(key, label)],
-        # area_of=fn(client address) -> (area, warning), extra_pct=fn(area, local_pct_setting) -> % added to the base)
+        self.guards = {}
+        self.detail_locations = []
+        self.search = []
+        self.step_icons = []
+        self.step_labels = {}
+
         self.tax_region = None
 
     def fire(self, name, *args):
@@ -346,15 +316,13 @@ class Hooks:
             fn(*args)
 
     def guard(self, action, proceed, **details):
-        """True when a plugin has taken the action over (it will call proceed() itself, or not at all)."""
-        return any(fn(proceed, **details) for fn in self.guards.get(action, []))
 
+        return any(fn(proceed, **details) for fn in self.guards.get(action, []))
 
 hooks = Hooks()
 
-
 def _stale_clients():
-    """Retention for client records: anyone whose last session ended CLOSED_CLIENT_YEARS ago is offered for deletion."""
+
     cutoff = (today() - timedelta(days=365 * C.CLOSED_CLIENT_YEARS)).isoformat()
     rows = q("""SELECT h.id, h.name FROM households h WHERE COALESCE(h.demo, 0)=0
                 AND NOT EXISTS (SELECT 1 FROM sessions s WHERE s.household_id=h.id AND (s.stage NOT IN ('closed','lost')
@@ -363,12 +331,9 @@ def _stale_clients():
     return [dict(text=f"{r['name']}: nothing open for {C.CLOSED_CLIENT_YEARS} years. Review and delete their record?",
                  link=url_for("client_view", hid=r["id"]) + "#their-data") for r in rows]
 
-
 hooks.today.append(_stale_clients)
 
-
-UNLOCK_HOOKS = []       # run in order at unlock: core schema first, then plugins (see on_unlock at the end)
-
+UNLOCK_HOOKS = []
 
 class PluginContext:
     def __init__(self, name):
@@ -377,19 +342,20 @@ class PluginContext:
         self.render = render_template
         self.C, self.nice = C, nice
         self.audit, self.advance, self.connect = audit, advance, connect
-        self.add_column = dbmod.add_column        # ALTER TABLE ... ADD COLUMN with every part checked
-        self.safe_back = safe_back                # a "back" address from a form: local paths only
+        self.add_column = dbmod.add_column
+        self.safe_back = safe_back
         self.release_blocked, self.money = release_blocked, money
+        self.licensed = licensed
         self.html_pdf = lambda html_, name_: html_pdf(html_, name_)
-        self.next_id = lambda table_: next_id(table_)  # the id for a new task (never one a deleted task had)
+        self.next_id = lambda table_: next_id(table_)
 
     @staticmethod
     def csp(extra=""):
-        """The Content-Security-Policy, with extra script sources (e.g. " 'sha256-...'") for a page a plugin serves."""
+
         return CSP.format(extra=extra)
 
     def migrate(self, sql):
-        """Schema for the plugin. Runs at unlock (the database can't be opened before the owner signs in)."""
+
         def run():
             con = connect()
             con.executescript(sql)
@@ -398,7 +364,7 @@ class PluginContext:
         UNLOCK_HOOKS.append(run)
 
     def on_unlock(self, fn):
-        """Run fn once the database is open (after the first sign-in since a restart). Usable as a decorator."""
+
         UNLOCK_HOOKS.append(fn)
         return fn
 
@@ -406,31 +372,27 @@ class PluginContext:
     def unlocked():
         return datakey.is_unlocked()
 
-
 PLUGIN_DIRS = [ROOT / "plugins"] + [Path(p_) for p_ in os.environ.get("CRM_PLUGIN_DIRS", "").split(os.pathsep) if p_.strip()]
-# Core parts that ship as plugin files but can't be switched off: the documents promise what they do (unedited files
-# sealed, then deleted on the agreed day). Retention is core; online galleries stay optional.
+
 CORE_PLUGINS = {"retention"}
 DISABLED_PLUGINS = {n.strip() for n in os.environ.get("CRM_PLUGINS_OFF", "").split(",") if n.strip()} - CORE_PLUGINS
 
-
 def load_plugins():
-    """Every *.py in plugins/ and in each folder listed in CRM_PLUGIN_DIRS (your own plugins, kept outside this code),
-    in name order per folder; files starting with _ and names in CRM_PLUGINS_OFF are skipped."""
+
     loaded = []
     for path in (p_ for d_ in PLUGIN_DIRS if d_.is_dir() for p_ in sorted(d_.glob("*.py"))):
         if path.name.startswith("_") or path.stem in DISABLED_PLUGINS or path.stem in loaded:
             continue
         if path.stem in CORE_PLUGINS and path.parent != ROOT / "plugins":
-            continue                                    # a core part is never replaced by a file of the same name
+            continue
         spec = importlib.util.spec_from_file_location(f"plugins.{path.stem}", path)
         mod = importlib.util.module_from_spec(spec)
         try:
             spec.loader.exec_module(mod)
             mod.register(PluginContext(path.stem))
-        except Exception as e:  # noqa: BLE001 - a broken plugin of your own never stops the app from starting
+        except Exception as e:
             if path.parent == ROOT / "plugins":
-                raise                                   # the built-in ones must work
+                raise
             app.logger.exception("plugin %s failed to load", path)
             PLUGIN_ERRORS.append(f"{path.name}: {type(e).__name__}")
             continue
@@ -439,17 +401,12 @@ def load_plugins():
                                    label=f"{path.parent.name}/{path.stem}"))
     return loaded
 
-
-PLUGIN_ERRORS = []      # your plugins that failed to load at this start (shown in Settings)
-PLUGINS_LOADED = []     # every plugin loaded at this start: on About (signed in) and in the startup log
-
-
-# ---------------------------------------------------------------- audit: every change, when, and why
+PLUGIN_ERRORS = []
+PLUGINS_LOADED = []
 
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-TZ = ZoneInfo("UTC")   # replaced by the Settings time zone (apply_settings)
-HOST_TZ = os.environ.get("TZ", "")   # the machine's or container's own TZ, read before apply_settings sets it
-
+TZ = ZoneInfo("UTC")
+HOST_TZ = os.environ.get("TZ", "")
 
 def audit(action, sid=None, hid=None, eid=None, note="", who="Owner", route="", data=""):
     if sid and not hid:
@@ -459,19 +416,16 @@ def audit(action, sid=None, hid=None, eid=None, note="", who="Owner", route="", 
     x("INSERT INTO audit (at, household_id, session_id, event_id, action, note, who, route, data) VALUES (?,?,?,?,?,?,?,?,?)",
       (datetime.now(TZ).strftime("%Y-%m-%d %H:%M:%S"), hid, sid, eid, action, note or "", who, route, data))
 
-
 def _title(tid):
     r = q("SELECT title, session_id, event_id, done FROM tasks WHERE id=?", (tid,), one=True)
     return r
-
 
 def _old_date(sid):
     r = q("SELECT shoot_date FROM sessions WHERE id=?", (sid,), one=True) if sid else None
     return r["shoot_date"] if r else None
 
-
 def describe(ep, va, f):
-    """A plain sentence for what this POST is about to do, plus who it concerns. Computed before the change."""
+
     sid, hid, eid = va.get("sid"), va.get("hid"), va.get("eid")
     act = None
     if ep == "task_toggle":
@@ -487,7 +441,7 @@ def describe(ep, va, f):
         outcome = OUTCOMES.get(f.get("outcome"), f.get("outcome"))
         said = (f.get("said_at") or "").replace("T", " ")
         if said:
-            g.said_prefix = f"Said {nice(said[:10])}, {ampm(said[11:16])}. "
+            g.said_prefix = f"Said {nice(said[:10])}, {clock(said[11:16])}. "
         if f.get("task"):
             t = _title(int(f["task"]))
             if t:
@@ -504,7 +458,7 @@ def describe(ep, va, f):
                "extend": "Gave the gallery its one extension",
                "stage": f"Moved to {C.STAGE_LABELS.get(f.get('stage'), f.get('stage'))}",
                "date": (f"Moved the shoot from {nice(_old_date(sid))} to {nice(f.get('shoot_date'))}" if _old_date(sid) else
-                        f"Set the shoot date to {nice(f.get('shoot_date'))}") + (f", {ampm(f.get('start_time'))}" if f.get("start_time") else ""),
+                        f"Set the shoot date to {nice(f.get('shoot_date'))}") + (f", {clock(f.get('start_time'))}" if f.get("start_time") else ""),
                "favorites": f"Recorded the client's portfolio suggestions: {f.get('favorites', '')}" + (f" (don't show: {f['veto']})" if f.get("veto") else "")}.get(a)
     elif ep == "session_stage":
         act = f"Moved to {C.STAGE_LABELS.get(f.get('stage'), f.get('stage'))}"
@@ -548,7 +502,7 @@ def describe(ep, va, f):
         r = q("SELECT * FROM " + dbmod.ident(table) + " WHERE id=?", (va["rid"],), one=True) if table else None
         if r:
             sid = r["session_id"]
-            if table == "payments":                      # payments are never deleted: voided (kept, struck through) or restored
+            if table == "payments":
                 want_ = f.get("set")
                 void_ = (want_ == "void") if want_ in ("void", "restore") else not r["voided"]
                 act = f"{'Voided' if void_ else 'Restored'} the {money(abs(r['amount']))} {r['kind'] or 'payment'}" + (
@@ -628,8 +582,6 @@ def describe(ep, va, f):
         act = EP_WORDS.get(ep) or app.config.get("ep_words", {}).get(ep) or ep.replace("_", " ").capitalize()
     return act, sid, hid, eid
 
-
-# plain sentences for History
 EP_WORDS = {"quote_send": "Prepared the quote to send", "quote_fee": "Added a fee to the quote", "quote_discount": "Set the discount", "type_walk": "Walked through a session type's settings", "walk_dismiss": "Dismissed the settings walkthrough", "portfolio_set": "Changed portfolio permission",
             "quote_requote": "Requoted at current fees", "quote_exempt": "Changed the sales tax setting",
             "upload_gallery_req": "Asked to upload the gallery", "build_gallery": "Started building the gallery",
@@ -640,14 +592,11 @@ EP_WORDS = {"quote_send": "Prepared the quote to send", "quote_fee": "Added a fe
             "quick": "Updated the session", "settings_import": "Imported settings from a file", "setup_hide_list": "Hid the finish-setting-up list", "contact_new": "Added a contact", "settings_reset": "Reset the database",
             "unconfirmed_keep": "Kept clients named in deletions that could not be confirmed"}
 
-
-QUIET_ENDPOINTS = {"gallery_status", "client_delete", "unconfirmed_apply", "vault_check", "vault_backup_now", "wording_edit"}   # client_delete writes its own nameless line   # plugins add theirs to app.config["quiet_endpoints"]
-
+QUIET_ENDPOINTS = {"gallery_status", "client_delete", "unconfirmed_apply", "vault_check", "vault_backup_now", "wording_edit"}
 
 @app.after_request
 def _commit_request(resp):
-    """Runs last (registered first): a saving request's changes, its History line and the stage moves it caused commit
-    together. A failed request (an error page) commits nothing."""
+
     if g.pop("tx", None) and "db" in g:
         if resp.status_code < 400:
             try:
@@ -661,11 +610,8 @@ def _commit_request(resp):
                 apply_settings()
     return resp
 
-
 def _snapshot_signed():
-    """A signed agreement or release keeps the words it was signed with: the first save that sees it signed
-    stores the document as it read then, and every later view shows that copy. Unsigning moves the copy to
-    doc_snapshots_old (kept, never deleted). One document that fails is logged and skipped, never blocking the rest."""
+
     def store(kind, ref, view):
         try:
             data = json.dumps(view(ref), default=str)
@@ -687,40 +633,34 @@ def _snapshot_signed():
       (today().isoformat(),))
     x("DELETE FROM doc_snapshots WHERE " + gone)
 
-
 _SNAP_FAILED = set()
 
 def legacy_signed(kind, ref, v):
-    """A document signed before signed copies were kept shows today's wording: say so on screen."""
+
     r_ = q("SELECT data FROM doc_snapshots WHERE kind=? AND ref=?", (kind, ref), one=True)
     if r_ and '"legacy"' in r_["data"]:
         v = dict(v)
         v["legacy_signed"] = True
     return v
 
-
 def signed_copy(kind, ref):
-    """The stored copy of a signed agreement (ref = session) or release (ref = document), or None."""
+
     r_ = q("SELECT data FROM doc_snapshots WHERE kind=? AND ref=?", (kind, ref), one=True)
     if not r_:
         return None
     v = json.loads(r_["data"])
-    if v.get("legacy"):                       # signed before copies were kept: the live document, as before
+    if v.get("legacy"):
         return None
     v["custom"] = Markup(v.get("custom") or "")
     v["unsigned"] = False
     return v
 
-
 DATE_FIELDS = ("shoot_date", "received", "signed_on", "on", "date", "gallery_built", "letter_mailed", "first_visit",
                "sd_shipped", "asked_on", "due", "event_date")
 
-
 @app.before_request
 def _session_exists():
-    """A save for a session, client, step, or event that is gone (a tab left open on it after it was deleted) changes nothing: it
-    gets a page saying so, never a half-done save or an error. Ids are never reused (next_id), so the number can't
-    belong to anyone else. A number never issued at all is a plain 404."""
+
     if not datakey.is_unlocked() or request.endpoint in (None, "static"):
         return None
     va_, f_ = request.view_args or {}, (request.form if request.method == "POST" else {})
@@ -730,7 +670,7 @@ def _session_exists():
         if request.endpoint == "close_step":
             asks.append(("tasks", f_.get("task")))
     elif request.endpoint not in ("session_view", "client_view", "client_stage", "event_view"):
-        return None                                      # other pages (PDFs, images) keep their plain 404
+        return None
     for table_, id_ in asks:
         if id_ is None or not str(id_).isdigit():
             continue
@@ -742,13 +682,11 @@ def _session_exists():
             abort(404)
     return None
 
-
 @app.before_request
 def _dates_are_real():
-    """A typed date must be a real day between 1900 and 2100, or the save is refused with the form intact rather than
-    failing part way (a year like 9999 overflowed the due-date arithmetic)."""
+
     if request.method != "POST" or not request.form or not _allowed(request.remote_addr) or not _same_origin():
-        return None                                       # refused anyway, by the network and origin checks below
+        return None
     for k_ in DATE_FIELDS:
         v_ = (request.form.get(k_) or "").strip()
         if not v_:
@@ -764,12 +702,10 @@ def _dates_are_real():
             return redirect(safe_back(request.form.get("back")) or safe_back(request.referrer and urlparse_path(request.referrer)) or url_for("home"))
     return None
 
-
 def urlparse_path(u):
     from urllib.parse import urlsplit
     p_ = urlsplit(u)
     return p_.path + (("?" + p_.query) if p_.query else "")
-
 
 @app.before_request
 def _audit_before():
@@ -786,15 +722,14 @@ def _audit_before():
         app.logger.exception("audit describe failed")
         g.audit = (request.endpoint, None, None, None, "")
 
-
 @app.after_request
 def _audit_after(resp):
     a = g.pop("audit", None)
     if a:
-        g.touched_sid = a[1]                 # the session this action touched: only it is advanced afterwards
-    if a and a[0] and resp.status_code < 400 and not g.get("refused"):     # a refused action leaves no History line
+        g.touched_sid = a[1]
+    if a and a[0] and resp.status_code < 400 and not g.get("refused"):
         act, sid, hid, eid, note = a
-        note = g.pop("audit_note", None) or note          # a route may add detail to its own History line
+        note = g.pop("audit_note", None) or note
         if request.endpoint == "inquiry" and not hid:
             r = q("SELECT id, household_id FROM sessions ORDER BY id DESC LIMIT 1", one=True)
             sid, hid = (r["id"], r["household_id"]) if r else (None, None)
@@ -804,9 +739,6 @@ def _audit_after(resp):
             app.logger.exception("audit write failed")
     return _advance_after_post(resp)
 
-
-# ---------------------------------------------------------------- access
-
 def _allowed(addr):
     try:
         ip = ipaddress.ip_address(addr)
@@ -814,16 +746,13 @@ def _allowed(addr):
         return False
     return any(ip in n for n in ALLOW)
 
-
 SHORT_FIELDS = {"name", "household_name", "contact_name", "email", "phone", "title", "label", "signer", "business_name",
                 "photographer_name", "studio_name", "business_email", "business_phone", "contact_email", "venue", "school"}
 SHORT_MAX, LONG_MAX = 200, 20000
 
-
 @app.before_request
 def input_limits():
-    """Every form field has a length limit at the boundary: names and contact details 200 characters, anything else
-    (notes, addresses, agreements) 20,000. Over the limit is refused, never silently cut."""
+
     if request.method != "POST" or not request.form:
         return None
     for k, v in request.form.items(multi=True):
@@ -832,7 +761,6 @@ def input_limits():
             return f"'{k[:40]}' is too long (the limit is {limit} characters).\n", 413
     return None
 
-
 @app.before_request
 def allowed_networks_only():
     if not _allowed(request.remote_addr) and not netsec.health_probe(request):
@@ -840,10 +768,8 @@ def allowed_networks_only():
     if request.method == "POST" and not _same_origin():
         abort(403)
 
-
 def _same_origin():
-    """CSRF guard: the network gate alone let any page open on an allowed device post a hidden form here
-    (reset, voids, uploads). Browsers say where a request came from; anything cross-site is refused."""
+
     sfs = request.headers.get("Sec-Fetch-Site")
     if sfs:
         return sfs in ("same-origin", "none")
@@ -851,51 +777,48 @@ def _same_origin():
     if src and src != "null":
         from urllib.parse import urlsplit
         return urlsplit(src).netloc == request.host
-    return src != "null"     # no browser provenance at all (scripts, tests): the IP gate decides
-
+    return src != "null"
 
 @app.context_processor
 def globals_():
     def take_notice():
-        """The failed-attempt notice, shown once by whichever layout renders it (and kept until one does)."""
+
         from flask import session as _fs
         return _fs.pop("notice", None)
 
     def import_result():
-        """What the last settings import did (kept until shown; a pending plugin list stays until answered)."""
+
         from flask import session as _fs
         r = _fs.get("import_result")
         if r and r.get("plugins") is None and not r.get("gallery"):
             _fs.pop("import_result", None)
         return r
     return dict(take_notice=take_notice, import_result=import_result, C=C, hooks=hooks, today=today(), stage_label=C.STAGE_LABELS,
-                type_label=C.SESSION_TYPES, money=money, nice=nice, light=light, face=face, ampm=ampm, OUTCOMES=OUTCOMES, sym_group=sym_group, delta3=timedelta(days=3),
+                type_label=C.SESSION_TYPES, money=money, nice=nice, light=light, face=face, clock=clock, month_label=month_label, OUTCOMES=OUTCOMES, sym_group=sym_group, delta3=timedelta(days=3),
                 who_is=who_is, age_of=age_of, age_label=age_label, RELATIONS=RELATIONS, edit_stamp=edit_stamp,
                 DOC_DISCLAIMER=__import__("wording").DISCLAIMER)
 
-
 def light(dstr, stype=None):
-    """'golden 4:24 - sunset 5:04' pieces for a date string, or None (also for a type shot indoors)."""
+
     if not dstr or (stype and stype in C.INDOOR_TYPES):
         return None
     try:
         g_, s_ = sun.evening(d(dstr[:10]))
     except ValueError:
         return None
-    return dict(golden=sun.fmt(g_), sunset=sun.fmt(s_))
-
+    if not g_ or not s_:
+        return None
+    return dict(golden=clock(g_), sunset=clock(s_), text=f"Golden hour {clock(g_)}, sunset {clock(s_)}")
 
 FACES = DB_PATH.parent / "faces"
-FACE_COLORS = ["#8a5a3c", "#5f7d5a", "#4f6b8a", "#7a5a86", "#8a6d2f", "#3f7a78", "#8a4b5b", "#5a6170"]
-
+FACE_COLORS = ["#8a5a3c", "#536d4f", "#4d6887", "#7a5a86", "#7c622a", "#386d6b", "#8a4b5b", "#5a6170"]
 
 def face(hid):
-    """Reference photo for a client, or initials on a steady color (worked out once per request per client)."""
+
     cache = g.setdefault("face_cache", {})
     if hid not in cache:
         cache[hid] = _face(hid)
     return cache[hid]
-
 
 def _face(hid):
     if not hid:
@@ -915,18 +838,16 @@ def _face(hid):
     initials = "".join(w[0] for w in (words[:1] + words[-1:] if len(words) > 1 else words)).upper() or "?"
     return dict(url=None, initials=initials, color=FACE_COLORS[hid % len(FACE_COLORS)])
 
-
 RELATIONS = ["mother", "father", "daughter", "son", "grandmother", "grandfather", "wife", "husband", "partner",
              "sister", "brother", "aunt", "uncle", "guardian", "self", "friend", "pet", "other"]
 PARENT_REL = {"mother", "father", "grandmother", "grandfather", "guardian", "aunt", "uncle"}
 CHILD_REL = {"daughter", "son"}
-ANIMAL_REL = {"pet", "dog", "cat", "horse", "pony", "rabbit", "bird", "animal", "puppy", "kitten"}   # never a minor or a signer
+ANIMAL_REL = {"pet", "dog", "cat", "horse", "pony", "rabbit", "bird", "animal", "puppy", "kitten"}
 GENDER_OF = {"mother": "F", "daughter": "F", "grandmother": "F", "wife": "F", "sister": "F", "aunt": "F",
              "father": "M", "son": "M", "grandfather": "M", "husband": "M", "brother": "M", "uncle": "M"}
 
-
 def age_of(p):
-    """Approximate age from the stored birth year, else from a graduation year (seniors finish at ~18)."""
+
     keys = p.keys() if hasattr(p, "keys") else p
     if "birth_date" in keys and p["birth_date"]:
         try:
@@ -941,9 +862,8 @@ def age_of(p):
         return 17 - (p["grad_year"] - school_end)
     return None
 
-
 def age_label(p):
-    """A baby's age in weeks or months from a birth date ('6 weeks', '4 months', 'due Mar 3'); else '~N' years."""
+
     keys = p.keys() if hasattr(p, "keys") else p
     bd = p["birth_date"] if "birth_date" in keys else None
     if bd:
@@ -965,9 +885,8 @@ def age_label(p):
         return ""
     return f"about {a_}" if ("age_approx" in keys and p["age_approx"]) else str(a_)
 
-
 def who_is(p):
-    """'Ava, daughter, F, ~17' - the bits that are known."""
+
     keys = p.keys()
     bits = [p["name"].split()[0] if len(p["name"].split()) > 1 else p["name"]]
     rel = p["relation"] if "relation" in keys else ""
@@ -981,27 +900,22 @@ def who_is(p):
         bits.append(a_)
     return ", ".join(bits)
 
-
 def majority_age():
-    """Age of majority where the photographer works (Settings; 18 unless set): minor status decides who signs."""
+
     try:
         return max(14, min(25, int(setting("age_majority") or 18)))
     except ValueError:
         return 18
 
-
 app.jinja_env.globals["majority_age"] = majority_age
 
-
 def person_fields(f, cur=None):
-    """Form -> (relation, gender, birth_year, role, is_minor, age_approx). Anything the form leaves blank keeps `cur`'s
-    value. The Minor box, wherever the form shows it, always wins; a typed age only fills it in. An approximate age near
-    the age of majority never decides minor status on its own."""
+
     rel = (f.get("relation") or "").strip().lower() or ((cur["relation"] or "") if cur else "")
     gender = f.get("gender") or GENDER_OF.get(rel, "") or ((cur["gender"] or "") if cur else "")
     age = str(f.get("age") or "").strip()
     if age.isdigit() and cur is not None and age_of(cur) == int(age):
-        by = cur["birth_year"]             # the age shown, saved back unchanged: never shift the birth year (a January save)
+        by = cur["birth_year"]
     else:
         by = today().year - int(age) if age.isdigit() else (cur["birth_year"] if cur else None)
     if rel in ANIMAL_REL:
@@ -1022,40 +936,27 @@ def person_fields(f, cur=None):
         minor = 1
     else:
         minor = cur["is_minor"] if cur else 0
-    if role == "pet":                     # a 12-year-old dog is not a child: no guardian clause, no "school"
+    if role == "pet":
         return rel, gender, by, role, 0, approx
     if age.isdigit() and approx and abs(int(age) - maj) <= 2 and not f.get("minor_shown"):
         session["notice"] = f"About {age}: tick Minor if they are under {maj}. An approximate age doesn't decide it."
     return rel, gender, by, role, minor, approx
 
-
 def _past_day(s):
-    """A real date, today or earlier."""
+
     try:
         return date.fromisoformat(str(s)[:10]) <= today()
     except ValueError:
         return False
 
-
 def now_local():
     return datetime.now(TZ).strftime("%Y-%m-%d %H:%M:%S")
 
-
-def ampm(hhmm):
-    """'16:10' -> '4:10 pm'."""
-    try:
-        h, m = (int(x) for x in hhmm.split(":")[:2])
-    except (ValueError, AttributeError):
-        return hhmm or ""
-    return f"{(h - 1) % 12 + 1}:{m:02d} {'am' if h < 12 else 'pm'}"
-
-
 def money(v):
-    """$1,250 or $12.50; a negative amount reads -$125 (never $-125)."""
+
     v = round(float(v or 0), 2)
     a = abs(v)
     return ("-" if v < 0 else "") + (f"${a:,.0f}" if a.is_integer() else f"${a:,.2f}")
-
 
 def nice(s):
     if not s:
@@ -1066,9 +967,6 @@ def nice(s):
     except ValueError:
         return s
 
-
-# ---------------------------------------------------------------- domain logic
-
 def session_full(sid):
     s = q("""SELECT s.*, h.name AS household, h.address AS address, e.name AS event_name FROM sessions s
              JOIN households h ON h.id = s.household_id LEFT JOIN events e ON e.id = s.event_id
@@ -1077,23 +975,17 @@ def session_full(sid):
         abort(404)
     return s
 
-
-# ---------------------------------------------------------------- quotes
-
 def current_schedule():
     r = q("SELECT * FROM fee_schedules ORDER BY id DESC LIMIT 1", one=True)
     return dict(id=r["id"], created=r["created"], note=r["note"], items=json.loads(r["items"]))
-
 
 def schedule(sched_id):
     r = q("SELECT * FROM fee_schedules WHERE id=?", (sched_id,), one=True)
     return dict(id=r["id"], created=r["created"], note=r["note"], items=json.loads(r["items"])) if r else None
 
-
 def quote_term():
     v = setting("quote_term_days")
     return int(v) if str(v).isdigit() else C.QUOTE_TERM_DAYS
-
 
 def quote_of(sid):
     r = q("SELECT * FROM quotes WHERE session_id=?", (sid,), one=True)
@@ -1104,12 +996,10 @@ def quote_of(sid):
     d_["schedule"] = schedule(d_["schedule_id"])
     return d_
 
-
 def ensure_quote(sid):
     if not q("SELECT 1 FROM quotes WHERE session_id=?", (sid,), one=True):
         x("INSERT INTO quotes (session_id, schedule_id, created, expires) VALUES (?,?,?,?)",
           (sid, current_schedule()["id"], now_local(), (today() + timedelta(days=quote_term())).isoformat()))
-
 
 def fee_amount(item, qty):
     unit = float(item["amount"] or 0)
@@ -1117,22 +1007,18 @@ def fee_amount(item, qty):
         unit = float(setting("mileage_rate") or 0)
     return unit, round(unit * qty, 2)
 
-
 def reapply_discount(sid):
-    """Discount then tax: both are generated lines, rebuilt whenever the quote changes, so totals stay a plain sum."""
+
     _reapply_portfolio(sid)
     _reapply_discount(sid)
     reapply_tax(sid)
     _invoice_still_sent(sid)
 
-
 def _reapply_portfolio(sid, force=False):
-    """The portfolio permission discount: a generated line while the client allows portfolio use and the session's type
-    offers one. Declining it (or a type without one) takes the line off. force: the client changed the permission
-    itself, which the agreement lets move the price until delivery."""
+
     s_ = q("SELECT type, portfolio_no FROM sessions WHERE id=?", (sid,), one=True)
     if s_ and not force and not q(UNAGREED_SQL + " AND id=?", (s_["type"], sid), one=True):
-        return                                # agreed (quote sent, paid or signed): its price lines stay as agreed
+        return
     x("DELETE FROM lines WHERE session_id=? AND kind='portfolio'", (sid,))
     rule = C.PORTFOLIO_DISCOUNT.get(s_["type"]) if s_ else None
     if not rule or s_["portfolio_no"]:
@@ -1148,10 +1034,9 @@ def _reapply_portfolio(sid, force=False):
                 f" photos; you may suggest favorites and say no to any before it is shown", -amt))
     g.pop("tot_cache", None)
 
-
 @app.post("/session/<int:sid>/portfolio")
 def portfolio_set(sid):
-    """The client allows portfolio use (and keeps the discount, when the type offers one), or declines it."""
+
     q("SELECT 1 FROM sessions WHERE id=?", (sid,), one=True) or abort(404)
     want = request.form.get("set")
     if want not in ("allowed", "declined"):
@@ -1162,7 +1047,7 @@ def portfolio_set(sid):
         session["notice"] = "Recorded. The photos were already delivered (or paid in full), so the discount stays, as the agreement says."
         return redirect(safe_back(request.form.get("back")) or stage_url(sid) + "#billing")
     had_ = q("SELECT COALESCE(SUM(amount),0) v FROM lines WHERE session_id=? AND kind='portfolio'", (sid,), one=True)["v"]
-    _reapply_portfolio(sid, force=True)                  # before delivery the agreement adds the discount back (or again)
+    _reapply_portfolio(sid, force=True)
     reapply_discount(sid)
     now_ = q("SELECT COALESCE(SUM(amount),0) v FROM lines WHERE session_id=? AND kind='portfolio'", (sid,), one=True)["v"]
     if abs(now_ - had_) > 0.005:
@@ -1170,13 +1055,12 @@ def portfolio_set(sid):
                              else "The portfolio discount is on the balance again.")
     return redirect(safe_back(request.form.get("back")) or stage_url(sid) + "#billing")
 
-
 def _reapply_discount(sid):
     x("DELETE FROM lines WHERE session_id=? AND kind='discount'", (sid,))
     qt = q("SELECT * FROM quotes WHERE session_id=?", (sid,), one=True)
     if not qt or not qt["discount_pct"]:
         return
-    # Pass-through costs (permits, mileage, travel) are never discounted: a free job still covers its permit.
+
     sub = q("SELECT COALESCE(SUM(amount),0) v FROM lines WHERE session_id=? AND kind NOT IN ('discount','passthrough','tax','credit')",
             (sid,), one=True)["v"]
     if sub <= 0:
@@ -1187,22 +1071,18 @@ def _reapply_discount(sid):
       (sid, f"Discount: {reason} ({pct:g}%)", -round(sub * pct / 100, 2)))
     g.pop("tot_cache", None)
 
-
 def _pct(key):
     try:
-        return min(25.0, max(0.0, float(setting(key) or 0)))     # a typo (150%) never reaches a quote
+        return min(25.0, max(0.0, float(setting(key) or 0)))
     except ValueError:
         return 0.0
 
-
 def tax_region():
-    """A regional tax rule from a plugin (hooks.tax_region), when Settings chose it; else None."""
+
     return hooks.tax_region if setting("tax_mode") == "regional" and hooks.tax_region else None
 
-
 def sales_tax_pct(area=None):
-    """The rate for a sale: none, one flat rate for every client, or (regional) the base rate plus whatever the
-    region plugin adds for the area the client takes delivery in."""
+
     if setting("tax_mode", "none") == "none":
         return 0.0
     base = _pct("sales_tax_pct")
@@ -1211,10 +1091,8 @@ def sales_tax_pct(area=None):
         return base
     return base + float(reg["extra_pct"](area, _pct("local_tax_pct")) or 0)
 
-
 def tax_area_of(sid):
-    """Where a sale is taxed (regional mode only): a manual pick wins, else the plugin reads the client's address.
-    Returns (area, warning or '')."""
+
     reg = tax_region()
     if not reg:
         return "flat", ""
@@ -1227,32 +1105,26 @@ def tax_area_of(sid):
         return s["tax_area"], ""
     return reg["area_of"](s["address"] or "")
 
-
 def session_tax_rate(sid):
-    """The rate a session is taxed at. Open quotes follow today's rate; once the client says yes (a payment, or the
-    session is booked) the rate is kept, so a later change in Settings never re-taxes a past or booked job."""
+
     r_ = q("SELECT tax_rate FROM sessions WHERE id=?", (sid,), one=True)
     if r_ and r_["tax_rate"] is not None:
         return float(r_["tax_rate"])
     return sales_tax_pct(tax_area_of(sid)[0])
 
-
 def lock_tax_rate(sid):
     x("UPDATE sessions SET tax_rate=? WHERE id=? AND tax_rate IS NULL", (sales_tax_pct(tax_area_of(sid)[0]), sid))
 
-
 def kept_deposit_tax(sid):
-    """A canceled booking whose deposit is kept: tax on it at the full rate, paid by the business."""
+
     s = q("SELECT stage, lost_reason, tax_exempt FROM sessions WHERE id=?", (sid,), one=True)
     if not s or s["stage"] != "lost" or s["lost_reason"] not in ("Canceled", "No-show") or s["tax_exempt"]:
         return 0.0
     paid = q("SELECT COALESCE(SUM(amount),0) v FROM payments WHERE session_id=? AND voided IS NULL", (sid,), one=True)["v"]
     return round(max(paid, 0) * session_tax_rate(sid) / 100, 2)
 
-
 def reapply_tax(sid):
-    """Sales tax is one generated line on the TAXABLE lines only (each fee carries its own taxable flag), after the
-    discount those lines received. Off when Settings has no rate or the client is exempt (certificate on file)."""
+
     x("DELETE FROM lines WHERE session_id=? AND kind='tax'", (sid,))
     s = q("SELECT tax_exempt FROM sessions WHERE id=?", (sid,), one=True)
     rate = session_tax_rate(sid) if s else 0.0
@@ -1270,16 +1142,12 @@ def reapply_tax(sid):
           (sid, f"Sales tax ({rate:g}%)", round(base * rate / 100, 2)))
     g.pop("tot_cache", None)
 
-
 def _lines_sig(sid):
     return json.dumps([[r_["label"], round(r_["amount"], 2)] for r_ in
                        q("SELECT label, amount FROM lines WHERE session_id=? ORDER BY id", (sid,))])
 
-
 def _invoice_still_sent(sid):
-    """An issued invoice never changes under its number: if its lines change afterwards, that number is retired, the
-    next Issue gives a new one that says which it replaces, and "Send invoice" is open again. An issued receipt whose
-    lines change is retired the same way (its payments may change freely: it stays as issued)."""
+
     sig = _lines_sig(sid)
     r_ = q("SELECT number, sig FROM invoice_sent WHERE session_id=?", (sid,), one=True)
     for kind_ in ("INV", "R"):
@@ -1299,18 +1167,15 @@ def _invoice_still_sent(sid):
         audit(f"Invoice {n_['number']} was already {'sent' if sent_ else 'issued'} and its lines changed: the next invoice "
               "replaces it", sid=sid)
 
-
 def _invoice_marked_sent(sid):
     if totals(sid)["quoted"] > 0.005:
-        issue_bill(sid)                        # marked sent means issued: it has its number, and is frozen, from now on
+        issue_bill(sid)
     inv_ = q("SELECT number FROM doc_numbers WHERE session_id=? AND kind='INV'", (sid,), one=True)
     if inv_:
         x("INSERT OR REPLACE INTO invoice_sent (session_id, number, sig) VALUES (?,?,?)", (sid, inv_["number"], _lines_sig(sid)))
 
-
 def totals(sid):
-    """Money for one session. The first call in a request works out every session at once (four grouped queries), so
-    pages that list many sessions never run a handful of queries per session; any write clears it (_commit)."""
+
     if "tot_cache" not in g:
         g.tot_cache = _all_totals()
     cache = g.tot_cache
@@ -1318,19 +1183,17 @@ def totals(sid):
         cache[sid] = _totals(sid)
     return cache[sid]
 
-
 def _deposit_for(stype, quoted, has_event, family=False):
-    if quoted <= 0 or family:                           # a family at a group event pays its share; no deposit is asked
+    if quoted <= 0 or family:
         return 0.0
     own = C.DEPOSIT_RULE.get(stype)
-    if own:                                             # this session type's own deposit
+    if own:
         return round(min(quoted * own[1] / 100 if own[0] == "pct" else own[1], quoted), 2)
-    if stype and C.TYPE_KIND.get(stype) == "property" and not C.has_deposit_step(stype):   # real estate, products: none asked
+    if stype and C.TYPE_KIND.get(stype) == "property" and not C.has_deposit_step(stype):
         return 0.0
-    if has_event or C.TYPE_KIND.get(stype) == "event":      # a family's share of a group event, too
+    if has_event or C.TYPE_KIND.get(stype) == "event":
         return round(quoted * C.EVENT_DEPOSIT_PCT / 100, 2)
     return round(min(C.DEPOSIT_AMOUNT, quoted), 2)
-
 
 def _all_totals():
     rate = float(setting("mileage_rate") or 0)
@@ -1352,32 +1215,28 @@ def _all_totals():
                         profit=paid - tax_paid - a - mc, deposit_req=dep, deposit_short=max(0.0, dep - paid))
     return out
 
-
 def _totals(sid):
     quoted = q("SELECT COALESCE(SUM(amount),0) v FROM lines WHERE session_id=?", (sid,), one=True)["v"]
     paid = q("SELECT COALESCE(SUM(amount),0) v FROM payments WHERE session_id=? AND voided IS NULL", (sid,), one=True)["v"]
     rate = float(setting("mileage_rate") or 0)
-    # each trip keeps the rate in force when it was logged, so a new IRS rate never re-prices old miles
+
     spent = q("""SELECT COALESCE(SUM(amount),0) a, COALESCE(SUM(miles),0) m, COALESCE(SUM(miles * COALESCE(rate, ?)),0) mc
                  FROM expenses WHERE session_id=?""", (rate, sid), one=True)
     cost = spent["a"] + spent["mc"]
     dep = deposit_required(sid, quoted)
     tax = q("SELECT COALESCE(SUM(amount),0) v FROM lines WHERE session_id=? AND kind='tax'", (sid,), one=True)["v"]
-    tax_paid = tax * min(1.0, paid / quoted) if quoted > 0.005 and paid > 0 else 0.0   # tax is collected pro rata
+    tax_paid = tax * min(1.0, paid / quoted) if quoted > 0.005 and paid > 0 else 0.0
     rc = refund_credit(sid)
     return dict(quoted=quoted, paid=paid, due=quoted - rc - paid, refund_credit=rc, spent=spent["a"], miles=spent["m"],
                 rate=rate, cost=cost, profit=paid - tax_paid - cost, deposit_req=dep, deposit_short=max(0.0, dep - paid))
 
-
 def refund_credit(sid):
-    """Money given back that the client is not asked for again (refund_credits): the price stays as quoted, and the
-    balance counts it as settled. Only the part of a refund beyond an overpayment is a credit; voided refunds none."""
+
     return q("""SELECT COALESCE(SUM(c.amount),0) v FROM refund_credits c JOIN payments p ON p.id=c.payment_id
                 WHERE p.session_id=? AND p.voided IS NULL""", (sid,), one=True)["v"]
 
-
 def deposit_required(sid, quoted=None):
-    """Terms: $250 holds the date, 50% for events (any hourly event fee on the quote). Never more than the quote."""
+
     if quoted is None:
         quoted = q("SELECT COALESCE(SUM(amount),0) v FROM lines WHERE session_id=?", (sid,), one=True)["v"]
     if quoted <= 0:
@@ -1387,38 +1246,32 @@ def deposit_required(sid, quoted=None):
                         quoted, bool(q("SELECT 1 FROM lines WHERE session_id=? AND fee_key='event'", (sid,), one=True)),
                         family=bool(st_ and st_["event_id"]))
 
-
 OWED_STAGES = ("shot", "delivered", "closed")
 
-
 def row_type(row):
-    """The session type of a row that may or may not carry it."""
+
     try:
         return row["type"]
     except (IndexError, KeyError):
         return None
 
-
 def owed_now(stage, t, shoot_date=None, stype=None):
-    """Money is owed once the shoot has happened, or, for a type paid ahead, once its due date before the shoot has
-    come. Quotes and other pre-shoot balances are not debts yet."""
+
     if stype in C.BEFORE_TYPES and shoot_date and stage == "booked":
         return t["due"] > 0.005 and (balance_due_date(shoot_date, stype) or "9999") <= today().isoformat()
-    if shoot_date and shoot_date > today().isoformat() and stage not in ("delivered", "closed"):   # delivered: owed regardless
+    if shoot_date and shoot_date > today().isoformat() and stage not in ("delivered", "closed"):
         return False
     return stage in OWED_STAGES and t["due"] > 0.005
 
-
 def balance_due_date(shoot_date, stype=None, issued=None, sid=None):
-    """Net-terms types: net 30 after the invoice date (nothing is late before an invoice exists).
-    Everyone else pays at delivery, so the balance is due by the delivery date the Terms promise (14 days, 21 for events)."""
+
     if stype in C.NET_TERMS_TYPES and issued is None and sid is not None:
         inv_ = q("SELECT issued FROM doc_numbers WHERE session_id=? AND kind='INV'", (sid,), one=True)
         if not inv_ or not inv_["issued"]:
             return None
         issued = inv_["issued"]
     if issued and stype in C.NET_TERMS_TYPES:
-        return (d(issued) + timedelta(days=C.BALANCE_NET_DAYS)).isoformat()   # net terms count from the invoice
+        return (d(issued) + timedelta(days=C.BALANCE_NET_DAYS)).isoformat()
     if not shoot_date:
         return None
     if stype in C.BEFORE_TYPES:
@@ -1428,37 +1281,30 @@ def balance_due_date(shoot_date, stype=None, issued=None, sid=None):
     days = C.delivery_days(stype)
     return (d(shoot_date) + timedelta(days=days)).isoformat()
 
-
 def release_blocked(sid):
-    """Terms: the SD card and gallery link are released on payment (net-30 real estate excepted). Returns the amount
-    still owed when delivery must wait, else 0."""
+
     s_ = q("SELECT type FROM sessions WHERE id=?", (sid,), one=True)
     if not s_ or s_["type"] in C.NET_TERMS_TYPES:
         return 0.0
     due = totals(sid)["due"]
     return due if due > 0.005 else 0.0
 
-
 def balance_rule(stype):
     return C.balance_text(stype)
-
 
 def gallery_expires(s):
     if not s["first_visit"]:
         return None
     return d(s["first_visit"]) + timedelta(days=C.gallery_days(s["type"]) * (2 if s["extension_used"] else 1))
 
-
 def _fair_due(base, t):
-    """Due date from the shoot date. When the date is new or moved, nothing becomes late on the spot: a step
-    whose date has already passed is due today instead. An unchanged date keeps its real lateness."""
+
     if not base:
         return None
     due = (base + timedelta(days=t["offset_days"])).isoformat()
     if not t["done"] and due != t["due"] and due < today().isoformat():
         return today().isoformat()
     return due
-
 
 def schedule_tasks(sid):
     s = q("SELECT shoot_date FROM sessions WHERE id=?", (sid,), one=True)
@@ -1468,14 +1314,12 @@ def schedule_tasks(sid):
         db().execute("UPDATE tasks SET due=? WHERE id=?", (due, t["id"]))
     _commit()
 
-
 def ensure_event_task(eid, stage, title, off, sort):
     if not q("SELECT 1 FROM tasks WHERE event_id=? AND stage=? AND title=?", (eid, stage, title), one=True):
         db().execute("INSERT INTO tasks (id, event_id, stage, title, offset_days, sort) VALUES (?,?,?,?,?,?)",
                      (next_id("tasks"), eid, stage, title, off, sort))
         _commit()
     schedule_event(eid)
-
 
 def schedule_event(eid):
     e = q("SELECT date FROM events WHERE id=?", (eid,), one=True)
@@ -1485,24 +1329,19 @@ def schedule_event(eid):
         db().execute("UPDATE tasks SET due=? WHERE id=?", (due, t["id"]))
     _commit()
 
-
 def event_steps(eid):
     return q("SELECT * FROM tasks WHERE event_id=? ORDER BY sort, id", (eid,))
 
-
 def flow_for(sid):
-    """The workflow for a session: its type's, except group events, whose money steps follow the event's billing. With
-    no online galleries set up, the steps that need one (gallery built, letter mailed, opened, picks) are left out:
-    they could never be done, and the session would never finish."""
+
     f_ = _flow_for(sid)
     if C.galleries_on():
         return f_
     gal = {"gallery_built", "letter_mailed", "first_visit", "favorites"}
     return {st: [x_ for x_ in steps if not (x_[0] == "auto" and x_[1] in gal)] for st, steps in f_.items()}
 
-
 def _flow_for(sid):
-    """The workflow for a session: its type's, except group events, whose money steps follow the event's billing."""
+
     s = q("SELECT s.type, s.event_id, s.payer_event, e.billing FROM sessions s LEFT JOIN events e ON e.id=s.event_id WHERE s.id=?",
           (sid,), one=True)
     if not s:
@@ -1513,9 +1352,8 @@ def _flow_for(sid):
         return C.with_family_money(C.WORKFLOW[s["type"]])
     return C.WORKFLOW[s["type"]]
 
-
 def sync_workflow_tasks(sid):
-    """Make the session's step-tasks match its type's workflow. Done steps and my own tasks are kept."""
+
     s = q("SELECT type, event_id FROM sessions WHERE id=?", (sid,), one=True)
     flow = flow_for(sid)
     want = {}
@@ -1538,37 +1376,31 @@ def sync_workflow_tasks(sid):
     _commit()
     schedule_tasks(sid)
 
-
 OUTCOMES = {"done": "Done", "waived": "Waived", "na": "Not needed", "declined": "Client declined"}
 
-
 PLAN_RESIGN = "Have the plan's agreement signed again (a session joined)"
-
 
 def _sdocs(ctx, kind):
     docs = [dd for dd in ctx["docs"] if dd["kind"] == kind]
     s_ = ctx.get("s")
     if kind == "agreement" and s_ is not None and "plan_of" in s_.keys() and s_["plan_of"]:
-        docs = q("SELECT kind, status FROM documents WHERE session_id=? AND kind='agreement'", (s_["plan_of"],))   # the plan's agreement
+        docs = q("SELECT kind, status FROM documents WHERE session_id=? AND kind='agreement'", (s_["plan_of"],))
         if q("SELECT 1 FROM tasks WHERE session_id=? AND title=? AND done IS NULL",
              (s_["plan_of"], PLAN_RESIGN), one=True):
-            return False                                # signed before this session joined: it doesn't cover it yet
+            return False
     return bool(docs) and all(dd["status"] == "signed" for dd in docs)
-
 
 def _quoted(c):
     return c["t"]["quoted"] > 0 or bool(q("SELECT 1 FROM lines WHERE session_id=? AND kind != 'discount'", (c["s"]["id"],), one=True))
 
-
-# key -> (label, done(ctx), tab where you do it)
 AUTO = {
-    "logged": ("First contact logged", lambda c: c["n_log"] > 0 or _quoted(c), "log"),   # a built quote means you were in touch
+    "logged": ("First contact logged", lambda c: c["n_log"] > 0 or _quoted(c), "log"),
     "date_set": ("Shoot date set", lambda c: bool(c["s"]["shoot_date"]), "shoot"),
     "quote_built": ("Quote built", lambda c: _quoted(c), "money"),
     "agreement_signed": ("Agreement signed", lambda c: _sdocs(c, "agreement"), "paperwork"),
     "releases_signed": ("Releases signed", lambda c: _sdocs(c, "release"), "paperwork"),
     "deposit_paid": ("Deposit received", lambda c: c["t"]["deposit_short"] <= 0.005 and
-                     (c["t"]["paid"] > 0 or (c["t"]["deposit_req"] <= 0.005 and c["t"]["quoted"] > 0.005)), "money"),   # no deposit: done once quoted
+                     (c["t"]["paid"] > 0 or (c["t"]["deposit_req"] <= 0.005 and c["t"]["quoted"] > 0.005)), "money"),
     "intake_done": ("Intake answered", lambda c: sum(1 for v in c["intake"].values() if v) >=
                     max(1, len(C.INTAKE.get(c["s"]["type"], [])) // 2), "intake"),
     "gallery_built": ("Gallery built", lambda c: bool(c["s"]["gallery_built"]), "delivery"),
@@ -1579,16 +1411,49 @@ AUTO = {
     "favorites": ("Picks received", lambda c: bool(c["s"]["favorites"] or c["s"]["retouch_picks"] or c["s"]["veto"]), "delivery"),
 }
 
-
 def workflow(sid):
     cache = g.setdefault("wf_cache", {})
     if sid not in cache:
         cache[sid] = _workflow(sid)
     return cache[sid]
 
+def licensed(sid):
 
-BOOKING_HOLD_DAYS = 7   # deposit + agreement due a week after the client says yes
+    s_ = q("SELECT * FROM sessions WHERE id=?", (sid,), one=True)
+    if not s_:
+        return False
+    refs = [s_["id"]] + ([s_["plan_of"]] if "plan_of" in s_.keys() and s_["plan_of"] else [])
+    for ref_ in refs:
+        r_ = q("SELECT data FROM doc_snapshots WHERE kind='agreement' AND ref=?", (ref_,), one=True)
+        try:
+            v_ = json.loads(r_["data"]) if r_ else {}
+        except ValueError:
+            v_ = {}
+        if isinstance(v_, dict) and isinstance(v_.get("license"), bool):
+            return v_["license"]
+    r_ = q("SELECT data FROM quote_versions WHERE session_id=? ORDER BY id DESC LIMIT 1", (sid,), one=True)
+    try:
+        v_ = json.loads(r_["data"]) if r_ else {}
+    except ValueError:
+        v_ = {}
+    if isinstance(v_, dict) and isinstance(v_.get("license"), bool):
+        return v_["license"]
+    return s_["type"] in C.LICENSE_TYPES
 
+def booked_hint(sid):
+
+    w = workflow(sid)
+    cur = w["current"]
+    if not cur or cur["stage"] != "booked":
+        return ""
+    open_ = {st_["key"] for st_ in cur["steps"] if st_.get("key") in ("deposit_paid", "agreement_signed") and not st_["done"]}
+    if open_ == {"deposit_paid", "agreement_signed"}:
+        return "deposit and agreement still open"
+    return "deposit still open" if "deposit_paid" in open_ else "agreement still open" if open_ else ""
+
+app.jinja_env.globals["booked_hint"] = booked_hint
+
+BOOKING_HOLD_DAYS = 7
 
 def booking_due(sid, s):
     r = q("SELECT MIN(at) a FROM stage_log WHERE session_id=? AND stage='booked'", (sid,), one=True)
@@ -1598,9 +1463,8 @@ def booking_due(sid, s):
         due = d(s["shoot_date"])
     return due.isoformat()
 
-
 def _workflow(sid):
-    """Stages with their steps, current stage, progress and the next step."""
+
     s = session_full(sid)
     ctx = dict(s=s, t=totals(sid), intake=json.loads(s["intake"] or "{}"),
                docs=q("SELECT kind, status FROM documents WHERE session_id=?", (sid,)),
@@ -1648,11 +1512,10 @@ def _workflow(sid):
         nxt_stage = C.STAGES[C.STAGES.index(s["stage"]) + 1]
     next_step = next((st_ for st_ in (cur["steps"] if cur else []) if not st_["done"]), None)
     ready = cur is not None and all(st_["done"] for st_ in cur["steps"])
-    wait_close = None                                    # every step done, but the gallery is still up: say until when
+    wait_close = None
     if ready and nxt_stage == "closed" and not can_enter("closed", s["shoot_date"], s["id"]):
         wait_close = gallery_expires(q("SELECT * FROM sessions WHERE id=?", (s["id"],), one=True)) or "open"
     return dict(stages=stages, current=cur, next_stage=nxt_stage, next_step=next_step, ready=ready, wait_close=wait_close)
-
 
 def create_session(household_id, type_, stage="inquiry", title="", shoot_date=None, event_id=None,
                    subject_ids=()):
@@ -1671,7 +1534,7 @@ def create_session(household_id, type_, stage="inquiry", title="", shoot_date=No
     if type_ in C.NEEDS_RELEASE:
         for pid in subject_ids:
             if pid in signer_ids:
-                continue                                # signing the agreement covers them; no separate release
+                continue
             p = q("SELECT * FROM people WHERE id=?", (pid,), one=True)
             signer = ""
             if p["is_minor"]:
@@ -1684,22 +1547,18 @@ def create_session(household_id, type_, stage="inquiry", title="", shoot_date=No
     hooks.fire("session_created", sid)
     return sid
 
-
 def signer_choices(household_id):
-    """The adults on a client record who could sign an agreement (parents first)."""
+
     return q("""SELECT id, name FROM people WHERE household_id=? AND role IN ('parent','adult') AND COALESCE(is_minor,0)=0
                 ORDER BY role='parent' DESC, id""", (household_id,))
 
-
 def default_signers(household_id, type_):
-    """Who signs a new session's agreement: the first adult, or every adult when the type says everyone listed signs."""
+
     ch = signer_choices(household_id)
     return list(ch) if C.ALL_SIGN.get(type_) else list(ch[:1])
 
-
 def agreement_signers(sid):
-    """The people signing this session's agreement, in order; a row from before 'Who signs' existed counts as the
-    first adult."""
+
     rows = q("""SELECT d.*, p.name AS pname FROM documents d LEFT JOIN people p ON p.id=d.about_person
                 WHERE d.session_id=? AND d.kind='agreement' ORDER BY d.id""", (sid,))
     names = [r_["pname"] for r_ in rows if r_["pname"]]
@@ -1709,10 +1568,9 @@ def agreement_signers(sid):
         names = [ch[0]["name"]] if ch else []
     return rows, names
 
-
 @app.post("/session/<int:sid>/signers")
 def session_signers(sid):
-    """Who signs the agreement: tick any adults on the client record. Nothing about who they are to each other."""
+
     s_ = q("SELECT * FROM sessions WHERE id=?", (sid,), one=True) or abort(404)
     allowed = {r_["id"]: r_["name"] for r_ in signer_choices(s_["household_id"])}
     want = [int(v_) for v_ in request.form.getlist("signer") if v_.isdigit() and int(v_) in allowed]
@@ -1724,7 +1582,7 @@ def session_signers(sid):
     rows = q("SELECT * FROM documents WHERE session_id=? AND kind='agreement' ORDER BY id", (sid,))
     have = {r_["about_person"]: r_ for r_ in rows if r_["about_person"]}
     for r_ in rows:
-        if r_["about_person"] is None:                   # a row from before 'Who signs': give it to the first chosen person
+        if r_["about_person"] is None:
             if want[0] not in have:
                 x("UPDATE documents SET about_person=?, signer=? WHERE id=?", (want[0], allowed[want[0]], r_["id"]))
                 have[want[0]] = r_
@@ -1746,17 +1604,15 @@ def session_signers(sid):
     audit("Who signs the agreement: " + oxford(allowed[p_] for p_ in want), sid=sid)
     return redirect(back)
 
-
 def gallery_removed(sid):
-    """A gallery taken down (window over, unopened for a year, early delete) no longer holds the session open."""
+
     if not q("SELECT 1 FROM sqlite_master WHERE name='galleries'", one=True):
         return False
     r = q("SELECT removed_at FROM galleries WHERE session_id=?", (sid,), one=True)
     return bool(r and r["removed_at"])
 
-
 def can_enter(stage, shoot_date, sid=None):
-    """Shot is entered only once the shoot date has come; Closed only once a delivered gallery has run its days."""
+
     if stage == "shot":
         return bool(shoot_date and shoot_date <= today().isoformat())
     if stage == "closed" and sid:
@@ -1765,16 +1621,15 @@ def can_enter(stage, shoot_date, sid=None):
             g_ = q("SELECT * FROM galleries WHERE session_id=?", (sid,), one=True) \
                 if q("SELECT 1 FROM sqlite_master WHERE name='galleries'", one=True) else None
             if g_ and g_["removed_at"]:
-                return True      # taken down (window over, never opened in a year, or early delete)
+                return True
             if not s_["first_visit"] and not (g_ and "uploaded_at" in g_.keys() and g_["uploaded_at"]):
-                return True      # never put online: there is no gallery window to wait for
+                return True
             exp = gallery_expires(s_)
             return bool(exp and exp < today())
     return True
 
-
 def advance(sid):
-    """A workflow moves itself on when every step of its stage is done."""
+
     s0 = q("SELECT stage, shoot_date FROM sessions WHERE id=?", (sid,), one=True)
     if s0 and s0["stage"] == "shot" and s0["shoot_date"] and s0["shoot_date"] > today().isoformat():
         set_stage(sid, "booked")
@@ -1782,13 +1637,13 @@ def advance(sid):
         try:
             session["notice"] = f"Still Booked: the shoot is {nice(s0['shoot_date'])}."
         except RuntimeError:
-            pass                                        # outside a request (background work)
+            pass
     for _ in range(len(C.STAGES)):
         s_ = q("SELECT stage, shoot_date, hold_stage FROM sessions WHERE id=?", (sid,), one=True)
         if not s_ or s_["stage"] not in C.STAGES:
             return
         w = workflow(sid)
-        if s_["hold_stage"] == s_["stage"]:     # moved back by hand: it stays until a step there is reopened
+        if s_["hold_stage"] == s_["stage"]:
             if w["ready"]:
                 return
             x("UPDATE sessions SET hold_stage=NULL WHERE id=?", (sid,))
@@ -1800,13 +1655,10 @@ def advance(sid):
         audit(f"Moved to {C.STAGE_LABELS[w['next_stage']]}: all {C.STAGE_LABELS[s_['stage']]} steps are done",
               sid=sid, who="Lumen Aureum")
 
-
 _ADV = {"at": 0.0}
 
-
 def advance_all(force=False):
-    """Every open session moves itself on when its stage is done. Date-driven moves only change once a day, so a page
-    view re-runs this at most every few minutes."""
+
     import time as _t
     if not force and _t.time() - _ADV["at"] < 300:
         return
@@ -1814,19 +1666,17 @@ def advance_all(force=False):
     for r in q("SELECT id FROM sessions WHERE stage NOT IN ('closed','lost')"):
         advance(r["id"])
 
-
 def _advance_after_post(resp):
-    """Called from the audit hook, after the action's own line is written, so causes precede effects."""
+
     if (request.method == "POST" and resp.status_code < 400 and datakey.is_unlocked() and _unlocked_once
             and request.endpoint not in QUIET_ENDPOINTS | app.config.get("quiet_endpoints", set())):
         try:
             sid_ = g.get("touched_sid")
             if sid_:
-                advance(sid_)            # the session this action touched (never every open session on every save)
+                advance(sid_)
         except Exception:
             app.logger.exception("advance failed")
     return resp
-
 
 def set_stage(sid, stage):
     old = q("SELECT stage FROM sessions WHERE id=?", (sid,), one=True)["stage"]
@@ -1835,19 +1685,17 @@ def set_stage(sid, stage):
     cur_ = db().execute("UPDATE sessions SET stage=?, stage_changed=? WHERE id=? AND stage=?", (stage, now_local(), sid, old))
     _commit()
     if cur_.rowcount != 1:
-        return                           # someone else moved it at the same moment: their move stands, logged once
+        return
     if stage in ("booked", "shot", "delivered", "closed"):
         lock_tax_rate(sid)
     x("INSERT INTO stage_log (session_id, stage) VALUES (?,?)", (sid, stage))
     hooks.fire("stage_changed", sid, old, stage)
-
 
 def needs_you():
     if "needs_you" in g:
         return g.needs_you
     g.needs_you = _needs_you()
     return g.needs_you
-
 
 def _needs_you():
     t = today()
@@ -1936,12 +1784,10 @@ def _needs_you():
     out["plugins"] = [item for fn in hooks.today for item in (fn() or [])]
     return out
 
-
 FUTURE_TYPE = "senior"
 
-
 def future_work():
-    """Minors who will be seniors next school year, with no senior session yet (only when a "senior" type exists)."""
+
     if FUTURE_TYPE not in C.SESSION_TYPES:
         return []
     t = today()
@@ -1952,22 +1798,17 @@ def future_work():
           WHERE sp.person_id=p.id AND s.type=?)""", (school_year_end, school_year_end + 1, FUTURE_TYPE))
     return rows
 
-
-# ---------------------------------------------------------------- action dashboard
-
 MARKABLE = {"gallery_built": "Mark built", "letter_mailed": "Mark mailed", "first_visit": "Mark opened",
             "sd_shipped": "Mark delivered"}
-# Waiting on THEM: these steps are the client's move. Tiles show the client's face, dimmed, with
-# how long you've been waiting; your own steps keep their task icon and button.
+
 THEIR_STEPS = {"Intake answered", "Client said yes", "Agreement signed", "Releases signed", "Deposit received",
                "Client opened the gallery", "Picks received", "Paid in full"}
 THEIR_WORDS = {"Intake answered": "Intake answers", "Client said yes": "Quote accepted", "Agreement signed": "Agreement signed",
                "Releases signed": "Releases signed", "Deposit received": "Deposit paid", "Client opened the gallery": "Gallery opened",
-               "Picks received": "Favorites picked", "Paid in full": "Balance paid"}
+               "Picks received": "Picks sent", "Paid in full": "Balance paid"}
 def todo_word(label):
-    """An open step read as a task: a plugin's own words first, then the built-in ones."""
-    return hooks.step_labels.get(label) or TODO_WORDS.get(label, label)
 
+    return hooks.step_labels.get(label) or TODO_WORDS.get(label, label)
 
 TODO_WORDS = {"First contact logged": "Log the first contact", "Intake answered": "Get the intake answers",
               "Quote built": "Build the quote", "Agreement signed": "Get the agreement signed",
@@ -1977,25 +1818,23 @@ TODO_WORDS = {"First contact logged": "Log the first contact", "Intake answered"
               "SD card shipped": "Ship SD card",
               "Picks received": "Get their picks",
               "Paid in full": "Collect the balance",
-              # short forms of the "do" steps so tiles never wrap
+
               "Plan stops, check permits": "Plan stops", "Scout any new spot in person": "Scout new spots",
               "Weather call, confirm meeting spot": "Weather call", "Charge batteries, clear cards": "Charge batteries",
               "Scout the venue, dial in settings": "Scout the venue", "Confirm the venue's photo rules": "Venue photo rules",
               "Send session details": "Send session details"}
 LINK_VERBS = {"logged": ("Log contact", "log"), "intake_done": ("Fill intake", "intake"),
               "quote_built": ("Build quote", "money"), "deposit_paid": ("Record deposit", "money"),
-              "date_set": ("Set date", "shoot"), "favorites": ("Pick favorites", "delivery")}
-
+              "date_set": ("Set date", "shoot"), "favorites": ("Record picks", "delivery")}
 
 def event_reps():
-    """For each event, the family session furthest behind: it decides what the event still needs."""
+
     reps = {}
     for r in q("SELECT id, event_id, stage FROM sessions WHERE event_id IS NOT NULL AND stage NOT IN ('closed','lost')"):
         i = C.STAGES.index(r["stage"]) if r["stage"] in C.STAGES else 99
         if r["event_id"] not in reps or i < reps[r["event_id"]][1]:
             reps[r["event_id"]] = (r["id"], i)
     return {eid: v[0] for eid, v in reps.items()}
-
 
 def session_minutes(sid, stype):
     r = q("SELECT duration_min FROM sessions WHERE id=?", (sid,), one=True)
@@ -2011,7 +1850,6 @@ def session_minutes(sid, stype):
             mins += int(it.get("minutes") or 0)
     return int(mins or C.TYPE_MINUTES[stype])
 
-
 def _span(sid, stype, day, hm):
     try:
         h_, m_ = (int(v) for v in hm.split(":")[:2])
@@ -2020,18 +1858,15 @@ def _span(sid, stype, day, hm):
     start = datetime.combine(d(day), datetime.min.time()) + timedelta(hours=h_, minutes=m_)
     return start, start + timedelta(minutes=session_minutes(sid, stype))
 
-
 def clashes(sid):
-    """Other live sessions the same day that overlap this one (with drive/setup buffer), or share the day with no
-    start time to tell. Warn only - two minis back to back are fine; the photographer decides."""
+
     s = q("SELECT * FROM sessions WHERE id=?", (sid,), one=True)
     if not s or not s["shoot_date"] or s["stage"] in ("lost", "closed"):
         return []
     return clashes_at(sid, s["type"], s["shoot_date"], s["start_time"], s["event_id"] or s["payer_event"])
 
-
 def clashes_at(sid, stype, day, hm, event_id=None):
-    """What a session (sid 0 = not created yet) would collide with on `day` at `hm`, however far out."""
+
     mine = _span(sid, stype, day, hm)
     out = []
     for o in q("""SELECT s.*, h.name AS household FROM sessions s JOIN households h ON h.id=s.household_id
@@ -2040,19 +1875,17 @@ def clashes_at(sid, stype, day, hm, event_id=None):
                   AND (s.payer_event IS NULL OR s.payer_event IS NOT ?)""", (day, sid or 0, event_id, event_id)):
         theirs = _span(o["id"], o["type"], o["shoot_date"], o["start_time"])
         if not mine or not theirs:
-            when_ = f"same day at {clock12(o['start_time'])}" if theirs else "same day, no start time yet"
+            when_ = f"same day at {clock(o['start_time'])}" if theirs else "same day, no start time yet"
             out.append(dict(name=o["household"], hid=o["household_id"], sid=o["id"], when=when_))
             continue
         buf = timedelta(minutes=C.BOOKING_BUFFER_MIN)
         if mine[0] < theirs[1] + buf and theirs[0] < mine[1] + buf:
             out.append(dict(name=o["household"], hid=o["household_id"], sid=o["id"],
-                            when=f"{clock12(o['start_time'])} to {theirs[1].strftime('%-I:%M %p')}"))
+                            when=f"{clock(o['start_time'])} to {clock(theirs[1])}"))
     return out
 
-
 def build_actions(only_sid=None):
-    """Every concrete thing to do, as verb + target, across open sessions and events (or, with only_sid, for one
-    session and its event: the session page needs no other client's work)."""
+
     t = today()
     acts = []
     seen_events = set()
@@ -2082,7 +1915,10 @@ def build_actions(only_sid=None):
             a = dict(who=who, what=(THEIR_WORDS if theirs else TODO_WORDS).get(st["label"], st["label"]), when=when,
                      stage=s["stage"], theirs=theirs, since=(s["stage_changed"] or "")[:10])
             if st["label"] == "Send retouched photos" and (s["retouch_picks"] or "").strip():
-                a["detail"] = s["retouch_picks"].strip()        # the client's notes, right where the work is
+                a["detail"] = s["retouch_picks"].strip()
+            note_ = next((n_ for n_ in (fn(st["label"], s) for fn in hooks.step_notes) if n_), None)
+            if note_:
+                a["note"] = note_
             if st["label"] == "Send session details":
                 a.update(doc=url_for("session_details", sid=s["id"]), doc_verb="Open details")
             elif st["label"] == "Send quote":
@@ -2105,7 +1941,7 @@ def build_actions(only_sid=None):
                 a.update(verb="Add time and place", href=url_for("session_view", sid=s["id"]) + "#shoot",
                          what=f"Confirm time and place: needs {missing}", close=dict(task=st["task_id"]))
             elif st["kind"] == "do":
-                a.update(verb="Done", post=url_for("task_toggle", tid=st["task_id"]), fields={"set": "1"},
+                a.update(verb="Mark done", post=url_for("task_toggle", tid=st["task_id"]), fields={"set": "1"},
                          close=dict(task=st["task_id"]))
             else:
                 key = next((k for k, v in AUTO.items() if v[0] == st["label"]), None)
@@ -2116,7 +1952,7 @@ def build_actions(only_sid=None):
                              fields=dict(act="sign", kind="agreement" if key == "agreement_signed" else "release"))
                 elif key in MARKABLE:
                     a.update(verb=MARKABLE[key], post=url_for("quick", sid=s["id"]), fields=dict(act="mark", field=key))
-                    if key == "first_visit":       # the gallery clock starts on the day the client opened it: ask which day
+                    if key == "first_visit":
                         a.update(ask_date=True, date_tip=f"The day the client first opened it. The gallery comes down "
                                                          f"{C.gallery_days(s['type'])} days later.")
                 elif key == "balance_paid":
@@ -2132,6 +1968,9 @@ def build_actions(only_sid=None):
                     a.update(verb="Open",
                              href=who["link"] + "#" + (st.get("tab") or ""))
             acts.append(a)
+        for fn in hooks.session_actions:
+            for a_ in fn(s) or []:
+                acts.append(dict(dict(who=who, when=None, stage=s["stage"]), **a_))
         if s["stage"] in ("inquiry", "quoted", "booked") and s["shoot_date"] and s["shoot_date"] >= t.isoformat():
             for c_ in clashes(s["id"]):
                 acts.append(dict(who=who, what=f"Overlaps {c_['name']} ({c_['when']})", when=s["shoot_date"],
@@ -2139,7 +1978,7 @@ def build_actions(only_sid=None):
         has_bal_step = cur and any(st_.get("key") == "balance_paid" for st_ in cur["steps"])
         bdue = balance_due_date(s["shoot_date"], s["type"], sid=s["id"])
         paid_ahead = (s["stage"] == "booked" and row_type(s) in C.BEFORE_TYPES and bdue and tt["due"] > 0.005
-                      and bdue <= (t + timedelta(days=14)).isoformat())            # balance due before the shoot: remind 2 weeks out
+                      and bdue <= (t + timedelta(days=14)).isoformat())
         if not has_bal_step and (paid_ahead or (s["stage"] in ("shot", "delivered") and owed_now(s["stage"], tt, s["shoot_date"], row_type(s)))):
             acts.append(dict(who=who, what=f"Balance {money(tt['due'])}", theirs=True, since=s["shoot_date"], when=bdue,
                              stage=s["stage"],
@@ -2170,7 +2009,7 @@ def build_actions(only_sid=None):
     for fn in hooks.today:
         for item in fn() or []:
             if not item.get("who"):
-                continue                          # not tied to a client: shown in Today's "Also" list instead
+                continue
             acts.append(dict(who=item.get("who") or dict(name=item.get("sub", ""), sub="", link=item["link"]), what=item["text"],
                              when=item.get("when"), stage=None, verb="Open", href=item["link"], later=not item.get("when")))
     soon = (t + timedelta(days=7)).isoformat()
@@ -2193,8 +2032,7 @@ def build_actions(only_sid=None):
     acts.sort(key=lambda a: (order[a["group"]], a.get("when") or "9999", 0 if a.get("primary") else 1))
     return acts
 
-
-ICON_WORDS = [  # first match wins: (words in the task, Material Symbol)
+ICON_WORDS = [
     (("move to", "ready"), "arrow_forward"), (("deposit", "balance", "record $", "paid in full", "collect"), "payments"),
     (("sd card", "ship"), "local_shipping"),
     (("quote",), "request_quote"), (("signature", "signed", "release", "agreement", "unsigned"), "signature"), (("qr letter", "letter"), "mail"), (("prep guide", "session details"), "send"),
@@ -2206,33 +2044,27 @@ ICON_WORDS = [  # first match wins: (words in the task, Material Symbol)
     (("follow up", "contact", "call", "text", "email"), "chat"), (("class of",), "school"), (("deliver",), "inventory_2"),
 ]
 
-
 MONEY_SYMS = {"payments", "request_quote"}
 CLIENT_SYMS = {"chat", "signature", "assignment", "send", "mail", "event", "visibility", "school", "star"}
 
-
 def sym_group(name):
-    """Which kind of work an icon stands for: client, money or craft."""
-    return "money" if name in MONEY_SYMS else "client" if name in CLIENT_SYMS else "craft"
 
+    return "money" if name in MONEY_SYMS else "client" if name in CLIENT_SYMS else "craft"
 
 def icon_for(*texts):
     t = " ".join(x or "" for x in texts).lower()
     return next((ic for words, ic in hooks.step_icons + ICON_WORDS if any(w in t for w in words)), "task_alt")
 
-
 KIND = {"pen": "paper", "dollar": "money", "mail": "deliver", "box": "deliver", "image": "deliver", "eye": "deliver",
         "clock": "deliver", "chat": "talk", "arrow": "move"}
 
-
 def when_words(when):
-    """'Sat Nov 7, 2 days ago' / 'Thu Nov 12, in 3 days' / 'today'."""
+
     if not when:
         return "no date"
     n = (d(when[:10]) - today()).days
     rel = "today" if n == 0 else "tomorrow" if n == 1 else "yesterday" if n == -1 else f"in {n} days" if n > 0 else f"{-n} days ago"
     return f"{nice(when)}, {rel}"
-
 
 def tip_for(a):
     t_ = _tip_for(a)
@@ -2241,7 +2073,6 @@ def tip_for(a):
         since_ = f", since {nice(a['since'])}" if a.get("since") and not a.get("when") else ""
         return f"Waiting on {who_}{since_}. " + t_
     return t_
-
 
 def _tip_for(a):
     st = a.get("status")
@@ -2255,9 +2086,8 @@ def _tip_for(a):
         return f"Warning: {a['what']} is due {when_words(w)}"
     return f"{a['what']}: due {when_words(w)}" if w else a["what"]
 
-
 def status_of(when):
-    """late / soon (3 days) / next, for a dated item."""
+
     if not when:
         return "next"
     t = today().isoformat()
@@ -2265,9 +2095,8 @@ def status_of(when):
         return "late"
     return "soon" if when <= (today() + timedelta(days=3)).isoformat() else "next"
 
-
 def action_icon(a):
-    """(icon, tone) for a dashboard action, from its verb and text."""
+
     v, w = a.get("verb", ""), a.get("what", "").lower()
     if v.startswith("Move"):
         return "arrow", "green"
@@ -2307,7 +2136,6 @@ def action_icon(a):
         return "pin", "gold"
     return "check", "gold"
 
-
 def event_actions(s):
     eid = s["event_id"]
     who = dict(name=s["event_name"], sub="Group event", link=url_for("event_view", eid=eid), type="event", eid=eid)
@@ -2317,7 +2145,7 @@ def event_actions(s):
     top = max((C.STAGES.index(f["stage"]) for f in fam if f["stage"] in C.STAGES), default=0)
     for t_ in event_steps(eid):
         if not t_["done"] and t_["stage"] in C.STAGES and C.STAGES.index(t_["stage"]) <= top:
-            acts.append(dict(who=who, what=todo_word(t_["title"]), when=t_["due"], stage=t_["stage"], verb="Done",
+            acts.append(dict(who=who, what=todo_word(t_["title"]), when=t_["due"], stage=t_["stage"], verb="Mark done",
                              post=url_for("task_toggle", tid=t_["id"]), fields={}, close=dict(task=t_["id"])))
     lag = q("""SELECT s.id, h.name FROM documents d JOIN sessions s ON s.id=d.session_id JOIN households h ON h.id=s.household_id
                WHERE d.kind='release' AND d.status!='signed' AND s.event_id=? GROUP BY s.id ORDER BY h.name""", (eid,))
@@ -2343,21 +2171,17 @@ def event_actions(s):
                          fields=dict(stage=nxt), primary=True))
     return acts
 
-
 def start_time_in(v, keep=""):
-    """A start time from a form. Midnight is almost always noon typed on a 12-hour clock: it is not saved, and the
-    owner is told why. Blank means no time yet."""
+
     v = (v or "").strip()[:5]
     if v in ("00:00", "0:00"):
         session["notice"] = "A midnight start looks like a slip, so no time was saved. For noon, pick 12:00 PM."
         return keep if keep not in ("00:00",) else ""
     return v if re.fullmatch(r"\d{1,2}:\d{2}", v) else ""
 
-
 def has_place(s):
     intake_ = json.loads(s["intake"] or "{}")
     return bool((s["stops"] or "").strip() or (intake_.get("venue") or "").strip() or (intake_.get("address") or "").strip())
-
 
 @app.post("/session/<int:sid>/quick")
 def quick(sid):
@@ -2370,7 +2194,7 @@ def quick(sid):
              WHERE session_id=? AND kind=? AND status!='signed'""", (day, day, sid, f.get("kind", "release")))
     elif act == "mark" and f.get("field") in MARKABLE:
         if f["field"] in ("letter_mailed", "sd_shipped") and release_blocked(sid):
-            return redirect(safe_back(f.get("back")) or url_for("home"))   # released on payment
+            return redirect(safe_back(f.get("back")) or url_for("home"))
         on = f.get("on") or ""
         if on and not _past_day(on):
             session["notice"] = "That date is in the future. Nothing was changed."
@@ -2390,7 +2214,7 @@ def quick(sid):
         x("UPDATE sessions SET shoot_date=?, start_time=? WHERE id=?",
           (f.get("shoot_date") or None, start_time_in(f.get("start_time", s["start_time"])), sid))
         where = " ".join((f.get("where") or "").split())[:200]
-        if where:                                   # the place, with the date: it goes first in the session's places
+        if where:
             rest = [l_ for l_ in (s["stops"] or "").splitlines() if l_.strip() and l_.strip() != where]
             x("UPDATE sessions SET stops=? WHERE id=?", ("\n".join([where] + rest), sid))
         schedule_tasks(sid)
@@ -2406,20 +2230,10 @@ def quick(sid):
         return ("", 204)
     return redirect(safe_back(f.get("back")) or url_for("home"))
 
-
-# ---------------------------------------------------------------- routes: overview
-
-# ---------------------------------------------------------------- the clock check
-# Automatic deletions (retention, expired galleries) trust today's date. A NAS clock that jumps (a dead battery, a bad
-# time server) or a machine left off for a while would otherwise delete a year's worth at once. So each automatic pass
-# asks clock_ok() first: the date must have moved forward by no more than CLOCK_JUMP_DAYS since the last check. If it
-# jumped, or went backwards, automatic deletions pause and Today asks the owner to confirm the date.
 CLOCK_JUMP_DAYS = 3
-
 
 def _put_setting(k, v):
     x("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (k, v))
-
 
 def clock_ok():
     t = today()
@@ -2439,39 +2253,33 @@ def clock_ok():
     _put_setting("clock_last", t.isoformat())
     return True
 
-
 app.config["clock_ok"] = clock_ok
-
 
 @app.get("/jobs/state")
 def jobs_state():
-    """For the job panel: whether anything is still running (the page reloads when it stops)."""
+
     import jobs
     js = jobs.visible()
     run = [j for j in js if j["state"] == "running"]
     return {"state": "running" if run else "idle", "done": sum(j["done"] for j in run), "total": sum(j["total"] for j in run)}
 
-
 def jobs_visible():
     import jobs
     return jobs.visible()
 
-
 app.jinja_env.globals["jobs_visible"] = jobs_visible
-
 
 @app.post("/clock/confirm")
 def clock_confirm():
-    """The owner says today's date is right: automatic deletions resume from today."""
+
     _put_setting("clock_paused", "")
     _put_setting("clock_last", today().isoformat())
     audit(f"Confirmed today's date ({nice(today().isoformat())}); automatic deletions resume")
     return redirect(url_for("home"))
 
-
 @app.get("/")
 def home():
-    acts = build_actions()                 # looking never writes: stages move after saves and in the background
+    acts = build_actions()
     t = today()
     week = (t + timedelta(days=7)).isoformat()
     shoots = [sh for sh in needs_you_shoots() if sh["s"]["shoot_date"] <= week]
@@ -2480,7 +2288,7 @@ def home():
         tt = totals(s["id"])
         if owed_now(s["stage"], tt, s["shoot_date"], row_type(s)):
             owed += tt["due"]
-    deposits = 0.0                            # deposits asked for and not yet in: its own figure, not mixed into "owed"
+    deposits = 0.0
     for s in q("SELECT id FROM sessions WHERE stage IN ('quoted','booked')"):
         deposits += max(0.0, totals(s["id"])["deposit_short"])
     kpi = dict(deposits=round(deposits, 2),overdue=sum(a["group"] == "overdue" for a in acts),
@@ -2502,16 +2310,15 @@ def home():
     paused = setting("clock_paused")
     rost = roster(acts)
     busy_ = [r_ for r_ in rost if r_["next"] or r_["shoot"] or r_.get("owed")]
-    quiet_ = [r_ for r_ in rost if r_ not in busy_]          # nothing to do now: folded away, not a card each
+    quiet_ = [r_ for r_ in rost if r_ not in busy_]
     return render_template("today.html", clock_paused=paused.split("|") if paused else None, quiet=quiet_,
                            unconfirmed=unconfirmed_deletions(),
                            finish=app.config["finish_items"](), loose=loose, acts=acts, kpi=kpi, shoots=shoots, year=year,
                            days=two_weeks(acts), focus=focus, roster=busy_,
                            sel=("c:" + request.args["c"]) if request.args.get("c") else ("e:" + request.args["e"]) if request.args.get("e") else "")
 
-
 def roster(acts):
-    """One entry per client (and per group event) with open work: where they are, what is due, what is coming."""
+
     t = today().isoformat()
     soon = (today() + timedelta(days=7)).isoformat()
     by_link = {}
@@ -2546,7 +2353,7 @@ def roster(acts):
         cur = w["current"] or dict(steps=[], n_done=0)
         _dis = days_in_stage(r)
         ent["flows"].append(dict(days=_dis, since=(today() - timedelta(days=_dis)).isoformat(), type=C.SESSION_TYPES.get(r["type"], r["type"]) if not r["event_id"] else "Group event",
-                                 stage=r["stage"], idx=C.STAGES.index(r["stage"]) if r["stage"] in C.STAGES else -1,
+                                 stage=r["stage"], hint=booked_hint(r["id"]), idx=C.STAGES.index(r["stage"]) if r["stage"] in C.STAGES else -1,
                                  date=r["shoot_date"], time=r["start_time"], stype=r["type"], tentative=r["date_tentative"] if "date_tentative" in r.keys() else 0, ready=w["ready"] and bool(w["next_stage"]),
                                  done=cur["n_done"], total=len(cur["steps"])))
         ent["acts"] += by_link.get(link, [])
@@ -2588,15 +2395,15 @@ def roster(acts):
         for f in ent["flows"]:
             if f["date"] and t <= f["date"] <= (today() + timedelta(days=14)).isoformat():
                 marks.append(dict(x=10 + (d(f["date"]) - today()).days * 6.2, kind="shoot", status="shoot", size=14,
-                                  tip=f"Shoot {nice(f['date'])}" + (f", {ampm(f['time'])}" if f["time"] else "")))
-        # spread marks that land on the same spot
+                                  tip=f"Shoot {nice(f['date'])}" + (f", {clock(f['time'])}" if f["time"] else "")))
+
         seen_x = {}
         for m in sorted(marks, key=lambda m_: m_["x"]):
             k_ = round(m["x"])
             m["y"] = seen_x.get(k_, 0); seen_x[k_] = m["y"] + 1
         ent["marks"] = marks
         real_first = [a for a in ent["late"]] + [a for a in ent["now"] if not a.get("primary")] + ent["coming"] + [a for a in ent["now"] if a.get("primary")]
-        # your move leads; the client's move leads only when nothing is on you
+
         mine_ = [a for a in real_first if not a.get("theirs")]
         if mine_ and real_first and real_first[0].get("theirs"):
             real_first.remove(mine_[0]); real_first.insert(0, mine_[0])
@@ -2616,7 +2423,6 @@ def roster(acts):
         res.append(ent)
     res.sort(key=lambda e_: e_["sort"])
     return res
-
 
 def client_focus(hid, acts=None):
     h = q("SELECT * FROM households WHERE id=?", (hid,), one=True)
@@ -2639,7 +2445,6 @@ def client_focus(hid, acts=None):
                 contact=household_contact(people),
                 back=url_for("home", c=hid))
 
-
 def event_focus(eid, acts=None):
     e = q("SELECT * FROM events WHERE id=?", (eid,), one=True)
     if not e:
@@ -2655,9 +2460,8 @@ def event_focus(eid, acts=None):
                 link=link, back=url_for("home", e=eid), light=light(e["date"]),
                 stage=fams[0]["s"]["stage"] if fams else "booked")
 
-
 def stage_dates(sr, docs, pays):
-    """When each stage was reached: logged changes first, otherwise the best evidence on file."""
+
     got = {r["stage"]: r["at"][:10] for r in q("SELECT stage, MIN(at) at FROM stage_log WHERE session_id=? GROUP BY stage", (sr["id"],))}
     signed = sorted(d_["signed"] for d_ in docs if d_["signed"])
     paid = sorted(p_["received"] for p_ in pays if p_["received"])
@@ -2678,17 +2482,19 @@ def stage_dates(sr, docs, pays):
         out["quoted"] = out.get("inquiry")
     return out
 
-
 def days_in_stage(sr):
-    """Whole days since this session reached its current stage."""
+
+    sr = q("SELECT * FROM sessions WHERE id=?", (sr["id"],), one=True) or sr
+    last_ = q("SELECT MAX(at) a FROM stage_log WHERE session_id=? AND stage=?", (sr["id"], sr["stage"]), one=True)["a"]
+    if last_:
+        return max(0, (today() - d(last_[:10])).days)
     docs = q("SELECT kind, status, signed FROM documents WHERE session_id=?", (sr["id"],))
     pays = q("SELECT received FROM payments WHERE session_id=?", (sr["id"],))
     since = stage_dates(sr, docs, pays).get(sr["stage"]) or (sr["stage_changed"] or "")[:10] or today().isoformat()
     return max(0, (today() - d(since)).days)
 
-
 def journey(sr, acts):
-    """Everything that happened and everything planned for one session, placed on a time axis."""
+
     sid = sr["id"]
     t = today().isoformat()
     docs = q("""SELECT d.*, p.name AS person FROM documents d LEFT JOIN people p ON p.id=d.about_person WHERE session_id=?""", (sid,))
@@ -2708,8 +2514,7 @@ def journey(sr, acts):
             past.append(dict(d=sr[field], kind="deliver", label=label, sub="", size=11, show=True))
     for tk in q("SELECT * FROM tasks WHERE session_id=? AND done IS NOT NULL", (sid,)):
         past.append(dict(d=tk["done"], kind="step", label=tk["title"], sub="", size=8))
-    # everything finished sits above the line: shared event steps, steps closed another way,
-    # the quote built and each version sent
+
     if sr["event_id"]:
         for tk in q("SELECT * FROM tasks WHERE event_id=? AND session_id IS NULL AND done IS NOT NULL", (sr["event_id"],)):
             past.append(dict(d=tk["done"], kind="step", label=tk["title"], sub="whole event", size=8))
@@ -2730,7 +2535,7 @@ def journey(sr, acts):
                                size=16 if st_ == "late" else 14 if days <= 3 else 11 if days <= 7 else 9))
     shoot = sr["shoot_date"]
     ok_ = lambda v: bool(re.fullmatch(r"(19|20|21)\d\d-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])", str(v)[:10]))
-    past = [x_ for x_ in past if ok_(x_["d"])]            # a mistyped date (year 1, month 13) is left off the line
+    past = [x_ for x_ in past if ok_(x_["d"])]
     future = [x_ for x_ in future if ok_(x_["d"])]
     dates = [x_["d"] for x_ in past + future if x_["d"]] + [t, (sr["created"] or t)[:10]] + ([shoot] if shoot and ok_(shoot) else [])
     start = d(min(dates)) - timedelta(days=2)
@@ -2777,8 +2582,7 @@ def journey(sr, acts):
     return dict(past=past, future=future, today=tpos, shoot=spos, shoot_d=shoot, shoot_label=spos is None or abs(spos - tpos) > 7,
                 bands=bands, ticks=ticks, docs=docs, pays=pays, stage_dates=sd)
 
-
-HISTORY_AREAS = [   # first match wins: (words in the History line, Material Symbol for its part of the product)
+HISTORY_AREAS = [
     (("payment", "deposit", "refund", "void", "recorded ", "balance", "check #", "paid"), "payments"),
     (("quote", "fee", "discount", "line", "sales tax", "tax ", "price", "invoice", "receipt"), "request_quote"),
     (("agreement", "release", "signed", "wording", "document", "sample", "reviewed", "session details", "statement"), "description"),
@@ -2790,11 +2594,9 @@ HISTORY_AREAS = [   # first match wins: (words in the History line, Material Sym
     (("step", "marked", "done"), "task_alt"),
 ]
 
-
 def history_icon(text):
     t_ = (text or "").lower()
     return next((sym_ for words, sym_ in HISTORY_AREAS if any(w in t_ for w in words)), "history")
-
 
 def client_history(hid):
     rows = [dict(at=r["at"], kind="audit", who=r["who"], text=r["action"], note=r["note"], sid=r["session_id"], icon=history_icon(r["action"]), seq=r["id"])
@@ -2802,15 +2604,14 @@ def client_history(hid):
     rows += [dict(at=r["at"] if len(r["at"]) > 10 else r["at"] + " 00:00:00", kind=r["channel"], who=setting("photographer_name") or "You", text=r["summary"],
                   note="", sid=r["session_id"], lid=r["id"], written=r["written_at"])
              for r in q("SELECT * FROM log WHERE household_id=?", (hid,))]
-    rows.sort(key=lambda r_: (r_["at"], r_.get("seq", 0)), reverse=True)   # same minute: the order it happened
+    rows.sort(key=lambda r_: (r_["at"], r_.get("seq", 0)), reverse=True)
     sids_ = sorted({r_["sid"] for r_ in rows if r_["sid"]})
     here_ = {r_["id"] for r_ in q("SELECT id FROM sessions WHERE id IN (%s)" % ",".join("?" * len(sids_)), sids_)} if sids_ else set()
     for r_ in rows:
-        r_["gone"] = bool(r_["sid"]) and r_["sid"] not in here_     # the client's history keeps a deleted session's lines: say so
+        r_["gone"] = bool(r_["sid"]) and r_["sid"] not in here_
         r_["day"] = r_["at"][:10]
-        r_["time"] = ampm(r_["at"][11:16]) if r_["at"][11:16] != "00:00" else ""
+        r_["time"] = clock(r_["at"][11:16]) if r_["at"][11:16] != "00:00" else ""
     return rows
-
 
 @app.get("/c/<int:hid>")
 def client_stage(hid):
@@ -2819,7 +2620,7 @@ def client_stage(hid):
     sess = q("SELECT * FROM sessions WHERE household_id=? ORDER BY stage IN ('closed','lost'), COALESCE(shoot_date,'9999')", (hid,))
     if not sess:
         return redirect(url_for("client_view", hid=hid))
-    sid = g.get("stage_sid") or request.args.get("s", type=int) or sess[0]["id"]   # stage_sid: a refused save shows its session
+    sid = g.get("stage_sid") or request.args.get("s", type=int) or sess[0]["id"]
     sr = next((x_ for x_ in sess if x_["id"] == sid), sess[0])
     acts = build_actions(only_sid=sr["id"])
     link = url_for("session_view", sid=sr["id"])
@@ -2846,16 +2647,13 @@ def client_stage(hid):
                            history=client_history(hid),
                            back=url_for("client_stage", hid=hid, s=sr["id"]))
 
-
 @app.get("/focus/client/<int:hid>")
 def focus_client(hid):
     return render_template("_focus.html", focus=client_focus(hid))
 
-
 @app.get("/focus/event/<int:eid>")
 def focus_event(eid):
     return render_template("_focus.html", focus=event_focus(eid))
-
 
 @app.post("/client/<int:hid>/new")
 def client_new_flow(hid):
@@ -2865,7 +2663,6 @@ def client_new_flow(hid):
     subj = [p["id"] for p in q("SELECT id, role FROM people WHERE household_id=?", (hid,)) if p["role"] != "parent"]
     new_sid = create_session(hid, t_, "inquiry", subject_ids=subj)
     return redirect(url_for("client_stage", hid=hid, s=new_sid))
-
 
 @app.post("/event/<int:eid>/date")
 def event_date(eid):
@@ -2880,7 +2677,6 @@ def event_date(eid):
     if request.headers.get("X-Fetch"):
         return ("", 204)
     return redirect(safe_back(request.form.get("back")) or url_for("home"))
-
 
 def two_weeks(acts):
     t = today()
@@ -2908,10 +2704,9 @@ def two_weeks(acts):
                                        eid=a["who"].get("eid"), late=w_ < t.isoformat(), who=a["who"]["link"]))
     return days
 
-
 @app.get("/availability")
 def availability():
-    """Live check while picking a shoot date."""
+
     from flask import jsonify
     day, hm = request.args.get("d", ""), request.args.get("t", "")
     sid = request.args.get("sid", type=int) or 0
@@ -2924,10 +2719,9 @@ def availability():
     return jsonify(clashes=[f"{c['name']}: {c['when']}" for c in clashes_at(sid, stype, day, hm, s_["event_id"] if s_ else None)],
                    day=nice(day))
 
-
 @app.get("/calendar/year")
 def year_view():
-    """A year at a glance: which days are booked (Saturdays stand out), for answering "are you free on ...?" """
+
     import calendar as _cal
     t = today()
     try:
@@ -2949,10 +2743,9 @@ def year_view():
                     if c["sat"] and not c["other"] and not c["who"] and c["iso"] >= t.isoformat())
     return render_template("year.html", y=y, months=months, free_sats=free_sats)
 
-
 @app.get("/calendar")
 def month_view():
-    """Month at a glance: shoots and every dated step, on its own day, Sunday-first grid."""
+
     import calendar as _cal
     t = today()
     try:
@@ -2994,17 +2787,13 @@ def month_view():
     return render_template("month.html", weeks=weeks, title=first.strftime("%B %Y"), prev_m=prev_, next_m=next_,
                            this_m=t.strftime("%Y-%m"), is_this=first.strftime("%Y-%m") == t.strftime("%Y-%m"))
 
-
 def needs_you_shoots():
     return needs_you()["shoots"]
 
-
-SESSION_FILTERS = None   # the only SQL fragments session_rows accepts (values are always bound parameters)
-
+SESSION_FILTERS = None
 
 def _check_filter(where):
-    """session_rows takes a WHERE built only from fixed fragments (VIEWS and the two search clauses); anything else is
-    refused, so no request text can ever become SQL."""
+
     allowed = sorted({w for _l, w in VIEWS.values()} | {"1=1", " AND s.type=?", " AND (h.name LIKE ? OR s.title LIKE ? OR e.name LIKE ?)"},
                      key=len, reverse=True)
     rest = where
@@ -3013,7 +2802,6 @@ def _check_filter(where):
     if rest.strip():
         raise ValueError("unexpected SQL in a session filter")
     return where
-
 
 def session_rows(where="1=1", args=()):
     rows = []
@@ -3027,7 +2815,6 @@ def session_rows(where="1=1", args=()):
         rows.append(dict(s=r, t=totals(r["id"]), wf=workflow(r["id"])))
     return rows
 
-
 VIEWS = {
     "open": ("Open", "s.stage NOT IN ('closed','lost')"),
     "upcoming": ("Upcoming shoots", "s.shoot_date >= date('now','localtime') AND s.stage NOT IN ('lost')"),
@@ -3035,7 +2822,6 @@ VIEWS = {
     "post": ("Post-production", "s.stage IN ('shot','delivered')"),
     "all": ("All", "1=1"),
 }
-
 
 @app.get("/sessions")
 def sessions():
@@ -3053,10 +2839,8 @@ def sessions():
         rows = [r for r in rows if owed_now(r["s"]["stage"], r["t"], r["s"]["shoot_date"], row_type(r["s"]))]
     return render_template("sessions.html", rows=rows, view=view, views=VIEWS)
 
-
 def _search_matches(hid, term):
-    """A client's sessions, and the addresses that matched the search (they aren't otherwise shown): each session that
-    matched on its address or venue carries it as 'hit'; the client's own address or company goes in matched."""
+
     t_ = term.lower()
     first = lambda v: next((ln.strip() for ln in (v or "").splitlines() if t_ in ln.lower()), (v or "").strip().splitlines()[0] if v else "")
     h = q("SELECT address, company FROM households WHERE id=?", (hid,), one=True)
@@ -3069,7 +2853,6 @@ def _search_matches(hid, term):
         d_["hit"] = next((first(str(intake[k])) for k in ("address", "venue") if t_ in str(intake.get(k) or "").lower()), "")
         ses.append(d_)
     return ses, matched
-
 
 @app.get("/search")
 def search():
@@ -3102,7 +2885,7 @@ def search():
             if any(digits in ph or (ph and ph in digits) for ph in phones):
                 ses = q("SELECT id, type, stage, shoot_date FROM sessions WHERE household_id=? ORDER BY COALESCE(shoot_date,'9999') DESC", (h["id"],))
                 hits.append(dict(kind="client", h=h, sessions=ses, people=q("SELECT name, phone, email FROM people WHERE household_id=?", (h["id"],))))
-    if term:                                     # beyond names and addresses: notes, titles, intake answers, numbers
+    if term:
         known = {x_["h"]["id"]: x_ for x_ in hits if x_["kind"] == "client"}
         more = {}
 
@@ -3146,7 +2929,7 @@ def search():
     found_settings = settings_index.find(term, C.SESSION_TYPES, url_for)
     if found_settings:
         extra.append(dict(title="Settings", rows=found_settings))
-    for fn in hooks.search:                      # plugins may add their own results
+    for fn in hooks.search:
         try:
             extra += [sec for sec in (fn(term) or []) if sec.get("rows")]
         except Exception:
@@ -3156,7 +2939,6 @@ def search():
     if len(hits) == 1 and not extra and hits[0]["kind"] == "event":
         return redirect(url_for("event_view", eid=hits[0]["e"]["id"]))
     return render_template("search.html", term=term, hits=hits, extra=extra)
-
 
 @app.get("/pipeline")
 def pipeline():
@@ -3178,7 +2960,6 @@ def pipeline():
     show_lost = request.args.get("lost") == "1"
     return render_template("pipeline.html", cols=cols, show_lost=show_lost)
 
-
 @app.post("/session/<int:sid>/stage")
 def session_stage(sid):
     stage = request.form["stage"]
@@ -3187,7 +2968,7 @@ def session_stage(sid):
     old_ = (q("SELECT stage FROM sessions WHERE id=?", (sid,), one=True) or abort(404))["stage"]
     back_ = old_ in C.STAGES and stage in C.STAGES and C.STAGES.index(stage) < C.STAGES.index(old_)
     set_stage(sid, stage)
-    x("UPDATE sessions SET hold_stage=? WHERE id=?", (stage if back_ else None, sid))   # a step back by hand stays put
+    x("UPDATE sessions SET hold_stage=? WHERE id=?", (stage if back_ else None, sid))
     if back_:
         session["notice"] = (f"Stays at {C.STAGE_LABELS[stage]} until you move it on, or reopen one of its steps"
                              " (it then moves on by itself once they are done again).")
@@ -3196,9 +2977,6 @@ def session_stage(sid):
     if request.headers.get("X-Fetch"):
         return ("", 204)
     return redirect(safe_back(request.form.get("back")) or url_for("session_view", sid=sid))
-
-
-# ---------------------------------------------------------------- routes: clients
 
 @app.get("/clients")
 def clients():
@@ -3216,10 +2994,9 @@ def clients():
         ORDER BY h.name""", (term, like, like, like, like))
     return render_template("clients.html", rows=rows, term=term)
 
-
 @app.route("/contact/new", methods=["GET", "POST"])
 def contact_new():
-    """Step 1: a contact is added on its own; an inquiry may or may not come with it."""
+
     if request.method == "GET":
         return render_template("contact_new.html", households=q("SELECT id, name FROM households ORDER BY name"))
     f = request.form
@@ -3240,17 +3017,17 @@ def contact_new():
         return redirect(url_for("inquiry", hid=hid))
     return redirect(url_for("client_view", hid=hid))
 
-
 @app.route("/inquiry", methods=["GET", "POST"])
 def inquiry():
-    """Step 2: an inquiry belongs to a contact. Pick the contact, then the shoot type, then a form shaped by the type."""
+
     if request.method == "GET":
         hid = request.args.get("hid", type=int)
         t_ = request.args.get("type", "")
         h = q("SELECT * FROM households WHERE id=?", (hid,), one=True) if hid else None
         if hid and not h:
             abort(404)
-        return render_template("inquiry.html", h=h, type_=t_ if t_ in C.SESSION_TYPES else "",
+        last_ = q("SELECT type FROM sessions ORDER BY id DESC LIMIT 1", one=True)
+        return render_template("inquiry.html", h=h, type_=t_ if t_ in C.SESSION_TYPES else "", last_type=last_["type"] if last_ else "",
                                households=sorted(q("SELECT id, name FROM households"), key=lambda r_: re.sub(r"^the\s+", "", r_["name"].lower())),
                                people=q("SELECT * FROM people WHERE household_id=? ORDER BY role='parent' DESC, id",
                                         (hid,)) if h else [],
@@ -3265,39 +3042,38 @@ def inquiry():
     if t_ in C.SUBJECT_TYPES and f.get("subject_name", "").strip():
         rel_ = f.get("subject_relation") or ("pet" if t_ in C.ANIMAL_TYPES else "")
         if t_ in C.BABY_TYPES and rel_ not in PARENT_REL and rel_ != "pet" and not f.get("subject_age"):
-            f = f.copy(); f["subject_minor"] = "1"; f["minor_shown"] = "1"   # a newborn or baby session: the baby is a minor
+            f = f.copy(); f["subject_minor"] = "1"; f["minor_shown"] = "1"
         rel, gender, by, role, minor, approx = person_fields(dict(relation=rel_, gender=f.get("subject_gender"),
                                                                   age=f.get("subject_age"), age_approx=f.get("subject_age_approx"),
                                                                   is_minor=f.get("subject_minor"), minor_shown=f.get("minor_shown"),
                                                                   role="child" if f.get("subject_minor") else "adult"))
-        # several people at once: "Ava, Ben and Cole". The details typed (who, age, minor) belong to the first; the
-        # others are added by name, as minors only when the Minor box is ticked, and are filled in on the client page.
+
         names = []
         for n_ in (n_.strip() for n_ in re.split(r",|\band\b|&", f["subject_name"])):
             if not n_:
                 continue
-            if len(names) > 12:                            # only twelve are kept: never walk a pasted wall of names
+            if len(names) > 12:
                 break
-            if re.fullmatch(r"\(?\d{1,2}\)?", n_) and names:   # "Ada, 7": the number belongs to the name before it
+            if re.fullmatch(r"\(?\d{1,2}\)?", n_) and names:
                 names[-1] += " " + n_
-            elif n_.lower() not in [x_.lower() for x_ in names]:   # "Mia and Mia": one Mia
+            elif n_.lower() not in [x_.lower() for x_ in names]:
                 names.append(n_)
         names = names[:12] or [f["subject_name"].strip()]
-        minor_typed = minor                                # the Minor box, for names typed without an age
+        minor_typed = minor
         have_ = {" ".join(p_["name"].lower().split()): p_["id"] for p_ in q("SELECT id, name FROM people WHERE household_id=?", (hid,))}
         for i_, nm in enumerate(names):
             first_ = i_ == 0
             ta_ = trailing_age(nm, newline_ok=True)
             bare_ = " ".join((ta_[0] if ta_ else nm).lower().split())
             firsts_ = [pid_ for n_, pid_ in have_.items() if n_.split()[:1] == [bare_]] if " " not in bare_ else []
-            if bare_ in have_ or len(firsts_) == 1:       # already in this family ("Priya" for Priya Shah): not a copy
+            if bare_ in have_ or len(firsts_) == 1:
                 pid_ = have_.get(bare_) or firsts_[0]
                 if pid_ not in subject_ids:
                     subject_ids.append(pid_)
                 continue
-            m_ = trailing_age(nm)                         # "Ada (7)", "Ada 7", "Ada, 7": the number is the age
+            m_ = trailing_age(nm)
             if m_ and m_[0].strip() and first_ and f.get("subject_age", "").strip():
-                nm = m_[0].strip()                        # the age box wins; the "(7)" still leaves the name
+                nm = m_[0].strip()
             elif m_ and m_[0].strip():
                 nm, age_ = m_[0].strip(), int(m_[1])
                 kid_ = age_ < majority_age() and role != "pet"
@@ -3320,11 +3096,11 @@ def inquiry():
         subject_ids = [p["id"] for p in q("SELECT id FROM people WHERE household_id=? AND role IN ('parent','adult') ORDER BY id LIMIT 1", (hid,))]
     sid = create_session(hid, t_, "inquiry", f.get("title", ""), f.get("shoot_date") or None, subject_ids=subject_ids)
     head_ = q("SELECT * FROM sessions WHERE id=? AND household_id=? AND plan_of IS NULL", (f.get("plan_of", type=int) or 0, hid), one=True)
-    if head_ and head_["id"] != sid:          # part of a plan from the start: one agreement covers both
+    if head_ and head_["id"] != sid:
         x("UPDATE sessions SET plan_of=? WHERE id=?", (head_["id"], sid))
         x("DELETE FROM documents WHERE session_id=? AND kind='agreement' AND status != 'signed'", (sid,))
         if q("SELECT 1 FROM documents WHERE session_id=? AND kind='agreement' AND status='signed'", (head_["id"],), one=True):
-            # a bare inquiry never unsigns a booked agreement: a to-do asks for it to be signed again once this books
+
             x("INSERT INTO tasks (id, session_id, title, due, sort, stage, own) VALUES (?,?,?,?,999,?,1)",
               (next_id("tasks"), head_["id"], PLAN_RESIGN, None, head_["stage"]))
     if (f.get("gallery_codeword") or "").strip():
@@ -3339,18 +3115,17 @@ def inquiry():
     answers = {k: f.get("i_" + k, "").strip() for k, _ in C.INTAKE.get(t_, [])}
     if any(answers.values()):
         x("UPDATE sessions SET intake=? WHERE id=?", (json.dumps(answers), sid))
-    # the inquiry IS the first contact: it is logged with or without a note, so "Log the first contact" never asks again
+
     x("INSERT INTO log (household_id, session_id, channel, summary, at) VALUES (?,?,?,?,?)",
       (hid, sid, f.get("channel") or "note", f.get("note", "").strip() or f"Inquiry: {C.SESSION_TYPES[t_]}", now_local()))
     return redirect(stage_url(sid))
-
 
 @app.get("/client/<int:hid>")
 def client_view(hid):
     h = q("SELECT * FROM households WHERE id=?", (hid,), one=True) or abort(404)
     people = q("SELECT * FROM people WHERE household_id=? ORDER BY role DESC, name", (hid,))
     types = {r_["type"] for r_ in q("SELECT type FROM sessions WHERE household_id=?", (hid,))}
-    # grad year only for seniors and sports; gender only for people photographed in portraits (not a company's staff, not pet owners)
+
     show_grad = bool(types & set(C.GRAD_TYPES)) or any(p_["grad_year"] for p_ in people)
     show_born = bool(types & set(C.BABY_TYPES)) or any(p_["birth_date"] for p_ in people)
     show_gender = (not (h["company"] or "").strip() and not (types and types <= (set(C.ANIMAL_TYPES) | set(C.LICENSE_TYPES)))) \
@@ -3363,7 +3138,6 @@ def client_view(hid):
         referrer=q("SELECT id, name FROM households WHERE id=?", (h["referred_by"],), one=True),
         referred=q("SELECT id, name FROM households WHERE referred_by=?", (hid,)),
         households=q("SELECT id, name FROM households WHERE id != ? ORDER BY name", (hid,)))
-
 
 @app.post("/client/<int:hid>")
 def client_save(hid):
@@ -3381,19 +3155,17 @@ def client_save(hid):
         reapply_tax(sid_)
     return redirect(url_for("client_view", hid=hid) + "#details")
 
-
 @app.get("/face/<int:hid>")
 def face_img(hid):
-    """Face photos are encrypted on disk (tied to their household); decrypted in memory, never cached by the browser."""
+
     f = FACES / f"{hid}.jpg"
     try:
         data = datakey.open_bytes(f.read_bytes(), f"face:{hid}", label="faces")
     except (OSError, ValueError):
-        abort(404)                               # missing, or damaged / altered (the check failed)
+        abort(404)
     r = app.response_class(data, mimetype="image/jpeg")
     r.headers["Cache-Control"] = "no-store"
     return r
-
 
 @app.post("/client/<int:hid>/face")
 def face_upload(hid):
@@ -3411,13 +3183,12 @@ def face_upload(hid):
         datakey.write_sealed(FACES / f"{hid}.jpg", buf.getvalue(), f"face:{hid}", label="faces")
     return redirect(safe_back(request.form.get("back")) or url_for("client_view", hid=hid))
 
-
 @app.post("/client/<int:hid>/note")
 def client_note(hid):
     f = request.form
     when = (f.get("when") or "").replace("T", " ")
     when = (when + ":00")[:19] if len(when) == 16 else now_local()
-    try:                                          # a real date and time, this century or last: else now
+    try:
         if datetime.strptime(when, "%Y-%m-%d %H:%M:%S").year < 1900:
             when = now_local()
     except ValueError:
@@ -3427,13 +3198,11 @@ def client_note(hid):
       (hid, int(f["session_id"]) if f.get("session_id") else None, f.get("channel", "note"), f["text"].strip(), when, now_local()))
     return redirect(safe_back(f.get("back")) or url_for("client_stage", hid=hid) + "#history")
 
-
 @app.post("/note/<int:lid>/delete")
 def note_delete(lid):
     r = q("SELECT * FROM log WHERE id=?", (lid,), one=True) or abort(404)
     x("DELETE FROM log WHERE id=?", (lid,))
     return redirect(safe_back(request.form.get("back")) or url_for("client_stage", hid=r["household_id"]) + "#history")
-
 
 @app.post("/client/<int:hid>/person")
 def person_add(hid):
@@ -3447,9 +3216,8 @@ def person_add(hid):
     _same_name_notice(f["name"], hid)
     return redirect(url_for("client_view", hid=hid) + "#people")
 
-
 def _save_birth_date(pid, f):
-    """Born (or due) date, for babies: optional; a due date may be ahead. A baby is a minor."""
+
     if "birth_date" not in f:
         return
     v = (f.get("birth_date") or "").strip()
@@ -3461,14 +3229,12 @@ def _save_birth_date(pid, f):
     if v:
         x("UPDATE people SET birth_year=?, is_minor=1 WHERE id=?", (int(v[:4]), pid))
 
-
 def _same_name_notice(name, hid):
-    """Two people with the same name are allowed (it happens), but say so, in case it's the same person twice."""
+
     other = q("""SELECT h.name FROM people p JOIN households h ON h.id=p.household_id
                  WHERE lower(trim(p.name))=lower(trim(?)) AND p.household_id != ? LIMIT 1""", (name, hid), one=True)
     if other:
         session["notice"] = f"{name.strip()} is also a person under {other['name']}. Check it isn't the same person twice."
-
 
 @app.post("/person/<int:pid>")
 def person_save(pid):
@@ -3479,7 +3245,7 @@ def person_save(pid):
         g.edit_clash_reload = url_for("client_view", hid=p["household_id"]) + "#people"
         return client_view(p["household_id"]), 409
     if f.get("delete"):
-        # their unsigned releases go with them (a signed one is a record and stays, kept by its snapshot)
+
         x("DELETE FROM documents WHERE about_person=? AND kind='release' AND status != 'signed'", (pid,))
         x("DELETE FROM people WHERE id=?", (pid,))
     else:
@@ -3490,7 +3256,6 @@ def person_save(pid):
            f.get("phone", ""), rel, gender, by, approx, pid))
         _save_birth_date(pid, f)
     return redirect(url_for("client_view", hid=p["household_id"]) + "#people")
-
 
 @app.post("/log")
 def log_add():
@@ -3503,7 +3268,6 @@ def log_add():
        f.get("channel", "note"), f["summary"], datetime.now(TZ).strftime("%Y-%m-%d %H:%M:%S")))
     return redirect(safe_back(f.get("back")) or url_for("client_view", hid=f["household_id"]))
 
-
 @app.post("/client/<int:hid>/session")
 def client_new_session(hid):
     f = request.form
@@ -3513,13 +3277,9 @@ def client_new_session(hid):
                          f.get("shoot_date") or None, subject_ids=[int(v) for v in f.getlist("subjects")])
     return redirect(url_for("session_view", sid=sid))
 
-
-# ---------------------------------------------------------------- routes: sessions
-
 def stage_url(sid):
     r = q("SELECT household_id FROM sessions WHERE id=?", (sid,), one=True)
     return url_for("client_stage", hid=r["household_id"], s=sid) if r else url_for("home")
-
 
 @app.get("/session/<int:sid>")
 def session_view(sid):
@@ -3549,7 +3309,6 @@ def session_view(sid):
                                     (s["household_id"],))),
         events=q("SELECT id, name FROM events ORDER BY date DESC"), minutes=session_minutes(sid, s["type"]))
 
-
 SESSION_FORM_FIELDS = (("title", "Title"), ("type", "Type"), ("shoot_date", "Date"), ("start_time", "Start"),
                        ("duration_min", "Minutes"), ("po_number", "PO / reference"), ("lic_term", "License term"),
                        ("lic_territory", "Territory"), ("stops", "Where"), ("notes", "Notes"))
@@ -3557,18 +3316,18 @@ CLIENT_FORM_FIELDS = (("name", "Name"), ("company", "Company"), ("address", "Mai
                       ("notes", "Notes"))
 
 STAMPED = {"sessions": ("title", "type", "shoot_date", "start_time", "duration_min", "po_number", "lic_term", "lic_territory",
-                        "lic_exclusive", "date_tentative", "stops", "notes", "event_id"),      # what the Shoot form saves
-           "households": ("name", "company", "address", "source", "referred_by", "notes"),  # what the Details form saves
-           # the other forms that save several fields at once (a stale one would put back what it showed)
-           "intake": ("intake",),                                                   # What they want / Intake
+                        "lic_exclusive", "date_tentative", "stops", "notes", "event_id"),
+           "households": ("name", "company", "address", "source", "referred_by", "notes"),
+
+           "intake": ("intake",),
            "delivery": ("gallery_built", "letter_mailed", "first_visit", "extension_used", "sd_shipped", "delivery_method",
-                        "favorites", "veto", "retouch_picks", "gallery_codeword"),  # the session page's Delivery form
-           "picks": ("favorites", "veto", "retouch_picks"),                        # the To Do's picks form
-           "when": ("shoot_date", "start_time", "stops"),                          # the To Do's set-the-date form
+                        "favorites", "veto", "retouch_picks", "gallery_codeword"),
+           "picks": ("favorites", "veto", "retouch_picks"),
+           "when": ("shoot_date", "start_time", "stops"),
            "people": ("name", "relation", "gender", "role", "is_minor", "grad_year", "email", "phone", "birth_year",
-                      "birth_date", "age_approx"),                                 # a person's row
-           "events": ("name", "date", "venue", "notes"),                           # an event's Details
-           "event_rights": ("billing", "rights", "rights_note")}                   # an event's custom rights note
+                      "birth_date", "age_approx"),
+           "events": ("name", "date", "venue", "notes"),
+           "event_rights": ("billing", "rights", "rights_note")}
 STAMP_TABLE = {"intake": "sessions", "delivery": "sessions", "picks": "sessions", "when": "sessions", "event_rights": "events"}
 DELIVERY_FORM_FIELDS = (("gallery_built", "Gallery built"), ("letter_mailed", "QR letter mailed"), ("first_visit", "First visit"),
                         ("sd_shipped", "Files delivered"), ("favorites", "Portfolio suggestions"), ("veto", "Don't show"),
@@ -3579,11 +3338,8 @@ PERSON_FORM_FIELDS = (("name", "Name"), ("relation", "Who"), ("email", "Email"),
                       ("grad_year", "Grad year"))
 EVENT_FORM_FIELDS = (("name", "Name"), ("date", "Date"), ("venue", "Venue"), ("notes", "Notes"))
 
-
 def edit_stamp(table, rid):
-    """A short fingerprint of what an edit form shows (the row's own fields, and a session's subjects). The form carries
-    it; a save whose fingerprint no longer matches was made from a stale page (another tab saved first) and is refused,
-    so one tab never silently undoes the other."""
+
     import hashlib
     r_ = q("SELECT * FROM " + dbmod.ident(STAMP_TABLE.get(table, table)) + " WHERE id=?", (rid,), one=True)
     if not r_:
@@ -3593,10 +3349,8 @@ def edit_stamp(table, rid):
         data["_subjects"] = [r2["person_id"] for r2 in q("SELECT person_id FROM session_people WHERE session_id=? ORDER BY person_id", (rid,))]
     return hashlib.sha256(json.dumps(data, sort_keys=True, default=str).encode()).hexdigest()[:20]
 
-
 def _stale_edit(table, rid, fields, current):
-    """None when the form was current. Otherwise the refusal: the latest record is shown, with what was typed listed
-    beside it so nothing typed is lost (saving again from the reloaded page is a deliberate choice, made seeing both)."""
+
     seen = request.form.get("seen")
     if not seen or seen == edit_stamp(table, rid):
         return None
@@ -3606,10 +3360,8 @@ def _stale_edit(table, rid, fields, current):
                     if k_ in request.form and (request.form.get(k_) or "").strip() != str(cur_.get(k_) if cur_.get(k_) is not None else "").strip()]
     return True
 
-
 def _clash_page(sid, form, what="session"):
-    """The refusal of a stale save on one of a session's smaller forms: the page the form was on (the session page,
-    or the client's stage page for that session) at its latest, with what was typed listed beside the form."""
+
     g.edit_clash_form, g.edit_clash_what = form, what
     back = (safe_back(request.form.get("back")) or "").split("#")[0].split("?")[0]
     if not back or back == url_for("session_view", sid=sid):
@@ -3618,7 +3370,6 @@ def _clash_page(sid, form, what="session"):
     g.stage_sid = sid
     g.edit_clash_reload = stage_url(sid)
     return client_stage(session_full(sid)["household_id"]), 409
-
 
 @app.post("/session/<int:sid>")
 def session_save(sid):
@@ -3650,7 +3401,6 @@ def session_save(sid):
     sync_workflow_tasks(sid)
     return redirect(url_for("session_view", sid=sid) + "#shoot")
 
-
 @app.post("/session/<int:sid>/intake")
 def session_intake(sid):
     s = session_full(sid)
@@ -3660,11 +3410,9 @@ def session_intake(sid):
     x("UPDATE sessions SET intake=? WHERE id=?", (json.dumps(data), sid))
     return redirect(safe_back(request.form.get("back")) or url_for("session_view", sid=sid) + "#intake")
 
-
 @app.post("/session/<int:sid>/delivery")
 def session_delivery(sid):
-    """The delivery dates. Each must be a real day, not in the future and not before the shoot: these dates start the
-    clocks for sealing and deleting the session's photos, so a typo must not get in (a year off is the usual one)."""
+
     f = request.form
     s_ = session_full(sid)
     if _stale_edit("delivery", sid, DELIVERY_FORM_FIELDS, s_):
@@ -3697,7 +3445,7 @@ def session_delivery(sid):
         elif new_cw and not _G.codeword_strong(new_cw):
             session["notice"] = (f"That codeword is too easy to guess. Use three or more words, or 14 letters or more, "
                                  f"such as \"{_G.suggest_codeword()}\". The codeword was not changed.")
-            session["cw_refused"] = {"sid": sid, "word": new_cw}   # put back in the field, so it isn't typed again
+            session["cw_refused"] = {"sid": sid, "word": new_cw}
         else:
             x("UPDATE sessions SET gallery_codeword=? WHERE id=?", (new_cw, sid))
     x("""UPDATE sessions SET gallery_built=?, letter_mailed=?, first_visit=?, extension_used=?, sd_shipped=?,
@@ -3708,12 +3456,10 @@ def session_delivery(sid):
     hooks.fire("gallery_window_changed", sid)
     return redirect(url_for("session_view", sid=sid) + "#delivery")
 
-
 @app.post("/session/<int:sid>/delete")
 def session_delete(sid):
     s = session_full(sid)
-    # money still held stops the delete: once the session is gone its payments could no longer be seen, voided, or
-    # refunded, yet would stay in Finances. Voided payments, and payments refunded in full, net to nothing and may go.
+
     held = q("SELECT COALESCE(SUM(amount), 0) v FROM payments WHERE session_id=? AND voided IS NULL", (sid,), one=True)["v"]
     if abs(held) > 0.005:
         session["notice"] = (f"This session still holds {money(held)} in recorded payments, so it wasn't deleted. If a "
@@ -3721,7 +3467,7 @@ def session_delete(sid):
                              "Then you can delete the session.")
         g.refused = True
         return redirect(url_for("session_view", sid=sid) + "#money")
-    # nothing of a deleted session may outlive it: web gallery down, RAWs/exports/local gallery purged
+
     if app.config.get("gallery_take_down"):
         try:
             app.config["gallery_take_down"](sid)
@@ -3733,20 +3479,19 @@ def session_delete(sid):
         except Exception:
             app.logger.exception("purge on delete %s", sid)
             abort(500, "Could not delete this session's sealed photos; the session was kept. Check the vault storage.")
-    _keep_books([sid], why="session deleted")         # money received is never erased
-    kept_ = issued_numbers(sid)                        # never reused (doc-numbers.json); named in History so none goes missing
+    _keep_books([sid], why="session deleted")
+    kept_ = issued_numbers(sid)
     if kept_:
         g.audit_note = "Issued documents kept in History: " + ", ".join(kept_)
-    for tbl_ in ("doc_snapshots", "doc_snapshots_old"):  # its signed copies go with it (nothing else could reach them)
+    for tbl_ in ("doc_snapshots", "doc_snapshots_old"):
         x("DELETE FROM " + tbl_ + " WHERE (kind='agreement' AND ref=?) OR (kind='release' AND ref IN "
           "(SELECT id FROM documents WHERE session_id=?))", (sid, sid))
     x("DELETE FROM sessions WHERE id=?", (sid,))
     left = q("SELECT id FROM sessions WHERE household_id=? LIMIT 1", (s["household_id"],), one=True)
     return redirect(url_for("client_stage", hid=s["household_id"]) if left else url_for("client_view", hid=s["household_id"]))
 
-
 def household_rows(hid):
-    """Every row about one client: tables keyed by the household, and by its sessions. {table: [dict]}"""
+
     sids = [r["id"] for r in q("SELECT id FROM sessions WHERE household_id=?", (hid,))]
     out = {"households": [dict(r) for r in q("SELECT * FROM households WHERE id=?", (hid,))]}
     tables = [r["name"] for r in q("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")]
@@ -3766,13 +3511,12 @@ def household_rows(hid):
             out[t_] = [dict(r) for r in rows]
     return out
 
-
 @app.get("/client/<int:hid>/export.json")
 def client_export(hid):
-    """Everything held about one client, as JSON (for a client who asks what you keep, or to take it elsewhere)."""
+
     h = q("SELECT name FROM households WHERE id=?", (hid,), one=True) or abort(404)
     data = household_rows(hid)
-    secret_ = {"key", "ekey", "fkey", "key_trail", "gallery_codeword", "picks_hash"}      # keys and codewords are never handed out
+    secret_ = {"key", "ekey", "fkey", "key_trail", "gallery_codeword", "picks_hash"}
     def _strip(v):
         if isinstance(v, dict):
             return {k_: _strip(x_) for k_, x_ in v.items() if k_ not in secret_}
@@ -3785,17 +3529,12 @@ def client_export(hid):
     audit("Exported everything held about this client", hid=hid)
     return r
 
+DELETIONS = DB_PATH.parent / "deletions.enc"
+DELETIONS_JSON = DB_PATH.parent / "deletions.json"
 
-DELETIONS = DB_PATH.parent / "deletions.enc"   # older installs: sealed under the data key (read, never written again)
-DELETIONS_JSON = DB_PATH.parent / "deletions.json"   # outside the database and outside any key: survives a restore and a
-                                                     # key rotation (record ids and creation times only, no client details)
-DELETIONS_ASIDE = DB_PATH.parent / "deletions.unverified.json"   # entries that did not verify: kept to look at, never applied
-NUMBERS = DB_PATH.parent / "doc-numbers.enc"   # highest number issued per run, kept outside the database
+DELETIONS_ASIDE = DB_PATH.parent / "deletions.unverified.json"
+NUMBERS = DB_PATH.parent / "doc-numbers.enc"
 
-# Each entry in deletions.json carries a MAC, so a file written by anyone without the key deletes nothing. The MAC key
-# is derived from the data key the first time it is needed and then kept in the database (side_keys): a key rotation
-# copies the database, so the key outlives it, and a restored backup carries it. A backup made before the key was kept
-# derives the same key again as long as the data key has not been rotated since.
 def _deletion_key(con):
     con.execute(_SIDE_KEYS)
     r = con.execute("SELECT key FROM side_keys WHERE name='deletions'").fetchone()
@@ -3805,25 +3544,20 @@ def _deletion_key(con):
     con.execute("INSERT OR IGNORE INTO side_keys (name, key) VALUES ('deletions', ?)", (k.hex(),))
     return k
 
-
 def _deletion_mac(key, d_):
     import hashlib
     import hmac
     body = "lumen-aureum deletion|" + json.dumps([d_["id"], d_["created"]])
     return hmac.new(key, body.encode(), hashlib.sha256).hexdigest()
 
-
 def _signed(key, d_):
     return dict(id=d_["id"], created=d_["created"], at=d_.get("at"), mac=_deletion_mac(key, d_))
-
 
 def _is_entry(d_):
     return isinstance(d_, dict) and isinstance(d_.get("id"), int) and isinstance(d_.get("created"), str)
 
-
 def _read_deletions():
-    """(entries in deletions.json, entries in the sealed pre-1.0 deletions.enc). The sealed file is authenticated by
-    its own encryption, so its entries are genuine; the plain file proves nothing by itself."""
+
     plain, sealed = [], []
     try:
         plain = json.loads(DELETIONS_JSON.read_text())
@@ -3831,15 +3565,12 @@ def _read_deletions():
         pass
     try:
         sealed = json.loads(datakey.open_bytes(DELETIONS.read_bytes(), "deletions", label="deletions"))
-    except Exception:  # noqa: BLE001 - missing, or sealed under a key this install no longer has
+    except Exception:
         pass
     return (plain if isinstance(plain, list) else []), [d_ for d_ in (sealed if isinstance(sealed, list) else []) if _is_entry(d_)]
 
-
 def _sort_deletions(con):
-    """Every deletion on record, sorted by what can be trusted: (key, verified, legacy, forged). Verified entries carry a
-    MAC that checks (or come from the sealed older file); legacy ones carry none (written by 1.0.0); forged ones carry a
-    MAC that does not check, or are not entries at all."""
+
     import hmac
     key = _deletion_key(con)
     plain, sealed = _read_deletions()
@@ -3861,29 +3592,21 @@ def _sort_deletions(con):
     legacy = [d_ for d_ in legacy if (d_["id"], d_["created"]) not in seen]
     return key, good, legacy, forged
 
-
 def _set_aside(items):
-    """Unverified entries move out of deletions.json into a file of their own: kept for the owner to look at, never
-    applied, and reported once (not at every sign-in)."""
+
     try:
         old = json.loads(DELETIONS_ASIDE.read_text())
     except (OSError, ValueError):
         old = []
     _write_plain(DELETIONS_ASIDE, json.dumps((old if isinstance(old, list) else []) + items))
 
-
 def _record_deletion(hid, created):
     key, good, legacy, forged = _sort_deletions(db())
     items = good + legacy + forged + [_signed(key, dict(id=hid, created=created, at=now_local()))]
-    _write_plain(DELETIONS_JSON, json.dumps(items))     # anything unverified is left for the next sign-in to sort out
-
+    _write_plain(DELETIONS_JSON, json.dumps(items))
 
 def reapply_deletions():
-    """After a restore from an older backup, clients deleted since then are deleted again (matched by id AND creation
-    time, so a newer client that reused an id is never touched). Only entries whose MAC checks are applied. An entry
-    with a wrong MAC is set aside and noted in the history. An entry from 1.0.0 (no MAC) is signed if its client is
-    already gone (the deletion it records already happened); if its client is still here it is set aside and noted on
-    that client's history, not applied: the file alone can't prove the owner asked for it."""
+
     n = 0
     con = connect()
     try:
@@ -3899,7 +3622,7 @@ def reapply_deletions():
             r = con.execute("SELECT id FROM households WHERE id=? AND created=?", (d_["id"], d_["created"])).fetchone()
             if not r:
                 continue
-            try:                                          # one that fails is logged; it never keeps the app locked
+            try:
                 con.execute("SAVEPOINT redelete")
                 sids = [x_[0] for x_ in con.execute("SELECT id FROM sessions WHERE household_id=?", (d_["id"],))]
                 marks = ",".join("?" * len(sids)) or "NULL"
@@ -3908,8 +3631,8 @@ def reapply_deletions():
                     for tbl_ in ("doc_snapshots", "doc_snapshots_old"):
                         con.execute("DELETE FROM " + tbl_ + " WHERE (kind='agreement' AND ref IN (" + marks + ")) OR (kind='release' AND ref IN "
                                     "(SELECT id FROM documents WHERE session_id IN (" + marks + ")))", (*sids, *sids))
-                    con.execute("DELETE FROM vault_keys WHERE session_id IN (" + marks + ")", tuple(sids))   # archives unreadable
-                    import photostore as _ps                  # their photos, and the mirror copies on the next pass
+                    con.execute("DELETE FROM vault_keys WHERE session_id IN (" + marks + ")", tuple(sids))
+                    import photostore as _ps
                     if con.execute("SELECT 1 FROM sqlite_master WHERE name='photo_files'").fetchone():
                         for s_ in sids:
                             for pr_ in con.execute("SELECT * FROM photo_files WHERE session_id=?", (s_,)).fetchall():
@@ -3920,7 +3643,7 @@ def reapply_deletions():
                         con.execute(f"UPDATE events SET {c_}=NULL WHERE {c_}=?", (d_["id"],))
                 con.execute("DELETE FROM households WHERE id=?", (d_["id"],))
                 con.execute("RELEASE redelete")
-            except Exception:  # noqa: BLE001
+            except Exception:
                 con.execute("ROLLBACK TO redelete")
                 con.execute("RELEASE redelete")
                 app.logger.exception("re-deleting client %s after a restore", d_["id"])
@@ -3951,11 +3674,9 @@ def reapply_deletions():
         con.close()
     return n
 
-
 @app.post("/client/<int:hid>/delete")
 def client_delete(hid):
-    """Delete a client and everything about them: galleries off the web, photos and sealed archives destroyed, face
-    photo, every record and every history line that names them. One line stays, without a name."""
+
     if request.form.get("confirm", "").strip() != "DELETE":
         return redirect(url_for("client_view", hid=hid) + "?delete=nope")
     h_ = q("SELECT id, name, created FROM households WHERE id=?", (hid,), one=True) or abort(404)
@@ -3963,24 +3684,15 @@ def client_delete(hid):
     session["notice"] = f"Deleting {h_['name']}: galleries come down and photos are destroyed first. The progress shows at the bottom of the page."
     return redirect(url_for("home"))
 
-
 def _start_client_delete(h_):
-    """The one way a client is deleted (the Delete button, and applying unconfirmed deletions): a background job,
-    which records the deletion, signed, in deletions.json."""
+
     import jobs
     hid, created = h_["id"], h_["created"]
 
-    def work(job):                     # a background job: galleries come down over the network, photos are purged
+    def work(job):
         _delete_client(hid, created)
         return "Deleted the client record and everything about it."
     jobs.start(app, f"client-delete:{hid}", f"Deleting {h_['name']} and everything about them", work)
-
-
-# Deletions that could not be confirmed. An entry in deletions.unverified.json whose client is still here is either a
-# forgery or a genuine deletion this copy of the data can't check (a backup from before 1.0.1 restored after a key
-# rotation, or a 1.0.0 entry that was never signed). Only the owner can tell which, so it is never applied on its
-# own: Today shows the clients by name, and the owner applies the deletions (through the normal delete, which signs
-# them again) or keeps the clients (the entries are marked dismissed and the notice goes away).
 
 def _aside_items():
     try:
@@ -3989,9 +3701,8 @@ def _aside_items():
         return []
     return items if isinstance(items, list) else []
 
-
 def unconfirmed_deletions():
-    """Clients still here that an unverified deletion names and the owner hasn't kept: [{id, created, name, at, key}]."""
+
     out, seen, dismissed = [], set(), set()
     items = _aside_items()
     for d_ in items:
@@ -4008,18 +3719,14 @@ def unconfirmed_deletions():
             out.append(dict(id=h_["id"], created=h_["created"], name=h_["name"], at=at_, key=f"{h_['id']}|{h_['created']}"))
     return sorted(out, key=lambda r_: (r_["name"] or "").lower())
 
-
 def _picked_unconfirmed():
-    """The listed clients this form named (the page as it was shown: one that has changed since applies only to what
-    is still listed)."""
+
     picks = set(request.form.getlist("pick"))
     return [r_ for r_ in unconfirmed_deletions() if r_["key"] in picks]
-
 
 @app.get("/deletions/unconfirmed")
 def unconfirmed_view():
     return render_template("unconfirmed.html", rows=unconfirmed_deletions())
-
 
 @app.post("/deletions/unconfirmed/apply")
 def unconfirmed_apply():
@@ -4033,7 +3740,6 @@ def unconfirmed_apply():
         g.refused = True
         session["notice"] = "Those clients are no longer on the list, so nothing was deleted."
     return redirect(url_for("home"))
-
 
 @app.post("/deletions/unconfirmed/keep")
 def unconfirmed_keep():
@@ -4051,12 +3757,10 @@ def unconfirmed_keep():
     session["notice"] = "Kept. Those clients stay, and this won't ask about them again."
     return redirect(url_for("home"))
 
-
 def _delete_client(hid, created):
-    """The work of a client delete (run as a job). Galleries and photos go first; if either fails, nothing else is
-    deleted and the job says why."""
+
     if not q("SELECT 1 FROM households WHERE id=?", (hid,), one=True):
-        return                                           # already gone (a second click)
+        return
     sids = [r["id"] for r in q("SELECT id FROM sessions WHERE household_id=?", (hid,))]
     for sid in sids:
         if app.config.get("gallery_take_down"):
@@ -4072,9 +3776,8 @@ def _delete_client(hid, created):
                 app.logger.exception("purge on client delete %s", sid)
                 raise RuntimeError("Could not delete this client's photos; nothing else was deleted. Check the vault storage.")
     import locks
-    with locks.WRITES:                                   # the record itself goes in one short, uninterrupted step
+    with locks.WRITES:
         _delete_client_rows(hid, created, sids)
-
 
 def _delete_client_rows(hid, created, sids):
     (FACES / f"{hid}.jpg").unlink(missing_ok=True)
@@ -4084,7 +3787,7 @@ def _delete_client_rows(hid, created, sids):
     if sids:
         x("DELETE FROM vault_keys WHERE session_id IN (" + marks + ")", tuple(sids))
         x("DELETE FROM vault_objects WHERE session_id IN (" + marks + ") AND deleted IS NOT NULL", tuple(sids))
-    if sids:                                  # signed copies of their agreements and releases go with them
+    if sids:
         for tbl_ in ("doc_snapshots", "doc_snapshots_old"):
             x("DELETE FROM " + tbl_ + " WHERE (kind='agreement' AND ref IN (" + marks + ")) OR (kind='release' AND ref IN "
               "(SELECT id FROM documents WHERE session_id IN (" + marks + ")))", (*sids, *sids))
@@ -4096,11 +3799,8 @@ def _delete_client_rows(hid, created, sids):
     x("DELETE FROM households WHERE id=?", (hid,))
     audit("Deleted a client record and everything about it")
 
-
 def _keep_books(sids, why="client deleted"):
-    """Money already received stays in the year's totals and its sales tax stays owed after a client is deleted:
-    each payment is kept as a nameless line (date, amount, its share of the tax, session type), each expense as
-    unnamed overhead."""
+
     for sid in sids:
         s_ = q("SELECT type FROM sessions WHERE id=?", (sid,), one=True)
         tot_ = q("SELECT COALESCE(SUM(amount),0) v, COALESCE(SUM(CASE WHEN kind='tax' THEN amount END),0) t FROM lines WHERE session_id=?",
@@ -4112,7 +3812,6 @@ def _keep_books(sids, why="client deleted"):
         for e_ in q("SELECT date, amount, miles FROM expenses WHERE session_id=?", (sid,)):
             x("INSERT INTO expenses (session_id, date, label, amount, miles) VALUES (NULL,?,?,?,?)",
               (e_["date"], f"Session expense ({why})", e_["amount"], e_["miles"]))
-
 
 @app.post("/task/<int:tid>")
 def task_toggle(tid):
@@ -4126,22 +3825,21 @@ def task_toggle(tid):
         g.refused = True
         return redirect(safe_back(request.form.get("back")) or url_for("session_view", sid=t["session_id"]))
     else:
-        want = (request.form.getlist("set") or [None])[-1]   # what the button showed: "1" done, "0" not done (never a blind flip)
+        want = (request.form.getlist("set") or [None])[-1]
         done_now = (want == "1") if want in ("0", "1") else not t["done"]
         if bool(t["done"]) == done_now:
-            g.refused = True                         # already that way (a stale page or a double click): nothing to do
+            g.refused = True
         else:
             x("UPDATE tasks SET done=?, outcome=? WHERE id=?",
               (today().isoformat() if done_now else None, "done" if done_now else None, tid))
             if done_now and t["title"] == SEND_TASKS["invoice"] and t["session_id"]:
                 _invoice_marked_sent(t["session_id"])
-            if done_now and t["title"] == SEND_TASKS["quote"] and t["session_id"]:   # ticked off: the latest quote went
+            if done_now and t["title"] == SEND_TASKS["quote"] and t["session_id"]:
                 lq_ = q("SELECT id FROM quote_versions WHERE session_id=? ORDER BY id DESC LIMIT 1", (t["session_id"],), one=True)
                 if lq_:
                     _mark_quote_sent(lq_["id"], t["session_id"])
             if done_now and t["title"] == PLAN_RESIGN and t["session_id"]:
-                # signed again for the whole plan: the old signed copy is kept aside, and the next save stores the
-                # agreement as it reads now, with every session of the plan on it
+
                 x("""INSERT INTO doc_snapshots_old (kind, ref, at, data, moved) SELECT kind, ref, at, data, ? FROM doc_snapshots
                      WHERE kind='agreement' AND ref=?""", (today().isoformat(), t["session_id"]))
                 x("DELETE FROM doc_snapshots WHERE kind='agreement' AND ref=?", (t["session_id"],))
@@ -4153,13 +3851,11 @@ def task_toggle(tid):
         return redirect(url_for("session_view", sid=t["session_id"]))
     return redirect(url_for("event_view", eid=t["event_id"]))
 
-
 @app.post("/event/<int:eid>/task")
 def event_task_done(eid):
     x("""UPDATE tasks SET done=? WHERE done IS NULL AND title=? AND session_id IN
          (SELECT id FROM sessions WHERE event_id=?)""", (today().isoformat(), request.form["title"], eid))
     return redirect(safe_back(request.form.get("back")) or url_for("event_view", eid=eid))
-
 
 @app.post("/close")
 def close_step():
@@ -4179,15 +3875,13 @@ def close_step():
         abort(400)
     return redirect(safe_back(f.get("back")) or url_for("home"))
 
-
 @app.post("/session/<int:sid>/task")
 def task_add(sid):
     f = request.form
     stage = f.get("stage") or session_full(sid)["stage"]
     x("INSERT INTO tasks (id, session_id, title, due, sort, stage, own) VALUES (?,?,?,?,999,?,1)",
       (next_id("tasks"), sid, f["title"], f.get("due") or None, stage))
-    return redirect(url_for("session_view", sid=sid))
-
+    return redirect(safe_back(f.get("back")) or url_for("session_view", sid=sid))
 
 @app.post("/doc/<int:did>")
 def doc_save(did):
@@ -4217,14 +3911,12 @@ def doc_save(did):
           (status, f.get("signer", doc["signer"]), sent, signed, f.get("note", doc["note"]), did))
     return redirect(safe_back(f.get("back")) or url_for("session_view", sid=doc["session_id"]) + "#paperwork")
 
-
 @app.post("/session/<int:sid>/doc")
 def doc_add(sid):
     f = request.form
     x("INSERT INTO documents (session_id, kind, about_person, signer) VALUES (?,?,?,?)",
       (sid, f["kind"], f.get("about_person", type=int), f.get("signer", "")))
     return redirect(url_for("session_view", sid=sid) + "#paperwork")
-
 
 @app.post("/session/<int:sid>/money")
 def money_add(sid):
@@ -4241,12 +3933,12 @@ def money_add(sid):
             amt = num(f["amount"])
         except ValueError:
             amt = 0
-        if not amt or amt <= 0:                         # a refund is its own kind; a negative amount is a typo, not a refund
+        if not amt or amt <= 0:
             session["notice"] = "Enter the amount as a positive number. For money going back, choose Refund."
             g.refused = True
             return redirect(safe_back(f.get("back")) or url_for("session_view", sid=sid) + "#money")
         t_ = totals(sid) if kind == "refund" else None
-        if t_ is not None and amt > t_["paid"] + 0.005:     # never more back than was paid
+        if t_ is not None and amt > t_["paid"] + 0.005:
             session["notice"] = f"A refund can't be more than what was paid ({money(t_['paid'])}). Nothing was recorded."
             g.refused = True
             return redirect(safe_back(f.get("back")) or url_for("session_view", sid=sid) + "#money")
@@ -4254,16 +3946,14 @@ def money_add(sid):
                  (sid, kind, -amt if kind == "refund" else amt, f.get("received") or today().isoformat(), f.get("method", ""),
                   (f.get("ref") or "").strip()[:40]))
         if kind == "refund":
-            # Money back is a payment-side event: the quoted price stays. It never makes the client owe more either:
-            # beyond giving back an overpayment, the refund is kept as a credit the balance counts as settled (voiding
-            # the refund takes the credit with it).
+
             credit = round(amt - max(0.0, t_["paid"] - (t_["quoted"] - t_.get("refund_credit", 0.0))), 2)
             if credit > 0.005:
                 x("INSERT INTO refund_credits (payment_id, session_id, amount) VALUES (?,?,?)", (pid_, sid, credit))
             g.pop("tot_cache", None)
         else:
             t2_ = totals(sid)
-            if t2_["quoted"] > 0.005 and t2_["due"] < -0.005:   # more than the balance: recorded, and said plainly
+            if t2_["quoted"] > 0.005 and t2_["due"] < -0.005:
                 session["notice"] = (f"Recorded. That's {money(-t2_['due'])} more than the balance, so the session now "
                                      f"shows a {money(-t2_['due'])} credit to give back or put toward something else.")
             paying_means_yes(sid)
@@ -4271,14 +3961,12 @@ def money_add(sid):
         add_expense(sid, f)
     return redirect(safe_back(f.get("back")) or url_for("session_view", sid=sid) + "#money")
 
-
 def paying_means_yes(sid):
-    """A client who pays has said yes: the open "Client said yes" step ticks itself, and a session still at Inquiry
-    moves on (a payment is past first contact), then on as far as its steps allow."""
+
     x("""UPDATE tasks SET done=?, outcome='done' WHERE session_id=? AND title='Client said yes' AND done IS NULL""",
       (today().isoformat(), sid))
     t_ = totals(sid)
-    if t_["quoted"] > 0.005 and t_["due"] <= 0.005:   # paid in full: there is no invoice left to send
+    if t_["quoted"] > 0.005 and t_["due"] <= 0.005:
         x("UPDATE tasks SET done=?, outcome='done' WHERE session_id=? AND title=? AND done IS NULL",
           (today().isoformat(), sid, SEND_TASKS["invoice"]))
     lock_tax_rate(sid)
@@ -4288,33 +3976,30 @@ def paying_means_yes(sid):
         audit("Moved to Quoted (a payment came in)", sid=sid, who="Lumen Aureum")
     advance(sid)
 
-
 def add_expense(sid, f):
     miles = num(f.get("miles"), lo=0, hi=100000)
     x("INSERT INTO expenses (session_id, date, label, amount, miles, rate) VALUES (?,?,?,?,?,?)",
       (sid, f.get("date") or today().isoformat(), f["label"], num(f.get("amount")), miles,
        float(setting("mileage_rate") or 0) if miles else None))
 
-
 @app.post("/money/overhead")
 def overhead_add():
-    """Business expenses that belong to no session: gear, software, insurance, education."""
+
     add_expense(None, request.form)
     return redirect(url_for("money_view", year=(request.form.get("date") or today().isoformat())[:4]) + "#overhead")
-
 
 @app.post("/money/<what>/<int:rid>/delete")
 def money_delete(what, rid):
     table = {"line": "lines", "payment": "payments", "expense": "expenses"}.get(what) or abort(400)
     r = q("SELECT * FROM " + dbmod.ident(table) + " WHERE id=?", (rid,), one=True) or abort(404)
     if table == "payments":
-        # money received is never erased: a mistaken entry is voided (kept, struck through, out of the totals)
-        want = request.form.get("set")          # "void" or "restore", as the button said; never a blind flip
+
+        want = request.form.get("set")
         void_now = (want == "void") if want in ("void", "restore") else not r["voided"]
         if bool(r["voided"]) == void_now:
             g.refused = True
         else:
-            # a voided refund's credit (refund_credits) drops out of the balance with it, and comes back on restore
+
             x("UPDATE payments SET voided=? WHERE id=?", (today().isoformat() if void_now else None, rid))
             g.pop("tot_cache", None)
     else:
@@ -4325,21 +4010,20 @@ def money_delete(what, rid):
         return redirect(safe_back(request.form.get("back")) or url_for("money_view") + "#overhead")
     return redirect(safe_back(request.form.get("back")) or url_for("session_view", sid=r["session_id"]) + "#money")
 
-
 @app.post("/session/<int:sid>/quote/fee")
 def quote_fee(sid):
-    """Add a standard fee from the quote's own fee schedule (the current one if the quote is new)."""
+
     ensure_quote(sid)
     back = safe_back(request.form.get("back")) or url_for("session_view", sid=sid) + "#money"
     try:
         qty = num(request.form.get("qty"), 1.0, lo=0, hi=100000) or 1.0
     except ValueError:
         abort(400)
-    if not request.form.get("fee_key"):                   # Add pressed before picking a line
+    if not request.form.get("fee_key"):
         session["notice"] = "Pick a line from the list first, then press Add."
         g.refused = True
         return redirect(back)
-    if request.form.get("fee_key") == "custom":           # a line not on the price list: what it is and the price each
+    if request.form.get("fee_key") == "custom":
         label = (request.form.get("label") or "").strip()[:200]
         try:
             each = num(request.form.get("amount"))
@@ -4364,10 +4048,9 @@ def quote_fee(sid):
     reapply_discount(sid)
     return redirect(back)
 
-
 @app.post("/line/<int:lid>/qty")
 def line_qty(lid):
-    """Change how many of a quote line, as on any invoice: the price each stays, the line total follows."""
+
     l_ = q("SELECT * FROM lines WHERE id=?", (lid,), one=True) or abort(404)
     s_ = q("SELECT stage FROM sessions WHERE id=?", (l_["session_id"],), one=True)
     back = safe_back(request.form.get("back")) or stage_url(l_["session_id"]) + "#billing"
@@ -4383,11 +4066,9 @@ def line_qty(lid):
     reapply_discount(l_["session_id"])
     return redirect(back)
 
-
 def fee_taxable(item):
-    # fees are taxable unless marked otherwise (many places tax the whole price, travel included)
-    return 1 if item.get("taxable", True) else 0
 
+    return 1 if item.get("taxable", True) else 0
 
 @app.post("/session/<int:sid>/quote/exempt")
 def quote_exempt(sid):
@@ -4398,7 +4079,6 @@ def quote_exempt(sid):
         x("UPDATE sessions SET tax_exempt=? WHERE id=?", (1 if request.form.get("tax_exempt") else 0, sid))
     reapply_tax(sid)
     return redirect(safe_back(request.form.get("back")) or url_for("session_view", sid=sid) + "#money")
-
 
 @app.post("/session/<int:sid>/quote/discount")
 def quote_discount(sid):
@@ -4412,10 +4092,9 @@ def quote_discount(sid):
     reapply_discount(sid)
     return redirect(safe_back(request.form.get("back")) or url_for("session_view", sid=sid) + "#money")
 
-
 @app.post("/session/<int:sid>/quote/requote")
 def quote_requote(sid):
-    """An expired quote is re-priced at TODAY's fee schedule with a fresh term; custom lines keep their amounts."""
+
     sch = current_schedule()
     by_key = {i["key"]: i for i in sch["items"]}
     for ln in q("SELECT * FROM lines WHERE session_id=? AND kind IN ('fee','passthrough') AND fee_key != ''", (sid,)):
@@ -4428,61 +4107,44 @@ def quote_requote(sid):
     reapply_discount(sid)
     return redirect(safe_back(request.form.get("back")) or url_for("session_view", sid=sid) + "#money")
 
-
 def html_pdf(html, name):
-    """HTML document -> PDF with WeasyPrint (BSD): the same templates, no bundled browser."""
+
     from flask import Response
     import weasyprint
     page = weasyprint.CSS(string="@page { size: Letter; margin: 0.5in; }")
     pdf = weasyprint.HTML(string=html, base_url=str(ROOT)).write_pdf(stylesheets=[page])
     return Response(pdf, mimetype="application/pdf", headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
-
 def file_slug(*parts):
-    """A plain file name from words and dates: quote-joe-smith-2026-11-12."""
+
     out = "-".join(filter(None, (re.sub(r"[^a-z0-9]+", "-", str(p_ or "").lower()).strip("-") for p_ in parts)))
     return out[:90] or "document"
-
 
 def client_slug(sid):
     r_ = q("SELECT h.name FROM sessions s JOIN households h ON h.id=s.household_id WHERE s.id=?", (sid,), one=True)
     return r_["name"] if r_ else ""
 
-
 def long_date(iso):
     return d(iso[:10]).strftime("%B %-d, %Y") if iso else ""
-
 
 def subjects_of(sid):
     return [r["name"] for r in q("""SELECT p.name FROM people p JOIN session_people sp ON sp.person_id=p.id
                                    WHERE sp.session_id=? ORDER BY p.id""", (sid,))]
 
-
-def clock12(hm):
-    try:
-        h_, m_ = (int(v) for v in hm.split(":")[:2])
-    except (AttributeError, ValueError):
-        return ""
-    return f"{h_ % 12 or 12}:{m_:02d} {'AM' if h_ < 12 else 'PM'}"
-
-
 def oxford(xs):
     xs = list(xs)
     return xs[0] if len(xs) == 1 else (" and ".join(xs) if len(xs) == 2 else (", ".join(xs[:-1]) + ", and " + xs[-1]) if xs else "")
 
-
 def _live_quote(sid):
-    """The quote as it stands: (session, lines, totals, what a version made now would say)."""
+
     s = session_full(sid)
     lines = [dict(label=l["label"], amount=l["amount"], kind=l["kind"])
              for l in q("SELECT * FROM lines WHERE session_id=? ORDER BY kind IN ('discount','tax'), kind='tax', id", (sid,))]
     t = totals(sid)
     return s, lines, t, quote_data(sid, s, lines, t)
 
-
 def _quote_unchanged(sid):
-    """The latest numbered quote, when it still says exactly what the quote says now and is still good: then there is
-    nothing new to number, and that one is the quote to send. None otherwise."""
+
     last = q("SELECT * FROM quote_versions WHERE session_id=? ORDER BY id DESC LIMIT 1", (sid,), one=True)
     if not last or (last["expires"] or "") < today().isoformat():
         return None
@@ -4492,26 +4154,22 @@ def _quote_unchanged(sid):
     except ValueError:
         return None
 
-
 @app.post("/session/<int:sid>/quote/send")
 def quote_send(sid):
-    """Prepare the quote to send: freeze exactly what the client will get, with the next quote number. The live quote
-    can change later; this version never does. Nothing is emailed here: the quote opens with Email it and Mark sent.
-    Pressing it again with nothing changed opens the same quote (no new number), so a double click never makes two.
-    The quote's clock starts now, not when the first line was added."""
+
     ensure_quote(sid)
     s, lines, t, data = _live_quote(sid)
     if not lines:
         abort(400)
     shown = request.form.get("total")
-    by_script = request.headers.get("X-Quote-Fetch") == "1"     # the stage page's button: answered in that same tab
-    if shown and abs(num(shown, 0) - t["quoted"]) > 0.005:   # the quote changed after the page showed it: look first
+    by_script = request.headers.get("X-Quote-Fetch") == "1"
+    if shown and abs(num(shown, 0) - t["quoted"]) > 0.005:
         session["notice"] = f"The quote changed a moment ago (it is now {money(t['quoted'])}). Check it, then prepare it again."
         g.refused = True
         return ({"ok": False}, 409) if by_script else redirect(stage_url(sid) + "#billing")
     same = _quote_unchanged(sid)
-    if same:                                            # nothing changed since it was numbered: that one, again
-        g.refused = True                                # (no History line: nothing was made)
+    if same:
+        g.refused = True
         return {"ok": True, "url": url_for("quote_doc", vid=same["id"])} if by_script else redirect(url_for("quote_doc", vid=same["id"]))
     sent = now_local()
     expires = (today() + timedelta(days=quote_term())).isoformat()
@@ -4521,17 +4179,16 @@ def quote_send(sid):
             vid = x("INSERT INTO quote_versions (id, session_id, at, schedule_id, expires, data) VALUES (?,?,?,?,?,?)",
                     (next_quote_number(), sid, sent, qt["schedule_id"], expires, json.dumps(data)))
             break
-        except sqlite3.IntegrityError:                  # another send took that number a moment ago: take the next
+        except sqlite3.IntegrityError:
             continue
     else:
         abort(503)
     x("UPDATE quotes SET sent=?, expires=? WHERE session_id=?", (sent, expires, sid))
-    g.audit_note = f"quote {vid}, {money(t['quoted'])}"   # one History line (the route's); sent only on Mark sent
+    g.audit_note = f"quote {vid}, {money(t['quoted'])}"
     return {"ok": True, "url": url_for("quote_doc", vid=vid)} if by_script else redirect(url_for("quote_doc", vid=vid))
 
-
 def quote_data(sid, s, lines, t):
-    """What a quote says, frozen when it is sent (and shown, unfrozen, by the preview)."""
+
     return dict(lines=lines, total=t["quoted"], deposit=t["deposit_req"], client=s["household"], type_label=C.doc_label(s["type"]),
                 people=oxford(subjects_of(sid)) if s["type"] in C.SUBJECT_TYPES else "", type=s["type"], shoot_date=s["shoot_date"],
                 photographer=setting("photographer_name"), business=setting("business_name"),
@@ -4539,10 +4196,9 @@ def quote_data(sid, s, lines, t):
                 client_company=company_of(s["household_id"]),
                 net_days=C.BALANCE_NET_DAYS, balance_rule=balance_rule(s["type"]), license=s["type"] in C.LICENSE_TYPES)
 
-
 @app.get("/session/<int:sid>/quote/preview")
 def quote_preview(sid):
-    """The quote exactly as it would go out, before anything is frozen or numbered. Looking never writes."""
+
     s = session_full(sid)
     lines = [dict(label=l["label"], amount=l["amount"], kind=l["kind"])
              for l in q("SELECT * FROM lines WHERE session_id=? ORDER BY kind IN ('discount','tax'), kind='tax', id", (sid,))]
@@ -4558,20 +4214,15 @@ def quote_preview(sid):
              back=stage_url(sid), reviewed=doc_reviewed("terms", v["type"]), review=review_url("terms", v["type"]))
     return render_template("quote_doc.html", v=v, preview=True, send=None, total_shown="%.2f" % t["quoted"])
 
-
 SEND_TASKS = {"quote": "Send quote", "details": "Send session details", "invoice": "Send invoice"}
 
-
 def send_ctx(sid, kind, subject, lines, vid=None):
-    """The 'send' row on a document page: an email draft in the photographer's own mail app (to the client, the PDF
-    attached by hand: the app sends no mail itself) and Mark sent, which closes the matching step. A numbered quote
-    (vid) is sent or not on its own: a revised quote asks for Mark sent even when an earlier one was marked."""
+
     out_ = _send_ctx(sid, kind, subject, lines)
     if vid is not None:
         on_ = quote_sent_on(vid)
         out_.update(task=None, sent=nice(on_) if on_ else "", mark_url="" if on_ else url_for("quote_mark_sent", vid=vid))
     return out_
-
 
 def _send_ctx(sid, kind, subject, lines):
     from urllib.parse import quote as _qu
@@ -4584,7 +4235,7 @@ def _send_ctx(sid, kind, subject, lines):
     first = (who["name"].split() or [""])[0] if who and who["name"] else ""
     sign = setting("photographer_name") or setting("business_name")
     body = "\n\n".join([f"Hi {first}," if first else "Hello,"] + lines + [f"Thank you,\n{sign}" if sign else "Thank you"])
-    step_ = SEND_TASKS.get(kind, "")                     # documents with no send step (price list, agreement): no Mark sent
+    step_ = SEND_TASKS.get(kind, "")
     task = q("SELECT id FROM tasks WHERE session_id=? AND title=? AND done IS NULL", (sid, step_), one=True) if step_ else None
     sent = q("SELECT done FROM tasks WHERE session_id=? AND title=? AND done IS NOT NULL ORDER BY done DESC", (sid, step_), one=True) if step_ else None
     sms_body = (re.sub(r"\b(is|are) attached\b", r"\1 ready", lines[0]) + " I'll send you the PDF.") if lines else subject
@@ -4592,15 +4243,11 @@ def _send_ctx(sid, kind, subject, lines):
                 to=who["email"] if who else "", sid=sid, phone=(reach["phone"] if reach else ""),
                 sms=f"sms:{phone_}?&body={_qu(sms_body)}" if len(phone_) >= 7 else "", task=task["id"] if task else None, sent=nice(sent["done"]) if sent and not task else "", back=request.full_path.rstrip("?"))
 
-
-# ---------------------------------------------------------------- photos: uploaded into the app, sealed on arrival
-
-app.config.setdefault("quiet_endpoints", set()).update({"photos_status", "photos_upload"})   # one History line per file, not per piece
-
+app.config.setdefault("quiet_endpoints", set()).update({"photos_status", "photos_upload"})
 
 @app.get("/session/<int:sid>/photos/status")
 def photos_status(sid):
-    """Where an upload stands: how many bytes of this file are already sealed here (0 for a new one)."""
+
     import photostore
     q("SELECT 1 FROM sessions WHERE id=?", (sid,), one=True) or abort(404)
     from urllib.parse import unquote
@@ -4617,7 +4264,7 @@ def photos_status(sid):
                              label=" - ".join(str(v) for v in (lab["name"], C.SESSION_TYPES.get(lab["type"], lab["type"]), lab["shoot_date"]) if v) if lab else "")
     except photostore.UploadError as e:
         return {"ok": False, "message": str(e)}, 400
-    except OSError as e:                                  # the photos folder is full or not writable
+    except OSError as e:
         app.logger.error("upload start failed: %s", e)
         return {"ok": False, "message": "The photos folder is full or can't be written to. Free some space (or check its "
                                         "permissions), then drop the file again."}, 507
@@ -4625,9 +4272,8 @@ def photos_status(sid):
         con.close()
     return {"ok": True, "received": r["received"], "piece": photostore.PIECE}
 
-
 def photos_blocked(sid):
-    """Uploads wait while the session's photos are being sealed or deleted, and stop for good once purged."""
+
     import locks
     if q("SELECT 1 FROM sqlite_master WHERE name='retention'", one=True) and \
             q("SELECT 1 FROM retention WHERE session_id=? AND purged_at IS NOT NULL", (sid,), one=True):
@@ -4636,11 +4282,9 @@ def photos_blocked(sid):
         return "This session's photos are being sealed or deleted right now. Try again in a few minutes."
     return ""
 
-
 @app.post("/session/<int:sid>/photos/upload")
 def photos_upload(sid):
-    """One piece of one photo. The body is read straight from the request and encrypted before it is written: never
-    request.form or request.files (they would spool a large body to a plaintext temporary file)."""
+
     import photostore
     from urllib.parse import unquote
     q("SELECT 1 FROM sessions WHERE id=?", (sid,), one=True) or abort(404)
@@ -4654,10 +4298,10 @@ def photos_upload(sid):
         row = photostore.start(con, sid, request.args.get("kind", ""), unquote(request.headers.get("X-File-Name", "")),
                                request.args.get("size", type=int), create=False)
         lk = locks.photo(row["id"])
-        if not lk.acquire(blocking=False):            # another request is writing this file: wait for it
+        if not lk.acquire(blocking=False):
             return {"ok": False, "received": row["received"]}, 409
         try:
-            row = con.execute("SELECT * FROM photo_files WHERE id=?", (row["id"],)).fetchone()   # re-read under the lock
+            row = con.execute("SELECT * FROM photo_files WHERE id=?", (row["id"],)).fetchone()
             if not row:
                 raise photostore.Gone("That file was deleted here; drop it again to upload it again.")
             got = photostore.append(con, row, request.args.get("offset", type=int, default=-1), request.stream, length)
@@ -4666,7 +4310,7 @@ def photos_upload(sid):
         done = got == row["size"]
         if done:
             audit(f"Uploaded {photostore.KINDS[row['kind']].lower()[:-1]} {row['name']} (sealed)", sid=sid)
-            if row["kind"] == "raw":                    # RAWs in the app are encrypted and mirrored: that step is done
+            if row["kind"] == "raw":
                 x("UPDATE tasks SET done=? WHERE session_id=? AND title='Back up photos' AND done IS NULL",
                   (today().isoformat(), sid))
             if not os.environ.get("CRM_TESTING"):
@@ -4684,10 +4328,9 @@ def photos_upload(sid):
     finally:
         con.close()
 
-
 @app.get("/photo/<fid>")
 def photo_download(fid):
-    """A sealed photo, decrypted as it is sent (for re-editing). Nothing is written to disk on the way."""
+
     import photostore
     con = connect()
     try:
@@ -4698,7 +4341,7 @@ def photo_download(fid):
         abort(404)
     gen = photostore.iter_plain(row)
     try:
-        first = next(gen)                     # check the key before anything is sent
+        first = next(gen)
     except StopIteration:
         first = b""
     except FileNotFoundError:
@@ -4715,7 +4358,6 @@ def photo_download(fid):
     import itertools
     return app.response_class(itertools.chain([first], gen), mimetype="application/octet-stream", headers={
         "Content-Disposition": f"attachment; filename*=UTF-8''{_qu(row['name'])}", "Content-Length": str(row["size"])})
-
 
 @app.post("/photo/<fid>/delete")
 def photo_delete(fid):
@@ -4738,12 +4380,10 @@ def photo_delete(fid):
     audit(f"Deleted {row['name']}", sid=row["session_id"])
     return redirect(safe_back(request.form.get("back")) or stage_url(row["session_id"]) + "#photos")
 
-
 _MIRROR_LOCK = threading.Lock()
 
-
 def mirror_photos():
-    """Keep the photo mirror in step (photostore.mirror_pass) on the second backup location, else the vault."""
+
     import photostore
     from vault import sync as vault_sync, web as vault_web_
     if not datakey.is_unlocked() or not _MIRROR_LOCK.acquire(blocking=False):
@@ -4752,16 +4392,16 @@ def mirror_photos():
         try:
             target = vault_sync.second_backend() or vault_web_.store_backends()[0]
         except Exception:
-            return                                   # no backup location yet: nothing to mirror to
+            return
         con = connect()
         try:
-            audit_ = setting("photo_mirror_audit") != today().isoformat()      # a full re-check once a day
+            audit_ = setting("photo_mirror_audit") != today().isoformat()
             c_, f_, r_ = photostore.mirror_pass(con, target, audit=audit_)
             if audit_:
                 con.execute("INSERT INTO settings (key, value) VALUES ('photo_mirror_audit',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                             (today().isoformat(),))
             x_err = ""
-        except Exception as e:  # noqa: BLE001 - shown in Settings > Backups and retried
+        except Exception as e:
             c_ = f_ = r_ = 0
             x_err = f"{type(e).__name__}: {e}"[:200]
             app.logger.warning("photo mirror: %s", x_err)
@@ -4773,9 +4413,8 @@ def mirror_photos():
     finally:
         _MIRROR_LOCK.release()
 
-
 def _advance_loop():
-    """Date-driven stage moves (a shoot date passing) happen here every few minutes, not when a page is looked at."""
+
     import time as _t
     _t.sleep(30)
     while True:
@@ -4787,11 +4426,9 @@ def _advance_loop():
             app.logger.exception("advance loop")
         _t.sleep(300)
 
-
 def _mirror_now():
     with app.app_context():
         mirror_photos()
-
 
 def _mirror_loop():
     import time as _t
@@ -4804,9 +4441,8 @@ def _mirror_loop():
             app.logger.exception("photo mirror loop")
         _t.sleep(900)
 
-
 def photo_summary(sid):
-    """Per kind: the finished files and the unfinished ones, for the Photos panel."""
+
     import photostore
     con = connect()
     try:
@@ -4815,13 +4451,12 @@ def photo_summary(sid):
         con.close()
     out = {}
     for k, label in photostore.KINDS.items():
-        rs = sorted((r for r in rows if r["kind"] == k),        # the gallery's order: img2 before img10
+        rs = sorted((r for r in rows if r["kind"] == k),
                     key=lambda r: [int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", r["name"])])
         done = [r for r in rs if r["state"] == "done"]
         out[k] = dict(label=label, done=done, partial=[r for r in rs if r["state"] == "partial"],
                       sealed=[r for r in rs if r["state"] == "sealed"], bytes=sum(r["size"] for r in done))
     return out
-
 
 def size_words(n):
     for unit, f in (("GB", 1 << 30), ("MB", 1 << 20), ("KB", 1 << 10)):
@@ -4829,19 +4464,17 @@ def size_words(n):
             return f"{n / f:.1f} {unit}".replace(".0 ", " ")
     return f"{n} bytes"
 
-
 app.jinja_env.filters["size"] = size_words
-
 
 @app.post("/session/<int:sid>/contact-email")
 def contact_email(sid):
-    """Add an email for the client from a document's bar, without leaving it: it goes on the person you talk to."""
+
     s_ = q("SELECT household_id FROM sessions WHERE id=?", (sid,), one=True) or abort(404)
     em = (request.form.get("email") or "").strip()[:200]
     who = household_contact(q("SELECT * FROM people WHERE household_id=? ORDER BY id", (s_["household_id"],)))
     if not who or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", em):
         session["notice"] = "That doesn't look like an email address." if who else "Add a grown-up to this client first."
-    elif (who["email"] or "").strip():               # added in another tab since this page was opened: never replaced from here
+    elif (who["email"] or "").strip():
         session["notice"] = (f"{who['name']} already has an email on file ({who['email']}), added since this page was "
                              "opened, so it wasn't changed. To change it, edit it on the client page.")
         g.refused = True
@@ -4850,28 +4483,25 @@ def contact_email(sid):
         audit(f"Email for {who['name']} set to {em}", sid=sid, hid=s_["household_id"])
     return redirect(safe_back(request.form.get("back")) or stage_url(sid))
 
-
 @app.get("/session/<int:sid>/quote")
 def session_quote(sid):
-    """The quote as last sent, or the session's Billing section when none has been sent yet."""
+
     r = q("SELECT id FROM quote_versions WHERE session_id=? ORDER BY id DESC LIMIT 1", (sid,), one=True)
     if r:
         return redirect(url_for("quote_doc", vid=r["id"]))
     q("SELECT 1 FROM sessions WHERE id=?", (sid,), one=True) or abort(404)
     return redirect(stage_url(sid) + "#billing")
 
-
 def quote_version(vid):
     r = q("SELECT * FROM quote_versions WHERE id=?", (vid,), one=True) or abort(404)
     v = json.loads(r["data"])
-    v.setdefault("license", v["type"] in C.LICENSE_TYPES)     # quotes frozen before this was recorded
+    v.setdefault("license", v["type"] in C.LICENSE_TYPES)
     v.update(id=r["id"], sid=r["session_id"], schedule_id=r["schedule_id"], sent_long=long_date(r["at"]), at=r["at"],
              expires_long=long_date(r["expires"]), type_label=v.get("type_label") or C.SESSION_TYPES.get(v["type"], v["type"]),
              shoot_date_long=long_date(v.get("shoot_date")), back=stage_url(r["session_id"]),
              reviewed=doc_reviewed("terms", v["type"]),
              review=review_url("terms", v["type"]))
     return v
-
 
 @app.get("/quote/<int:vid>")
 def quote_doc(vid):
@@ -4880,14 +4510,8 @@ def quote_doc(vid):
     return render_template("quote_doc.html", v=v, send=send_ctx(v["sid"], "quote", f"Your quote from {who}",
                            [f"Your quote is attached. It is good through {v['expires_long']}."], vid=vid))
 
-
-# Which numbered quotes were marked sent, each on its own (quote_marks): a revised quote is not "Sent" until it is
-# marked, even when an earlier one was.
-
-
 def quote_sent_on(vid):
-    """The day this numbered quote was marked sent, or ''. Quotes from before 1.0.1 (no marks kept for their session)
-    count as sent when the Send quote step was ticked on or after the day they were made."""
+
     v_ = q("SELECT id, session_id, at FROM quote_versions WHERE id=?", (vid,), one=True)
     if not v_:
         return ""
@@ -4900,17 +4524,15 @@ def quote_sent_on(vid):
            (v_["session_id"], SEND_TASKS["quote"]), one=True)
     return t_["done"] if t_ and (v_["at"] or "")[:10] <= t_["done"] else ""
 
-
 def _mark_quote_sent(vid, sid):
     x("INSERT OR IGNORE INTO quote_marks (vid, session_id, at) VALUES (?,?,?)", (vid, sid, today().isoformat()))
 
-
 @app.post("/quote/<int:vid>/sent")
 def quote_mark_sent(vid):
-    """Mark sent, for one numbered quote: it is recorded as sent, and the Send quote step closes."""
+
     v_ = q("SELECT id, session_id FROM quote_versions WHERE id=?", (vid,), one=True) or abort(404)
     if quote_sent_on(vid):
-        g.refused = True                                 # already marked (a stale page or a double click)
+        g.refused = True
     else:
         _mark_quote_sent(vid, v_["session_id"])
         x("UPDATE tasks SET done=?, outcome='done' WHERE session_id=? AND title=? AND done IS NULL",
@@ -4918,12 +4540,10 @@ def quote_mark_sent(vid):
         g.audit_note = f"quote {vid}"
     return redirect(safe_back(request.form.get("back")) or url_for("quote_doc", vid=vid))
 
-
 @app.get("/quote/<int:vid>.pdf")
 def quote_doc_pdf(vid):
     v = quote_version(vid)
     return html_pdf(render_template("quote_doc.html", v=v, pdf=True), file_slug("quote", v["client"], v["at"][:10]) + ".pdf")
-
 
 def agreement_ctx(sid):
     s = session_full(sid)
@@ -4941,7 +4561,7 @@ def agreement_ctx(sid):
     elif lic_bits:
         lic_bits.append("It is not exclusive.")
     scope = [f"{l_['label']}" for l_ in q("SELECT label FROM lines WHERE session_id=? AND kind NOT IN ('discount','tax','credit') ORDER BY id", (sid,))]
-    def price_of(sid_):                               # the latest quote sent, else the live lines
+    def price_of(sid_):
         lq = q("SELECT * FROM quote_versions WHERE session_id=? ORDER BY id DESC LIMIT 1", (sid_,), one=True)
         if lq:
             d_ = json.loads(lq["data"])
@@ -4950,7 +4570,7 @@ def agreement_ctx(sid):
         return t_["quoted"], t_["deposit_req"], None
     plan = []
     if q("SELECT 1 FROM sessions WHERE plan_of=?", (sid,), one=True):
-        for r_ in plan_sessions(sid):                 # every session the agreement covers, each with its own price
+        for r_ in plan_sessions(sid):
             pt, pd, pq = price_of(r_["id"])
             plan.append(dict(label=(r_["title"] or C.SESSION_TYPES.get(r_["type"], r_["type"])), when=long_date(r_["shoot_date"]),
                              price=pt, deposit=pd, quote_id=pq))
@@ -4971,7 +4591,7 @@ def agreement_ctx(sid):
                 minor=any(p["is_minor"] for p in ppl),
                 type_label=(lambda ev_: ev_["name"] if ev_ else C.doc_label(s["type"]))(
                     q("SELECT name FROM events WHERE id=?", (s["event_id"] or s["payer_event"],), one=True) if (s["event_id"] or s["payer_event"]) else None),
-                shoot_date_long=long_date(s["shoot_date"]), start_time=clock12(s["start_time"]),
+                shoot_date_long=long_date(s["shoot_date"]), start_time=clock(s["start_time"]),
                 stops=", ".join([venue_] * bool(venue_) + [l_.strip() for l_ in (s["stops"] or "").splitlines() if l_.strip() and l_.strip() != venue_]),
                 total=total, deposit=deposit, quote_id=qid, net_days=C.BALANCE_NET_DAYS, balance_rule=balance_rule(s["type"]),
                 gallery_days=C.gallery_days(s["type"]), delivery_days=C.EVENT_DELIVERY_DAYS if event and not C.POLICY[s["type"]].get("delivery_days") else C.delivery_days(s["type"]),
@@ -4986,18 +4606,16 @@ def agreement_ctx(sid):
                 reviewed=doc_reviewed("agreement", s["type"]), review=review_url("agreement", s["type"]), back=stage_url(sid),
                 unsigned=bool(q("SELECT 1 FROM documents WHERE session_id=? AND kind='agreement' AND status!='signed'", (sid,), one=True)))
 
-
 def agreement_view(sid):
-    """The agreement context, with the owner's own wording rendered when they have written one."""
+
     import wording
     a = agreement_ctx(sid)
     a["custom"] = wording.render(own_wording("agreement", q("SELECT type FROM sessions WHERE id=?", (sid,), one=True)["type"]),
-                                 agreement_fields(a))   # one source: the type's own wording, the general one, or the standard
+                                 agreement_fields(a))
     return a
 
-
 def agreement_fields(a):
-    """The [FIELDS] of the agreement, worded the way the standard agreement words them."""
+
     if a["kind"] == "property":
         provide = "I photograph what we agreed on, at the place and time we agreed on."
     else:
@@ -5015,7 +4633,7 @@ def agreement_fields(a):
         photos = (f"I keep the copyright. Your license covers {a['license_use']}. Anyone else who wants to use the photos"
                   " needs their own license from me.") + a["lic_scope"]
     elif a["license"] and C.TYPE_KIND.get(a.get("stype")) != "property" and not a["lic_scope"] \
-            and a["license_use"] == C.DEFAULT_POLICY["license_use"]:     # the default personal license, spelled out
+            and a["license_use"] == C.DEFAULT_POLICY["license_use"]:
         photos = ("I keep the copyright. Once the balance is paid, you, and the people photographed, receive a permanent,"
                   " non-exclusive license to the photos I deliver for personal use: to print them anywhere, share them, post"
                   " them on social media and personal websites, and crop or apply filters for those uses. The license cannot be"
@@ -5035,7 +4653,7 @@ def agreement_fields(a):
         use = "I may show these photos in my portfolio and on my website. I never publish an owner's or client's private details with them."
     else:
         names = " I never use your names" + (" or your child's name, school or location" if a["minor"] else "") + " with the photos."
-        if a.get("portfolio_no"):              # the client declined portfolio use
+        if a.get("portfolio_no"):
             use = ("I will not show any photo from your session in my portfolio, on my website, on social media, or anywhere"
                    " else." + names)
         else:
@@ -5061,31 +4679,24 @@ def agreement_fields(a):
                          " my responsibility for loss or damage is limited to the price of this session.") if a["products"] else "",
             "LAW": a["law"], "RECORDS YEARS": str(C.CLOSED_CLIENT_YEARS)}
 
-
 def cannot_text(stype):
-    """Section 4: what the photographer offers if they can't do the session. A date that can't move (no free
-    reschedule: weddings, events) lists every realistic option; the photographer keeps what they can really do."""
+
     if stype and not C.POLICY[stype]["free_reschedule"]:
         return ("I will send a qualified photographer in my place. If I cannot find one, I refund everything you have paid;"
                 " or, if you prefer and your date can move, we pick a new date.")
     return "I will offer a new date first. If no new date works for you, I refund everything you have paid."
 
-
 def company_of(hid):
     r = q("SELECT company FROM households WHERE id=?", (hid,), one=True)
     return (r["company"] or "").strip() if r else ""
 
-
-NUMBERS_JSON = DB_PATH.parent / "doc-numbers.json"   # plain counters, outside any key: survive restores and rotations
-
+NUMBERS_JSON = DB_PATH.parent / "doc-numbers.json"
 
 _PLAIN_LOCK = threading.Lock()
-
 
 def _write_plain(path, text):
     with _PLAIN_LOCK:
         _write_plain_locked(path, text)
-
 
 def _write_plain_locked(path, text):
     tmp = path.with_name(f"{path.name}.{os.getpid()}.{secrets.token_hex(4)}.tmp")
@@ -5096,7 +4707,6 @@ def _write_plain_locked(path, text):
         os.fsync(f_.fileno())
     os.replace(tmp, path)
 
-
 def _number_marks():
     marks = {}
     try:
@@ -5105,17 +4715,15 @@ def _number_marks():
                  if isinstance(k_, str) and re.fullmatch(r"(INV|R)-\d{4}-|Q|S|H|T|E", k_) and str(v_).isdigit() and 0 <= int(v_) < 10**9}
     except (OSError, ValueError, AttributeError):
         pass
-    try:                                     # an older sealed copy still counts
+    try:
         for k_, v_ in json.loads(datakey.open_bytes(NUMBERS.read_bytes(), "numbers", label="numbers")).items():
             marks[k_] = max(int(v_), int(marks.get(k_, 0)))
     except Exception:
         pass
     return marks
 
-
 def _seal_missing_photo_keys():
-    """Photos uploaded before each photo's key was also sealed beside it (to the master key) get that sealed key now,
-    so the master key alone can always recover them, even after a restore or a key rotation."""
+
     import photostore
     from vault import keys as VK
     pub = VK.master_pub(db()) if hasattr(VK, "master_pub") else None
@@ -5133,21 +4741,17 @@ def _seal_missing_photo_keys():
     finally:
         con.close()
 
-
 def _fold_legacy_side_files():
-    """Deletions and number marks from before 1.0 lived in files sealed under the data key; a key rotation followed by
-    restoring an older keyring would make them unreadable. Fold them into the plain files once, while they open."""
-    try:                                       # (the sealed deletions.enc is folded in, signed, by reapply_deletions)
+
+    try:
         marks = _number_marks()
         if marks:
             _save_number_marks(marks)
     except Exception:
         app.logger.exception("folding the older number marks")
 
-
 def _seed_number_marks():
-    """At unlock: the marks never fall below what this database has issued (so numbers issued before marks existed,
-    or before an upgrade, are never handed out again after restoring an older backup)."""
+
     marks = _number_marks()
     changed = False
     for kind_, num_ in q("SELECT kind, number FROM doc_numbers"):
@@ -5155,7 +4759,7 @@ def _seed_number_marks():
         if pre and n_.isdigit() and int(n_) > int(marks.get(pre + "-", 0)):
             marks[pre + "-"] = int(n_)
             changed = True
-    qn = max([q("SELECT COALESCE(MAX(id), 0) n FROM quote_versions", one=True)["n"]] +   # quotes sent, kept or deleted since
+    qn = max([q("SELECT COALESCE(MAX(id), 0) n FROM quote_versions", one=True)["n"]] +
              [int(m_.group(1)) for r_ in q("SELECT note FROM audit WHERE route LIKE '/session/%/quote/send'")
               if (m_ := re.match(r"quote (\d+),", r_["note"] or ""))])
     if qn > int(marks.get("Q", 0)):
@@ -5164,47 +4768,34 @@ def _seed_number_marks():
     if changed:
         _save_number_marks(marks)
 
-
 def _save_number_marks(marks):
-    """The highest invoice and receipt number issued in each run, kept beside the database rather than in it, so a
-    restored older database carries on after the last number really issued (a gap is fine; a repeat is not)."""
+
     try:
         _write_plain(NUMBERS_JSON, json.dumps(marks))
     except Exception:
         app.logger.exception("saving the document number marks")
 
-
 def next_quote_number():
-    """The number for a quote being sent: one more than any quote ever sent here, deleted sessions' quotes included
-    (the database alone would hand a deleted top number out again), and never one a restored older backup forgot."""
+
     marks = _number_marks()
     n = max(q("SELECT COALESCE(MAX(id), 0) n FROM quote_versions", one=True)["n"], int(marks.get("Q", 0))) + 1
     marks["Q"] = n
     _save_number_marks(marks)
     return n
 
-
-# Session and client numbers are never handed out twice. SQLite gives a new row one more than the highest id still in
-# the table, so deleting the newest session freed its number for the next one, and a tab still open on the deleted
-# session would save into the new, unrelated one. Each new row now takes its id explicitly: one more than the highest
-# ever issued, kept in two places so either alone is enough: the mark file beside the database (doc-numbers.json, which
-# survives restoring an older backup) and a small table inside it, id_marks (which survives losing the side file).
-ID_MARKS = {"sessions": "S", "households": "H", "tasks": "T", "events": "E"}   # steps and events too: same stale-tab risk
+ID_MARKS = {"sessions": "S", "households": "H", "tasks": "T", "events": "E"}
 _ID_LOCK = threading.RLock()
-
 
 def _db_id_mark(con, table):
     con.execute(_ID_TABLE)
     r = con.execute("SELECT n FROM id_marks WHERE name=?", (table,)).fetchone()
     return int(r[0]) if r else 0
 
-
 def id_mark(table):
-    """The highest id ever issued for `table` (sessions, households, tasks, events), as far as this install can tell."""
+
     con = db()
     return max(int(_number_marks().get(ID_MARKS[table], 0)), _db_id_mark(con, table),
                con.execute("SELECT COALESCE(MAX(id), 0) FROM " + dbmod.ident(table)).fetchone()[0])
-
 
 def _raise_id_mark(table, n):
     con = db()
@@ -5216,18 +4807,15 @@ def _raise_id_mark(table, n):
         if n > _db_id_mark(con, table):
             con.execute("INSERT INTO id_marks (name, n) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET n=excluded.n", (table, n))
 
-
 def next_id(table):
-    """The id for a new session, client, task, or event: one more than any ever issued here, deleted ones included."""
+
     with _ID_LOCK:
         n = id_mark(table) + 1
         _raise_id_mark(table, n)
     return n
 
-
 def _seed_id_marks():
-    """At unlock: the marks never fall below an id this database, its History, or the deletions list has seen (ids
-    issued before 1.0.1, and clients deleted since a restored backup was made)."""
+
     con = db()
     top_s = con.execute("SELECT MAX(COALESCE((SELECT MAX(id) FROM sessions), 0), "
                         "COALESCE((SELECT MAX(session_id) FROM audit), 0))").fetchone()[0]
@@ -5243,7 +4831,7 @@ def _seed_id_marks():
                 top_h = max(top_h, d_["id"])
     _raise_id_mark("sessions", int(top_s))
     _raise_id_mark("households", int(top_h))
-    # tasks and events: the database, and any step or event History names by its address (/task/12, /event/3/...)
+
     for table_, pat_ in (("tasks", r"/task/(\d+)"), ("events", r"/event/(\d+)")):
         top_ = con.execute("SELECT COALESCE(MAX(id), 0) FROM " + dbmod.ident(table_)).fetchone()[0]
         for (route_,) in con.execute("SELECT route FROM audit WHERE route LIKE ?", (pat_.split("(")[0] + "%",)).fetchall():
@@ -5254,10 +4842,8 @@ def _seed_id_marks():
             top_ = max(top_, con.execute("SELECT COALESCE(MAX(event_id), 0) FROM audit").fetchone()[0])
         _raise_id_mark(table_, int(top_))
 
-
 def doc_number(sid, kind):
-    """Invoice (INV) or receipt (R) number, given once when first issued and kept: the year it was issued, then the next
-    number in that year's run (INV-2026-0001, INV-2026-0002 ...)."""
+
     r = q("SELECT number FROM doc_numbers WHERE session_id=? AND kind=?", (sid, kind), one=True)
     if r:
         return r["number"]
@@ -5267,7 +4853,7 @@ def doc_number(sid, kind):
         n = q("SELECT COALESCE(MAX(CAST(substr(number, ?) AS INTEGER)), 0) + 1 AS n FROM doc_numbers WHERE kind=? AND number LIKE ?",
               (len(pre) + 1, kind, pre + "%"), one=True)["n"]
         marks = _number_marks()
-        n = max(n, int(marks.get(pre, 0)) + 1)     # after a restore from an older backup, never reuse a number already sent
+        n = max(n, int(marks.get(pre, 0)) + 1)
         marks[pre] = n
         _save_number_marks(marks)
         try:
@@ -5276,23 +4862,15 @@ def doc_number(sid, kind):
             r = q("SELECT number FROM doc_numbers WHERE session_id=? AND kind=?", (sid, kind), one=True)
             if r:
                 return r["number"]
-            continue                                    # someone else took that number a moment ago: take the next
+            continue
         return f"{pre}{n:04d}"
     abort(503)
 
-
-# An issued invoice or receipt is frozen: what it said when it got its number is kept (bill_snapshots), and every later
-# view, PDF, or print shows exactly that, whatever payments or edits come after. A change to the session's price lines
-# retires an issued invoice (and an issued receipt) under the existing "replaced by a new number" flow instead of
-# rewriting it. Refunds keep the quoted price: the part of a refund beyond an overpayment is a credit the balance counts
-# as settled (refund_credits; refunds recorded the 1.0.0 way are converted by MIGRATIONS[3]).
-BILL_LIVE_KEYS = ("issue_url", "back", "review", "reviewed", "pdf_url")    # the page around the document, never frozen
-
+BILL_LIVE_KEYS = ("issue_url", "back", "review", "reviewed", "pdf_url")
 
 def issued_numbers(sid):
-    """Every invoice and receipt number issued for a session, replaced ones included, in the order they were given."""
-    return [r_["number"] for r_ in q("SELECT number FROM doc_numbers WHERE session_id=? ORDER BY issued, number", (sid,))]
 
+    return [r_["number"] for r_ in q("SELECT number FROM doc_numbers WHERE session_id=? ORDER BY issued, number", (sid,))]
 
 def _bill_nav(sid, receipt):
     t_ = q("SELECT type FROM sessions WHERE id=?", (sid,), one=True)["type"]
@@ -5300,10 +4878,8 @@ def _bill_nav(sid, receipt):
                 reviewed=doc_reviewed("terms", t_), review=review_url("terms", t_),
                 pdf_url=url_for("receipt_pdf" if receipt else "invoice_pdf", sid=sid))
 
-
 def freeze_bill(sid, receipt, number):
-    """The document as issued under `number`: stored the first time (at Issue; or, for one numbered before 1.0.1,
-    the first time it is opened), then always read back unchanged."""
+
     r_ = q("SELECT data FROM bill_snapshots WHERE number=?", (number,), one=True)
     if r_:
         return json.loads(r_["data"])
@@ -5313,18 +4889,15 @@ def freeze_bill(sid, receipt, number):
       (number, sid, "R" if receipt else "INV", now_local(), _lines_sig(sid), json.dumps(data)))
     return data
 
-
 def bill_ctx(sid, receipt=False, live=False):
-    """Invoice (what is owed) or receipt (paid in full) for one session. Looking never numbers it: the number is given
-    when it is issued (Issue, Download, Print, Email, or Mark sent), so a page opened to check uses none. Once issued it
-    is the frozen copy (freeze_bill); before that, a draft built from the live record."""
+
     kind_ = "R" if receipt else "INV"
     num_ = q("SELECT number FROM doc_numbers WHERE session_id=? AND kind=?", (sid, kind_), one=True)
     if num_ and not live:
         v = dict(freeze_bill(sid, receipt, num_["number"]), **_bill_nav(sid, receipt))
         t_ = totals(sid)
         v["since"] = ""
-        if not receipt and abs(t_["paid"] - v["paid"]) > 0.005:     # said beside it, never written into it
+        if not receipt and abs(t_["paid"] - v["paid"]) > 0.005:
             v["since"] = ("This is the invoice as issued. It has since been paid in full." if t_["due"] <= 0.005 else
                           f"This is the invoice as issued. Payments since then leave {money(t_['due'])} to pay.")
         return v
@@ -5332,7 +4905,7 @@ def bill_ctx(sid, receipt=False, live=False):
     t = totals(sid)
     lines = [dict(label=l["label"], amount=l["amount"]) for l in
              q("SELECT * FROM lines WHERE session_id=? ORDER BY kind IN ('discount','tax'), kind='tax', id", (sid,))]
-    pays = [dict(date=nice(p_["received"]), kind=p_["kind"], method=p_["method"], ref=p_["ref"] or "", amount=p_["amount"]) for p_ in
+    pays = [dict(date=long_date(p_["received"]), kind=p_["kind"], method=p_["method"], ref=p_["ref"] or "", amount=p_["amount"]) for p_ in
             q("SELECT * FROM payments WHERE session_id=? AND voided IS NULL ORDER BY received", (sid,))]
     payer = q("""SELECT name FROM people WHERE household_id=? AND role IN ('parent','adult') ORDER BY role='parent' DESC, id
                  LIMIT 1""", (s["household_id"],), one=True)
@@ -5369,10 +4942,8 @@ def bill_ctx(sid, receipt=False, live=False):
                 reviewed=doc_reviewed("terms", s["type"]), review=review_url("terms", s["type"]),
                 pdf_url=url_for("receipt_pdf" if receipt else "invoice_pdf", sid=sid))
 
-
 def statement_ctx(hid, month):
-    """Statement of account for one client and month: the balance at the start of the month, invoices issued
-    that month, payments received that month, and the balance at the end. What a business's bookkeeper reconciles."""
+
     h = q("SELECT * FROM households WHERE id=?", (hid,), one=True) or abort(404)
     try:
         y_, m_ = (int(v_) for v_ in month.split("-"))
@@ -5390,17 +4961,16 @@ def statement_ctx(hid, month):
            WHERE d.kind='INV' AND s.household_id=? AND s.stage != 'lost' ORDER BY d.issued, d.number""", (hid,))]
     pays = q("""SELECT p.amount, p.received, p.kind, p.method, s.id AS sid, s.title, s.type, s.shoot_date, s.intake FROM payments p
                 JOIN sessions s ON s.id=p.session_id WHERE s.household_id=? AND p.voided IS NULL ORDER BY p.received, p.id""", (hid,))
-    # a refund the client is not asked for again (refund_credits) sits beside it as a credit, so the price stays and the
-    # balance still nets to what is owed
+
     pays = sorted([dict(p_) for p_ in pays] + [dict(c_) for c_ in q(
         """SELECT c.amount, p.received, 'credit (refund, not owed)' AS kind, '' AS method, s.id AS sid, s.title, s.type,
                   s.shoot_date, s.intake FROM refund_credits c JOIN payments p ON p.id=c.payment_id JOIN sessions s ON s.id=p.session_id
            WHERE s.household_id=? AND p.voided IS NULL""", (hid,))], key=lambda p_: p_["received"] or "")
     opening = round(sum(i_["amount"] for i_ in invs if (i_["issued"] or "") < a_) - sum(p_["amount"] for p_ in pays if (p_["received"] or "") < a_), 2)
-    inv_rows = [dict(date=nice(i_["issued"]), number=i_["number"], what=label(i_), amount=i_["amount"],
-                     due_on=nice(balance_due_date(i_["shoot_date"], i_["type"], issued=i_["issued"])) or "")
+    inv_rows = [dict(date=long_date(i_["issued"]), number=i_["number"], what=label(i_), amount=i_["amount"],
+                     due_on=long_date(balance_due_date(i_["shoot_date"], i_["type"], issued=i_["issued"])) or "")
                 for i_ in invs if a_ <= (i_["issued"] or "") < b_]
-    pay_rows = [dict(date=nice(p_["received"]), what=label(p_), kind=("refund" if p_["amount"] < 0 and p_["kind"] != "credit (refund, not owed)" else p_["kind"]),
+    pay_rows = [dict(date=long_date(p_["received"]), what=label(p_), kind=("refund" if p_["amount"] < 0 and p_["kind"] != "credit (refund, not owed)" else p_["kind"]),
                      method=p_["method"], amount=p_["amount"]) for p_ in pays if a_ <= (p_["received"] or "") < b_]
     closing = round(opening + sum(r_["amount"] for r_ in inv_rows) - sum(r_["amount"] for r_ in pay_rows), 2)
     invoiced = {i_["sid"] for i_ in invs}
@@ -5420,39 +4990,32 @@ def statement_ctx(hid, month):
                 prev=(first - timedelta(days=1)).strftime("%Y-%m"), next=nxt.strftime("%Y-%m"),
                 back=url_for("client_view", hid=hid), pdf_url=url_for("statement_pdf", hid=hid, m=month))
 
-
 @app.get("/client/<int:hid>/statement")
 def statement(hid):
     return render_template("statement.html", v=statement_ctx(hid, request.args.get("m") or today().strftime("%Y-%m")))
-
 
 @app.get("/client/<int:hid>/statement.pdf")
 def statement_pdf(hid):
     v = statement_ctx(hid, request.args.get("m") or today().strftime("%Y-%m"))
     return html_pdf(render_template("statement.html", v=v, pdf=True), file_slug("statement", v["bill_to"], v["month"]) + ".pdf")
 
-
 def issue_bill(sid, receipt=False):
-    """Give the invoice or receipt its number and freeze it as issued. Returns the number."""
+
     number = doc_number(sid, "R" if receipt else "INV")
     freeze_bill(sid, receipt, number)
     return number
 
-
 def _receipt_waits(sid):
-    """No receipt issued, and the session is not paid in full: there is nothing to receipt yet."""
+
     t_ = totals(sid)
     return (t_["due"] > 0.005 or t_["paid"] <= 0.005) and not q(
         "SELECT 1 FROM doc_numbers WHERE session_id=? AND kind='R'", (sid,), one=True)
 
-
 BILL_THEN = ("download", "print", "email")
-
 
 @app.post("/session/<int:sid>/<any(invoice, receipt):kind>/issue")
 def bill_issue(sid, kind):
-    """Issue the invoice or receipt: this, not opening the page, gives it the next number in the year's run. Download,
-    Print, and Email on a draft come here first (then=...), and the page carries on with what was asked once issued."""
+
     t_ = totals(sid)
     word = "Receipt" if kind == "receipt" else "Invoice"
     had = q("SELECT number FROM doc_numbers WHERE session_id=? AND kind=?", (sid, "R" if kind == "receipt" else "INV"), one=True)
@@ -5465,14 +5028,13 @@ def bill_issue(sid, kind):
     else:
         g.audit_note = issue_bill(sid, kind == "receipt")
         if had:
-            g.refused = True                              # issued already: no second History line
+            g.refused = True
         else:
             session["notice"] = f"{word} {g.audit_note} issued."
         then = request.form.get("then")
         if then in BILL_THEN:
             session["doc_then"] = then
     return redirect(url_for(kind, sid=sid))
-
 
 def _bill_page(sid, receipt):
     v = bill_ctx(sid, receipt=receipt)
@@ -5483,26 +5045,22 @@ def _bill_page(sid, receipt):
     return render_template("invoice.html", v=v, then=then, notice=session.pop("notice", None),
                            send=send_ctx(sid, "receipt" if receipt else "invoice", f"{word} {v['number']}" if v["number"] else word, lines_))
 
-
 @app.get("/session/<int:sid>/invoice")
 def invoice(sid):
     return _bill_page(sid, False)
-
 
 @app.get("/session/<int:sid>/invoice.pdf")
 def invoice_pdf(sid):
     v = bill_ctx(sid)
     return html_pdf(render_template("invoice.html", v=v, pdf=True), file_slug(v["number"] or "invoice-draft", v["client"]) + ".pdf")
 
-
 @app.get("/session/<int:sid>/receipt")
 def receipt(sid):
-    if _receipt_waits(sid):                    # nothing to receipt yet: say so, on a page titled as the receipt
+    if _receipt_waits(sid):
         t_ = totals(sid)
         v = dict(bill_ctx(sid, receipt=True), waiting=True, due_now=t_["due"], inv_url=url_for("invoice", sid=sid))
         return render_template("invoice.html", v=v, send=None, notice=session.pop("notice", None))
     return _bill_page(sid, True)
-
 
 @app.get("/session/<int:sid>/receipt.pdf")
 def receipt_pdf(sid):
@@ -5511,18 +5069,15 @@ def receipt_pdf(sid):
     v = bill_ctx(sid, receipt=True)
     return html_pdf(render_template("invoice.html", v=v, pdf=True), file_slug(v["number"] or "receipt-draft", v["client"]) + ".pdf")
 
-
 def household_contact(people):
-    """Who to reach for a client: the first grown-up with a phone or email; else the first grown-up. Adding a partner
-    or a second parent without contact details never takes the place of the person you have been talking to."""
+
     adults = [p for p in people if p["role"] in ("parent", "adult")]
     return next((p for p in adults if (p["phone"] or "").strip() or (p["email"] or "").strip()), adults[0] if adults else None)
-
 
 def details_ctx(sid):
     s = session_full(sid)
     stops = None
-    for fn in hooks.detail_locations:            # a plugin may describe the locations (times, town, what is there)
+    for fn in hooks.detail_locations:
         try:
             stops = fn(s)
         except Exception:
@@ -5530,10 +5085,10 @@ def details_ctx(sid):
         if stops:
             break
     if not stops:
-        stops = [dict(time=clock12(s["start_time"]) if i == 0 else "", name=n, town="", what="", light="")
+        stops = [dict(time=clock(s["start_time"]) if i == 0 else "", name=n, town="", what="", light="")
                  for i, n in enumerate(l_.strip() for l_ in (s["stops"] or "").splitlines() if l_.strip())]
     mins = session_minutes(sid, s["type"])
-    meet = ((f"{clock12(s['start_time'])}" if s["start_time"] else "Time to be confirmed")
+    meet = ((f"{clock(s['start_time'])}" if s["start_time"] else "Time to be confirmed")
             + (f" at {stops[0]['name']}" if stops else ", place to be confirmed"))
     return dict(sid=sid, client=s["household"], people=oxford(subjects_of(sid)), type_label=C.doc_label(s["type"]),
                 date_long=long_date(s["shoot_date"]), meet=meet.strip(), stops=stops,
@@ -5543,23 +5098,18 @@ def details_ctx(sid):
                 animals=s["type"] in C.ANIMAL_TYPES,
                 reviewed=doc_reviewed("terms", s["type"]), review=review_url("terms", s["type"]))
 
-
 @app.get("/session/<int:sid>/details")
 def session_details(sid):
     v = details_ctx(sid)
     return render_template("session_details.html", v=v, send=send_ctx(sid, "details", "Your session details",
                            [f"The details for your session{(' on ' + v['date_long']) if v.get('date_long') else ''} are attached."]))
 
-
 @app.get("/session/<int:sid>/details.pdf")
 def session_details_pdf(sid):
     return html_pdf(render_template("session_details.html", v=details_ctx(sid), pdf=True), file_slug("session-details", client_slug(sid), today().isoformat()) + ".pdf")
 
-
 def event_rights_text(eid, voice="photographer", photographer="", person=""):
-    """The event's ownership terms. In the photographer's voice for the organizer's agreement and the letters (the
-    organizer option there is the transfer itself, with the license and permissions back); in the signer's voice for a
-    family's release, where "I" is the parent."""
+
     e = q("SELECT rights, rights_note FROM events WHERE id=?", (eid,), one=True) if eid else None
     if not e:
         return ""
@@ -5571,7 +5121,6 @@ def event_rights_text(eid, voice="photographer", photographer="", person=""):
     if voice == "organizer":
         return C.EVENT_RIGHTS_ORGANIZER.get(r_) or C.EVENT_RIGHTS.get(r_, "")
     return C.EVENT_RIGHTS.get(r_, "")
-
 
 def release_ctx(did):
     dc = q("""SELECT d.*, p.name AS person, p.is_minor FROM documents d LEFT JOIN people p ON p.id=d.about_person
@@ -5589,10 +5138,8 @@ def release_ctx(did):
                 did=did, unsigned=dc["status"] != "signed",
                 back=stage_url(s["id"]), pdf_url=url_for("release_pdf", did=did))
 
-
 def _family_money(did):
-    """At a group event where each family pays, the family's release carries its price terms: the family signs nothing
-    else, and a deposit taken with no written terms is only a prepayment."""
+
     r_ = q("""SELECT s.id, e.billing FROM documents d JOIN sessions s ON s.id=d.session_id JOIN events e ON e.id=s.event_id
               WHERE d.id=?""", (did,), one=True)
     if not r_ or r_["billing"] != "families":
@@ -5607,9 +5154,8 @@ def _family_money(did):
             + " If the event is canceled, or moved to a date we cannot come, or the photographer cannot photograph it,"
               " everything we paid is refunded." + (" If we do not come, the deposit is not refunded." if 0.005 < dep_ else ""))
 
-
 def release_view(did):
-    """The release: the owner's own wording, else the standard text (one source; the page and the PDF both use this)."""
+
     v = release_ctx(did)
     v["money"] = _family_money(did)
     import wording
@@ -5617,8 +5163,8 @@ def release_view(did):
                                    (did,), one=True)["type"])
     who = "the family" if v["minor"] else "me"
     used = f"The edited photos are delivered to {who}"
-    if v["event"]:                       # a group event: a personal license, never a copyright transfer (group photos are
-        used += (" for personal use: to print, share, and post them, not to sell them. Group photos that include "  # shared)
+    if v["event"]:
+        used += (" for personal use: to print, share, and post them, not to sell them. Group photos that include "
                  f"{v['person']} also go to the other families in the group")
     else:
         used += (", with the license set out in the session agreement" if v["license"] else
@@ -5639,7 +5185,6 @@ def release_view(did):
         "GUARDIAN": f"I am the parent or legal guardian of {v['person']} and may sign this release on their behalf." if v["minor"] else ""})
     return v
 
-
 @app.get("/doc/<int:did>/release")
 def release_doc(did):
     v = signed_copy("release", did) or legacy_signed("release", did, release_view(did))
@@ -5649,46 +5194,39 @@ def release_doc(did):
                     ["The photo release is attached." + ("" if not v.get("unsigned") else " Please sign it and send it back.")])
     return render_template("release.html", v=v, send=send, signed_on=_signed_on(None, None, did))
 
-
 @app.get("/doc/<int:did>/release.pdf")
 def release_pdf(did):
     v = signed_copy("release", did) or legacy_signed("release", did, release_view(did))
     return html_pdf(render_template("release.html", v=v, pdf=True, signed_on=_signed_on(None, None, did)), file_slug("release", v["person"], today().isoformat()) + ".pdf")
 
-
 @app.get("/session/<int:sid>/agreement")
 def agreement(sid):
     head = plan_head(sid)
     if head != sid:
-        return redirect(url_for("agreement", sid=head))           # a session in a plan signs the plan's one agreement
+        return redirect(url_for("agreement", sid=head))
     a = signed_copy("agreement", sid) or legacy_signed("agreement", sid, agreement_view(sid))
     who = setting("photographer_name") or setting("business_name") or "your photographer"
     send = send_ctx(sid, "agreement", f"Your session agreement with {who}",
                     ["Your session agreement is attached." + ("" if not a.get("unsigned") else " Please read it, sign it and send it back.")])
     return render_template("agreement.html", a=a, send=send, signed_on=_signed_on(sid, "agreement"))
 
-
 def _signed_on(sid, kind, did=None):
-    """The day a document was marked signed, as a long date, for the signature block (blank while unsigned)."""
+
     r_ = q("SELECT MAX(signed) d FROM documents WHERE " + ("id=?" if did else "session_id=? AND kind=?") + " AND status='signed'",
            (did,) if did else (sid, kind), one=True)
     return long_date(r_["d"]) if r_ and r_["d"] else ""
-
 
 def plan_head(sid):
     r_ = q("SELECT plan_of FROM sessions WHERE id=?", (sid,), one=True)
     return r_["plan_of"] if r_ and r_["plan_of"] else sid
 
-
 def plan_sessions(head):
-    """The sessions one agreement covers: the plan's first session and every session joined to it."""
-    return q("SELECT * FROM sessions WHERE id=? OR plan_of=? ORDER BY COALESCE(shoot_date,'9999'), id", (head, head))
 
+    return q("SELECT * FROM sessions WHERE id=? OR plan_of=? ORDER BY COALESCE(shoot_date,'9999'), id", (head, head))
 
 @app.post("/session/<int:sid>/plan")
 def join_plan(sid):
-    """Join this session to another session's plan (one agreement for several sessions, e.g. a baby's first year), or
-    leave it. Only sessions of the same client; a plan is one level deep."""
+
     s_ = q("SELECT * FROM sessions WHERE id=?", (sid,), one=True) or abort(404)
     to = request.form.get("plan_of", "")
     back = safe_back(request.form.get("back")) or url_for("session_view", sid=sid)
@@ -5709,13 +5247,12 @@ def join_plan(sid):
     x("UPDATE sessions SET plan_of=? WHERE id=?", (head["id"], sid))
     x("DELETE FROM documents WHERE session_id=? AND kind='agreement' AND status != 'signed'", (sid,))
     resign = q("SELECT 1 FROM documents WHERE session_id=? AND kind='agreement' AND status='signed'", (head["id"],), one=True)
-    if resign:                                   # the client agreed to the plan as it was, not to this added session
+    if resign:
         x("""UPDATE documents SET status=CASE WHEN sent IS NOT NULL THEN 'sent' ELSE 'needed' END, signed=NULL
              WHERE session_id=? AND kind='agreement'""", (head["id"],))
     audit(f"Joined the plan of {head['title'] or C.SESSION_TYPES.get(head['type'], head['type'])}: one agreement covers both"
           + ("; the plan's agreement needs signing again" if resign else ""), sid=sid)
     return redirect(back)
-
 
 @app.get("/session/<int:sid>/agreement.pdf")
 def agreement_pdf(sid):
@@ -5723,15 +5260,12 @@ def agreement_pdf(sid):
                                     or legacy_signed("agreement", plan_head(sid), agreement_view(sid)), pdf=True,
                                     signed_on=_signed_on(plan_head(sid), "agreement")), file_slug("agreement", client_slug(sid), today().isoformat()) + ".pdf")
 
-
 def fee_groups(only=None):
-    """Price-list sections: one per session type (the prices tagged with it), then add-ons and travel. only: one type's
-    section (the list a client of that type receives)."""
+
     groups = [(C.SESSION_TYPES[t], tuple(it["key"] for it in current_schedule()["items"] if it.get("type") == t))
               for t in C.SESSION_TYPES if not only or t == only]
     return [g_ for g_ in groups if g_[1]] + [("Add-ons", ("extra_hour", "extra_person", "extra_loc", "retouch", "rush")),
                                               ("Travel", ("travel",))]
-
 
 def fee_sheet_ctx(pdf=False, stype=None):
     sch = current_schedule()
@@ -5751,12 +5285,12 @@ def fee_sheet_ctx(pdf=False, stype=None):
     for title, keys in fee_groups(stype):
         rows = [(label(it), price(it)) for it in sch["items"]
                 if any(it["key"] == k or (k.endswith("_") and it["key"].startswith(k)) for k in keys)
-                and not (it.get("unit") == "mile" and not it["amount"] and not rate)]   # no rate yet: no "0 cents"
+                and not (it.get("unit") == "mile" and not it["amount"] and not rate)]
         used |= {it["key"] for it in sch["items"] if any(it["key"] == k or (k.endswith("_") and it["key"].startswith(k)) for k in keys)}
         if rows:
             groups.append((title, rows))
     other = [(label(it), price(it)) for it in sch["items"] if it["key"] not in used
-             and not (stype and it.get("type") and it.get("type") != stype)]      # one type's list: not other types' prices
+             and not (stype and it.get("type") and it.get("type") != stype)]
     if other:
         groups.append(("Other", other))
     return dict(sch=sch, groups=groups, as_of=today().strftime("%B %-d, %Y"), hold_days=quote_term(), pdf=pdf,
@@ -5766,18 +5300,16 @@ def fee_sheet_ctx(pdf=False, stype=None):
                 reviewed=doc_reviewed("terms", stype) if stype else doc_reviewed("terms"),
                 who=setting("photographer_name"), studio=setting("studio_name"))
 
-
 @app.get("/fees/sheet")
 def fee_sheet():
-    """Client-facing price list: current schedule, good-through date, editing definition."""
+
     stype, sid = request.args.get("type"), request.args.get("sid", type=int)
     ctx_ = fee_sheet_ctx(stype=stype)
     send = None
-    if sid and q("SELECT 1 FROM sessions WHERE id=?", (sid,), one=True):   # opened from a session: send it to that client
+    if sid and q("SELECT 1 FROM sessions WHERE id=?", (sid,), one=True):
         who = setting("photographer_name") or setting("business_name") or "your photographer"
         send = send_ctx(sid, "price", f"Price list from {who}", ["My price list is attached."])
     return render_template("fee_sheet.html", send=send, sid=sid, back_url=stage_url(sid) if send else url_for("settings_view", tab="fees"), **ctx_)
-
 
 @app.get("/fees/sheet.pdf")
 def fee_sheet_pdf():
@@ -5785,14 +5317,10 @@ def fee_sheet_pdf():
     return html_pdf(render_template("fee_sheet.html", **fee_sheet_ctx(pdf=True, stype=stype)),
                     f"price-list{'-' + stype if stype in C.SESSION_TYPES else ''}-{today().isoformat()}.pdf")
 
-
 @app.get("/fees/<int:sched_id>")
 def fees_view(sched_id):
     sch = schedule(sched_id) or abort(404)
     return render_template("fees.html", sch=sch, current=current_schedule()["id"], rate=setting("mileage_rate"))
-
-
-# ---------------------------------------------------------------- routes: events
 
 @app.get("/events")
 def events():
@@ -5801,16 +5329,14 @@ def events():
     contact = q("SELECT id, name FROM households WHERE id=?", (request.args.get("contact", type=int) or 0,), one=True)
     return render_template("events.html", rows=rows, contact=contact)
 
-
 @app.post("/events")
 def event_add():
     f = request.form
     eid = x("INSERT INTO events (id, name, date, venue) VALUES (?,?,?,?)", (next_id("events"), f["name"], f.get("date") or None, f.get("venue", "")))
     c_ = f.get("contact", type=int)
-    if c_ and q("SELECT 1 FROM households WHERE id=?", (c_,), one=True):    # the person who asked: the organizer contact
+    if c_ and q("SELECT 1 FROM households WHERE id=?", (c_,), one=True):
         x("UPDATE events SET contact_hid=? WHERE id=?", (c_, eid))
     return redirect(url_for("event_view", eid=eid))
-
 
 @app.get("/event/<int:eid>")
 def event_view(eid):
@@ -5835,10 +5361,9 @@ def event_view(eid):
     return render_template("event.html", e=e, fams=fams, steps=event_steps(eid), sign_day=event_sign_day(e),
                            payer=payer, households=hh, payer_total=totals(payer["id"]) if payer else None, contact=contact)
 
-
 @app.post("/event/<int:eid>/family-price")
 def event_family_price(eid):
-    """Each family pays: one price for every family that has no price yet (a family's own quote is never changed)."""
+
     e = q("SELECT * FROM events WHERE id=?", (eid,), one=True) or abort(404)
     try:
         amt = round(num(request.form.get("amount")), 2)
@@ -5856,13 +5381,11 @@ def event_family_price(eid):
         audit(f"Set {money(amt)} for {n} famil{'y' if n == 1 else 'ies'} at {e['name']}")
     return redirect(url_for("event_view", eid=eid) + "#families")
 
-
 def event_sign_day(e):
-    """Parents sign at the event: default to the event day once it has passed."""
+
     if e["date"] and e["date"] <= today().isoformat():
         return e["date"]
     return today().isoformat()
-
 
 @app.post("/event/<int:eid>/edit")
 def event_edit(eid):
@@ -5882,10 +5405,9 @@ def event_edit(eid):
         schedule_event(eid)
     return redirect(url_for("event_view", eid=eid))
 
-
 @app.post("/event/<int:eid>/billing")
 def event_billing(eid):
-    """Who pays and who owns the photos are decided per event."""
+
     e = q("SELECT * FROM events WHERE id=?", (eid,), one=True) or abort(404)
     f = request.form
     if _stale_edit("event_rights", eid, (("rights_note", "Rights"),), e):
@@ -5896,8 +5418,7 @@ def event_billing(eid):
     if f.get("rights") in C.EVENT_RIGHTS and not (f.get("billing") and f.get("billing") != e["billing"] and f["rights"] == (e["rights"] or "families")):
         x("UPDATE events SET rights=? WHERE id=?", (f["rights"], eid))
     elif f.get("billing") and f["billing"] != e["billing"] and (e["rights"] or "families") != "custom":
-        # who pays changed and ownership wasn't touched: it follows (organizer pays: the organizer owns, families get
-        # their own photos for personal use)
+
         x("UPDATE events SET rights=? WHERE id=?", ("organizer" if f["billing"] == "organizer" else "families", eid))
     if "rights_note" in f:
         x("UPDATE events SET rights_note=? WHERE id=?", (f["rights_note"].strip(), eid))
@@ -5906,8 +5427,7 @@ def event_billing(eid):
         x("UPDATE events SET payer_hid=? WHERE id=?", (hid, eid))
         ps_ = q("SELECT id, household_id FROM sessions WHERE payer_event=?", (eid,), one=True)
         if ps_ and ps_["household_id"] != hid:
-            # a new organizer takes over the billing session while nothing is paid or signed on it; after that it
-            # stays with the one who paid or signed, and the change is noted
+
             done_ = q("""SELECT (SELECT COUNT(*) FROM payments WHERE session_id=? AND voided IS NULL)
                                 + (SELECT COUNT(*) FROM documents WHERE session_id=? AND status='signed') n""",
                       (ps_["id"], ps_["id"]), one=True)["n"]
@@ -5923,9 +5443,8 @@ def event_billing(eid):
             sync_workflow_tasks(sid)
     e = q("SELECT * FROM events WHERE id=?", (eid,), one=True)
     for r_ in q("SELECT id FROM sessions WHERE event_id=?", (eid,)):
-        sync_workflow_tasks(r_["id"])            # families pay; paying is enough (no agreement per family)
+        sync_workflow_tasks(r_["id"])
     return redirect(url_for("event_view", eid=eid) + "#billing")
-
 
 @app.post("/event/<int:eid>/mark")
 def event_mark(eid):
@@ -5935,7 +5454,6 @@ def event_mark(eid):
     col = dbmod.ident(field)
     x("UPDATE sessions SET " + col + "=? WHERE event_id=? AND " + col + " IS NULL", (today().isoformat(), eid))
     return redirect(safe_back(request.form.get("back")) or url_for("event_view", eid=eid))
-
 
 @app.post("/event/<int:eid>/releases")
 def event_releases(eid):
@@ -5956,7 +5474,6 @@ def event_releases(eid):
           (day, day, eid))
     return redirect(safe_back(request.form.get("back")) or url_for("event_view", eid=eid))
 
-
 @app.post("/event/<int:eid>/family")
 def event_family(eid):
     e = q("SELECT * FROM events WHERE id=?", (eid,), one=True) or abort(404)
@@ -5966,23 +5483,21 @@ def event_family(eid):
         x("INSERT INTO people (household_id, name, role, email, phone, relation) VALUES (?,?,?,?,?,?)",
           (hid, f["parent_name"], "parent", f.get("email", ""), f.get("phone", ""), "parent"))
     subjects = []
-    for raw in [n.strip() for n in re.split(r",|\band\b|&", f.get("children", "")) if n.strip()]:   # "Mateo, Lucia and Diego"
+    for raw in [n.strip() for n in re.split(r",|\band\b|&", f.get("children", "")) if n.strip()]:
         m = trailing_age(raw, commas=False)
         name, age = (m[0].strip(), int(m[1])) if m else (raw, None)
         subjects.append(x("INSERT INTO people (household_id, name, role, is_minor, birth_year) VALUES (?,?, 'child', 1, ?)",
                           (hid, name, (today().year - age) if age else None)))
     sid_ = create_session(hid, C.EVENT_TYPE, "booked", e["name"], e["date"], event_id=eid, subject_ids=subjects)
     if e["billing"] == "families" and e["family_price"] and sid_:
-        _price_family(sid_, e)                              # a family added later gets the event's price too
+        _price_family(sid_, e)
     return redirect(url_for("event_view", eid=eid))
-
 
 def _price_family(sid, e):
     ensure_quote(sid)
     x("INSERT INTO lines (session_id, label, amount, kind, taxable) VALUES (?,?,?, 'custom', 1)",
       (sid, f"{e['name']} - family session", e["family_price"]))
     reapply_discount(sid)
-
 
 @app.post("/event/<int:eid>/stage")
 def event_stage(eid):
@@ -6001,9 +5516,6 @@ def event_stage(eid):
     if request.headers.get("X-Fetch"):
         return ("", 204)
     return redirect(safe_back(request.form.get("back")) or url_for("event_view", eid=eid))
-
-
-# ---------------------------------------------------------------- routes: money, settings
 
 @app.get("/money")
 def money_view():
@@ -6024,11 +5536,11 @@ def money_view():
     refunds = q("""SELECT COALESCE(SUM(amount),0) v FROM (SELECT amount FROM payments WHERE kind='refund' AND voided IS NULL
                    AND substr(received,1,4)=? UNION ALL SELECT amount FROM books WHERE kind='refund' AND substr(received,1,4)=?)""",
                 (y, y), one=True)["v"]
-    lost = q("""SELECT COALESCE(NULLIF(lost_reason,''),'no reason') r, COUNT(*) n FROM sessions WHERE stage='lost'
+    lost = q("""SELECT COALESCE(NULLIF(lost_reason,''),'No reason given') r, COUNT(*) n FROM sessions WHERE stage='lost'
                 AND substr(stage_changed,1,4)=? GROUP BY r ORDER BY n DESC""", (y,))
-    # sales tax is counted WHEN RECEIVED: each payment carries its share of the tax
+
     tax_lines = 0.0
-    kept_ = {}                  # a kept deposit's tax is counted once, at the full rate, below (not pro rata here too)
+    kept_ = {}
     for p_ in q("""SELECT p.session_id, p.amount FROM payments p WHERE p.voided IS NULL AND substr(p.received,1,4)=?
                    AND p.session_id IS NOT NULL""", (y,)):
         if p_["session_id"] not in kept_:
@@ -6062,17 +5574,18 @@ def money_view():
                            upcoming=upcoming, overhead=overhead, refunds=refunds, lost=lost, today_iso=today().isoformat(),
                            tax_due=round(tax_lines + tax_kept, 2), tax_kept=tax_kept)
 
-
 @app.route("/settings", methods=["GET", "POST"])
 def settings_view():
     if request.method == "POST":
         for k in ("mileage_rate", "home_base", "photographer_name", "studio_name", "business_name", "business_address", "business_email", "business_phone", "gallery_base_url",
                   "business_tax_id", "bank_details", "pay_details"):
             if k not in request.form:
-                continue                     # each tab saves only its own fields
+                continue
             v = request.form.get(k, "")
             if k == "gallery_base_url" and v.strip() and not v.strip().startswith("https://"):
-                continue                     # client galleries are only ever linked over https
+                session["notice"] = ("The gallery address wasn't saved: it must start with https://. Clients' browsers"
+                                     " open the encrypted photos only over https.")
+                continue
             x("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
               (k, v))
         term = request.form.get("quote_term_days", "")
@@ -6084,6 +5597,8 @@ def settings_view():
             am = request.form.get("age_majority", "")
             if am.isdigit() and 14 <= int(am) <= 25:
                 x("INSERT INTO settings (key, value) VALUES ('age_majority',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (am,))
+        if request.form.get("look_posted"):
+            save_look(request.form)
         if "sales_tax_pct" in request.form:
             for k in ("sales_tax_pct", "local_tax_pct"):
                 try:
@@ -6102,7 +5617,7 @@ def settings_view():
                 if request.form.get(f"fee_del_{i}"):
                     continue
                 try:
-                    amt = num(request.form.get(f"fee_amt_{i}"), it["amount"], lo=0)   # a typo keeps the old price
+                    amt = num(request.form.get(f"fee_amt_{i}"), it["amount"], lo=0)
                 except ValueError:
                     amt = it["amount"]
                 items.append(dict(it, label=request.form.get(f"fee_label_{i}", it["label"]).strip() or it["label"], amount=amt,
@@ -6122,7 +5637,13 @@ def settings_view():
                 x("INSERT INTO fee_schedules (created, items, note) VALUES (?,?,?)", (now_local(), json.dumps(items), ""))
         return redirect(url_for("settings_view", tab=request.args.get("tab") or None, saved=1))
     n_demo = q("SELECT COUNT(*) n FROM households WHERE demo=1", one=True)["n"]
-    return render_template("settings.html", plugin_errors=PLUGIN_ERRORS, rate=setting("mileage_rate"), home_base=setting("home_base"),
+    import settings_io
+    look = settings_io.clean_look(setting("gallery_font"), setting("gallery_bg"), setting("proof_mark"),
+                                  setting("proof_mark_text"), setting("proof_mark_strength"))
+    logo_, dlogo_ = setting("logo_png"), setting("logo_dark_png")
+    look_logos = dict(light=logo_, dark=dlogo_ or (settings_io.white_logo(logo_) if logo_ and request.args.get("tab", "general") == "general" else ""))
+    return render_template("settings.html", plugin_errors=PLUGIN_ERRORS, look=look, look_logos=look_logos,
+                           look_pal=settings_io.palette(look["gallery_bg"]), palettes=settings_io.PALETTES, rate=setting("mileage_rate"), home_base=setting("home_base"),
                            photographer=setting("photographer_name"), studio=setting("studio_name"),
                            gallery_base=setting("gallery_base_url"),
                            n_demo=n_demo, plugins=LOADED, db_path=DB_PATH,
@@ -6130,16 +5651,22 @@ def settings_view():
                            region=bool(tax_region()), reviews=review_rows() if request.args.get("tab") == "documents" else [],
                            versions=q("SELECT id, created FROM fee_schedules ORDER BY id DESC LIMIT 8"))
 
+GALLERY_FONTS_DIR = ROOT / "plugins" / "gallery_assets" / "fonts"
+
+@app.get("/settings/gallery-font/<name>.woff2")
+def gallery_font_file(name):
+
+    from flask import send_from_directory
+    if name not in ("cormorant-garamond", "great-vibes"):
+        abort(404)
+    return send_from_directory(GALLERY_FONTS_DIR, name + ".woff2", mimetype="font/woff2", max_age=86400)
 
 def _demo_words(n_):
     return f"{n_} demo client{'' if n_ == 1 else 's'}"
 
-
 @app.post("/settings/demo/delete")
 def settings_clear_demo():
-    """Settings, Delete the demo clients. A job, like a client delete: the photo cleanup opens its own database
-    connections to write, so it must never run inside a saving request (that request's open write held the database,
-    the cleanup waited on it, and the page failed with "database is locked")."""
+
     n_ = q("SELECT COUNT(*) n FROM households WHERE demo=1", one=True)["n"]
     if not n_:
         g.refused = True
@@ -6151,10 +5678,8 @@ def settings_clear_demo():
                          "the bottom of the page.")
     return redirect(url_for("settings_view"))
 
-
 def _delete_demo_clients(job):
-    """The work of Delete the demo clients (run as a job). Galleries and photos go first, session by session; if one
-    fails, the demo records stay and the job says why."""
+
     sids = [r_["id"] for r_ in q("SELECT s.id FROM sessions s JOIN households h ON h.id=s.household_id WHERE h.demo=1")]
     n_ = q("SELECT COUNT(*) n FROM households WHERE demo=1", one=True)["n"]
     job.update(total=len(sids) + 1, done=0)
@@ -6169,7 +5694,7 @@ def _delete_demo_clients(job):
                                        "gallery storage, then try again.") from None
         job["done"] += 1
     import locks
-    with locks.WRITES:                                   # the records go in one short, uninterrupted step
+    with locks.WRITES:
         x("UPDATE households SET referred_by=NULL WHERE referred_by IN (SELECT id FROM households WHERE demo=1)")
         x("DELETE FROM households WHERE demo=1")
         x("DELETE FROM events WHERE demo=1")
@@ -6177,9 +5702,8 @@ def _delete_demo_clients(job):
     job["done"] = job["total"]
     return f"Deleted the {_demo_words(n_)} and their photos."
 
-
 def review_rows():
-    """Every document a client can receive, per session type where its wording differs, and whether it is reviewed."""
+
     import wording
     rows = []
     for doc in ("agreement", "release", "transfer", "license", "terms"):
@@ -6201,27 +5725,38 @@ def review_rows():
     rows.append(dict(label="Price list terms", for_="every type", reviewed=st["reviewed"], when=st["when"], url=url_for("settings_view", tab="fees") + "#terms"))
     return rows
 
-
 def logo_src():
-    """The owner's logo as a data address, for documents (works in the PDF too)."""
+
     v = setting("logo_png")
     return f"data:image/png;base64,{v}" if v else ""
-
 
 app.jinja_env.globals["logo_src"] = logo_src
 app.jinja_env.globals["iso_today"] = lambda: today().isoformat()
 
+def save_look(form):
+
+    import settings_io
+    bg_ = form.get("gallery_bg", "")
+    look_ = settings_io.clean_look(form.get("gallery_font"), form.get("gallery_bg_custom", "") if bg_ == "custom" else bg_,
+                                   form.get("proof_mark"), form.get("proof_mark_text"), form.get("proof_mark_strength"))
+    for k, v in look_.items():
+        x("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (k, v))
 
 @app.post("/settings/logo")
 def logo_upload():
-    """A logo for the documents: PNG or JPEG only (no SVG: it can carry script), re-encoded and resized here."""
+
     from PIL import Image, ImageOps
     import base64
     import io as _io
+    dark = request.form.get("which") == "dark"
+    key_, what_ = ("logo_dark_png", "the logo for dark gallery backgrounds") if dark else ("logo_png", "the logo")
+    back_ = url_for("settings_view") + ("#gallery-look" if dark else "")
+    if dark and request.form.get("look_posted"):
+        save_look(request.form)
     if request.form.get("remove"):
-        x("DELETE FROM settings WHERE key='logo_png'")
-        audit("Removed the logo")
-        return redirect(url_for("settings_view"))
+        x("DELETE FROM settings WHERE key=?", (key_,))
+        audit("Removed " + what_)
+        return redirect(back_)
     f_ = request.files.get("logo")
     try:
         im = Image.open(f_.stream)
@@ -6234,16 +5769,16 @@ def logo_upload():
     except Exception:
         session["notice"] = "That file isn't a PNG or JPEG picture we can use."
         g.refused = True
-        return redirect(url_for("settings_view"))
-    x("INSERT INTO settings (key, value) VALUES ('logo_png',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-      (base64.b64encode(buf.getvalue()).decode(),))
-    audit("Uploaded a logo for the documents")
-    return redirect(url_for("settings_view"))
-
+        return redirect(back_)
+    x("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+      (key_, base64.b64encode(buf.getvalue()).decode()))
+    audit("Uploaded " + ("the logo for dark gallery backgrounds" if dark else "a logo for the documents"))
+    if dark:
+        session["notice"] = "Logo for dark backgrounds uploaded."
+    return redirect(back_)
 
 def _backup_extras():
-    """For each backup: the settings file (the same as Settings > Export, to restore settings on their own) and the
-    storage settings as stored (encrypted under the data key, which the backup's keyring carries)."""
+
     import settings_io
     from vault import web as vault_web_
     con = connect()
@@ -6256,19 +5791,17 @@ def _backup_extras():
     out = [("settings.json", json.dumps(data, indent=1).encode())]
     if vault_web_.CFG_PATH.exists():
         out.append(("storage.json", vault_web_.CFG_PATH.read_bytes()))
-    for p_ in (DELETIONS_JSON, NUMBERS_JSON):      # so a lost disk doesn't lose them (merged, never shrunk, on restore)
+    for p_ in (DELETIONS_JSON, NUMBERS_JSON):
         if p_.exists():
             out.append((p_.name, p_.read_bytes()))
     return out
 
-
 vault_backup_mod = __import__("vault.backup", fromlist=["EXTRAS"])
 vault_backup_mod.EXTRAS.append(_backup_extras)
 
-
 @app.get("/settings/export.json")
 def settings_export():
-    """Everything that describes the business, as a file to import into another install. No client records, no secrets."""
+
     import settings_io
     from vault import web as vault_web_
     data = settings_io.export(setting, current_schedule()["items"], vault_web_.config())
@@ -6277,10 +5810,9 @@ def settings_export():
     audit("Exported the settings")
     return r
 
-
 @app.post("/settings/import")
 def settings_import():
-    """Apply a settings file from Export: only known settings, every value checked; prices become a new price list."""
+
     import settings_io
     from vault import web as vault_web_
     back = safe_back(request.form.get("back")) or url_for("settings_view")
@@ -6296,14 +5828,14 @@ def settings_import():
         return redirect(back)
     first_setup = setting("setup_complete") != "1"
     skipped = []
-    if not first_setup:            # after setup, a file never moves backups or galleries: change those in their own steps
+    if not first_setup:
         if storage:
             skipped.append("backup and gallery locations")
         storage = {}
         if new_settings.pop("gallery_base_url", None):
             skipped.append("gallery address") if "backup and gallery locations" not in skipped else None
     gal = {}
-    if first_setup:              # galleries are public: their host and address wait for the owner's OK, like plugins
+    if first_setup:
         if storage.get("gallery_host"):
             gal["host"] = {k_: v_ for k_, v_ in storage.pop("gallery_host").items() if k_ not in settings_io.SECRET_FIELDS}
         if new_settings.get("gallery_base_url"):
@@ -6311,7 +5843,7 @@ def settings_import():
     notices = []
     own_words = [d_ for d_ in ("agreement", "release", "transfer", "license") if (new_settings.get(f"{d_}_text") or "").strip()
                  or any((t_.get(f"{d_}_text") or "").strip() for t_ in (new_rules.get("TYPES") or []))]
-    if own_words:               # legal text from a file is read before it is used: its documents go back to SAMPLE
+    if own_words:
         r_ = {k_: v_ for k_, v_ in _reviews().items() if k_.split(":")[0] not in own_words}
         x("INSERT INTO settings (key, value) VALUES ('doc_reviews',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (json.dumps(r_),))
         notices.append(f"This file brings its own {oxford(own_words)} wording. Those documents print as SAMPLE until you"
@@ -6345,15 +5877,14 @@ def settings_import():
     apply_settings()
     return redirect(back)
 
-
 def _save_rules(**kv):
     try:
         merged = json.loads(setting("rules") or "{}")
     except ValueError:
         merged = {}
     if "TYPES" in kv and "LICENSE_TYPES" not in kv and "LICENSE_TYPES" in merged:
-        had = {t_.get("key") for t_ in C.TYPES}                # a type added later keeps the copyright with the
-        new_ = [t_["key"] for t_ in kv["TYPES"] if t_.get("key") not in had]   # photographer, like every type at setup
+        had = {t_.get("key") for t_ in C.TYPES}
+        new_ = [t_["key"] for t_ in kv["TYPES"] if t_.get("key") not in had]
         if new_:
             kv = dict(kv, LICENSE_TYPES=list(merged["LICENSE_TYPES"]) + [k_ for k_ in new_ if k_ not in merged["LICENSE_TYPES"]])
     merged.update(kv)
@@ -6361,38 +5892,27 @@ def _save_rules(**kv):
       (json.dumps(merged),))
     apply_settings()
 
-
 def own_wording(doc, stype=None):
-    """The wording a document uses: the session type's own, else the owner's general wording, else the standard."""
+
     import wording
     t_ = next((t for t in C.TYPES if t["key"] == stype), None) if stype else None
     return ((t_ or {}).get(f"{doc}_text") or "").strip() or setting(f"{doc}_text").strip() or wording.STANDARD[doc]
 
-
-# ---------------------------------------------------------------- review: each supplied document prints SAMPLE until read
-# Each document prints SAMPLE (supplied boilerplate) until the owner presses Reviewed on its own page. Once reviewed it stays reviewed
-# (later edits never bring SAMPLE back); only "Revert to default" does, which also puts the shipped
-# wording back. A session type with its own
-# wording is a separate document with its own review. Saving never counts as a review, and a settings file never
-# brings reviews with it.
 REVIEW_DOCS = {"agreement": "Agreement", "release": "Release", "transfer": "Copyright transfer", "license": "Photo license",
                "terms": "Terms (quote, invoice, session details, price list)"}
 
-
 def _review_key(doc, stype=None):
-    """Which review a document falls under: the type's own (terms, or a type with its own wording), else the general."""
+
     if doc == "terms":
         return f"terms:{stype or '*'}"
     t_ = next((t for t in C.TYPES if t["key"] == stype), None) if stype else None
     return f"{doc}:{stype}" if t_ and (t_.get(f"{doc}_text") or "").strip() else f"{doc}:*"
 
-
 def _freeze_reviewed_wording():
-    """Once, at the first unlock of 1.0: a document whose sample wording was reviewed before 1.0, and that has no own
-    wording, keeps the pre-1.0 words as its own. A release never changes a contract its photographer approved."""
+
     import wording_legacy
     t_ = setting("transfer_text")
-    if wording_legacy.OLD_TRANSFER_PORTFOLIO in t_:      # frozen before the repair: the paragraph no longer fills
+    if wording_legacy.OLD_TRANSFER_PORTFOLIO in t_:
         x("UPDATE settings SET value=? WHERE key='transfer_text'",
           (t_.replace(wording_legacy.OLD_TRANSFER_PORTFOLIO, "[FAVORITES]"),))
         try:
@@ -6408,28 +5928,24 @@ def _freeze_reviewed_wording():
             x("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (f"{doc}_text", text))
     x("INSERT INTO settings (key, value) VALUES ('wording_frozen_1_0','1') ON CONFLICT(key) DO UPDATE SET value=excluded.value")
 
-
 def _reviews():
     try:
         return dict(json.loads(setting("doc_reviews") or "{}"))
     except (ValueError, TypeError):
         return {}
 
-
 def doc_reviewed(doc, stype=None):
-    """True once the owner has reviewed this document (for this session type)."""
-    return _review_key(doc, stype) in _reviews()
 
+    return _review_key(doc, stype) in _reviews()
 
 def review_url(doc, stype=None):
     if doc == "terms":
         return url_for("type_edit", key=stype) + "#terms" if stype else url_for("settings_view", tab="fees") + "#terms"
     return url_for("wording_edit", doc=doc, type=stype or None)
 
-
 @app.post("/settings/review/<doc>")
 def doc_review(doc):
-    """Reviewed - remove SAMPLE: the one way a document stops printing as a sample."""
+
     if doc not in REVIEW_DOCS:
         abort(404)
     stype = request.form.get("type") or None
@@ -6437,7 +5953,7 @@ def doc_review(doc):
         abort(404)
     r_ = _reviews()
     key = _review_key(doc, stype)
-    if request.form.get("revert"):           # Revert to default: the shipped wording, and SAMPLE again
+    if request.form.get("revert"):
         r_.pop(key, None)
         if doc == "terms" and stype:
             types = [dict(t) for t in C.TYPES]
@@ -6455,7 +5971,7 @@ def doc_review(doc):
     else:
         r_[key] = today().isoformat()
         if doc in ("agreement", "release", "transfer", "license") and key.endswith(":*") and not setting(f"{doc}_text").strip():
-            # what was reviewed becomes the photographer's own wording: a later release of the app never changes it
+
             import wording
             x("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
               (f"{doc}_text", wording.STANDARD[doc]))
@@ -6463,19 +5979,16 @@ def doc_review(doc):
     x("INSERT INTO settings (key, value) VALUES ('doc_reviews',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (json.dumps(r_),))
     return redirect(safe_back(request.form.get("back")) or review_url(doc, stype))
 
-
 def review_state(doc, stype=None):
-    """For a wording page: reviewed (and when) or not."""
+
     when = _reviews().get(_review_key(doc, stype))
     return dict(doc=doc, stype=stype, reviewed=bool(when), when=nice(when) if when else "")
 
-
 app.jinja_env.globals["review_state"] = review_state
-
 
 @app.route("/settings/wording/<doc>", methods=["GET", "POST"])
 def wording_edit(doc):
-    """Your own wording for the agreement or the release: plain text with [FIELDS]; Reset goes back to the standard."""
+
     import wording
     if doc not in wording.STANDARD:
         abort(404)
@@ -6488,20 +6001,20 @@ def wording_edit(doc):
     general = setting(key).strip() or wording.STANDARD[doc]
     if request.method == "POST":
         text = "" if request.form.get("reset") else wording.clean(request.form.get("text", ""))
-        if t_:                                          # one session type's own wording, kept with the type
+        if t_:
             if text == general.strip():
-                text = ""                              # unchanged: keep following the general wording
+                text = ""
             if text:
                 t_[key] = text
             else:
                 t_.pop(key, None)
                 r_ = _reviews()
-                if r_.pop(f"{doc}:{stype}", None):     # back on the general wording: its own review goes with it
+                if r_.pop(f"{doc}:{stype}", None):
                     x("INSERT INTO settings (key, value) VALUES ('doc_reviews',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (json.dumps(r_),))
             _save_rules(TYPES=types)
         else:
             if text == wording.STANDARD[doc].strip():
-                text = ""                              # unchanged: keep following the standard (and its updates)
+                text = ""
             x("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, text))
         audit(f"{'Reset' if request.form.get('reset') else 'Saved'} the {doc} wording" + (f" for {t_['label']}" if t_ else ""))
         return redirect(url_for("wording_edit", doc=doc, type=stype or None, saved=1))
@@ -6515,14 +6028,10 @@ def wording_edit(doc):
                            typed=[t for t in types if (t.get(key) or "").strip()], all_types=types,
                            fields=wording.FIELDS[doc], saved=request.args.get("saved"))
 
-
-# Sessions whose price may still follow a settings change: not yet agreed (inquiry or quoted, no quote sent, nothing
-# paid, nothing signed). A booked or paid session's price never moves on its own.
 UNAGREED_SQL = """SELECT id FROM sessions WHERE type=? AND stage IN ('inquiry','quoted')
                   AND NOT EXISTS (SELECT 1 FROM quote_versions v WHERE v.session_id=sessions.id)
                   AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.session_id=sessions.id AND p.voided IS NULL)
                   AND NOT EXISTS (SELECT 1 FROM documents d WHERE d.session_id=sessions.id AND d.status='signed')"""
-
 
 def _walk_state():
     try:
@@ -6530,10 +6039,9 @@ def _walk_state():
     except ValueError:
         return {}
 
-
 @app.route("/settings/type/<key>/walk/<int:n>", methods=["GET", "POST"])
 def type_walk(key, n):
-    """Walk me through this: one setting per screen (walkthrough.py). Keep, change or skip; nothing is required."""
+
     import walkthrough as W
     types = [json.loads(json.dumps(t_)) for t_ in C.TYPES]
     t = next((t_ for t_ in types if t_["key"] == key), None) or abort(404)
@@ -6545,7 +6053,7 @@ def type_walk(key, n):
         if act == "save":
             step["put"](request.form)
             _save_rules(TYPES=types)
-            if step["id"] in ("portfolio", "deposit"):           # quotes not yet sent follow the new amounts
+            if step["id"] in ("portfolio", "deposit"):
                 for r_ in q(UNAGREED_SQL, (key,)):
                     reapply_discount(r_["id"])
         if act in ("save", "keep"):
@@ -6562,28 +6070,23 @@ def type_walk(key, n):
     return render_template("walk.html", t=t, steps=steps, n=n, step=step, value=step["get"](), preview=step["preview"](),
                            mine=mine, summary=False)
 
-
 @app.post("/walk/dismiss")
 def walk_dismiss():
     _put_setting("walk_dismissed", "1")
     return redirect(url_for("home"))
 
-
 def walk_offer():
-    """Today's card after setup: the session types still untouched by the walkthrough (until dismissed)."""
+
     if setting("walk_dismissed") == "1" or not setup_done():
         return []
     st = _walk_state()
     return [(k_, lab) for k_, lab in C.SESSION_TYPES.items() if k_ != C.PERSONAL_TYPE["key"] and not (st.get(k_) or {}).get("done")]
 
-
 app.jinja_env.globals["walk_offer"] = walk_offer
-
 
 @app.route("/settings/type/<key>", methods=["GET", "POST"])
 def type_edit(key):
-    """One session type: its steps per stage and its policy wording. Steps that match the kind's defaults are not
-    stored, so a later default change still reaches them."""
+
     types = [dict(t) for t in C.TYPES]
     t = next((t_ for t_ in types if t_["key"] == key), None) or abort(404)
     kind_flow = C.KINDS[t["kind"]]["flow"]
@@ -6622,11 +6125,11 @@ def type_edit(key):
                 t.pop(flag, None)
         t.pop("portfolio_pct", None); t.pop("portfolio_amount", None)
         pv_ = _int_or_none(f.get("portfolio_value"))
-        if pv_ and f.get("portfolio_mode") in ("pct", "amt"):           # blank or 0: no portfolio discount
+        if pv_ and f.get("portfolio_mode") in ("pct", "amt"):
             t["portfolio_pct" if f["portfolio_mode"] == "pct" else "portfolio_amount"] = min(pv_, 100 if f["portfolio_mode"] == "pct" else 100000)
         t.pop("deposit_pct", None); t.pop("deposit_amount", None)
         dv = _int_or_none(f.get("deposit_value"))
-        if dv is not None and f.get("deposit_mode") in ("pct", "amt"):        # blank = the general deposit rule
+        if dv is not None and f.get("deposit_mode") in ("pct", "amt"):
             t["deposit_pct" if f["deposit_mode"] == "pct" else "deposit_amount"] = max(0, min(dv, 100 if f["deposit_mode"] == "pct" else 100000))
         t["policy"] = dict(free_reschedule=bool(f.get("free_reschedule")), outfits=bool(f.get("outfits")),
                            wear=((f.get("wear") or "").strip().rstrip(".")[:200] or C.DEFAULT_WEAR),
@@ -6640,10 +6143,10 @@ def type_edit(key):
             t["policy"]["gallery_codeword"] = True
         dd_ = _int_or_none(f.get("delivery_days"))
         general_ = C.EVENT_DELIVERY_DAYS if t["kind"] == "event" else C.DELIVERY_DAYS
-        if dd_ and dd_ > 0 and dd_ != general_:              # the general number: follow it when it changes
+        if dd_ and dd_ > 0 and dd_ != general_:
             t["policy"]["delivery_days"] = min(dd_, 365)
         gd_ = _int_or_none(f.get("gallery_days"))
-        if gd_ and gd_ > 0 and gd_ != C.GALLERY_DAYS:          # the general number: follow it when it changes
+        if gd_ and gd_ > 0 and gd_ != C.GALLERY_DAYS:
             t["policy"]["gallery_days"] = min(gd_, 3650)
         if "questions" in f:
             qs = _parse_questions(f["questions"], C.INTAKE[key])
@@ -6655,17 +6158,15 @@ def type_edit(key):
         for r_ in q("SELECT id FROM sessions WHERE type=? AND stage NOT IN ('closed','lost')", (key,)):
             sync_workflow_tasks(r_["id"])
             if q(UNAGREED_SQL + " AND id=?", (key, r_["id"]), one=True):
-                reapply_discount(r_["id"])          # quotes not yet agreed follow the new portfolio discount
+                reapply_discount(r_["id"])
         return redirect(url_for("type_edit", key=key, saved=1))
     flow = C.WORKFLOW[key]
     return render_template("type_edit.html", t=t, flow=flow, stages=C.STEP_STAGES, policy=C.POLICY[key],
                            questions="\n".join(q_[1] for q_ in C.INTAKE[key]),
                            auto_label={k_: v_[0] for k_, v_ in AUTO.items()}, saved=request.args.get("saved"))
 
-
 def _parse_questions(text, current):
-    """Intake questions, one per line. A question kept word for word keeps its answers (same key); a new one gets a
-    key from its words. "Address" and "Venue" keep the keys that search, invoices and the calendar read."""
+
     by_label = {lab.strip().lower(): k_ for k_, lab in current}
     out, used = [], set()
     for line in (text or "").splitlines()[:20]:
@@ -6684,12 +6185,10 @@ def _parse_questions(text, current):
         out.append((k_, lab))
     return out
 
-
 def _days(v):
-    """Days from the shoot for a step: -365 to 365, or none."""
+
     n = _int_or_none(v)
     return None if n is None else max(-365, min(365, n))
-
 
 def _int_or_none(v):
     try:
@@ -6697,10 +6196,9 @@ def _int_or_none(v):
     except (TypeError, ValueError):
         return None
 
-
 @app.post("/settings/import/gallery")
 def settings_import_gallery():
-    """Use the gallery host and address an imported file named, after the owner has seen them."""
+
     from vault import web as vault_web_
     res = session.get("import_result") or {}
     gal = res.get("gallery")
@@ -6710,7 +6208,7 @@ def settings_import_gallery():
             cur = vault_web_.config()
             old = cur.get("gallery_host") or {}
             new = dict(gal["host"])
-            if old.get("type") == new.get("type"):           # a saved secret stays on the server; it never rode in the cookie
+            if old.get("type") == new.get("type"):
                 new.update({k_: old[k_] for k_ in settings_io.SECRET_FIELDS if k_ in old})
             cur["gallery_host"] = new
             vault_web_.write_config(cur)
@@ -6723,11 +6221,9 @@ def settings_import_gallery():
     session["import_result"] = res
     return redirect(safe_back(request.form.get("back")) or url_for("settings_view"))
 
-
 @app.post("/settings/reset")
 def settings_reset():
-    """Wipe every client, session, event and log row; keep Settings. Typed confirmation, and a full copy of the database goes to
-    the backups folder first (sealed in the vault when a master key exists); if that copy fails, nothing is deleted."""
+
     if request.form.get("confirm", "").strip() != "RESET":
         return redirect(url_for("settings_view") + "?reset=nope")
     import jobs
@@ -6738,13 +6234,11 @@ def settings_reset():
     jobs.start(app, "reset", "Resetting the database (a sealed copy first)", work)
     return redirect(url_for("settings_view", tab="system"))
 
-
 def _reset_work():
     from vault import backup as vault_backup
-    # the pre-reset copy is sealed to the master key (db + faces + keyring); there is no unencrypted fallback any more
+
     vault_backup.sealed_backup(str(DB_PATH), str(FACES) if FACES.exists() else None, kind="reset")
-    # sealed session archives are NOT destroyed by a reset: they are marked orphaned and
-    # destroyed with the pre-reset snapshot 30 days later, so the reset stays undoable for the same 30 days
+
     _c = connect()
     try:
         _c.execute("UPDATE vault_keys SET orphaned=? WHERE orphaned IS NULL", (now_local(),))
@@ -6758,15 +6252,14 @@ def _reset_work():
     with locks.WRITES:
         _wipe_after_backup("sealed")
 
-
 def _wipe_after_backup(saved):
     con = connect()
     con.execute("PRAGMA foreign_keys=OFF")
     tables = [r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")]
     for t_ in tables:
-        if t_ not in ("settings", "fee_schedules", "vault_objects", "vault_keys", "users"):   # the vault keeps its records; the owner stays
+        if t_ not in ("settings", "fee_schedules", "vault_objects", "vault_keys", "users"):
             con.execute("DELETE FROM " + dbmod.ident(t_))
-    # The current fee schedule survives a reset as schedule #1. Older versions go: no quote refers to them any more.
+
     cur = con.execute("SELECT items, note FROM fee_schedules ORDER BY id DESC LIMIT 1").fetchone()
     con.execute("DELETE FROM fee_schedules")
     if con.execute("SELECT 1 FROM sqlite_master WHERE name='sqlite_sequence'").fetchone():
@@ -6776,50 +6269,23 @@ def _wipe_after_backup(saved):
                     (now_local(), cur[0], cur[1]))
     con.commit()
     con.execute("PRAGMA foreign_keys=ON")
-    con.execute("VACUUM")    # deleted rows otherwise linger in free pages of crm.db
-    return saved                # runs as a job: no request here, so nothing to redirect
+    con.execute("VACUUM")
+    return saved
 
-
-# ---------------------------------------------------------------- start
-
-# ---------------------------------------------------------------- schema versions
-# The database records its schema version (PRAGMA user_version). 1 is the 1.0 baseline; 1.0.0 shipped 2; 1.0.1 is 3.
-# At unlock, before anything changes, a sealed "upgrade" backup is taken (when a master key exists); the numbered steps
-# then run in one transaction, so a failure leaves the database as it was. A database newer than this app is never
-# opened: an older version could misread it.
-#
-# How to change the schema:
-#   1. Adding a table or a column only: put the table in SCHEMA (CREATE TABLE IF NOT EXISTS) or the column in
-#      init_db's list of added columns. Anything more (a rename, a type change, rewriting or moving data) is a
-#      numbered step: a new MIGRATIONS[n] that takes only the connection (no request, no settings) and is written
-#      so it is correct on any database at version n - 1, including a restored older backup.
-#   2. Either way, bump SCHEMA_VERSION, so the upgrade takes its backup first and an older release refuses the database.
-#   3. Regenerate the pinned schema: python tools/pin_schema.py (tests/test_schema_pinned.py says when it is due).
-#   4. For each release, add a database made by that release under tests/fixtures/ with an upgrade test
-#      (tools/make_fixture_100.py and tests/test_upgrade_from_100.py are the pattern).
-# Never edit a released step; add a new one.
-SCHEMA_VERSION = 3
-MIGRATIONS = {}          # n -> fn(con): moves the schema from n - 1 to n.
-
+SCHEMA_VERSION = 4
+MIGRATIONS = {}
 
 def _migrate_2(con):
-    """1.0: signed copies, hold stages, portfolio choice, delivery method, retention days, gallery picks. The tables and
-    columns are made by init_db and the plugins (all additive); this step exists so the upgrade first takes a sealed
-    backup and an older build refuses this database instead of opening it."""
-
+    pass
 
 MIGRATIONS[2] = _migrate_2
 
-
 def _migrate_3(con):
-    """1.0.1: refunds keep the quoted price. 1.0.0 recorded a refund by also lowering the price with a negative
-    "Refund" quote line (fee_key refund:<payment id>). Each such line becomes that refund's credit (refund_credits),
-    so the quote shows the price agreed and the balance is unchanged. An invoice marked sent with exactly those lines
-    stays sent (its recorded signature is brought up to date), so it is not taken as changed after sending."""
+
     con.execute("""CREATE TABLE IF NOT EXISTS refund_credits (payment_id INTEGER PRIMARY KEY REFERENCES payments(id)
                    ON DELETE CASCADE, session_id INTEGER, amount REAL NOT NULL)""")
 
-    def sig(sid):                     # the signature 1.0.0 and 1.0.1 record for an invoice marked sent
+    def sig(sid):
         return json.dumps([[r_[0], round(r_[1], 2)] for r_ in
                            con.execute("SELECT label, amount FROM lines WHERE session_id=? ORDER BY id", (sid,))])
     for lid, sid, amount, fee_key in con.execute(
@@ -6835,20 +6301,21 @@ def _migrate_3(con):
         con.execute("INSERT OR IGNORE INTO refund_credits (payment_id, session_id, amount) VALUES (?,?,?)",
                     (pid, sid, round(-amount, 2)))
         con.execute("DELETE FROM lines WHERE id=?", (lid,))
-        if was_sent:                   # the same invoice, still: not "changed after sending"
+        if was_sent:
             con.execute("UPDATE invoice_sent SET sig=? WHERE session_id=?", (sig(sid), sid))
-
 
 MIGRATIONS[3] = _migrate_3
 
+def _migrate_4(con):
+    pass
+
+MIGRATIONS[4] = _migrate_4
 
 class SchemaTooNew(RuntimeError):
     pass
 
-
 class UpgradeBlocked(RuntimeError):
-    """The backup before an upgrade could not be made: nothing was changed."""
-
+    pass
 
 @app.errorhandler(UpgradeBlocked)
 def _upgrade_blocked(e):
@@ -6856,13 +6323,11 @@ def _upgrade_blocked(e):
             f"made ({e.args[0]}), so nothing was changed. Check that the vault storage is reachable, then sign in again. "
             "Or go back to the version you had.", 503, {"Content-Type": "text/plain; charset=utf-8"})
 
-
 def _schema_version(con):
     return con.execute("PRAGMA user_version").fetchone()[0]
 
-
 def _upgrade_backup(con):
-    """The sealed copy taken before an upgrade changes anything (the schema script, new columns, numbered steps)."""
+
     has_master = bool(con.execute("SELECT 1 FROM sqlite_master WHERE name='settings'").fetchone()) and bool(
         con.execute("SELECT 1 FROM settings WHERE key='vault_master_pub' AND COALESCE(value,'') != ''").fetchone())
     if has_master:
@@ -6872,9 +6337,8 @@ def _upgrade_backup(con):
         except Exception as e:
             raise UpgradeBlocked(f"{type(e).__name__}: {e}"[:200]) from e
 
-
 def _migrate(con, have, backed_up=False):
-    """Run the numbered steps after `have`, after a sealed backup, all in one transaction."""
+
     todo = [n for n in sorted(MIGRATIONS) if have < n <= SCHEMA_VERSION]
     if not todo:
         return
@@ -6891,13 +6355,11 @@ def _migrate(con, have, backed_up=False):
         raise
     app.logger.info("database schema upgraded from %s to %s", have, todo[-1])
 
-
 @app.errorhandler(SchemaTooNew)
 def _schema_too_new(e):
     return (f"This data was written by a newer version of Lumen Aureum (database version {e.args[0]}; this version reads "
             f"up to {SCHEMA_VERSION}). Run the newer version again, or restore the backup taken before the upgrade "
             "(docs/operations.md, Rolling back).", 409, {"Content-Type": "text/plain; charset=utf-8"})
-
 
 def init_db():
     con = connect()
@@ -6909,14 +6371,13 @@ def init_db():
     had_docs = bool(con.execute("SELECT 1 FROM sqlite_master WHERE name='documents'").fetchone())
     backed_up = False
     if had_docs and have < SCHEMA_VERSION and any(n_ > have for n_ in MIGRATIONS):
-        _upgrade_backup(con)                     # before anything changes: the copy is the old database exactly
+        _upgrade_backup(con)
         backed_up = True
     con.executescript(SCHEMA)
     from vault import sync as vault_sync
-    con.executescript(vault_sync.SCHEMA)         # what the second backup location holds (also made by the copy itself)
+    con.executescript(vault_sync.SCHEMA)
     if had_docs and not had_snaps:
-        # upgrading from before signed copies were kept: documents already signed get a marker, not a copy, so they
-        # never show today's words as "what was signed" (they read live, as they always did)
+
         legacy = json.dumps({"legacy": True})
         con.execute("""INSERT OR IGNORE INTO doc_snapshots (kind, ref, at, data)
                        SELECT DISTINCT 'agreement', session_id, NULL, ? FROM documents WHERE kind='agreement' AND status='signed'""", (legacy,))
@@ -6952,8 +6413,7 @@ CREATE TABLE IF NOT EXISTS quotes (session_id INTEGER PRIMARY KEY REFERENCES ses
     for col, decl in (("kind", "TEXT DEFAULT 'custom'"), ("fee_key", "TEXT DEFAULT ''"), ("qty", "REAL DEFAULT 1"), ("unit", "REAL")):
         if col not in lcols:
             dbmod.add_column(con, "lines", col, decl)
-    # voided payments (no hard delete), mileage rate frozen per trip, durations, lost reasons,
-    # quote versions (what was actually sent)
+
     for tbl, col, decl in (("payments", "voided", "TEXT"), ("expenses", "rate", "REAL"), ("sessions", "duration_min", "INTEGER"),
                            ("sessions", "lost_reason", "TEXT DEFAULT ''"), ("quotes", "sent", "TEXT"), ("sessions", "hold_stage", "TEXT"), ("sessions", "portfolio_no", "INTEGER DEFAULT 0"), ("sessions", "delivery_method", "TEXT"), ("sessions", "gallery_codeword", "TEXT DEFAULT ''"),
                            ("lines", "taxable", "INTEGER DEFAULT 1"), ("sessions", "tax_exempt", "INTEGER DEFAULT 0"),
@@ -6969,7 +6429,7 @@ CREATE TABLE IF NOT EXISTS quotes (session_id INTEGER PRIMARY KEY REFERENCES ses
                            ("sessions", "tax_rate", "REAL"), ("photo_files", "key_trail", "TEXT DEFAULT '[]'")):
         if col not in dbmod.columns(con, tbl):
             dbmod.add_column(con, tbl, col, decl)
-            if (tbl, col) == ("sessions", "tax_rate"):     # sessions past the quote keep the rate their tax line shows
+            if (tbl, col) == ("sessions", "tax_rate"):
                 for sid_, lab in con.execute("""SELECT s.id, (SELECT label FROM lines l WHERE l.session_id=s.id AND l.kind='tax')
                                                 FROM sessions s WHERE s.stage IN ('booked','shot','delivered','closed','lost')""").fetchall():
                     m_ = re.search(r"\(([0-9.]+)%\)", lab or "")
@@ -7003,32 +6463,29 @@ CREATE INDEX IF NOT EXISTS sessions_hh ON sessions(household_id);
 CREATE INDEX IF NOT EXISTS sessions_stage ON sessions(stage);
 CREATE INDEX IF NOT EXISTS sessions_event ON sessions(event_id);
 CREATE INDEX IF NOT EXISTS people_hh ON people(household_id);
-CREATE INDEX IF NOT EXISTS audit_sid ON audit(session_id);""")     # foreign keys are not indexed by themselves
+CREATE INDEX IF NOT EXISTS audit_sid ON audit(session_id);""")
     con.commit()
     if have == 0:
-        dbmod.set_user_version(con, "main", 1)          # new, or from before versions were recorded: the 1.0 baseline
+        dbmod.set_user_version(con, "main", 1)
         con.commit()
         have = 1
     _migrate(con, have, backed_up=backed_up)
     con.close()
 
-
-from vault import keys as vault_keys, web as vault_web   # encrypted storage (vault/DESIGN.md)
+from vault import keys as vault_keys, web as vault_web
 vault_web.register(app, connect, lambda what: audit(what, who="Owner"))
-import auth as owner_auth                     # owner login + two-factor; runs before every other request hook
-
+import auth as owner_auth
 
 def apply_settings():
-    """Push saved settings into the running app: time zone (also the process TZ, so plugins and the backup scheduler
-    agree on what 'today' is), the home location for sun times, and the business rules (config.apply)."""
+
     global TZ
     import time as _time
     from flask import has_app_context
     sql = "SELECT key, value FROM settings WHERE key IN ('timezone','home_lat','home_lon','rules')"
     if has_app_context():
-        kv = dict((r[0], r[1]) for r in q(sql))           # the request's own connection: sees its uncommitted save
+        kv = dict((r[0], r[1]) for r in q(sql))
         if g.get("tx"):
-            g.applied = True                               # if this request is rolled back, the rules are re-read
+            g.applied = True
     else:
         con = connect()
         try:
@@ -7036,7 +6493,7 @@ def apply_settings():
         finally:
             con.close()
     try:
-        TZ = ZoneInfo(kv.get("timezone") or HOST_TZ or "UTC")   # Settings wins; else the container's TZ
+        TZ = ZoneInfo(kv.get("timezone") or HOST_TZ or "UTC")
     except (ZoneInfoNotFoundError, ValueError):
         TZ = ZoneInfo("UTC")
     sun.TZ = TZ
@@ -7051,18 +6508,16 @@ def apply_settings():
     except ValueError:
         C.apply({})
 
-
 import threading as _threading
 import atrest
 _unlock_guard = _threading.Lock()
 _unlocked_once = []
 
-
 def _unlock_work():
     key = datakey.dk()
     for p_ in (DB_PATH, Path(str(DB_PATH) + "-wal"), Path(str(DB_PATH) + "-shm"), FACES):
         try:
-            os.chmod(p_, 0o700 if p_ == FACES else 0o600)   # owner only
+            os.chmod(p_, 0o700 if p_ == FACES else 0o600)
         except OSError:
             pass
     init_db()
@@ -7092,16 +6547,13 @@ def _unlock_work():
     if n_faces:
         app.logger.info("encrypted %d face photos", n_faces)
     vault_web.PATHS.update(db=DB_PATH, faces=FACES)
-    if not os.environ.get("CRM_TESTING"):       # tests never schedule real backups
+    if not os.environ.get("CRM_TESTING"):
         vault_web.start_scheduler(app, connect, DB_PATH, FACES)
         threading.Thread(target=_mirror_loop, name="photo-mirror-loop", daemon=True).start()
         threading.Thread(target=_advance_loop, name="advance-loop", daemon=True).start()
 
-
 def on_unlock():
-    """Everything that needs the database, run once per process right after the key is held (first sign-in, or the
-    opt-in key file). Only when it all succeeds does the app count as unlocked;
-    if anything fails, the key is dropped again and the next sign-in retries."""
+
     with _unlock_guard:
         if _unlocked_once:
             datakey.mark_ready()
@@ -7114,38 +6566,29 @@ def on_unlock():
         _unlocked_once.append(True)
         datakey.mark_ready()
 
-
 owner_auth.register(app, connect, _allowed, lambda what: audit(what, who="Owner"), on_unlock)
-
 
 @app.errorhandler(datakey.Locked)
 def _locked(_e):
-    """Anything that reaches the database while locked goes to sign-in (the gate normally catches it first)."""
+
     if request.method == "GET":
         return redirect(url_for("login"))
     return "Locked: sign in again.", 503
 
-
 CSP = ("default-src 'self'; script-src 'self'{extra}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
        "font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
 
-
 def csp_nonce():
-    """A per-response nonce for a plugin's own <script nonce="{{ csp_nonce() }}"> block. Inline handlers
-    (onclick=...) are never allowed; the core has no inline script at all (static/*.js)."""
+
     if "csp_nonce" not in g:
         g.csp_nonce = secrets.token_urlsafe(18)
     return g.csp_nonce
 
-
 app.jinja_env.globals["csp_nonce"] = csp_nonce
-
 
 @app.after_request
 def _no_store(resp):
-    """Client pages are never kept in the browser's disk cache (a lost laptop keeps nothing), and every response
-    carries the browser protections: no framing, no inline or other-origin scripts, forms or connections, no sniffing.
-    A route may set its own policy first (the gallery preview allows its one script by hash)."""
+
     if request.endpoint != "static":
         resp.headers["Cache-Control"] = "no-store"
     resp.headers.setdefault("Content-Security-Policy",
@@ -7154,24 +6597,23 @@ def _no_store(resp):
     resp.headers["X-Frame-Options"] = "DENY"
     resp.headers.setdefault("Referrer-Policy", "same-origin")
     if request.scheme == "https" and os.environ.get("CRM_HSTS") == "1":
-        resp.headers["Strict-Transport-Security"] = "max-age=31536000"   # only with a real certificate (opt-in)
+        resp.headers["Strict-Transport-Security"] = "max-age=31536000"
     return resp
-
 
 import rotate as _rotate
 if _rotate.pending():
     raise SystemExit("A data key rotation was interrupted. Finish it first: python -m vault.cli rotate")
-_run_lock = _rotate.hold_running()              # tells offline tools (rotation) that the app is running
-__import__("atexit").register(_run_lock.close)   # released on a clean shutdown
-import about as _about                          # /about: license, source, what it includes (open, no client data)
+_run_lock = _rotate.hold_running()
+__import__("atexit").register(_run_lock.close)
+import about as _about
 _about.register(app)
-import setup as first_run                      # setup steps after the owner; until finished, signed-in pages go there
+import setup as first_run
 first_run.register(app, connect, apply_settings, lambda what: audit(what, who="Owner"), ALLOW)
 LOADED = load_plugins()
 if not os.environ.get("CRM_TESTING"):
-    netsec.banner(unclaimed=not datakey.exists(),     # fingerprint (+ claim code) in the log
+    netsec.banner(unclaimed=not datakey.exists(),
                   plugins=[(p_["name"], p_["built_in"], p_["folder"]) for p_ in PLUGINS_LOADED], plugin_errors=PLUGIN_ERRORS)
-_auto = datakey.try_auto_unlock()               # opt-in unattended unlock (CRM_UNLOCK_KEY_FILE)
+_auto = datakey.try_auto_unlock()
 if _auto:
     datakey.set_unlocked(_auto)
     on_unlock()

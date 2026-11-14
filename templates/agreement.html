@@ -25,3 +25,4 @@
 
   <div class="sig"><div>{{ a.photographer }}{% if a.business %}, for {{ a.business }}{% endif %}<br><br>Date</div>{% for n_ in a.signers or ['Client'] %}<div>{{ n_ }}{% if a.company %}, for {{ a.company }}{% endif %}{% if a.minor %} (parent or guardian){% endif %}<br><br>{{ (('Signed ' ~ signed_on ~ ' on an earlier version. This copy is not the signed document.') if a.legacy_signed else ('Signed copy received ' ~ signed_on)) if signed_on else 'Date' }}</div>{% endfor %}</div>
 </div>{% if not pdf %}<script src="{{ url_for('static', filename='ui.js', v=static_v('ui.js')) }}"></script>{% endif %}</body></html>
+

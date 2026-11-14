@@ -1,4 +1,3 @@
-"""Every malformed field in an untrusted settings file is refused with ImportProblem, while a well-formed file parses."""
 import copy
 import json
 import os
@@ -9,8 +8,7 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import fresh_modules  # noqa: E402
-
+from helpers import fresh_modules
 
 @pytest.fixture
 def S(tmp_path, monkeypatch):
@@ -20,12 +18,10 @@ def S(tmp_path, monkeypatch):
     import settings_io
     return settings_io
 
-
 def good_type(key="family"):
     return {"key": key, "label": "Family", "kind": "portrait", "minutes": 60,
             "steps": {"booked": [["do", "Plan", -3], ["auto", "deposit_paid"]]},
             "deposit_pct": 25}
-
 
 def good_file():
     return {"lumen_aureum_settings": 1,
@@ -33,12 +29,10 @@ def good_file():
             "rules": {"TYPES": [good_type()]},
             "fees": [{"key": "session", "label": "Session", "amount": 200, "unit": "flat"}]}
 
-
 def _with_type(**changes):
     def make(d):
         d["rules"]["TYPES"][0].update(changes)
     return make
-
 
 def _set(path, value):
     def make(d):
@@ -47,7 +41,6 @@ def _set(path, value):
             cur = cur[p]
         cur[path[-1]] = value
     return make
-
 
 CASES = {
     "types not a list": _set(["rules", "TYPES"], {"key": "family"}),
@@ -100,7 +93,6 @@ CASES = {
                                                             "endpoint": "http://s3.example.com"}}),
 }
 
-
 def test_a_well_formed_file_parses(S):
     settings, rules, fees, storage = S.parse(json.dumps(good_file()), {})
     assert settings == {"business_name": "Studio"}
@@ -109,7 +101,6 @@ def test_a_well_formed_file_parses(S):
     assert t["steps"]["booked"] == [["do", "Plan", -3], ["auto", "deposit_paid"]]
     assert fees[0]["unit"] == "flat"
 
-
 @pytest.mark.parametrize("name", list(CASES))
 def test_malformed_field_is_refused(S, name):
     d = copy.deepcopy(good_file())
@@ -117,13 +108,11 @@ def test_malformed_field_is_refused(S, name):
     with pytest.raises(S.ImportProblem):
         S.parse(json.dumps(d), {})
 
-
 @pytest.mark.parametrize("text", ["not json", "[]", json.dumps({"lumen_aureum_settings": 2}),
                                   json.dumps({"settings": {}})])
 def test_not_a_settings_file_is_refused(S, text):
     with pytest.raises(S.ImportProblem):
         S.parse(text, {})
-
 
 def test_boundary_values_are_accepted(S):
     d = good_file()

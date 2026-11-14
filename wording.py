@@ -1,15 +1,9 @@
-"""Your own wording for the agreement and the photo release.
-
-The owner edits plain text: lines starting "# " are headings, blank lines separate paragraphs, and [FIELDS] in capitals
-are filled in from the session and Settings. The text is never treated as a template language: it is escaped, then only
-the known [FIELDS] are replaced (also escaped). An unknown [FIELD] is left as written, so a typo shows."""
 import re
 
 from markupsafe import Markup, escape
 
 MAX_LEN = 20000
-# Shown wherever the documents are set up or reviewed: the shipped wording is an example to adapt,
-# never terms the author stands behind.
+
 DISCLAIMER = ("The agreement, release and other documents that come with Lumen Aureum are examples only. They are not legal advice, and the makers of Lumen Aureum make no promise that they suit your business or hold up where you work. Read them, change them for your business and the laws where you work, and have a lawyer review them before you use them. You are responsible for the documents you give your clients.")
 NUMBERED = re.compile(r"\d{1,3}\.\s+")
 FIELD = re.compile(r"\[([A-Z][A-Z ]{0,30}[A-Z])\]")
@@ -139,10 +133,8 @@ The photographer keeps my details only to run the session and its records, and n
 """,
 }
 
-
 def render(text, values):
-    """Plain text with [FIELDS] -> safe HTML. Sections left empty by their fields (a heading with nothing under it)
-    are dropped, so [MINORS] can vanish for an adult."""
+
     sections, cur = [], None
     for block in re.split(r"\n\s*\n", (text or "").replace("\r\n", "\n").strip()):
         lines = block.split("\n")
@@ -164,17 +156,15 @@ def render(text, values):
             continue
         if head:
             m = NUMBERED.match(head)
-            if m:                                    # numbered headings count on from 1, skipping dropped sections
+            if m:
                 n += 1
                 head = f"{n}. {head[m.end():]}"
-            out.append(Markup("<h2>%s</h2>") % Markup(_fill(head, values)))       # _fill escapes already
+            out.append(Markup("<h2>%s</h2>") % Markup(_fill(head, values)))
         out += [Markup("<p>%s</p>") % Markup(p.replace("\n", "<br>")) for p in filled]
     return Markup("\n").join(out)
 
-
 def sections(text, values):
-    """Plain text with [FIELDS] -> [(heading, paragraph)] of plain text, for templates that escape it themselves.
-    Sections left empty by their fields are dropped; an unknown [FIELD] stays as written."""
+
     out, head = [], None
     for block in re.split(r"\n\s*\n", (text or "").replace("\r\n", "\n").strip()):
         lines = block.split("\n")
@@ -187,18 +177,15 @@ def sections(text, values):
             head = None
     return out
 
-
 def _fill(s, values):
     safe = str(escape(s))
     return FIELD.sub(lambda m: str(escape(values[m.group(1)])) if m.group(1) in values else m.group(0), safe)
 
-
 def clean(text):
-    """What is stored: plain text, a size limit, no control characters."""
+
     text = (text or "").replace("\r\n", "\n")
     text = "".join(ch for ch in text if ch in "\n\t" or ord(ch) >= 32)
     return text[:MAX_LEN].strip()
-
 
 FIELDS["transfer"] = TRANSFER_FIELDS
 FIELDS["license"] = LICENSE_FIELDS

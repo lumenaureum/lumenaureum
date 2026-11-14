@@ -5,8 +5,8 @@ Lumen Aureum is a small web app that you run yourself and open in a browser on y
 ## The machine
 It needs a machine that is **always on**: the daily backup, gallery checks and scheduled deletions run in the
 background. Suitable machines:
-- **A NAS that runs containers** (Docker). Intel or AMD models only: many budget NAS models use ARM processors,
-  which aren't supported.
+- **A NAS that runs containers** (Docker). Intel or AMD models only for now: many budget NAS models use ARM
+  processors. Support for 64-bit ARM is coming soon.
 - **A home server or mini PC** running Linux with Docker.
 - **A desktop computer running Linux with Docker** works, but only while it is on and awake; scheduled work waits
   until it is.
@@ -104,6 +104,8 @@ Set these under `environment:` in `compose.yaml`; leave out any you don't need.
 | `CRM_PLUGIN_DIRS`, `CRM_PLUGINS_OFF` | Plugin folders, and plugins to turn off (see `plugins/README.md`) |
 
 ## On a TrueNAS (Install via YAML)
+A TrueNAS app you install from the TrueNAS app catalog is coming soon. Until then, use these steps.
+
 TrueNAS's "Install via YAML" screen takes the compose file but has no `.env` file next to it, so `LUMEN_HOST_IP` is
 never set and the app refuses to start. Write the address straight into the ports line:
 `- "192.168.1.10:8780:8780"` (your NAS's address on the network your computers use). Create datasets for the data,

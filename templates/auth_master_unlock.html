@@ -1,4 +1,4 @@
-{% extends "auth_base.html" %}{% block body %}
+{% extends "auth_base.html" %}{% block title %}Forgot your password - Lumen Aureum{% endblock %}{% block body %}
 <h1>Forgot your password?</h1>
 <p class="mute">Paste your master key, type the recovery code from the file <b>RECOVERY-CODE.txt</b> in your data folder (it lasts 15 minutes and works once), and choose a new password.</p>
 <form method="post" class="card f" autocomplete="off">
@@ -10,3 +10,4 @@
   <button class="primary">Unlock and set password</button>
 </form>
 <p style="margin-top:12px"><a href="{{ url_for('login') }}">Back to sign in</a></p>{% endblock %}
+

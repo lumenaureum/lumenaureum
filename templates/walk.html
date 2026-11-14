@@ -16,16 +16,16 @@
 </div>
 {% else %}
 <form method="post" class="card f" style="max-width:720px">
-  <h2 style="margin-top:0">{{ step.title }}</h2>
+  <h2 style="margin-top:0" id="walk-q">{{ step.title }}</h2>
   <p class="mute" style="margin:0 0 14px">{{ step.why }}</p>
   {% set kind_, name_, hint_ = step.field %}
   {% if kind_ == 'number' %}<label class="row" style="gap:8px"><input type="number" name="{{ name_ }}" value="{{ value }}" min="1" style="width:120px"> {{ hint_ }}</label>
-  {% elif kind_ == 'text' %}<input name="{{ name_ }}" value="{{ value }}" placeholder="{{ hint_ }}" maxlength="200">
+  {% elif kind_ == 'text' %}<input name="{{ name_ }}" value="{{ value }}" placeholder="{{ hint_ }}" aria-labelledby="walk-q" maxlength="200">
   {% elif kind_ == 'check' %}<label class="row" style="gap:8px"><input type="checkbox" name="{{ name_ }}" value="1"{{ ' checked' if value }} style="width:auto;margin:0"> {{ hint_ }}</label>
-  {% elif kind_ == 'method' %}<span class="seg">{% for k_, v_ in C.DELIVERY_METHODS.items() %}<label><input type="radio" name="delivery_method" value="{{ k_ }}"{{ ' checked' if k_ == value }}><span>{{ v_[0] }}</span></label>{% endfor %}</span>
+  {% elif kind_ == 'method' %}<span class="seg" role="radiogroup" aria-labelledby="walk-q">{% for k_, v_ in C.DELIVERY_METHODS.items() %}<label><input type="radio" name="delivery_method" value="{{ k_ }}"{{ ' checked' if k_ == value }}><span>{{ v_[0] }}</span></label>{% endfor %}</span>
   {% elif kind_ in ('deposit', 'portfolio') %}{% set p_ = 'deposit' if kind_ == 'deposit' else 'portfolio' %}
-    <div class="row" style="gap:8px"><input type="number" name="{{ p_ }}_value" min="0" value="{{ value[1] }}" placeholder="{{ 'general rule' if kind_ == 'deposit' else 'none' }}" style="width:130px">
-    <select name="{{ p_ }}_mode" style="width:auto"><option value="amt"{{ ' selected' if value[0] == 'amt' }}>dollars</option><option value="pct"{{ ' selected' if value[0] == 'pct' }}>% of the price</option></select></div>
+    <div class="row" style="gap:8px"><input type="number" name="{{ p_ }}_value" aria-labelledby="walk-q" min="0" value="{{ value[1] }}" placeholder="{{ 'general rule' if kind_ == 'deposit' else 'none' }}" style="width:130px">
+    <select name="{{ p_ }}_mode" aria-label="Dollars or percent" style="width:auto"><option value="amt"{{ ' selected' if value[0] == 'amt' }}>dollars</option><option value="pct"{{ ' selected' if value[0] == 'pct' }}>% of the price</option></select></div>
   {% elif kind_ == 'reschedule' %}
     <label class="row" style="gap:6px"><input type="checkbox" name="free_reschedule" value="1"{{ ' checked' if value[0] }} style="width:auto;margin:0">One free reschedule, with
       <input type="number" name="notice_hours" min="0" value="{{ value[1] }}" style="width:80px;display:inline;margin:0"> hours' notice</label>
@@ -43,3 +43,4 @@
 </form>
 {% endif %}
 {% endblock %}
+

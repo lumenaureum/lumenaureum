@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% from "_macros.html" import stage_pill, phone, avatar with context %}
-{% block body %}
+{% block title %}{% if term %}{{ term }} - {% endif %}Search - Lumen Aureum{% endblock %}{% block body %}
 <h1>{% if term %}"{{ term }}"{% else %}Everyone{% endif %}</h1>
 <ul class="acts" style="margin-top:14px">
 {% for x in hits %}
@@ -8,10 +8,11 @@
       {% for p in x.people %}<div class="sub" style="font-size:13px">{{ p.name }} {{ phone(p.phone) }}</div>{% endfor %}
       {% for m in x.matched %}<div class="sub" style="font-size:13px"><mark>{{ m }}</mark></div>{% endfor %}</div></div>
     <div>{% for s in x.sessions %}<div class="row" style="padding:2px 0"><a href="{{ url_for('session_view', sid=s.id) }}">{{ type_label[s.type] }}</a>
-      <span class="sub">{{ nice(s.shoot_date) or 'no date' }}</span>{{ stage_pill(s.stage) }}{% if s.hit %}<span class="sub"><mark>{{ s.hit }}</mark></span>{% endif %}</div>{% endfor %}</div>
+      <span class="sub">{{ nice(s.shoot_date) or 'No date' }}</span>{{ stage_pill(s.stage) }}{% if s.hit %}<span class="sub"><mark>{{ s.hit }}</mark></span>{% endif %}</div>{% endfor %}</div>
   </li>{% else %}<li style="grid-template-columns: minmax(0,1fr)"><a href="{{ url_for('event_view', eid=x.e.id) }}"><b>{{ x.e.name }}</b></a> <span class="sub">{{ nice(x.e.date) }} {{ x.e.venue }}</span></li>{% endif %}
 {% else %}{% if not extra %}<li class="empty" style="display:block">Nothing found</li>{% endif %}{% endfor %}
 </ul>
 {% for sec in extra %}<h2 class="grp">{{ sec.title }}</h2>
 <ul class="acts">{% for r in sec.rows %}<li style="grid-template-columns: minmax(0,1fr) minmax(0,2fr)">{% if r.link %}<a href="{{ r.link }}"><b>{{ r.text }}</b></a>{% else %}<b>{{ r.text }}</b>{% endif %}<span class="sub">{{ r.sub or '' }}</span></li>{% endfor %}</ul>{% endfor %}
 {% endblock %}
+

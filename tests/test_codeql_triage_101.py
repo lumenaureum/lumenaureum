@@ -1,6 +1,3 @@
-"""1.0.1 follow-ups from the CodeQL alerts on 1.0.0: the "back" address is same-site only (url-redirection); a name
-with an age after it is split in linear time (polynomial-redos); a local storage folder never follows a link out of
-its root (path-injection); the setup code file is the owner's alone (overly-permissive-file)."""
 import io
 import os
 import re
@@ -12,34 +9,27 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from test_user_testing_fixes import _app, _q, _new, E  # noqa: E402
-from vault import backends as B  # noqa: E402
-
-
-# ---------------------------------------------------------------- url-redirection: safe_back
+from test_user_testing_fixes import _app, _q, _new, E
+from vault import backends as B
 
 BAD_BACKS = ["//evil.example", "///evil.example", "/\\evil.example", "\\/evil.example", "/\t/evil.example",
              "/\n/evil.example", "\r\n//evil.example", " //evil.example", "/\x00/evil.example", "/\x7f/evil.example",
              "https://evil.example", "http:/evil.example", "javascript:alert(1)", "data:text/html,x", "evil.example",
              "/x\r\nSet-Cookie: a=b", "", None]
 
-
 def test_safe_back_keeps_only_same_site_paths(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
     for bad in BAD_BACKS:
         assert A.safe_back(bad) is None, bad
     for ok in ["/", "/session/3#money", "/c/1?s=2", "/%2F%2Fevil.example", "/.//x"]:
-        assert A.safe_back(ok) == ok                 # encoded or dotted, still a path on this site
+        assert A.safe_back(ok) == ok
     con = A.connect()
     con.execute("INSERT INTO events (name, date) VALUES ('Team day', '2027-04-10')")
     con.commit(); con.close()
-    for bad in BAD_BACKS[:-2]:                       # and through a real form post: never another site
+    for bad in BAD_BACKS[:-2]:
         r = c.post("/event/1/date", data={"date": "2027-04-11", "back": bad}, environ_base=E)
         loc = r.headers.get("Location", "")
         assert r.status_code == 302 and loc.startswith("/") and loc[1:2] not in ("/", "\\"), (bad, loc)
-
-
-# ---------------------------------------------------------------- polynomial-redos: trailing_age
 
 def test_trailing_age_matches_the_old_patterns(tmp_path, monkeypatch):
     A, _ = _app(tmp_path, monkeypatch)
@@ -51,17 +41,16 @@ def test_trailing_age_matches_the_old_patterns(tmp_path, monkeypatch):
             m = rx.match(s)
             assert A.trailing_age(s, commas=commas) == ((m.group(1), m.group(2)) if m else None), (s, commas)
 
-
 def test_a_long_run_of_tabs_is_quick(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
-    evil = "a" + "\t" * 200_000 + "x"               # the old patterns took minutes on this
+    evil = "a" + "\t" * 200_000 + "x"
     t0 = time.monotonic()
     assert A.trailing_age(evil) is None and A.trailing_age(evil, commas=False) is None
     assert A.trailing_age("a" + "\t" * 200_000 + "7") == ("a", "7")
     assert time.monotonic() - t0 < 1
     t0 = time.monotonic()
     _new(A, c, "family", subject_name=evil)
-    _new(A, c, "family", subject_name=", ".join(f"Kid{i}" for i in range(20_000)))   # a pasted wall of names
+    _new(A, c, "family", subject_name=", ".join(f"Kid{i}" for i in range(20_000)))
     con = A.connect()
     con.execute("INSERT INTO events (name, date) VALUES ('Team day', '2027-04-10')")
     con.commit(); con.close()
@@ -69,21 +58,16 @@ def test_a_long_run_of_tabs_is_quick(tmp_path, monkeypatch):
     assert time.monotonic() - t0 < 10
     assert _q(A, "SELECT COUNT(*) FROM people WHERE name LIKE 'Kid%'")[0][0] <= 12
 
-
 def test_ages_after_names_still_work(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
     _new(A, c, "family", subject_name="Ada (7), Ben 9 and Cole")
     rows = {r[0]: r[1] for r in _q(A, "SELECT name, birth_year FROM people WHERE name IN ('Ada', 'Ben', 'Cole')")}
     assert set(rows) == {"Ada", "Ben", "Cole"} and rows["Ada"] and rows["Ben"] and rows["Cole"] is None
 
-
-# ---------------------------------------------------------------- path-injection: a local root is never left
-
 def _root(tmp_path):
     root = tmp_path / "gal"
     B.LocalBackend.init_root(str(root))
     return root, B.LocalBackend(str(root), public=True)
-
 
 def test_a_link_out_of_a_local_root_is_refused(tmp_path):
     root, be = _root(tmp_path)
@@ -91,7 +75,7 @@ def test_a_link_out_of_a_local_root_is_refused(tmp_path):
     outside.mkdir(mode=0o700)
     mode_ = outside.stat().st_mode & 0o777
     (outside / "keep.bin").write_bytes(b"precious")
-    os.symlink(outside, root / "g1")                 # planted by another user of a group-writable gallery folder
+    os.symlink(outside, root / "g1")
     with pytest.raises(ValueError):
         be.put_stream("g1/new.bin", io.BytesIO(b"x"))
     with pytest.raises(ValueError):
@@ -99,11 +83,10 @@ def test_a_link_out_of_a_local_root_is_refused(tmp_path):
     with pytest.raises(ValueError):
         be.delete("g1/keep.bin")
     assert sorted(os.listdir(outside)) == ["keep.bin"] and (outside / "keep.bin").read_bytes() == b"precious"
-    assert outside.stat().st_mode & 0o777 == mode_                      # never chmod-ed through the link
+    assert outside.stat().st_mode & 0o777 == mode_
     os.symlink(outside / "keep.bin", root / "f.bin")
     with pytest.raises(ValueError):
         be.get_stream("f.bin", io.BytesIO())
-
 
 def test_a_local_root_still_works_and_may_itself_be_a_link(tmp_path):
     real, _ = _root(tmp_path)
@@ -118,14 +101,10 @@ def test_a_local_root_still_works_and_may_itself_be_a_link(tmp_path):
         with pytest.raises(ValueError):
             be.stat(bad)
 
-
 def test_contained_helper(tmp_path):
     assert B.contained(str(tmp_path), str(tmp_path / "a" / "b")) == str(tmp_path / "a" / "b")
     with pytest.raises(ValueError):
-        B.contained(str(tmp_path / "a"), str(tmp_path / "ab"))           # a sibling sharing the prefix is outside
-
-
-# ---------------------------------------------------------------- overly-permissive-file: the setup code
+        B.contained(str(tmp_path / "a"), str(tmp_path / "ab"))
 
 def test_setup_code_file_is_owner_only_whatever_the_umask(tmp_path, monkeypatch):
     monkeypatch.setenv("CRM_DB", str(tmp_path / "data" / "crm.db"))

@@ -1,4 +1,3 @@
-"""Vault inside the CRM: sealed nightly backups with pruning and restore, and a sealed pre-reset snapshot."""
 import json
 import os
 import subprocess
@@ -6,12 +5,10 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-
 def mark(*dirs):
     for d in dirs:
         os.makedirs(d, exist_ok=True)
         open(os.path.join(d, ".vault-root"), "a").close()
-
 
 def run(code, tmp):
     env = dict(os.environ, CRM_DB=str(tmp / "crm.db"), CRM_STORAGE_CFG=str(tmp / "storage.json"),
@@ -19,7 +16,6 @@ def run(code, tmp):
     r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env, capture_output=True, text=True)
     assert r.returncode == 0, r.stderr[-3000:]
     return r.stdout
-
 
 def test_backups_prune_restore_reset(tmp_path):
     (tmp_path / "storage.json").write_text(json.dumps({"primary": {"type": "local", "path": str(tmp_path / "store")}}))
@@ -63,7 +59,6 @@ print('after reset households', con.execute('SELECT COUNT(*) FROM households').f
     assert "restored The Harlows" in out and "restored plaintext False" in out, out
     assert "after reset households 0 reset objects 2 keys kept 1 faces dir False" in out, out
 
-
 def test_gallery_host_local_and_sftp(tmp_path):
     hosts = [{"type": "local", "path": str(tmp_path / "web")}]
     if os.environ.get("VAULT_SFTP_KEY"):
@@ -99,7 +94,6 @@ print('left', host.list('gtest1/'), host.stat('gtest1/.htaccess'))
         assert "left [] None" in out, out
         assert "limits ['days=5', 'unopened_until=2027-11-11', 'proof=1']" in out and "gate True" in out, out
 
-
 def test_daily_backup_schedule(tmp_path):
     (tmp_path / "storage.json").write_text(json.dumps({"primary": {"type": "local", "path": str(tmp_path / "store")}}))
     mark(tmp_path / "store")
@@ -119,9 +113,8 @@ print('next day', W.run_if_due(A.connect, A.DB_PATH, A.FACES, now=datetime(2026,
 """, tmp_path)
     assert "before time False" in out and "at time True" in out and "again same day False" in out and "next day True" in out, out
 
-
 def test_restore_on_a_new_machine_with_only_the_master_key(tmp_path):
-    """The lost-laptop case: no install, no keyring, no storage settings. A copy of the vault folder + the master key."""
+
     (tmp_path / "storage.json").write_text(json.dumps({"primary": {"type": "local", "path": str(tmp_path / "store")}}))
     mark(tmp_path / "store")
     out = run("""
@@ -137,7 +130,7 @@ print('NAME', BK.sealed_backup(str(A.DB_PATH))[0]); print('SECRET', secret)
     import shutil
     copy = tmp_path / "usb-copy"
     shutil.copytree(tmp_path / "store", copy)
-    os.remove(copy / ".vault-root")                       # a plain copy, not a marked vault
+    os.remove(copy / ".vault-root")
     new = tmp_path / "newmachine"
     new.mkdir()
     env = dict(os.environ, CRM_DB=str(new / "crm.db"), CRM_STORAGE_CFG=str(new / "storage.json"))

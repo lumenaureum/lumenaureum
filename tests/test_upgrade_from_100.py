@@ -1,7 +1,3 @@
-"""Upgrading a real 1.0.0 database (tests/fixtures/db-1.0.0, made by tools/make_fixture_100.py with the 1.0.0 code):
-the upgrade takes its backup first, every record survives, money reads as 1.0.0 showed it (refunds recorded the old
-way become credits without changing a balance), invoice numbers and ids carry on without repeating, and the 1.0.0
-deletion list is handled by the 1.0.1 rules."""
 import hmac
 import json
 import shutil
@@ -16,17 +12,15 @@ EXPECTED = json.loads((FIXTURE / "expected.json").read_text())
 SIDE_FILES = ("keyring.json", "deletions.json", "doc-numbers.json")
 E = {"REMOTE_ADDR": "127.0.0.1"}
 
-
 def _place(tmp_path, db_name="crm.db"):
-    """Put the 1.0.0 files where a data folder would hold them (what restoring a 1.0.0 backup does)."""
+
     shutil.copyfile(FIXTURE / db_name, tmp_path / "crm.db")
     for name in SIDE_FILES:
         if (FIXTURE / name).exists():
             shutil.copyfile(FIXTURE / name, tmp_path / name)
 
-
 def _open(tmp_path, monkeypatch):
-    """Start the current code on the data folder and sign in (the first sign-in runs the upgrade)."""
+
     for k, v in (("CRM_DB", "crm.db"), ("CRM_STORAGE_CFG", "storage.json"), ("CRM_PHOTOS_ROOT", "photos")):
         monkeypatch.setenv(k, str(tmp_path / v))
     monkeypatch.delenv("CRM_KEYRING", raising=False)
@@ -38,7 +32,6 @@ def _open(tmp_path, monkeypatch):
     c = signed_in_client(A)
     return A, c, taken
 
-
 def _q(A, sql, args=()):
     con = A.connect()
     try:
@@ -46,14 +39,12 @@ def _q(A, sql, args=()):
     finally:
         con.close()
 
-
 def _in_request(A, fn):
     with A.app.test_request_context():
         A.db()
         out = fn()
         A.g.db.commit()
         return out
-
 
 def _finances(A, c, year):
     seen = {}
@@ -74,23 +65,19 @@ def _finances(A, c, year):
                 outstanding={str(o["s"]["id"]): round(o["t"]["due"], 2) for o in seen["outstanding"]},
                 upcoming={str(o["s"]["id"]): round(o["t"]["due"], 2) for o in seen["upcoming"]})
 
-
 @pytest.fixture
 def upgraded(tmp_path, monkeypatch):
     _place(tmp_path)
     return _open(tmp_path, monkeypatch) + (tmp_path,)
 
-
 def test_the_fixture_is_a_1_0_0_database():
     assert EXPECTED["schema_version"] == 2 and EXPECTED["made_with"].startswith("1.0.0")
 
-
-def test_upgrade_takes_a_backup_and_reaches_version_3(upgraded):
+def test_upgrade_takes_a_backup_and_reaches_the_current_version(upgraded):
     A, c, taken, _ = upgraded
-    assert A.SCHEMA_VERSION == 3
-    assert taken == ["upgrade"]                                   # the sealed backup came before any change
-    assert _q(A, "PRAGMA user_version")[0][0] == 3
-
+    assert A.SCHEMA_VERSION == 4
+    assert taken == ["upgrade"]
+    assert _q(A, "PRAGMA user_version")[0][0] == A.SCHEMA_VERSION
 
 def test_every_record_is_still_there(upgraded):
     A, c, taken, _ = upgraded
@@ -105,7 +92,6 @@ def test_every_record_is_still_there(upgraded):
     for sid in EXPECTED["sessions"]:
         assert c.get(f"/session/{sid}", environ_base=E).status_code == 200
 
-
 def test_refunds_become_credits_and_balances_match_1_0_0(upgraded):
     A, c, taken, _ = upgraded
     assert not _q(A, "SELECT 1 FROM lines WHERE fee_key LIKE 'refund:%'")
@@ -113,17 +99,15 @@ def test_refunds_become_credits_and_balances_match_1_0_0(upgraded):
     assert credits == {v["fee_key"].split(":")[1]: (v["session"], -v["amount"]) for v in EXPECTED["refund_lines"].values()}
     for sid, want in EXPECTED["sessions"].items():
         t = _in_request(A, lambda: A.totals(int(sid)))
-        assert round(t["quoted"], 2) == want["quoted_without_refund_lines"], sid    # the price as agreed, not lowered
+        assert round(t["quoted"], 2) == want["quoted_without_refund_lines"], sid
         assert round(t["paid"], 2) == want["paid"], sid
-        assert round(t["due"], 2) == want["due"], sid                               # the balance 1.0.0 showed
+        assert round(t["due"], 2) == want["due"], sid
     lane = str(EXPECTED["sessions_by_name"]["lane"])
-    assert EXPECTED["sessions"][lane]["quoted"] < EXPECTED["sessions"][lane]["quoted_without_refund_lines"]   # a real refund
-
+    assert EXPECTED["sessions"][lane]["quoted"] < EXPECTED["sessions"][lane]["quoted_without_refund_lines"]
 
 def test_finances_match_1_0_0(upgraded):
     A, c, taken, _ = upgraded
     assert _finances(A, c, EXPECTED["year"]) == EXPECTED["finances"]
-
 
 def test_invoice_numbers_are_kept_and_the_next_one_follows(upgraded):
     A, c, taken, _ = upgraded
@@ -131,15 +115,14 @@ def test_invoice_numbers_are_kept_and_the_next_one_follows(upgraded):
     assert have == EXPECTED["invoice_numbers"]
     lane = EXPECTED["sessions_by_name"]["lane"]
     assert c.get(f"/session/{lane}/invoice", environ_base=E).status_code == 200
-    # the invoice marked sent in 1.0.0 is still the same sent invoice: converting its refund line did not retire it
+
     assert {str(r[0]): r[1] for r in _q(A, "SELECT session_id, number FROM invoice_sent")} == EXPECTED["invoice_sent"]
     assert {r[0] for r in _q(A, "SELECT number FROM doc_numbers WHERE kind='INV'")} == set(EXPECTED["invoice_numbers"])
     ortiz = EXPECTED["sessions_by_name"]["ortiz"]
     assert c.post(f"/session/{ortiz}/invoice/issue", environ_base=E).status_code in (200, 302, 303)
     new = _q(A, "SELECT number FROM doc_numbers WHERE session_id=? AND kind='INV'", (ortiz,))[0][0]
-    same_year = [int(n[-4:]) for n in EXPECTED["invoice_numbers"] if n[:9] == new[:9]]     # INV-<year>-
+    same_year = [int(n[-4:]) for n in EXPECTED["invoice_numbers"] if n[:9] == new[:9]]
     assert new not in EXPECTED["invoice_numbers"] and int(new[-4:]) == max(same_year, default=0) + 1
-
 
 def test_the_1_0_0_deletion_is_signed_and_its_ids_are_not_reused(upgraded):
     A, c, taken, tmp_path = upgraded
@@ -148,44 +131,38 @@ def test_the_1_0_0_deletion_is_signed_and_its_ids_are_not_reused(upgraded):
     items = json.loads((tmp_path / "deletions.json").read_text())
     assert [d["id"] for d in items] == [gone["client"]]
     key = _in_request(A, lambda: A._deletion_key(A.db()))
-    assert hmac.compare_digest(items[0]["mac"], A._deletion_mac(key, items[0]))   # adopted: its client is already gone
+    assert hmac.compare_digest(items[0]["mac"], A._deletion_mac(key, items[0]))
     assert not (tmp_path / "deletions.unverified.json").exists()
     assert _in_request(A, A.unconfirmed_deletions) == []
     hid = _in_request(A, lambda: A.next_id("households"))
     sid = _in_request(A, lambda: A.next_id("sessions"))
     assert hid > gone["client"] and str(hid) not in EXPECTED["clients"]
-    # The deleted client's own id is in deletions.json, so it is never given again. Its session's id is not: 1.0.0 kept
-    # no trace of it (deletions.json names clients only, and the session's history went with it), so the first new
-    # session may take that number. It still never collides with a session that exists.
+
     assert sid == max(int(k) for k in EXPECTED["sessions"]) + 1 and str(sid) not in EXPECTED["sessions"]
     assert gone["session"] == sid
 
-
 def test_an_older_1_0_0_backup_restored_after_the_delete_asks_first(tmp_path, monkeypatch):
-    """The database from just before the delete, with the deletion list written after it: the unsigned entry names a
-    client still here, so it is not applied; Today lists the client for the owner to decide."""
+
     _place(tmp_path, "crm-before-delete.db")
     A, c, taken = _open(tmp_path, monkeypatch)
     gone = EXPECTED["deleted"]
-    assert taken == ["upgrade"] and _q(A, "PRAGMA user_version")[0][0] == 3
+    assert taken == ["upgrade"] and _q(A, "PRAGMA user_version")[0][0] == A.SCHEMA_VERSION
     assert _q(A, "SELECT 1 FROM households WHERE id=?", (gone["client"],))
     assert [r["id"] for r in _in_request(A, A.unconfirmed_deletions)] == [gone["client"]]
     assert _q(A, "SELECT 1 FROM audit WHERE household_id=? AND action LIKE 'Not deleted:%'", (gone["client"],))
 
-
 def test_restoring_the_1_0_0_backup_after_upgrading_upgrades_it_again(tmp_path, monkeypatch):
-    """Go to 1.0.1, issue an invoice, then restore the 1.0.0 database (the backup taken before the upgrade): the next
-    start converts it the same way, and the invoice number issued since is not given again."""
+
     _place(tmp_path)
     A, c, taken = _open(tmp_path, monkeypatch)
     ortiz = EXPECTED["sessions_by_name"]["ortiz"]
     c.post(f"/session/{ortiz}/invoice/issue", environ_base=E)
     issued = _q(A, "SELECT number FROM doc_numbers WHERE session_id=? AND kind='INV'", (ortiz,))[0][0]
-    shutil.copyfile(FIXTURE / "crm.db", tmp_path / "crm.db")       # the database only: the side files stay current
+    shutil.copyfile(FIXTURE / "crm.db", tmp_path / "crm.db")
     for extra in ("crm.db-wal", "crm.db-shm"):
         (tmp_path / extra).unlink(missing_ok=True)
     A, c, taken = _open(tmp_path, monkeypatch)
-    assert taken == ["upgrade"] and _q(A, "PRAGMA user_version")[0][0] == 3
+    assert taken == ["upgrade"] and _q(A, "PRAGMA user_version")[0][0] == A.SCHEMA_VERSION
     assert not _q(A, "SELECT 1 FROM lines WHERE fee_key LIKE 'refund:%'")
     lane = str(EXPECTED["sessions_by_name"]["lane"])
     t = _in_request(A, lambda: A.totals(int(lane)))
@@ -195,9 +172,8 @@ def test_restoring_the_1_0_0_backup_after_upgrading_upgrades_it_again(tmp_path, 
     again = _q(A, "SELECT number FROM doc_numbers WHERE session_id=? AND kind='INV'", (ortiz,))[0][0]
     assert again != issued and again not in EXPECTED["invoice_numbers"]
 
-
 def test_version_2_code_refuses_the_upgraded_database(upgraded, monkeypatch):
     A, c, taken, _ = upgraded
-    monkeypatch.setattr(A, "SCHEMA_VERSION", 2)                    # what 1.0.0 knows
+    monkeypatch.setattr(A, "SCHEMA_VERSION", 2)
     with pytest.raises(A.SchemaTooNew):
         A.init_db()

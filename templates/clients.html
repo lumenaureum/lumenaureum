@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% from "_macros.html" import phone with context %}
-{% block body %}
+{% block title %}Clients - Lumen Aureum{% endblock %}{% block body %}
 <div class="page-head"><div class="grow"><div class="kicker">Clients</div><h1>All clients</h1></div>
-  <form method="get"><input name="q" value="{{ term }}" placeholder="Search" style="width:260px"></form></div>
+  <form method="get"><input name="q" value="{{ term }}" placeholder="Filter clients" aria-label="Filter clients" style="width:260px"></form></div>
 <div class="surface wrapx">
 <table class="data">
   <thead><tr><th>Client</th><th class="opt">People</th><th>Contact</th><th class="opt">Source</th><th class="n">Open</th><th class="n opt">Sessions</th><th class="opt">Last contact</th></tr></thead>
@@ -17,3 +17,4 @@
 </table></div>
 <div class="sub" style="margin-top:8px;font-size:13px">{{ rows|length }} client{{ '' if rows|length == 1 else 's' }}</div>
 {% endblock %}
+

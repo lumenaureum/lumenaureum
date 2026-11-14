@@ -1,11 +1,9 @@
-"""Sunset and golden hour for a place and date (NOAA solar position, minute resolution)."""
 import math
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-TZ = ZoneInfo("UTC")      # set from Settings (time zone) at startup
-HOME = None               # (lat, lon) from the home ZIP in Settings; no home, no sun times
-
+TZ = ZoneInfo("UTC")
+HOME = None
 
 def elevation(dt_utc, lat, lon):
     jd = dt_utc.timestamp() / 86400 + 2440587.5
@@ -28,9 +26,8 @@ def elevation(dt_utc, lat, lon):
     latr = math.radians(lat)
     return math.degrees(math.asin(math.sin(latr) * math.sin(decl) + math.cos(latr) * math.cos(decl) * math.cos(ha)))
 
-
 def evening(day, lat=None, lon=None):
-    """(golden hour start, sunset) as local datetimes for the evening of `day`, at the home location unless given."""
+
     if lat is None:
         if not HOME:
             return None, None
@@ -46,7 +43,6 @@ def evening(day, lat=None, lon=None):
             sunset = t
             break
     return golden, sunset
-
 
 def fmt(t):
     return t.strftime("%-I:%M") if t else ""

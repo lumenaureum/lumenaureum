@@ -1,4 +1,3 @@
-"""First contact implied by a quote; invoice and receipt numbers given at issue, by issue year, in sequence; the price list has no expiry date; the Test button leaves nothing behind; search names the matched address."""
 import os
 import runpy
 import sys
@@ -6,10 +5,9 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import fresh_modules, signed_in_client  # noqa: E402
+from helpers import fresh_modules, signed_in_client
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
-
 
 def _app(tmp_path, monkeypatch):
     monkeypatch.setenv("CRM_DB", str(tmp_path / "crm.db"))
@@ -23,7 +21,6 @@ def _app(tmp_path, monkeypatch):
     c.post("/setup/shoot", data={f"preset_{k}": "1" for k in C.PRESETS}, environ_base=E)
     runpy.run_path(os.path.join(ROOT, "seed_demo.py"), run_name="seed")
     return A, c
-
 
 def test_numbers_issue_year_in_sequence_and_kept(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
@@ -41,7 +38,6 @@ def test_numbers_issue_year_in_sequence_and_kept(tmp_path, monkeypatch):
     r = c.get(f"/session/{sids[0]}/invoice", environ_base=E)
     assert r.status_code == 200 and n1.encode() in r.data
 
-
 def test_quote_built_counts_as_first_contact(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
     con = A.connect()
@@ -55,12 +51,10 @@ def test_quote_built_counts_as_first_contact(tmp_path, monkeypatch):
         c_ = dict(s=ctx_s, n_log=0, t=A.totals(sid))
         assert A.AUTO["logged"][1](c_)
 
-
 def test_price_list_has_no_expiry(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
     r = c.get("/fees/sheet", environ_base=E)
     assert r.status_code == 200 and b"Prices as of" in r.data and b"good through" not in r.data
-
 
 def test_test_button_leaves_no_marker(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
@@ -71,7 +65,6 @@ def test_test_button_leaves_no_marker(tmp_path, monkeypatch):
     newdir = tmp_path / "made"
     c.post("/setup/test/primary", data=dict(primary_type="local", primary_path=str(newdir), primary_init="1"), environ_base=E)
     assert not newdir.exists()
-
 
 def test_search_names_the_matched_address(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
@@ -84,10 +77,8 @@ def test_search_names_the_matched_address(tmp_path, monkeypatch):
     r = c.get("/search?q=zebulon", environ_base=E)
     assert r.status_code == 200 and b"Address: 9 Zebulon Lane" in r.data and b"Address: 12 Zebulon Lane" in r.data
 
-
 def test_search_finds_settings_notes_and_numbers(tmp_path, monkeypatch):
-    """Search reaches settings by the words people use, and client notes, history, titles, intake answers, invoice
-    and check numbers (each result says what matched)."""
+
     for k, v in (("CRM_DB", "crm.db"), ("CRM_STORAGE_CFG", "storage.json")):
         monkeypatch.setenv(k, str(tmp_path / v))
     from helpers import fresh_modules, signed_in_client

@@ -1,4 +1,4 @@
-{# Settings: one left tab column for every settings page, grouped. Active tab from the endpoint and its arguments. #}
+
 {% set ep_ = request.endpoint %}{% set va_ = request.view_args or {} %}{% set tab_ = request.args.get('tab', 'general') %}
 {% macro tab(href, label, on, sub='') -%}<a href="{{ href }}" class="{{ 'on' if on }}"{% if on %} aria-current="page"{% endif %}>{{ label }}{% if sub %}<small>{{ sub }}</small>{% endif %}</a>{%- endmacro %}
 <nav class="settabs" aria-label="Settings">
@@ -29,3 +29,4 @@
     {{ tab(url_for('settings_view', tab='system'), 'System', ep_ == 'settings_view' and tab_ == 'system', 'plugins, reset') }}
     {{ tab(url_for('about'), 'About', ep_ == 'about') }}</div>
 </nav>
+

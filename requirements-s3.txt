@@ -1,2 +1,1 @@
-# optional: S3-compatible storage (AWS, R2, B2, Wasabi, MinIO)
 boto3>=1.35           # Apache-2.0; pulls botocore, s3transfer, jmespath, urllib3, python-dateutil

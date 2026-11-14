@@ -1,4 +1,3 @@
-"""A sealed upload that fails, lands short, or copies with a different hash raises and leaves no object on any backend."""
 import io
 import os
 import sys
@@ -8,11 +7,9 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import fresh_modules  # noqa: E402
-
+from helpers import fresh_modules
 
 class Store:
-    """An in-memory backend whose put and stat can be made to misbehave."""
 
     def __init__(self, kind, put_fails=False, size_off=0, corrupt=False):
         self.kind, self.put_fails, self.size_off, self.corrupt = kind, put_fails, size_off, corrupt
@@ -43,7 +40,6 @@ class Store:
         self.deleted.append(name)
         self.objects.pop(name, None)
 
-
 @pytest.fixture
 def seal():
     fresh_modules()
@@ -51,10 +47,8 @@ def seal():
     _, pub = K.generate_master()
     return S, [K.recipient(pub)]
 
-
 def _reader(S, data=b"payload " * 5000):
     return lambda: (io.BytesIO(data), S._noop(), {})
-
 
 def test_a_failed_upload_raises_and_deletes(seal):
     S, rcpt = seal
@@ -63,14 +57,12 @@ def test_a_failed_upload_raises_and_deletes(seal):
         S.put_sealed([a], "db/x.age", _reader(S), rcpt)
     assert a.deleted == ["db/x.age"] and not a.objects
 
-
 def test_a_short_landing_raises_and_deletes(seal):
     S, rcpt = seal
     a = Store("local", size_off=-1)
     with pytest.raises(IOError, match="stored size"):
         S.put_sealed([a], "db/x.age", _reader(S), rcpt)
     assert "db/x.age" in a.deleted and not a.objects
-
 
 def test_a_second_copy_that_differs_is_removed_everywhere(seal):
     S, rcpt = seal
@@ -80,7 +72,6 @@ def test_a_second_copy_that_differs_is_removed_everywhere(seal):
     assert not a.objects and not b.objects
     assert "db/x.age" in a.deleted and "db/x.age" in b.deleted
 
-
 def test_a_second_copy_that_fails_is_removed_everywhere(seal):
     S, rcpt = seal
     a, b = Store("local"), Store("s3", put_fails=True)
@@ -88,14 +79,12 @@ def test_a_second_copy_that_fails_is_removed_everywhere(seal):
         S.put_sealed([a, b], "db/x.age", _reader(S), rcpt)
     assert not a.objects and not b.objects
 
-
 def test_a_second_copy_that_lands_short_is_removed_everywhere(seal):
     S, rcpt = seal
     a, b = Store("local"), Store("s3", size_off=5)
     with pytest.raises(IOError):
         S.put_sealed([a, b], "db/x.age", _reader(S), rcpt)
     assert not a.objects and not b.objects
-
 
 def test_a_failing_source_raises_and_deletes(seal):
     S, rcpt = seal
@@ -107,7 +96,6 @@ def test_a_failing_source_raises_and_deletes(seal):
     with pytest.raises(RuntimeError, match="vanished"):
         S.put_sealed([a], "s/x.age", lambda: S._pipe_thread(broken), rcpt)
     assert "s/x.age" in a.deleted and not a.objects
-
 
 def test_good_copies_match(seal):
     S, rcpt = seal

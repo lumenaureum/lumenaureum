@@ -1,14 +1,12 @@
-"""The money and quote screens: lines, payments, refunds, voids, fees, discounts, requotes and sending."""
 import os
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import fresh_modules, signed_in_client  # noqa: E402
+from helpers import fresh_modules, signed_in_client
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
-
 
 def _app(tmp_path, monkeypatch):
     monkeypatch.setenv("CRM_DB", str(tmp_path / "crm.db"))
@@ -26,47 +24,44 @@ def _app(tmp_path, monkeypatch):
         sid = A.create_session(1, "family")
     return A, c, sid
 
-
 def _tot(A, sid):
     with A.app.test_request_context():
         A.db()
         return A.totals(sid)
-
 
 def test_lines_payments_refunds_and_voids(tmp_path, monkeypatch):
     A, c, sid = _app(tmp_path, monkeypatch)
     c.post(f"/session/{sid}/money", data={"what": "line", "label": "Session", "amount": "300"}, environ_base=E)
     assert _tot(A, sid)["quoted"] == 300
     c.post(f"/session/{sid}/money", data={"what": "payment", "kind": "deposit", "amount": "-100", "method": "cash"}, environ_base=E)
-    assert _tot(A, sid)["paid"] == 0                       # a negative amount is refused, never flipped
+    assert _tot(A, sid)["paid"] == 0
     c.post(f"/session/{sid}/money", data={"what": "payment", "kind": "deposit", "amount": "abc"}, environ_base=E)
     assert _tot(A, sid)["paid"] == 0
     c.post(f"/session/{sid}/money", data={"what": "payment", "kind": "deposit", "amount": "100", "method": "cash"}, environ_base=E)
     assert _tot(A, sid)["paid"] == 100
     c.post(f"/session/{sid}/money", data={"what": "payment", "kind": "refund", "amount": "40", "method": "cash"}, environ_base=E)
     assert _tot(A, sid)["paid"] == 60
-    assert _tot(A, sid)["due"] == 200 and _tot(A, sid)["quoted"] == 300     # money back never makes the client owe more (E1),
-    #                                                                          and since 1.0.1 never lowers the quoted price
+    assert _tot(A, sid)["due"] == 200 and _tot(A, sid)["quoted"] == 300
+
     con = A.connect()
     pid = con.execute("SELECT id FROM payments WHERE session_id=? AND amount=100", (sid,)).fetchone()[0]
     rid = con.execute("SELECT id FROM payments WHERE session_id=? AND kind='refund'", (sid,)).fetchone()[0]
     lid = con.execute("SELECT id FROM lines WHERE session_id=?", (sid,)).fetchone()[0]
-    assert con.execute("SELECT COUNT(*) FROM lines WHERE session_id=?", (sid,)).fetchone()[0] == 1   # no "Refund" quote line
+    assert con.execute("SELECT COUNT(*) FROM lines WHERE session_id=?", (sid,)).fetchone()[0] == 1
     con.close()
     c.post(f"/money/payment/{pid}/delete", environ_base=E)
-    assert _tot(A, sid)["paid"] == -40                     # voided: kept, out of the totals
+    assert _tot(A, sid)["paid"] == -40
     c.post(f"/money/payment/{pid}/delete", environ_base=E)
-    assert _tot(A, sid)["paid"] == 60                      # un-voided
+    assert _tot(A, sid)["paid"] == 60
     con = A.connect()
-    assert con.execute("SELECT COUNT(*) FROM payments WHERE session_id=?", (sid,)).fetchone()[0] == 2   # never erased
+    assert con.execute("SELECT COUNT(*) FROM payments WHERE session_id=?", (sid,)).fetchone()[0] == 2
     con.close()
     c.post(f"/money/payment/{rid}/delete", data={"set": "void"}, environ_base=E)
-    assert _tot(A, sid)["quoted"] == 300 and _tot(A, sid)["paid"] == 100 and _tot(A, sid)["due"] == 200   # refund voided: its credit too
+    assert _tot(A, sid)["quoted"] == 300 and _tot(A, sid)["paid"] == 100 and _tot(A, sid)["due"] == 200
     c.post(f"/money/payment/{rid}/delete", data={"set": "restore"}, environ_base=E)
     assert _tot(A, sid)["quoted"] == 300 and _tot(A, sid)["due"] == 200
     c.post(f"/money/line/{lid}/delete", environ_base=E)
-    assert _tot(A, sid)["quoted"] == 0 and _tot(A, sid)["refund_credit"] == 40   # the refund's credit stays until it is voided
-
+    assert _tot(A, sid)["quoted"] == 0 and _tot(A, sid)["refund_credit"] == 40
 
 def test_fees_discount_requote_and_send(tmp_path, monkeypatch):
     A, c, sid = _app(tmp_path, monkeypatch)
@@ -81,7 +76,7 @@ def test_fees_discount_requote_and_send(tmp_path, monkeypatch):
     assert round(_tot(A, sid)["quoted"], 2) < q1
     c.post(f"/session/{sid}/quote/discount", data={"pct": "150"}, environ_base=E)
     con = A.connect()
-    assert con.execute("SELECT discount_pct FROM quotes WHERE session_id=?", (sid,)).fetchone()[0] == 100   # kept in range
+    assert con.execute("SELECT discount_pct FROM quotes WHERE session_id=?", (sid,)).fetchone()[0] == 100
     con.close()
     c.post(f"/session/{sid}/quote/discount", data={"pct": "10"}, environ_base=E)
     r = c.post(f"/session/{sid}/quote/send", environ_base=E)

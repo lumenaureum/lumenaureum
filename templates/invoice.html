@@ -33,7 +33,7 @@
       <tr><td>Date</td><td>{{ v.date_long }}</td></tr>
       {% if v.replaces %}<tr><td>Replaces</td><td>{{ v.replaces }}</td></tr>{% endif %}
       {% if v.po %}<tr><td>PO / reference</td><td>{{ v.po }}</td></tr>{% endif %}{% if v.tax_id %}<tr><td>Tax ID</td><td>{{ v.tax_id }}</td></tr>{% endif %}
-      {% if not v.receipt %}<tr><td>Balance due</td><td>{{ v.due_rule if v.balance > 0.005 else 'Paid in full' }}</td></tr>{% endif %}</table>
+      {% if not v.receipt %}{% if v.balance > 0.005 %}<tr><td>Terms</td><td>{{ 'Due on delivery' if v.due_rule == 'On delivery' else 'Due by ' ~ v.due_rule }}</td></tr>{% else %}<tr><td>Balance</td><td>Paid in full</td></tr>{% endif %}{% endif %}</table>
   </div>
   <table class="facts" style="margin-top:14px">
     <tr><td>{{ 'Received from' if v.receipt else 'Bill to' }}</td><td>{{ v.bill_to }}{% if v.attn %}<br>Attn: {{ v.attn }}{% endif %}{% if v.client_address %}<br>{{ v.client_address|replace('\n', '<br>'|safe) }}{% endif %}</td></tr>
@@ -49,7 +49,7 @@
     {% else %}<tr><td><b>Balance due</b></td><td class="n"><b>{{ money(v.balance) }}</b></td></tr>{% endif %}
     {% if v.credit %}<tr><td>Credit due to you (paid beyond the total)</td><td class="n">{{ money(v.credit) }}</td></tr>{% endif %}</table>
   {% if v.receipt %}
-  <div class="promise"><b>Paid in full. Thank you.</b> {% if v.event_family %}Your photos are yours to print, share, and post for personal use.{% elif v.license %}Your license to use the photos is set out in your agreement.{% else %}With this payment, the copyright in your delivered photos is yours.{% endif %}</div>
+  <div class="promise"><b>Thank you.</b> {% if v.event_family %}Your photos are yours to print, share, and post for personal use.{% elif v.license %}Your license to use the photos is set out in your agreement.{% else %}With this payment, the copyright in your delivered photos is yours.{% endif %}</div>
   {% elif v.balance > 0.005 %}
   <h2>How to pay</h2>
   <p>{{ v.pay_words }}.{% if v.checks and (v.business or v.photographer) %} Checks are made out to {{ v.business or v.photographer }}{% if v.address %} and mailed to {{ v.address|oneline }}{% endif %}.{% endif %}{% if v.pay_details %} {{ v.pay_details }}{% endif %} {{ v.due_sentence }}</p>
@@ -57,6 +57,7 @@
   {% else %}
   <div class="promise"><b>Paid in full. Thank you.</b></div>
   {% endif %}
-  <p class="foot">{{ v.number or 'Draft, not issued' }}{% if v.quote_id %} - quote {{ v.quote_id }}{% endif %}. Questions about this {{ lword }}? Just reply or call.</p>
+  <p class="foot">{% if v.number %}{{ v.number }}{% if v.quote_id %} - quote {{ v.quote_id }}{% endif %}. {% endif %}Questions about this {{ lword }}? Just reply or call.</p>
 {% include "_credit.html" %}
 </div>{% if not pdf %}<script src="{{ url_for('static', filename='ui.js', v=static_v('ui.js')) }}"></script>{% endif %}</body></html>
+

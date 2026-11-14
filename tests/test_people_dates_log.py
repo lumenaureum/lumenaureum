@@ -1,4 +1,3 @@
-"""People columns where they apply and a same-name notice; Year reachable from Today; a plain stage-move log line; no signing date in the future."""
 import os
 import runpy
 import sys
@@ -7,10 +6,9 @@ from datetime import date, timedelta
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import fresh_modules, signed_in_client  # noqa: E402
+from helpers import fresh_modules, signed_in_client
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
-
 
 def _app(tmp_path, monkeypatch):
     for k, v in (("CRM_DB", "crm.db"), ("CRM_STORAGE_CFG", "storage.json"), ("CRM_PHOTOS_ROOT", "photos"), ("CRM_GALLERY_ROOT", "galleries")):
@@ -23,12 +21,10 @@ def _app(tmp_path, monkeypatch):
     runpy.run_path(os.path.join(ROOT, "seed_demo.py"), run_name="seed")
     return A, c
 
-
 def test_year_link_on_today_and_plain_log_line(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
     assert b"/year" in c.get("/", environ_base=E).data
     assert "step was closed" not in open(os.path.join(ROOT, "app.py")).read()
-
 
 def test_future_signing_date_refused(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
@@ -42,7 +38,6 @@ def test_future_signing_date_refused(tmp_path, monkeypatch):
     con.close()
     assert st != "signed" and signed != later
 
-
 def test_people_columns_follow_the_client(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
     con = A.connect()
@@ -54,7 +49,6 @@ def test_people_columns_follow_the_client(tmp_path, monkeypatch):
         assert "<th>Grad year</th>" not in page
     if senior:
         assert "<th>Grad year</th>" in c.get(f"/client/{senior[0]}", environ_base=E).data.decode()
-
 
 def test_same_name_notice(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)

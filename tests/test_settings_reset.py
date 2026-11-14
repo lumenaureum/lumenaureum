@@ -1,4 +1,3 @@
-"""A database reset needs RESET typed, deletes nothing when the sealed copy beforehand fails, and keeps settings when it runs."""
 import json
 import os
 import sys
@@ -8,10 +7,9 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import fresh_modules, signed_in_client  # noqa: E402
+from helpers import fresh_modules, signed_in_client
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
-
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):
@@ -29,7 +27,6 @@ def env(tmp_path, monkeypatch):
     con.commit(); con.close()
     return A, c
 
-
 def households(A):
     con = A.connect()
     try:
@@ -37,14 +34,12 @@ def households(A):
     finally:
         con.close()
 
-
 @pytest.mark.parametrize("typed", ["", "reset", "RESET please", "yes"])
 def test_reset_without_typing_reset_is_refused(env, typed):
     A, c = env
     r = c.post("/settings/reset", data=dict(confirm=typed), environ_base=E)
     assert r.status_code == 302 and "reset=nope" in r.headers["Location"]
     assert households(A) == 1
-
 
 def test_failed_backup_before_reset_deletes_nothing(env, monkeypatch):
     A, c = env
@@ -60,11 +55,10 @@ def test_failed_backup_before_reset_deletes_nothing(env, monkeypatch):
         pass
     assert households(A) == 1
 
-
 def test_reset_wipes_clients_and_keeps_settings(env):
     A, c = env
     r = c.post("/settings/reset", data=dict(confirm=" RESET "), environ_base=E)
-    assert r.status_code == 302 and "tab=system" in r.headers["Location"]          # the job panel reports it
+    assert r.status_code == 302 and "tab=system" in r.headers["Location"]
     assert households(A) == 0
     con = A.connect()
     try:

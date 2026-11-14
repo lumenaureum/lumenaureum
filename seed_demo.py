@@ -1,10 +1,8 @@
-#!/usr/bin/env python3
-"""Load made-up demo clients (all flagged demo=1; delete them from Settings)."""
 from datetime import date, timedelta
 import app as A
 import datakey
 
-if not datakey.is_unlocked():          # run from the command line: unlock like the web app does
+if not datakey.is_unlocked():
     import getpass
     _k = datakey.unwrap_password(getpass.getpass("Password: "))
     if not _k:
@@ -40,7 +38,7 @@ with A.app.app_context():
     C_ = A.C
 
     def pick(*want, kind="portrait"):
-        """A session type this install has: the first wanted key, else the first of the wanted kind."""
+
         for w in want:
             if w in C_.SESSION_TYPES:
                 return w
@@ -49,7 +47,6 @@ with A.app.app_context():
     def finish_tasks_before(sid, day):
         x("UPDATE tasks SET done=due WHERE session_id=? AND due < ?", (sid, day))
 
-    # booked portrait, shoot in 5 days
     h = household("The Harlows", "friend", address="12 Example Lane\nSampletown 00000")
     dana = person(h, "Dana Harlow", "parent", email="dana@example.com", phone="555-0101")
     ava = person(h, "Ava Harlow", "child", 1, 2027)
@@ -66,7 +63,6 @@ with A.app.app_context():
     x("INSERT INTO log (household_id, session_id, at, channel, summary) VALUES (?,?,?,?,?)", (h, s, D(-12), "email", "Asked about portraits after seeing a friend's photos"))
     x("INSERT INTO log (household_id, session_id, at, channel, summary) VALUES (?,?,?,?,?)", (h, s, D(-9), "call", "Booked. Wants the bike and the dog in a few frames"))
 
-    # quoted family
     h2 = household("The Okafors", "referral")
     x("UPDATE households SET referred_by=? WHERE id=?", (h, h2))
     person(h2, "Chidi Okafor", "parent", email="chidi@example.com")
@@ -77,14 +73,12 @@ with A.app.app_context():
     x("INSERT INTO log (household_id, session_id, at, channel, summary) VALUES (?,?,?,?,?)", (h2, s2, D(-3), "email", "Sent quote, Harlows referred them"))
     x("UPDATE tasks SET done=? WHERE session_id=? AND stage IN ('inquiry','quoted') AND title != 'Plan stops, check permits'", (D(-3), s2))
 
-    # quiet inquiry
     h3 = household("Mara Brennan", "saw a print")
     m = person(h3, "Mara Brennan", email="mara@example.com")
     s3 = A.create_session(h3, pick("portrait", "family"), "inquiry", "Asked about a portrait session", subject_ids=[m])
     x("UPDATE sessions SET created=? WHERE id=?", (D(-8) + " 10:00:00", s3))
     x("INSERT INTO log (household_id, session_id, at, channel, summary) VALUES (?,?,?,?,?)", (h3, s3, D(-8), "text", "Wants new photos for her studio's website, in spring"))
 
-    # delivered portrait, gallery live, balance owed
     h4 = household("The Castellanos", "referral", address="40 Sample Road\nExampleville 00000")
     person(h4, "Rosa Castellano", "parent", email="rosa@example.com")
     leo = person(h4, "Leo Castellano", "child", 1, 2027)
@@ -98,7 +92,6 @@ with A.app.app_context():
     finish_tasks_before(s4, D(0))
     x("UPDATE tasks SET done=? WHERE session_id=? AND stage IN ('inquiry','quoted')", (D(-30), s4))
 
-    # closed personal-brand shoot
     h5 = household("Gil Navarro", "website")
     g = person(h5, "Gil Navarro", email="gil@example.com")
     s5 = A.create_session(h5, pick("portrait", "family"), "closed", "Headshots at his workshop", D(-40), subject_ids=[g])
@@ -109,13 +102,11 @@ with A.app.app_context():
     x("UPDATE documents SET status='signed', signed=? WHERE session_id=?", (D(-41), s5))
     x("UPDATE tasks SET done=due WHERE session_id=?", (s5,))
 
-    # lost
     h6 = household("Pryor Realty", "cold email")
     pr = person(h6, "J. Pryor")
     s6 = A.create_session(h6, pick("realestate", "product", kind="property") if "property" in C_.TYPE_KIND.values() else pick("portrait"), "lost", "Listing photos", subject_ids=[pr])
     x("INSERT INTO log (household_id, session_id, at, channel, summary) VALUES (?,?,?,?,?)", (h6, s6, D(-20), "email", "Went with their usual photographer"))
 
-    # group event
     e = x("INSERT INTO events (id, name, date, venue, demo) VALUES (?,?,?,?,1)", (A.next_id("events"), "Spring team photo day", D(12), "Maple Grove Club"))
     for fam, kids_, parent, signed in [("The Duffys", ["Owen"], "Kate Duffy", True), ("The Ruiz family", ["Sofia", "Mateo"], "Ana Ruiz", True),
                                        ("The Kowalskis", ["Jan"], "Ewa Kowalski", False), ("The Bells", ["Grace"], "Tom Bell", False)]:

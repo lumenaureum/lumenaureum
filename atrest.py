@@ -1,11 +1,8 @@
-"""At unlock: any face photo or storage file found unencrypted (for example a storage file written by hand) is
-encrypted in place under the data key, and the plaintext overwritten."""
 import json
 import os
 from pathlib import Path
 
 import datakey
-
 
 def _overwrite(p):
     try:
@@ -17,9 +14,8 @@ def _overwrite(p):
     except OSError:
         pass
 
-
 def encrypt_faces(faces_dir, key=None):
-    """Each plaintext face photo -> encrypted in place, tied to its household. Returns how many."""
+
     n = 0
     d = Path(faces_dir)
     if not d.is_dir():
@@ -37,13 +33,12 @@ def encrypt_faces(faces_dir, key=None):
         n += 1
     return n
 
-
 def encrypt_storage(cfg_path, key=None):
     p = Path(cfg_path)
     if not p.exists() or datakey.is_sealed_file(p):
         return False
     data = p.read_bytes()
-    json.loads(data)                                          # refuse to wrap something that isn't the config
+    json.loads(data)
     tmp = p.with_name(p.name + ".tmp")
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "wb") as out:

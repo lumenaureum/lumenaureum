@@ -6,7 +6,7 @@
 <div class="surface wf">
   <div class="wf-now">
     <div class="wf-head">
-      <span class="wf-stage">{{ stage_label[s.stage] }}</span>
+      <span class="wf-stage">{{ stage_label[s.stage] }}</span>{% set bh_ = booked_hint(s.id) %}{% if bh_ %} <span class="stage-hint">&middot; {{ bh_ }}</span>{% endif %}
       {% if cur.steps %}<span class="sub">{{ cur.n_done }} of {{ cur.steps|length }} done</span>
       <span class="wf-bar"><span style="width:{{ (cur.n_done / cur.steps|length * 100)|round }}%"></span></span>{% endif %}
     </div>
@@ -14,7 +14,7 @@
     {% for st in cur.steps %}
       <li class="{{ 'done' if st.done }} {{ 'auto' if st.kind == 'auto' }}">
         {% if st.kind == 'do' %}
-          <form method="post" action="{{ url_for('task_toggle', tid=st.task_id) }}" class="inline"><input type="hidden" name="set" value="0"><input type="checkbox" name="set" value="1" data-autosubmit {{ 'checked' if st.done }}></form>
+          <form method="post" action="{{ url_for('task_toggle', tid=st.task_id) }}" class="inline"><input type="hidden" name="set" value="0"><input type="checkbox" name="set" value="1" aria-label="{{ st.label }}" data-autosubmit {{ 'checked' if st.done }}></form>
           <span class="lbl">{{ st.label }}{% if st.shared %} <a class="pill blue" href="{{ url_for('event_view', eid=s.event_id) }}#steps">whole event</a>{% endif %}</span>
           {% if st.due and not st.done %}<span class="due {{ 'late' if st.due < today.isoformat() }}">{{ nice(st.due) }}</span>{% endif %}
         {% else %}
@@ -31,7 +31,7 @@
     <form method="post" action="{{ url_for('session_stage', sid=s.id) }}" class="wf-move">
       <input type="hidden" name="stage" value="{{ wf.next_stage }}"><button class="primary">Move to {{ stage_label[wf.next_stage] }} &rsaquo;</button></form>
     {% elif wf.next_stage == 'shot' and s.shoot_date and s.shoot_date > today.isoformat() %}<p class="mute wf-move" style="font-size:13px">Next steps start on the shoot day, {{ nice(s.shoot_date) }}. Shot earlier? Change the shoot date.</p>
-    {% elif wf.next_stage %}<details class="closemenu wf-move"><summary title="When the steps don't match what really happened">&hellip;</summary><div class="cm-pop">
+    {% elif wf.next_stage %}<details class="closemenu wf-move"><summary title="When the steps don't match what really happened" aria-label="More actions: move to the next stage anyway">&hellip;</summary><div class="cm-pop">
       <form method="post" action="{{ url_for('session_stage', sid=s.id) }}" data-confirm="Move to {{ stage_label[wf.next_stage] }} with steps still open?"><input type="hidden" name="stage" value="{{ wf.next_stage }}"><button class="cm-act">Mark as {{ stage_label[wf.next_stage] }} anyway</button></form></div></details>
     {% endif %}
   </div>
@@ -49,3 +49,4 @@
   </div>
 </div>
 {% endif %}
+

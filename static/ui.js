@@ -1,5 +1,3 @@
-// Lumen Aureum page behavior. No inline handlers anywhere: pages mark elements with data- attributes and this
-// file wires them, so the Content-Security-Policy can refuse inline script.
 (() => {
 if (document.fonts) document.fonts.load('24px "Material Symbols Rounded"').then(() => document.documentElement.classList.add('fonts-ready'));
 else document.documentElement.classList.add('fonts-ready');
@@ -18,8 +16,6 @@ document.querySelectorAll('table.data th').forEach(th => th.addEventListener('cl
 document.querySelectorAll('tr.rowlink').forEach(tr => tr.addEventListener('click', e => {
   if (!e.target.closest('a,button,input,select,form')) location = tr.dataset.href; }));
 document.documentElement.style.scrollBehavior = 'smooth';
-// One floating tooltip:
-// it lives on <body>, so no card's overflow can cut it off. Mouse: follows the pointer. Phone: tap to show, tap away.
 (() => {
   const tip = document.createElement('div'); tip.id = 'tipbox'; document.body.appendChild(tip);
   let cur = null;
@@ -44,8 +40,6 @@ document.documentElement.style.scrollBehavior = 'smooth';
   }
 })();
 
-// data-autosubmit: a change saves the form. A number box waits until the clicking stops (0.7 s), so quick clicks on
-// its arrows save once, with the last value.
 const _waits = new WeakMap();
 document.addEventListener('change', e => {
   const el = e.target.closest && e.target.closest('[data-autosubmit]'); if (!el || !el.form) return;
@@ -53,15 +47,11 @@ document.addEventListener('change', e => {
   clearTimeout(_waits.get(f)); _pending.delete(f);
   if (el.type === 'number') { _waits.set(f, setTimeout(() => { _pending.delete(f); go(); }, 700)); _pending.set(f, go); } else go();
 });
-// A quantity still waiting to save is saved first when any other button or link is pressed (Send quote must never
-// go out with the old quantity).
 const _pending = new Map();
 document.addEventListener('pointerdown', e => {
   if (!_pending.size || !e.target.closest('button, a, input[type=submit]')) return;
   for (const [f, go] of [..._pending]) { if (e.target.closest('form') === f) continue; clearTimeout(_waits.get(f)); _pending.delete(f); go(); }
 }, true);
-// data-inplace: a form inside this part saves without reloading the page; the part (and any [data-refresh] part)
-// is replaced with its new state. If anything goes wrong, the form is sent the ordinary way.
 document.addEventListener('submit', async e => {
   const f = e.target, box = f.closest && f.closest('[data-inplace]');
   if (!box || e.defaultPrevented || f.target === '_blank' || (f.getAttribute('method') || '').toLowerCase() !== 'post') return;
@@ -78,18 +68,17 @@ document.addEventListener('submit', async e => {
     fresh.querySelectorAll('details').forEach((d, i) => { if (open_[i]) d.open = true; });
     box.replaceWith(fresh); wire(fresh);
     document.querySelectorAll('[data-refresh]').forEach(el => { const n = doc.getElementById(el.id); if (n) { el.replaceWith(n); wire(n); } });
+    const act = f.getAttribute('action'), nf = [...fresh.querySelectorAll('form')].find(x => x.getAttribute('action') === act);
+    const tgt = nf && (nf.querySelector('[data-focus-after]') || nf.querySelector('input:not([type=hidden]):not([disabled]), select, textarea'));
+    if (tgt) tgt.focus(); else { if (!fresh.hasAttribute('tabindex')) fresh.setAttribute('tabindex', '-1'); fresh.focus(); }
     const note = doc.querySelector('main > [role=status]'), here = document.querySelector('main > [role=status]');
     if (here) here.remove();
     if (note) document.querySelector('main').prepend(note);
   } catch (_) {
-    // Never send the form again on its own: the server may already have acted (a payment recorded twice). Show the
-    // page as it now stands instead; anything not saved is plain to see and can be done again by hand.
     location.reload();
   }
 });
-// Behavior for parts of a page; run on the page at load and again on any part swapped in place.
 function wire(root) {
-// availability: picking a shoot date shows whatever is already booked that day, however far out
 root.querySelectorAll('input[data-avail]').forEach(inp => {
   const form = inp.form, time = form && form.querySelector('input[name=start_time]');
   const out = document.createElement('div'); out.className = 'avail'; (inp.closest('.f2,.f3,.row') || inp).after(out);
@@ -103,26 +92,21 @@ root.querySelectorAll('input[data-avail]').forEach(inp => {
   };
   inp.addEventListener('change', check); time && time.addEventListener('change', check); if (inp.value) check();
 });
-// a field shown only while a choice in its form is picked: data-show-if="method=check"
 root.querySelectorAll('[data-show-if]').forEach(el => {
   const [name, val] = el.dataset.showIf.split('='), form = el.form;
   if (!form) return;
   const sync = () => { const r = form.querySelector(`[name="${name}"]:checked`); el.hidden = !(r && r.value === val); };
   form.addEventListener('change', sync); sync(); });
-// the new quote line: "Something else" opens the what-and-price fields
 root.querySelectorAll('select[data-show-custom]').forEach(sel => {
   const box = sel.form && sel.form.querySelector('.qcustom'); if (!box) return;
   const sync = () => { const on = sel.value === 'custom'; box.hidden = !on;
     box.querySelectorAll('input[name=label],input[name=amount]').forEach(i => i.required = on); };
   sel.addEventListener('change', sync); sync(); });
-// intake: a live count of answers against what ticks the step off
 root.querySelectorAll('.intake-note[data-need]').forEach(note => {
   const f = note.closest('form'), need = +note.dataset.need, base = note.textContent;
   const sync = () => { const n = [...f.querySelectorAll('input:not([type=hidden])')].filter(i => i.value.trim()).length;
     note.textContent = base + ' ' + n + ' answered' + (n >= need ? ': enough to tick it off.' : '.'); };
   f.addEventListener('input', sync); sync(); });
-// A typed age fills in the Minor box (which always has the last word); an approximate age near the age of
-// majority leaves it alone. Fields are found by name in the same form (form= attributes included).
 root.querySelectorAll('input[data-age]').forEach(age => {
   const f = age.form; if (!f) return;
   const box = f.elements[age.dataset.minor], ap = f.elements[age.dataset.approx], maj = +age.dataset.majority || 18;
@@ -133,14 +117,11 @@ root.querySelectorAll('input[data-age]').forEach(age => {
 }
 wire(document);
 
-// data-confirm on a form (asked on submit) or a button (asked on click)
 document.addEventListener('submit', e => {
-  const f = e.target; if (f.dataset && f.dataset.confirm && !confirm(f.dataset.confirm)) e.preventDefault(); }, true);
+  const f = e.target; if (f.dataset && f.dataset.confirm && !('noConfirm' in f.dataset) && !confirm(f.dataset.confirm)) e.preventDefault(); }, true);
 document.addEventListener('click', e => {
   const b = e.target.closest('button[data-confirm], input[data-confirm], a[data-confirm]');
   if (b && !confirm(b.dataset.confirm)) { e.preventDefault(); e.stopPropagation(); return; }
-  // a document still printing the SAMPLE banner: ask once before it goes out (Email it, Text it). A download or a
-  // print sends nothing, so it is never asked.
   const o = e.target.closest('[data-did-output][data-sends]');
   if (o && document.querySelector('.draft') && !document.body.dataset.sampleOk) {
     if (!confirm('This still prints SAMPLE: the wording has not been reviewed yet. Send it anyway?')) {
@@ -152,10 +133,11 @@ document.addEventListener('click', e => {
     if (src && navigator.clipboard) navigator.clipboard.writeText(src.textContent.trim())
       .then(() => { c.textContent = 'Copied'; setTimeout(() => c.textContent = was, 1500); }, () => {});
     return; }
-  const t = e.target.closest('[data-toggle-open]'); if (t) { t.closest(t.dataset.toggleOpen || 'li').classList.toggle('open'); }
+  const t = e.target.closest('[data-toggle-open]');
+  if (t) { const box = t.closest(t.dataset.toggleOpen || 'li'); box.classList.toggle('open');
+    const first = box.classList.contains('open') && box.querySelector('.act-form input:not([type=hidden]):not([type=radio]), .act-form textarea, .act-form select');
+    if (first) first.focus(); }
 });
-// A document window that changes something (Mark sent, Mark signed, an email added) tells the app's other windows,
-// which refresh their parts in place: the session page never shows a stale status after the document closes.
 if (document.querySelector('body > .bar')) {
   document.addEventListener('submit', e => { if ((e.target.getAttribute('method') || '').toLowerCase() === 'post') {
     try { sessionStorage.setItem('la-posted', '1'); } catch (_) {} } });
@@ -175,20 +157,16 @@ document.addEventListener('click', e => { const x = e.target.closest('[data-dism
 setTimeout(() => document.querySelectorAll('.toast').forEach(t => t.style.opacity = '.92'), 0);
 window.laRefresh = refreshParts;
 window.addEventListener('storage', e => { if (e.key === 'la-changed') refreshParts(); });
-// Documents open in their own window. Close shuts it; a page that was not opened as its own window goes back instead.
 document.addEventListener('click', e => {
   const c = e.target.closest('[data-close]'); if (!c) return;
   e.preventDefault(); window.close(); setTimeout(() => { location.href = c.href; }, 200); });
-// Email it / Text it / Print / Download don't prove the client got it: afterwards the bar asks "Did you send it?"
 document.addEventListener('click', e => {
   if (e.target.closest('[data-did-output]')) document.querySelectorAll('.marksent').forEach(f => f.classList.add('asking')); });
-// A draft issued by Download, Print, or Email carries on with what was asked once it has its number.
 (() => { const then = document.body && document.body.dataset.then; if (!then) return;
   setTimeout(() => {
     if (then === 'print') { window.print(); return; }
     const a = document.querySelector(then === 'download' ? '.bar a[download]' : '.bar a[data-sends][href^="mailto:"]');
     if (a) a.click(); }, 300); })();
-// a payment above the balance is asked about first (it is still recorded if you say yes: the extra shows as a credit)
 document.addEventListener('submit', e => {
   const f = e.target, bal = f.dataset && f.dataset.balance; if (bal === undefined || e.defaultPrevented) return;
   const kind = (f.querySelector('[name=kind]:checked') || f.querySelector('[name=kind]') || {}).value;
@@ -197,16 +175,13 @@ document.addEventListener('submit', e => {
   const over = (amt - Math.max(parseFloat(bal), 0)).toFixed(2);
   if (!confirm('That is $' + over + ' more than the balance. Record it anyway? The extra shows as a credit on the session.'))
     e.preventDefault(); });
-// After a form posts back to the same page, return to the same scroll spot instead of the top.
 document.addEventListener('submit', e => {
   const f = e.target; if ((f.getAttribute('method') || '').toLowerCase() !== 'post' || f.target === '_blank') return;
   try { sessionStorage.setItem('scrollAt', JSON.stringify({p: location.pathname, y: scrollY, t: Date.now()})); } catch (_) {} });
 try { const s = JSON.parse(sessionStorage.getItem('scrollAt') || 'null'); sessionStorage.removeItem('scrollAt');
-  if (s && s.p === location.pathname && Date.now() - s.t < 15000 && !location.hash) scrollTo(0, s.y); } catch (_) {}
-// a radio that fills a number field: data-fill="fieldname" data-value="..."
+  if (s && s.p === location.pathname && Date.now() - s.t < 15 * 1000 && !location.hash) scrollTo(0, s.y); } catch (_) {}
 document.addEventListener('change', e => {
   const r = e.target.closest('[data-fill]'); if (r && r.form && r.form[r.dataset.fill]) r.form[r.dataset.fill].value = r.dataset.value; });
-// a search box that hides rows: data-filter-rows=".selector"
 document.querySelectorAll('[data-filter-rows]').forEach(inp => inp.addEventListener('input', () => {
   const v = inp.value.toLowerCase();
   document.querySelectorAll(inp.dataset.filterRows).forEach(r => r.hidden = !!v && !r.textContent.toLowerCase().includes(v));
@@ -214,19 +189,15 @@ document.querySelectorAll('[data-filter-rows]').forEach(inp => inp.addEventListe
     let n = h.nextElementSibling, any = false;
     while (n && !n.matches(inp.dataset.filterHeads)) { if (!n.hidden) any = true; n = n.nextElementSibling; }
     h.hidden = !any; }); }));
-// a running job: poll its status URL, move the bar, reload when it stops. data-poll, data-bar, data-count (element ids)
 document.querySelectorAll('[data-poll]').forEach(el => { const t = setInterval(async () => {
   try { const r = await (await fetch(el.dataset.poll)).json();
     if (r.state !== 'running') { clearInterval(t); location.reload(); return; }
     const bar = document.getElementById(el.dataset.bar), n = document.getElementById(el.dataset.count);
     if (bar) bar.style.width = (r.total ? 100 * r.done / r.total : 0) + '%';
     if (n) n.textContent = r.done + ' / ' + r.total; } catch (e) {} }, 700); });
-// go somewhere after a pause: data-go-after="ms" data-href="..."
 document.querySelectorAll('[data-go-after]').forEach(el => setTimeout(() => location.href = el.dataset.href, +el.dataset.goAfter));
 })();
 
-// People table: each row is its own form, so saving one row used to drop what was typed in the others. Now Save on any
-// row saves every changed row first (in place), then submits; leaving with unsaved rows asks first.
 (() => {
   const sec = document.getElementById('people'); if (!sec) return;
   const forms = () => [...sec.querySelectorAll('form[id^="p"]')].filter(f => f.id !== 'pnew');
@@ -245,3 +216,9 @@ document.querySelectorAll('[data-go-after]').forEach(el => setTimeout(() => loca
   window.addEventListener('beforeunload', e => { if (!saving && forms().some(dirty)) { e.preventDefault(); e.returnValue = ''; } });
   sec.addEventListener('submit', () => { saving = true; });
 })();
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  const open = document.activeElement && document.activeElement.closest && document.activeElement.closest('details[open]');
+  if (open && open.querySelector('summary')) { open.open = false; open.querySelector('summary').focus(); }
+});
+

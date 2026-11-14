@@ -20,9 +20,10 @@
   {% if v.outfits %}<h2>What to wear and bring</h2>
   <p>You plan and bring the theme, {{ v.wear }}, and any props. Change outfits or props as often as you like during the session.</p>{% endif %}
   {% if v.animals %}<h2>Your animals</h2>
-  <p>Bring treats, a favorite toy, and a leash or lead; tell me anything I should know about how they behave with strangers. Breaks are fine whenever they need one.</p>{% endif %}
+  <p>Bring treats, a favorite toy, and a leash or lead. Please mention how they behave with strangers. Breaks are fine whenever they need one.</p>{% endif %}
   <h2>Weather</h2>
   <p>If the weather turns, {{ v.weather }}.</p>
   <p class="foot">Questions? Just reply or call.</p>
 {% include "_credit.html" %}
 </div>{% if not pdf %}<script src="{{ url_for('static', filename='ui.js', v=static_v('ui.js')) }}"></script>{% endif %}</body></html>
+

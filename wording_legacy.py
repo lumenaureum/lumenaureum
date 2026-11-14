@@ -1,7 +1,3 @@
-"""The sample wording that shipped in the 1.0 release candidates. An install that had reviewed it keeps exactly these words as
-its own when it upgrades (init: _freeze_reviewed_wording), so a release never changes a contract its photographer
-approved. Never edit this file."""
-
 STANDARD_RC = {
     "agreement": """# 1. Who this is between
 This agreement is between [CLIENT] ("you") and [PHOTOGRAPHER] ("I" or "me").
@@ -67,8 +63,4 @@ I give [PHOTOGRAPHER] permission to photograph [PERSON] at [OCCASION].
 """,
 }
 
-
-# The portfolio paragraph of the pre-1.0 transfer letter. [FAVORITES] became the whole portfolio promise in 1.0 (it
-# matches the agreement), so a frozen copy of this letter has the old paragraph replaced by [FAVORITES] (app.py
-# _freeze_reviewed_wording repairs copies frozen before this fix).
 OLD_TRANSFER_PORTFOLIO = 'You give me permanent permission to show [FAVORITES] in my portfolio and on my website. It continues after this transfer and cannot be withdrawn. If a serious reason arises later, you may ask me to take a photo down; I will consider each request individually and may grant an exception at my discretion. I show no other photo from your session anywhere.'

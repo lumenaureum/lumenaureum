@@ -1,5 +1,3 @@
-"""Start Lumen Aureum: HTTPS by default (certificate made on first start, see netsec.py), one process with threads
-(the data key lives in that process's memory), no access log."""
 import os
 import sys
 
@@ -15,7 +13,7 @@ if __name__ == "__main__":
           f"{port} and sign in to unlock. Until then, backups and gallery checks wait.", file=sys.stderr, flush=True)
     args = ["gunicorn", "--bind", f"0.0.0.0:{port}", "--workers", "1", "--threads", os.environ.get("CRM_THREADS", "8"),
             "--worker-class", "gthread", "--timeout", "120", "--graceful-timeout", "30",
-            "--no-control-socket"]          # no runtime control interface (and nothing to write on a read-only disk)
+            "--no-control-socket"]
     if netsec.tls_mode() == "on":
         cert, key = netsec.ensure_cert()
         args += ["--certfile", str(cert), "--keyfile", str(key)]

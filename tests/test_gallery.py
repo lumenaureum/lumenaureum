@@ -1,7 +1,3 @@
-"""The encrypted client gallery: every photo and the manifest are AES-GCM ciphertext that opens only with the session's
-key; nothing of the original file's metadata survives; a build only reads folders under the photos root; the preview
-serves only that gallery's own files with the viewer's CSP; upload copies it to the gallery host (page last) and
-waits for the balance; delete removes it from the host."""
 import io
 import json
 import os
@@ -13,20 +9,18 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import fresh_modules, signed_in_client  # noqa: E402
+from helpers import fresh_modules, signed_in_client
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
 SECRET = b"SECRET-GPS-48.8584N"
-
 
 def jpeg_with_metadata(path, color):
     from PIL import Image
     im = Image.new("RGB", (64, 48), color)
     exif = Image.Exif()
-    exif[0x010E] = SECRET.decode()          # ImageDescription
+    exif[0x010E] = SECRET.decode()
     im.save(path, "JPEG", exif=exif.tobytes(), comment=SECRET)
     assert SECRET in path.read_bytes()
-
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):
@@ -34,7 +28,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setenv("CRM_STORAGE_CFG", str(tmp_path / "storage.json"))
     monkeypatch.setenv("CRM_PHOTOS_ROOT", str(tmp_path / "photos"))
     monkeypatch.setenv("CRM_GALLERY_ROOT", str(tmp_path / "galleries"))
-    monkeypatch.setenv("CRM_PHOTO_FOLDERS", "1")          # these tests cover the opt-in folder flow; uploads: test_photo_uploads.py
+    monkeypatch.setenv("CRM_PHOTO_FOLDERS", "1")
     fresh_modules()
     import app as A
     c = signed_in_client(A)
@@ -50,9 +44,8 @@ def env(tmp_path, monkeypatch):
     from plugins import gallery as G
     return A, c, G, tmp_path, src
 
-
 def wait_built(c, sid=1):
-    """Wait for the build thread itself (named gallery-<sid>), then read the status it left."""
+
     for t in [t for t in threading.enumerate() if t.name == f"gallery-{sid}"]:
         t.join(timeout=10)
         if t.is_alive():
@@ -62,11 +55,9 @@ def wait_built(c, sid=1):
         raise AssertionError(f"gallery build did not finish: {j}")
     return j
 
-
 def decrypt(G, key, blob, name):
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     return AESGCM(G.key_bytes(key)).decrypt(blob[:12], blob[12:], ("lumen-aureum-gallery:" + name).encode())
-
 
 def test_build_encrypts_and_strips_metadata(env):
     A, c, G, tmp, src = env
@@ -76,27 +67,26 @@ def test_build_encrypts_and_strips_metadata(env):
     names = sorted(p.name for p in out.iterdir())
     assert {"index.html", "manifest.bin", "seen.php", "gate.php", "seen-key.php", ".htaccess"} <= set(names) and "seen.key" not in names
     page = (out / "index.html").read_text()
-    assert "<with>" not in page and "data-credit" not in page and 'href="https://lumenaureum.org"' in page   # fixed footer, no owner text
+    assert "<with>" not in page and "data-credit" not in page and 'href="https://lumenaureum.org"' in page
     for p in out.glob("*.bin"):
         data = p.read_bytes()
-        assert SECRET not in data and not data.startswith(b"\xff\xd8")             # ciphertext, not a JPEG
+        assert SECRET not in data and not data.startswith(b"\xff\xd8")
     manifest = json.loads(decrypt(G, key, (out / "manifest.bin").read_bytes(), "manifest.bin"))
     assert len(manifest["items"]) == 3
     web = decrypt(G, key, (out / manifest["items"][0]["f"]).read_bytes(), manifest["items"][0]["f"])
     import pytest as _pt
-    with _pt.raises(Exception):                         # a file served under another file's name fails to open
+    with _pt.raises(Exception):
         decrypt(G, key, (out / manifest["items"][0]["f"]).read_bytes(), manifest["items"][0]["t"])
     assert web.startswith(b"\xff\xd8") and SECRET not in web and b"Exif" not in web
     with pytest.raises(Exception):
-        decrypt(G, G.new_key(), (out / "manifest.bin").read_bytes(), "manifest.bin")             # another key opens nothing
+        decrypt(G, G.new_key(), (out / "manifest.bin").read_bytes(), "manifest.bin")
     empty = tmp / "photos" / "export" / "empty"
     empty.mkdir()
     with pytest.raises(ValueError):
         G.build("gal_test_2", empty, key)
 
-
 def test_build_returns_its_own_skipped_files(env):
-    """The skipped names come back in build()'s result, not on a shared attribute two builds at once would race on."""
+
     A, c, G, tmp, src = env
     other = tmp / "photos" / "export" / "other"
     other.mkdir()
@@ -108,7 +98,6 @@ def test_build_returns_its_own_skipped_files(env):
     assert (r1.n, r1.skipped) == (1, ["broken.jpg"])
     assert (r2.n, r2.skipped) == (3, [])
     assert not hasattr(G.build, "skipped")
-
 
 def test_build_route_reads_only_under_photos(env):
     A, c, G, tmp, src = env
@@ -129,7 +118,6 @@ def test_build_route_reads_only_under_photos(env):
     assert c.get(f"/gallery-preview/{gid}/../../crm.db", environ_base=E).status_code == 404
     assert c.get(f"/gallery-preview/{gid}/seen.php", environ_base=E).status_code == 204
 
-
 def test_upload_waits_for_balance_then_copies_and_deletes(env):
     A, c, G, tmp, src = env
     from vault import web as VW
@@ -149,7 +137,7 @@ def test_upload_waits_for_balance_then_copies_and_deletes(env):
     con = A.connect()
     state, err = con.execute("SELECT upload_state, upload_error FROM galleries WHERE session_id=1").fetchone()
     con.close()
-    assert state == "error"                                       # the gallery is released on payment
+    assert state == "error"
     if state == "error":
         assert "due" in err and not (host / gid).exists()
         con = A.connect()
@@ -168,15 +156,12 @@ def test_upload_waits_for_balance_then_copies_and_deletes(env):
     with pytest.raises(ValueError):
         G.upload_gallery("../etc", 5, "2027-12-31")
 
-
 def test_viewer_reads_the_key_from_the_link_and_preview_signs_in():
-    """Regression: the viewer lost the lines that read the key from #k=..., so every gallery
-    opened blank; and the in-app preview fetched photos without the app sign-in. A browser check lives outside pytest."""
+
     import os
     html = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "plugins", "gallery_assets", "viewer.html")).read()
     assert "const HP = new URLSearchParams(location.hash.slice(1))" in html and "let raw = (() =>" in html
     assert 'credentials: PREVIEW ? "same-origin" : "omit"' in html
-
 
 def test_picks_email_fingerprint(env):
     A, c, G, tmp, src = env
@@ -186,9 +171,9 @@ def test_picks_email_fingerprint(env):
     assert len(fp) == 19 and fp.count("-") == 3
     pk, same, _ = G.read_picks_email("Hello\n" + "\n".join(lines) + f"\n\nFingerprint: {fp}\nThanks", key)
     assert same and pk == {"retouch": ["a.jpg (photo 1): brighten"], "suggest": [], "veto": ["b.jpg (photo 2)"]}
-    for edited in ("\n".join(lines[:1]) + f"\nFingerprint: {fp}",                 # a line removed in the email
+    for edited in ("\n".join(lines[:1]) + f"\nFingerprint: {fp}",
                    "\n".join(lines).replace("brighten", "remove tattoo") + f"\nFingerprint: {fp}",
-                   "\n".join(lines)):                                             # no fingerprint line
+                   "\n".join(lines)):
         pk, same, _ = G.read_picks_email(edited, key)
-        assert pk is not None and not same                                       # recorded, flagged to ask
+        assert pk is not None and not same
     assert not G.read_picks_email("\n".join(lines) + f"\nFingerprint: {fp}", G.new_key())[1]

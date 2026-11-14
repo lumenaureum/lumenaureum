@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block body %}
+{% block title %}Board - Lumen Aureum{% endblock %}{% block body %}
 <div class="page-head"><div class="grow"><div class="kicker">Sessions</div><h1>Board</h1></div><a class="btn" href="{{ url_for('sessions') }}">List</a>
-  <a class="sub" href="{{ url_for('pipeline', lost=0 if show_lost else 1) }}">{{ 'Hide' if show_lost else 'Show' }} lost ({{ cols['lost']|length }})</a></div>
+  <a class="btn" href="{{ url_for('pipeline', lost=0 if show_lost else 1) }}">{{ 'Hide' if show_lost else 'Show' }} lost ({{ cols['lost']|length }})</a></div>
 <div class="board">
 {% for st in C.STAGES + (C.OFF_PIPELINE if show_lost else []) %}
   <div class="col"><h3>{{ stage_label[st] }} <span>{{ cols[st]|length }}</span></h3>
@@ -9,16 +9,17 @@
     {% if c.event %}
     <a class="tile event" href="{{ url_for('event_view', eid=c.id) }}">
       <div class="name">{{ c.name }}</div>
-      <div class="meta">{{ c.n }} famil{{ 'y' if c.n == 1 else 'ies' }} - {{ nice(c.date) or 'no date' }}</div>
+      <div class="meta">{{ c.n }} famil{{ 'y' if c.n == 1 else 'ies' }} - {{ nice(c.date) or 'No date' }}</div>
     </a>
     {% else %}{% set s = c.s %}
     <a class="tile" href="{{ url_for('session_view', sid=s.id) }}">
       <div class="name">{{ s.household }}</div>
-      <div class="meta">{{ type_label[s.type] }}</div>
-      <div class="meta">{{ nice(s.shoot_date) or 'no date' }}{% if c.quoted %} - {{ money(c.quoted) }}{% endif %}</div>
+      <div class="meta">{{ type_label[s.type] }}</div>{% set bh_ = booked_hint(s.id) %}{% if bh_ %}<div class="meta stage-hint">{{ bh_|capitalize }}</div>{% endif %}
+      <div class="meta">{{ nice(s.shoot_date) or 'No date' }}{% if c.quoted %} - {{ money(c.quoted) }}{% endif %}</div>
     </a>
     {% endif %}
   {% endfor %}</div>
 {% endfor %}
 </div>
 {% endblock %}
+

@@ -1,14 +1,12 @@
-"""Who signs: any adults on the client record sign the agreement; no relationship is defined. Each signer has a signature line and a signed date; anyone signing the agreement gets no separate release."""
 import os
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import fresh_modules, signed_in_client  # noqa: E402
+from helpers import fresh_modules, signed_in_client
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
-
 
 def _app(tmp_path, monkeypatch, all_sign=False):
     for k, v in (("CRM_DB", "crm.db"), ("CRM_STORAGE_CFG", "storage.json"), ("CRM_PHOTOS_ROOT", "photos"), ("CRM_GALLERY_ROOT", "galleries")):
@@ -22,7 +20,7 @@ def _app(tmp_path, monkeypatch, all_sign=False):
     assert r.status_code == 200
     types = [dict(t) for t in C.TYPES]
     for t in types:
-        if t["key"] == "wedding":                      # the Weddings preset has both partners sign; these tests set it
+        if t["key"] == "wedding":
             t["all_sign"] = bool(all_sign)
             if not all_sign:
                 t.pop("all_sign")
@@ -41,7 +39,6 @@ def _app(tmp_path, monkeypatch, all_sign=False):
         sid = A.create_session(hid, "wedding", subject_ids=ids)
     return A, c, sid, ids
 
-
 def _agreements(A, sid):
     con = A.connect()
     rows = con.execute("SELECT about_person, status FROM documents WHERE session_id=? AND kind='agreement' ORDER BY id", (sid,)).fetchall()
@@ -49,25 +46,22 @@ def _agreements(A, sid):
     con.close()
     return rows, rel
 
-
 def test_one_signer_by_default_then_add_the_second(tmp_path, monkeypatch):
     A, c, sid, ids = _app(tmp_path, monkeypatch)
     rows, rel = _agreements(A, sid)
     assert [r[0] for r in rows] == [ids[0]]
-    assert [r[0] for r in rel] == [ids[1]]                       # the non-signer still gets a release
+    assert [r[0] for r in rel] == [ids[1]]
     c.post(f"/session/{sid}/signers", data={"signer": [str(ids[0]), str(ids[1])]}, environ_base=E)
     rows, rel = _agreements(A, sid)
-    assert sorted(r[0] for r in rows) == sorted(ids) and not rel  # signing the agreement replaces the release
+    assert sorted(r[0] for r in rows) == sorted(ids) and not rel
     page = c.get(f"/session/{sid}/agreement", environ_base=E).data.decode()
     assert "Priya Patel and Sam Reyes" in page and page.count("<br><br>Date") == 3
     assert "couple" not in page.lower()
-
 
 def test_every_adult_signs_when_the_type_says_so(tmp_path, monkeypatch):
     A, c, sid, ids = _app(tmp_path, monkeypatch, all_sign=True)
     rows, rel = _agreements(A, sid)
     assert sorted(r[0] for r in rows) == sorted(ids) and not rel
-
 
 def test_agreement_step_needs_every_signer(tmp_path, monkeypatch):
     A, c, sid, ids = _app(tmp_path, monkeypatch, all_sign=True)
@@ -78,7 +72,6 @@ def test_agreement_step_needs_every_signer(tmp_path, monkeypatch):
     with A.app.test_request_context():
         A.db()
         assert not A.AUTO["agreement_signed"][1](dict(docs=A.q("SELECT * FROM documents WHERE session_id=?", (sid,))))
-
 
 def test_at_least_one_signer(tmp_path, monkeypatch):
     A, c, sid, ids = _app(tmp_path, monkeypatch)

@@ -1,9 +1,3 @@
-"""Network and session safety (security review findings F-01 to F-07, F-13 to F-15, F-22):
-plain HTTP refused unless declared safe; HTTPS requests pass; unknown Host refused (DNS rebinding); forwarded headers
-refused from untrusted peers and believed from trusted ones; the Docker gateway refused unless listed; claim code
-required; lockout per address (another device can't lock the owner out); failed attempts reported after sign-in;
-logout ends the session server-side; a TOTP code works once; cross-site POST refused; security headers; versions
-hidden from strangers; back links stay local; over-long input refused; client delete and export."""
 import ipaddress
 import os
 import re
@@ -15,12 +9,11 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import fresh_modules, signed_in_client  # noqa: E402
+from helpers import fresh_modules, signed_in_client
 
 E = {"REMOTE_ADDR": "192.168.1.20"}
 OTHER = {"REMOTE_ADDR": "192.168.1.66"}
 PW = "correct horse battery"
-
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):
@@ -29,7 +22,6 @@ def env(tmp_path, monkeypatch):
     fresh_modules()
     import app as A
     return A, tmp_path
-
 
 def claim(c):
     import auth, netsec
@@ -43,20 +35,18 @@ def claim(c):
     c.post("/setup/owner/key", data=dict(tail=master[-6:]), environ_base=E)
     return st["totp"]
 
-
 def test_plain_http_always_refused(env):
     A, _ = env
     c = A.app.test_client()
     r = c.get("/setup/owner", environ_base=E, base_url="http://localhost")
     assert r.status_code == 403 and b"HTTPS" in r.data
-    assert c.get("/healthz", environ_base=E, base_url="http://localhost").status_code == 200   # health checks only
-    assert c.get("/setup/owner", environ_base=E).status_code == 200                           # https
-
+    assert c.get("/healthz", environ_base=E, base_url="http://localhost").status_code == 200
+    assert c.get("/setup/owner", environ_base=E).status_code == 200
 
 def test_tls_off_only_behind_a_trusted_proxy(monkeypatch):
     monkeypatch.setenv("CRM_TLS", "off")
     monkeypatch.delenv("CRM_TRUSTED_PROXIES", raising=False)
-    monkeypatch.setenv("CRM_PLAIN_HTTP_OK", "1")                 # the old escape hatch no longer exists
+    monkeypatch.setenv("CRM_PLAIN_HTTP_OK", "1")
     fresh_modules()
     import netsec
     assert netsec.startup_problem()
@@ -65,14 +55,12 @@ def test_tls_off_only_behind_a_trusted_proxy(monkeypatch):
     import netsec as n2
     assert not n2.startup_problem()
 
-
 def test_unknown_host_refused(env):
     A, _ = env
     c = A.app.test_client()
     assert c.get("/setup/owner", environ_base=E, headers={"Host": "evil.example"}).status_code == 400
     assert c.get("/setup/owner", environ_base=E, headers={"Host": "192.168.1.5:8780"}).status_code == 200
     assert c.get("/setup/owner", environ_base=E, headers={"Host": "localhost:8780"}).status_code == 200
-
 
 def test_forwarded_headers(tmp_path, monkeypatch):
     monkeypatch.setenv("CRM_DB", str(tmp_path / "crm.db"))
@@ -82,19 +70,18 @@ def test_forwarded_headers(tmp_path, monkeypatch):
     fresh_modules()
     import app as A
     c = A.app.test_client()
-    # from an untrusted peer, forwarded headers are refused outright
+
     assert c.get("/healthz", environ_base=E, headers={"X-Forwarded-For": "192.168.1.9"}).status_code == 400
-    # from the trusted proxy, the client address and scheme are believed (and the allow-list applies to the client)
+
     r = c.get("/setup/owner", environ_base={"REMOTE_ADDR": "10.9.9.9"},
               headers={"X-Forwarded-For": "192.168.1.9", "X-Forwarded-Proto": "https"})
     assert r.status_code == 200
     r = c.get("/setup/owner", environ_base={"REMOTE_ADDR": "10.9.9.9"},
               headers={"X-Forwarded-For": "203.0.113.7", "X-Forwarded-Proto": "https"})
-    assert r.status_code == 403                                             # an internet client through the proxy
+    assert r.status_code == 403
     r = c.get("/setup/owner", environ_base={"REMOTE_ADDR": "10.9.9.9"}, base_url="http://localhost",
               headers={"X-Forwarded-For": "192.168.1.9", "X-Forwarded-Proto": "http"})
-    assert r.status_code == 403                                             # reached the proxy over plain http
-
+    assert r.status_code == 403
 
 def test_docker_gateway_refused_unless_listed(env, monkeypatch):
     A, _ = env
@@ -106,7 +93,6 @@ def test_docker_gateway_refused_unless_listed(env, monkeypatch):
     monkeypatch.setenv("CRM_ALLOW", "172.17.0.1/32")
     assert c.get("/setup/owner", environ_base={"REMOTE_ADDR": "172.17.0.1"}).status_code == 200
 
-
 def test_claim_code_required(env):
     A, _ = env
     c = A.app.test_client()
@@ -114,10 +100,9 @@ def test_claim_code_required(env):
                                          password2=PW), environ_base=E)
     assert b"setup code" in r.data
     import netsec
-    assert netsec.claim_code() in netsec.code_file().read_text()            # the installer finds it in the data folder
+    assert netsec.claim_code() in netsec.code_file().read_text()
     with c.session_transaction() as s:
         assert "setup_tok" not in s
-
 
 def test_lockout_is_per_address_and_reported(env):
     A, _ = env
@@ -128,15 +113,14 @@ def test_lockout_is_per_address_and_reported(env):
     for _ in range(6):
         stranger.post("/login", data=dict(email="owner@example.com", password="wrong wrong wrong"), environ_base=OTHER)
     r = stranger.post("/login", data=dict(email="owner@example.com", password=PW), environ_base=OTHER)
-    assert "Wait 15 minutes" in r.get_data(as_text=True)                    # the stranger's address is locked
+    assert "Wait 15 minutes" in r.get_data(as_text=True)
     import auth
     c.post("/login", data=dict(email="owner@example.com", password=PW), environ_base=E)
     c.post("/login/2fa", data=dict(code=auth.totp(secret, at=time.time() + 30)), environ_base=E)
     con = A.connect()
     con.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('setup_complete', '1')"); con.commit(); con.close()
     page = c.get("/", environ_base=E).get_data(as_text=True)
-    assert "failed attempts since the last sign-in" in page and "192.168.1.66" in page   # the owner is told
-
+    assert "failed attempts since the last sign-in" in page and "192.168.1.66" in page
 
 def test_logout_ends_the_session_everywhere(env):
     A, _ = env
@@ -146,8 +130,7 @@ def test_logout_ends_the_session_everywhere(env):
     c.post("/logout", environ_base=E)
     thief = A.app.test_client()
     thief.set_cookie("session", cookie)
-    assert "/login" in thief.get("/", environ_base=E).location           # the captured cookie no longer works
-
+    assert "/login" in thief.get("/", environ_base=E).location
 
 def test_totp_code_works_once():
     import auth
@@ -157,14 +140,12 @@ def test_totp_code_works_once():
     step = auth.totp_ok(secret, code, at=now)
     assert step and not auth.totp_ok(secret, code, at=now, after=step)
 
-
 def test_cross_site_post_refused(env):
     A, _ = env
     c = signed_in_client(A)
     r = c.post("/settings", data={"business_name": "x"}, environ_base=E,
                headers={"Origin": "https://evil.example", "Sec-Fetch-Site": "cross-site"})
     assert r.status_code == 403
-
 
 def test_security_headers_and_versions(env):
     A, _ = env
@@ -174,7 +155,6 @@ def test_security_headers_and_versions(env):
     assert r.headers["X-Frame-Options"] == "DENY" and r.headers["X-Content-Type-Options"] == "nosniff"
     t = c.get("/about", environ_base=E).get_data(as_text=True)
     assert "Version " not in t
-
 
 def test_back_links_stay_local_and_long_input_refused(env):
     A, _ = env
@@ -188,7 +168,6 @@ def test_back_links_stay_local_and_long_input_refused(env):
     assert "evil" not in (r.location or "")
     r = c.post("/contact/new", data={"contact_name": "x" * 201}, environ_base=E)
     assert r.status_code == 413
-
 
 def test_client_delete_and_export(env):
     A, tmp = env
@@ -214,14 +193,12 @@ def test_client_delete_and_export(env):
         left = [r[0] + " " + (r[1] or "") for r in con.execute("SELECT action, note FROM audit")]
         assert not any("Harlow" in x_ or "Ava" in x_ or "river" in x_ for x_ in left)
         assert any("Deleted a client record" in x_ for x_ in left)
-        assert [tuple(r) for r in con.execute("SELECT received, amount, tax FROM books")] == [("2026-03-02", 106.0, 6.0)]   # the books keep the money
+        assert [tuple(r) for r in con.execute("SELECT received, amount, tax FROM books")] == [("2026-03-02", 106.0, 6.0)]
     finally:
         con.close()
 
-
 def test_rereview_fixes(env):
-    """F-26 throttle bounded and proxy client must be an address; F-27 master-key recovery signs out every device;
-    F-30 a deleted client is deleted again after restoring an older database; 3.1 session filters refuse stray SQL."""
+
     A, tmp = env
     import auth
     th = auth.Throttle()
@@ -240,15 +217,15 @@ def test_rereview_fixes(env):
     assert other.get("/", environ_base=E).status_code == 200
     import datakey
     from vault import keys as K
-    # the helper's master key is unknown here: make a fresh one and point the keyring at it
+
     sec, pub = K.generate_master()
     datakey.replace_master(pub)
     import netsec as N_
     r = A.app.test_client().post("/unlock/master", data=dict(secret=sec, password="a whole new password",
                                                           password2="a whole new password", code=N_.recovery_code()),
                                  environ_base=E)
-    assert "/login" in other.get("/", environ_base=E).location           # the other device is signed out
-    # deletion survives a restore of an older database
+    assert "/login" in other.get("/", environ_base=E).location
+
     con = A.connect()
     con.execute("INSERT INTO households (name) VALUES ('Harlow Family')"); con.commit()
     snap = tmp / "before.db"
@@ -258,14 +235,13 @@ def test_rereview_fixes(env):
     c2 = signed_in_client(A)
     c2.post("/client/1/delete", data={"confirm": "DELETE"}, environ_base=E)
     import shutil
-    shutil.copyfile(snap, A.DB_PATH)                                       # "restore" the older database
+    shutil.copyfile(snap, A.DB_PATH)
     for s_ in ("-wal", "-shm"):
         __import__("pathlib").Path(str(A.DB_PATH) + s_).unlink(missing_ok=True)
     assert A.reapply_deletions() == 1
     con = A.connect()
     assert con.execute("SELECT COUNT(*) FROM households").fetchone()[0] == 0
     con.close()
-
 
 def test_health_probe_from_loopback_passes_a_narrow_allow_list(tmp_path, monkeypatch):
     monkeypatch.setenv("CRM_DB", str(tmp_path / "crm.db"))
@@ -275,13 +251,12 @@ def test_health_probe_from_loopback_passes_a_narrow_allow_list(tmp_path, monkeyp
     import app as A
     c = A.app.test_client()
     lo = {"REMOTE_ADDR": "127.0.0.1"}
-    assert c.get("/healthz", environ_base=lo).status_code == 200          # the container checking itself
-    assert c.get("/setup/owner", environ_base=lo).status_code == 403      # nothing else from loopback
-    assert c.get("/healthz", environ_base=E).status_code == 403           # nor /healthz from outside the list
-
+    assert c.get("/healthz", environ_base=lo).status_code == 200
+    assert c.get("/setup/owner", environ_base=lo).status_code == 403
+    assert c.get("/healthz", environ_base=E).status_code == 403
 
 def test_no_inline_script_anywhere(env):
-    """The policy refuses inline script; templates and plugins must not carry any (handlers or bare <script>)."""
+
     import pathlib
     A, _ = env
     c = A.app.test_client()
@@ -291,10 +266,9 @@ def test_no_inline_script_anywhere(env):
     handler = re.compile(r"\son[a-z]+\s*=\s*[\"']", re.I)
     bare = re.compile(r"<script(?![^>]*\b(src|nonce)=)[^>]*>", re.I)
     for f in list((root / "templates").glob("*.html")) + list((root / "plugins").glob("*.py")):
-        t = "\n".join(ln for ln in f.read_text().splitlines() if "re.findall" not in ln)   # a pattern, not a tag
+        t = "\n".join(ln for ln in f.read_text().splitlines() if "re.findall" not in ln)
         assert not handler.search(t), f"inline handler in {f.name}"
         assert not bare.search(t), f"inline <script> in {f.name}"
-
 
 def test_csp_nonce_for_plugin_scripts(env):
     A, _ = env
@@ -303,7 +277,6 @@ def test_csp_nonce_for_plugin_scripts(env):
         assert n == A.csp_nonce() and len(n) >= 20
         resp = A._no_store(A.app.response_class("x"))
         assert f"'nonce-{n}'" in resp.headers["Content-Security-Policy"]
-
 
 def test_health_probe_ignores_forwarded_loopback(tmp_path, monkeypatch):
     monkeypatch.setenv("CRM_DB", str(tmp_path / "crm.db"))

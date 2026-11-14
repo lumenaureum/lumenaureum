@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% from "_macros.html" import stage_pill, avatar, event_avatar, sym, close_menu with context %}
-{% block body %}
+{% block title %}Today - Lumen Aureum{% endblock %}{% block body %}
 {% set L = light(today.isoformat()) %}
 <header class="dash-head">
   <div><h1>{{ today.strftime('%A, %B %-d') }}</h1>
@@ -9,7 +9,7 @@
     <button class="kpi sel" data-filter="week"><b>{{ kpi.week }}</b><span>to do this week</span></button>
     <button class="kpi sel {{ 'warm' if kpi.owed }}" data-filter="money"><b>{{ money(kpi.owed) }}</b><span>owed to you</span></button>
     {% if kpi.deposits %}<button class="kpi sel" data-filter="money"><b>{{ money(kpi.deposits) }}</b><span>deposits unpaid</span></button>{% endif %}
-    <a class="kpi" href="{{ url_for('money_view') }}"><b>Finances</b><span>year, owed, tax &rsaquo;</span></a>
+    <a class="kpi" href="{{ url_for('money_view') }}"><b>Finances</b><span>year, owed, and tax &rsaquo;</span></a>
     <button class="kpi sel" data-filter="lead"><b>{{ kpi.leads }}</b><span>open lead{{ '' if kpi.leads == 1 else 's' }}</span></button>
   </div>
 </header>
@@ -52,8 +52,8 @@
     {% if r.corner %}<span class="corner" data-tip="{{ r.corner }}"></span>{% endif %}
     <div class="t-head sel" data-sel="{{ r.key }}">
       <span class="cface">{% if r.kind == 'event' %}{{ event_avatar(r.eid, r.name, 60) }}{% else %}{{ avatar(r.hid, 60) }}{% endif %}</span>
-      <div class="t-who"><b><a class="t-link" href="{{ url_for('event_view', eid=r.eid) if r.kind == 'event' else url_for('client_stage', hid=r.hid) }}">{{ r.name }}</a></b>{% if r.demo %} <span class="pill" data-tip="Sample client: delete in Settings">Sample</span>{% endif %}<small>{{ r.people }}</small></div>
-      <div class="t-stage"><span>{% for f in r.flows %}{{ f.type.split(' ')[0] }} <em>{{ stage_label[f.stage] }}</em> <small class="days" data-tip="In {{ stage_label[f.stage] }} since {{ nice(f.since) }}">{{ f.days }}d</small>{{ '<br>'|safe if not loop.last }}{% endfor %}</span></div>
+      <div class="t-who"><b><a class="t-link" href="{{ url_for('event_view', eid=r.eid) if r.kind == 'event' else url_for('client_stage', hid=r.hid) }}">{{ r.name }}</a></b>{% if r.demo %} <span class="pill" data-tip="Sample client: delete in Settings">Sample</span>{% endif %}<small title="{{ r.people }}">{{ r.people }}</small></div>
+      <div class="t-stage">{% for f in r.flows %}<span class="t-st">{{ f.type }} <em>{{ stage_label[f.stage] }}</em> <small class="days" data-tip="In {{ stage_label[f.stage] }} since {{ nice(f.since) }}">{{ f.days }}d</small></span>{% if f.hint %}<span class="stage-hint">{{ f.hint|capitalize }}</span>{% endif %}{% endfor %}</div>
     </div>
     {% for f in r.flows %}{% if r.flows|length > 1 %}<div class="t-flowname">{{ f.type }}</div>{% endif %}<div class="t-track">{% for st in C.STAGES %}<div class="tn {{ 'past' if loop.index0 < f.idx }} {{ 'now' if loop.index0 == f.idx }}"><i></i><span>{{ stage_label[st] }}</span></div>{% endfor %}</div>{% endfor %}
 
@@ -61,18 +61,18 @@
     <div class="t-next s-{{ a.status if a else 'none' }}">
       <div class="t-label">Next</div>
       {% if a %}
-      <div class="t-what {{ 'theirs' if a.theirs }}"><span class="tipw" data-tip="{{ a.tip }}"><span class="badged">{{ sym(a.sym, a.status if a.status in ('late','soon') else 'next', 46) }}{% if a.theirs %}<span class="badge-face">{% if r.kind == 'event' %}{{ event_avatar(r.eid, r.name, 22) }}{% else %}{{ avatar(r.hid, 22) }}{% endif %}</span>{% endif %}</span></span><span>{{ a.what }}</span>{% if a.theirs and not a.when and a.waited %}<em>waiting {{ a.waited }}d</em>{% endif %}{% if a.when %}<em>{{ 'late since ' if a.status == 'late' }}{{ nice(a.when) }}</em>{% endif %}</div>
+      <div class="t-what {{ 'theirs' if a.theirs }}"><span class="tipw" data-tip="{{ a.tip }}"><span class="badged">{{ sym(a.sym, a.status if a.status in ('late','soon') else 'next', 46) }}{% if a.theirs %}<span class="badge-face">{% if r.kind == 'event' %}{{ event_avatar(r.eid, r.name, 22) }}{% else %}{{ avatar(r.hid, 22) }}{% endif %}</span>{% endif %}</span></span><span>{{ a.what }}{% if a.note %}<small class="t-note" style="display:block;color:var(--mute);font-size:12px">{{ a.note }}</small>{% endif %}</span>{% if a.theirs and not a.when and a.waited %}<em>waiting {{ a.waited }}d</em>{% endif %}{% if a.when %}<em>{{ 'late since ' if a.status == 'late' }}{{ nice(a.when) }}</em>{% endif %}</div>
       <div class="t-do">{% if a.post %}<form method="post" action="{{ a.post }}" class="inline">{% for k, v in a.fields.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}{% if a.ask_date %}<input type="date" name="on" value="{{ iso_today() }}" max="{{ iso_today() }}" title="{{ a.date_tip }}" style="width:auto;display:inline;margin:0 4px 0 0">{% endif %}<input type="hidden" name="back" value="{{ url_for('home') }}"><button class="{{ 'primary' if a.status == 'late' or a.primary else 'verb' }}">{{ a.verb }}</button></form>{{ close_menu(a, url_for('home')) }}
         {% else %}<a class="go" href="{{ a.href if a.href and not a.href.startswith('/session/') else (url_for('client_stage', hid=r.hid) if r.hid else a.who.link) }}">{{ a.verb }} &rsaquo;</a>{{ close_menu(a, url_for('home')) }}{% endif %}</div>
-      {% elif r.shoot %}<div class="t-what">{{ sym('photo_camera', 'next', 34) }}<span>Shoot {{ nice(r.shoot.date) }}{% if r.shoot.tentative %} (tentative){% endif %}{% if r.shoot.time %}, {{ ampm(r.shoot.time) }}{% endif %}</span></div>
+      {% elif r.shoot %}<div class="t-what">{{ sym('photo_camera', 'next', 34) }}<span>Shoot {{ nice(r.shoot.date) }}{% if r.shoot.tentative %} (tentative){% endif %}{% if r.shoot.time %}, {{ clock(r.shoot.time) }}{% endif %}</span></div>
       {% else %}<div class="t-what mute"><span>Nothing open</span></div>{% endif %}
     </div>
 
-    {% if r.then %}<ul class="t-then">{% for x in r.then %}<li data-tip="{{ x.tip }}" class="{{ 'theirs' if x.theirs }}"><span class="badged">{{ sym(x.sym, x.status if x.status in ('late','soon') else 'next', 33) }}{% if x.theirs %}<span class="badge-face">{% if r.kind == 'event' %}{{ event_avatar(r.eid, r.name, 17) }}{% else %}{{ avatar(r.hid, 17) }}{% endif %}</span>{% endif %}</span><span>{{ x.what }}</span><em>{{ nice(x.when) if x.when else ('waiting %dd' % x.waited if x.theirs and x.waited else '') }}</em></li>{% endfor %}
+    {% if r.then %}<ul class="t-then">{% for x in r.then %}<li data-tip="{{ x.tip }}" class="{{ 'theirs' if x.theirs }}"><span class="badged">{{ sym(x.sym, x.status if x.status in ('late','soon') else 'next', 33) }}{% if x.theirs %}<span class="badge-face">{% if r.kind == 'event' %}{{ event_avatar(r.eid, r.name, 17) }}{% else %}{{ avatar(r.hid, 17) }}{% endif %}</span>{% endif %}</span><span>{{ x.what }}{% if x.note %}<small class="t-note" style="display:block;color:var(--mute);font-size:12px">{{ x.note }}</small>{% endif %}</span><em>{{ nice(x.when) if x.when else ('waiting %dd' % x.waited if x.theirs and x.waited else '') }}</em></li>{% endfor %}
       {% if r.more %}<li class="more">+{{ r.more }} more</li>{% endif %}</ul>{% endif %}
 
     <div class="t-foot">
-      {% if r.shoot %}{% set SL = light(r.shoot.date, r.shoot.stype) %}<span class="t-shoot">{{ sym('photo_camera', 'next', 20) }} Shoot {{ nice(r.shoot.date) }}{% if r.shoot.tentative %} (tentative){% endif %}{% if r.shoot.time %}, {{ ampm(r.shoot.time) }}{% endif %}{% if SL %} <span class="gh">sunset {{ SL.sunset }}</span>{% endif %}</span>{% endif %}
+      {% if r.shoot %}{% set SL = light(r.shoot.date, r.shoot.stype) %}<span class="t-shoot">{{ sym('photo_camera', 'next', 20) }} Shoot {{ nice(r.shoot.date) }}{% if r.shoot.tentative %} (tentative){% endif %}{% if r.shoot.time %}, {{ clock(r.shoot.time) }}{% endif %}{% if SL %} <span class="gh">sunset {{ SL.sunset }}</span>{% endif %}</span>{% endif %}
       <span class="grow"></span>
       {% if r.owed %}<span class="owed" style="--s:22px" data-tip="{{ money(r.owed) }} still owed after the shoot">{{ money(r.owed) }} owed</span>{% endif %}
       {% if r.dep_short %}<span class="owed" style="--s:22px" data-tip="Deposit {{ money(r.dep_short) }} short">{{ money(r.dep_short) }} dep.</span>{% endif %}
@@ -92,7 +92,7 @@
         {% for sh in d.shoots %}
         <div class="cshoot sel" data-drag data-kind="{{ 'event' if sh.event else 'session' }}" data-id="{{ sh.eid if sh.event else sh.sid }}" data-sel="{{ 'e:%s' % sh.eid if sh.event else 'c:%s' % sh.hid }}">
           {% if sh.event %}{{ event_avatar(sh.eid, sh.name, 30) }}{% else %}{{ avatar(sh.hid, 30) }}{% endif %}
-          <div class="cs-text" data-tip="{{ sh.name }}"><b>{{ sym('photo_camera','next',16) }} <a class="cs-name t-link" href="{{ url_for('event_view', eid=sh.eid) if sh.event else url_for('client_stage', hid=sh.hid) }}">{{ sh.name }}</a></b><small>{{ ampm(sh.time) if sh.time else ('%d families' % sh.n if sh.event else 'shoot') }} - sunset {{ sh.light.sunset }}</small></div>
+          <div class="cs-text" data-tip="{{ sh.name }}"><b>{{ sym('photo_camera','next',16) }} <a class="cs-name t-link" href="{{ url_for('event_view', eid=sh.eid) if sh.event else url_for('client_stage', hid=sh.hid) }}">{{ sh.name }}</a></b><small>{{ clock(sh.time) if sh.time else ('%d families' % sh.n if sh.event else 'shoot') }}{% if sh.light %}, sunset {{ sh.light.sunset }}{% endif %}</small></div>
         </div>
         {% endfor %}
         {% for x in d.due %}<div class="cdue-item" data-sel="{{ 'e:%s' % x.eid if x.eid else 'c:%s' % x.hid }}" data-tip="{{ x.name }}: {{ x.what }}{{ ' (late)' if x.late }}">{% if x.eid %}{{ event_avatar(x.eid, x.name, 18) }}{% else %}{{ avatar(x.hid, 18) }}{% endif %}<a class="t-link {{ 'late' if x.late }} {{ 'theirs' if x.theirs }}" href="{{ url_for('event_view', eid=x.eid) if x.eid else url_for('client_stage', hid=x.hid) }}" aria-label="{{ x.name }}: {{ x.what }}">{{ x.what }}</a></div>{% endfor %}
@@ -109,3 +109,4 @@
 
 <span hidden id="today-sel" data-sel="{{ sel }}"></span><script src="{{ url_for('static', filename='today.js', v=static_v('today.js')) }}"></script>
 {% endblock %}
+

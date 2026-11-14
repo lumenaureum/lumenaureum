@@ -1,4 +1,3 @@
-"""Newborn: baby ages, tentative dates, indoor types, plans under one agreement. Commercial: license scope, quoted scope, product care; PO, tax ID, bank details, net terms from the invoice date; a deposit per session type."""
 import json
 import os
 import sys
@@ -7,10 +6,9 @@ from datetime import date, timedelta
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import fresh_modules, signed_in_client  # noqa: E402
+from helpers import fresh_modules, signed_in_client
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
-
 
 def _app(tmp_path, monkeypatch, presets=("newborn", "products", "realestate")):
     for k, v in (("CRM_DB", "crm.db"), ("CRM_STORAGE_CFG", "storage.json"), ("CRM_PHOTOS_ROOT", "photos"), ("CRM_GALLERY_ROOT", "galleries")):
@@ -25,12 +23,10 @@ def _app(tmp_path, monkeypatch, presets=("newborn", "products", "realestate")):
     con.commit(); con.close()
     return A, c
 
-
 def _session(A, type_, **kw):
     with A.app.test_request_context():
         A.db()
         return A.create_session(1, type_, **kw)
-
 
 def test_baby_age_in_weeks_and_due_dates(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
@@ -45,7 +41,6 @@ def test_baby_age_in_weeks_and_due_dates(tmp_path, monkeypatch):
     assert con.execute("SELECT is_minor FROM people WHERE name='Baby Lane'").fetchone()[0] == 1
     con.close()
 
-
 def test_indoor_type_has_no_golden_hour_and_tentative_date_shows(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
     sid = _session(A, "newborn", shoot_date=(date.today() + timedelta(days=10)).isoformat())
@@ -55,7 +50,6 @@ def test_indoor_type_has_no_golden_hour_and_tentative_date_shows(tmp_path, monke
     con = A.connect()
     assert con.execute("SELECT date_tentative FROM sessions WHERE id=?", (sid,)).fetchone()[0] == 1
     con.close()
-
 
 def test_plan_one_agreement_for_several_sessions(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
@@ -81,7 +75,6 @@ def test_plan_one_agreement_for_several_sessions(tmp_path, monkeypatch):
     assert con.execute("SELECT 1 FROM documents WHERE session_id=? AND kind='agreement'", (other,)).fetchone()
     con.close()
 
-
 def test_license_scope_quoted_scope_and_product_care(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
     sid = _session(A, "product")
@@ -95,7 +88,6 @@ def test_license_scope_quoted_scope_and_product_care(tmp_path, monkeypatch):
     assert "12 product images" in page and "Products in my care" in page
     inv = c.get(f"/session/{sid}/invoice", environ_base=E).data.decode()
     assert "PO-778" in inv
-
 
 def test_net_terms_from_invoice_date_and_bank_details(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
@@ -113,7 +105,6 @@ def test_net_terms_from_invoice_date_and_bank_details(tmp_path, monkeypatch):
             assert A.long_date(due.isoformat()) in v["due_rule"]
     inv = c.get(f"/session/{sid}/invoice", environ_base=E).data.decode()
     assert "Routing 000 Account 111" in inv and "12-3456789" in inv
-
 
 def test_deposit_per_type(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)

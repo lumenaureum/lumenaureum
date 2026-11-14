@@ -9,3 +9,4 @@
     {% for wk in mo.weeks %}{% for c in wk %}{% if c.other %}<span></span>{% else %}<span class="yday{{ ' sat' if c.sat }}{{ ' busy' if c.who }}{{ ' two' if c.who|length > 1 }}{{ ' today' if c.today }}"{% if c.who %} data-tip="{{ c.who|join(', ') }}"{% endif %}>{{ c.num }}</span>{% endif %}{% endfor %}{% endfor %}</div></div>{% endfor %}
 </div>
 {% endblock %}
+

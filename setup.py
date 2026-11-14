@@ -1,11 +1,3 @@
-"""First-run setup: the steps after the owner account (auth.py is step 1). Until setup is finished, every signed-in page
-sends the owner here. Each step saves as it goes, so leaving halfway loses nothing; after setup the same pages open
-from Settings for changes.
-
-What is saved where:
-  settings table   business details, time zone, home location, tax mode, gallery address, rules (JSON, see config.apply)
-  storage.json     where the vault and galleries live (vault/web.py reads it); written 0600 because it can hold keys
-"""
 import gzip
 import json
 import os
@@ -21,7 +13,7 @@ import config as C
 from vault import backends as B, web as VW
 
 ROOT = Path(__file__).resolve().parent
-STEPS = [  # (slug, title, required)
+STEPS = [
     ("business", "Your business", True),
     ("storage", "Backups", True),
     ("shoot", "What you shoot", False),
@@ -36,7 +28,6 @@ OPEN_DURING_SETUP = {"static", "logout", "healthz", "setup_step", "setup_test", 
 PAYMENT_CHOICES = ["cash", "check", "card", "bank transfer", "payment app"]
 _ZIPS = None
 
-
 def zip_latlon(z):
     global _ZIPS
     if _ZIPS is None:
@@ -44,30 +35,24 @@ def zip_latlon(z):
             _ZIPS = json.load(f)["zips"]
     return _ZIPS.get((z or "").strip()[:5])
 
-
 def timezones():
     zs = sorted(z for z in zoneinfo.available_timezones() if "/" in z and not z.startswith(("Etc/", "SystemV/", "US/")))
     us = ["America/New_York", "America/Chicago", "America/Denver", "America/Phoenix", "America/Los_Angeles",
           "America/Anchorage", "Pacific/Honolulu"]
     return [z for z in us if z in zs] + [z for z in zs if z not in us]
 
-
 def host_tz():
-    """The machine's or container's own TZ, as it was when the app started (apply_settings overwrites the variable),
-    when it names a real zone; else ''."""
+
     import sys
     tz = getattr(sys.modules.get("app") or sys.modules.get("__main__"), "HOST_TZ", "")
     return tz if tz in zoneinfo.available_timezones() else ""
-
 
 def _data_and_program():
     data = os.path.dirname(os.path.realpath(os.environ.get("CRM_DB", str(ROOT / "data" / "crm.db"))))
     return data, os.path.realpath(str(ROOT))
 
-
 def suggested_vault():
-    """A backup folder the storage step can offer that its own checks accept: /vault when the container mounts one,
-    else a vault folder beside the database when that is outside the program, else one beside the program folder."""
+
     import settings_io
     data, prog = _data_and_program()
     for p_ in ("/vault", os.path.join(data, "vault"), os.path.join(os.path.dirname(prog), "lumen-aureum-vault")):
@@ -75,9 +60,8 @@ def suggested_vault():
             return p_
     return ""
 
-
 def inside_private_message(key):
-    """Why a path inside the data or program folder is refused, and what would work instead."""
+
     data, prog = _data_and_program()
     if key != "path":
         return (f"That file is inside Lumen Aureum's own data folder ({data}) or program folder ({prog}). Keep keys"
@@ -87,28 +71,24 @@ def inside_private_message(key):
             " would be lost along with the app. Choose a folder outside both, ideally on another disk"
             + (f", for example {ex}." if ex else "."))
 
-
 def same_disk(path, other):
-    """True when two folders are on the same filesystem (a backup there dies with the database)."""
+
     try:
         return os.stat(path).st_dev == os.stat(other).st_dev
     except OSError:
         return False
 
-
 def backups_share_disk(cfg=None):
-    """The vault is a folder on the database's own disk and there is no second location."""
+
     cfg = cfg if cfg is not None else VW.config()
     prim = cfg.get("primary") or {}
     return prim.get("type") == "local" and same_disk(prim.get("path", ""), str(VW.CFG_PATH.parent)) and not cfg.get("secondary")
 
-
 def write_storage(cfg):
-    VW.write_config(cfg)          # encrypted under the data key (it can hold SFTP/S3 credentials)
-
+    VW.write_config(cfg)
 
 def backend_from_form(f, prefix, old=None):
-    """A storage choice from the form. Secrets left blank keep what was saved before (they are never shown back)."""
+
     old = old or {}
     t = f.get(prefix + "type", "")
     if t == "local":
@@ -119,13 +99,13 @@ def backend_from_form(f, prefix, old=None):
         port = f.get(prefix + "port", "").strip()
         if port.isdigit() and port != "22":
             c["port"] = int(port)
-        if f.get(prefix + "keymode", "app") == "app":     # the app's own key (no file to place in the container)
+        if f.get(prefix + "keymode", "app") == "app":
             c["key_file"] = ""
             c["private_key"] = app_ssh_key()[0]
         same_server = old.get("host") == c["host"] and int(old.get("port", 22)) == int(c.get("port", 22))
         pin = (f.get(prefix + "host_key") or "").strip() if f.get(prefix + "trust") else ""
         if pin or (same_server and old.get("host_key")):
-            c["host_key"] = pin or old["host_key"]        # trusted once, by the owner, after checking the fingerprint
+            c["host_key"] = pin or old["host_key"]
         return c
     if t == "s3":
         c = {"type": "s3", "bucket": f.get(prefix + "bucket", "").strip(), "endpoint": f.get(prefix + "endpoint", "").strip() or None,
@@ -135,19 +115,15 @@ def backend_from_form(f, prefix, old=None):
         return {k: v for k, v in c.items() if v is not None}
     return None
 
-
 def app_ssh_key():
-    """This install's own SSH key pair for SFTP backups and galleries, made once and kept in the encrypted database.
-    Returns (private, public line)."""
+
     priv = _get("ssh_app_key")
     if not priv:
         priv, _ = B.new_ssh_key()
         _put(ssh_app_key=priv)
     return priv, B.public_line(priv)
 
-
-_DB = {}                       # register() keeps the app's connect() here
-
+_DB = {}
 
 def _get(key, default=""):
     con = _DB["connect"]()
@@ -156,7 +132,6 @@ def _get(key, default=""):
         return r[0] if r else default
     finally:
         con.close()
-
 
 def _put(**kv):
     con = _DB["connect"]()
@@ -167,24 +142,21 @@ def _put(**kv):
     finally:
         con.close()
 
-
 def test_backend(cfg, init_local=False, keep=True):
-    """Write, read back and delete a small file. Returns '' when it worked, else a plain-language reason.
-    keep=False (the Test button, before anything is saved): a folder or marker made only for the test is removed again."""
+
     made = []
     try:
         return _test_backend(cfg, init_local, made)
     finally:
         if not keep:
-            for path in reversed(made):         # the marker first, then the folder (only if the test left it empty)
+            for path in reversed(made):
                 try:
                     (os.rmdir if os.path.isdir(path) else os.remove)(path)
                 except OSError:
                     pass
 
-
 def _test_backend(cfg, init_local, made):
-    """test_backend's body; made collects the folder and marker it created."""
+
     if not cfg:
         return "Nothing chosen."
     import settings_io
@@ -200,7 +172,7 @@ def _test_backend(cfg, init_local, made):
             if not p or not os.path.isabs(p):
                 return "Give the full path of a folder, starting with /."
             if init_local and not os.path.exists(p) and os.path.isdir(os.path.dirname(p.rstrip("/"))):
-                os.mkdir(p, 0o700)            # a new vault folder inside one that exists (never a whole missing path)
+                os.mkdir(p, 0o700)
                 made.append(p)
             if init_local and os.path.isdir(p) and not os.path.isfile(os.path.join(p, B.LocalBackend.MARKER)):
                 if any(os.scandir(p)):
@@ -222,9 +194,8 @@ def _test_backend(cfg, init_local, made):
         except Exception:
             pass
         return "" if out.getvalue() == body else "The file read back differently from what was written."
-    except Exception as e:  # shown to the owner: plain words for the usual cases, else the backend's own words
+    except Exception as e:
         return plain_error(e, cfg)
-
 
 def plain_error(e, cfg):
     text = str(e)
@@ -243,11 +214,9 @@ def plain_error(e, cfg):
         return "Can't reach that server."
     return f"{type(e).__name__}: {e}"
 
-
 def app_hooks():
     import sys
     return sys.modules["app"].hooks if "app" in sys.modules else sys.modules["__main__"].hooks
-
 
 def register(app, connect, apply_settings, audit, allow_nets):
     _DB["connect"] = connect
@@ -278,8 +247,8 @@ def register(app, connect, apply_settings, audit, allow_nets):
     def save_rules(**kv):
         r = rules()
         if "TYPES" in kv and "LICENSE_TYPES" not in kv and "LICENSE_TYPES" in r:
-            had = {t_.get("key") for t_ in C.TYPES}            # a type added later keeps the copyright with the
-            new_ = [t_["key"] for t_ in kv["TYPES"] if t_.get("key") not in had]   # photographer, like every type
+            had = {t_.get("key") for t_ in C.TYPES}
+            new_ = [t_["key"] for t_ in kv["TYPES"] if t_.get("key") not in had]
             if new_:
                 kv = dict(kv, LICENSE_TYPES=list(r["LICENSE_TYPES"]) + [k_ for k_ in new_ if k_ not in r["LICENSE_TYPES"]])
         r.update(kv)
@@ -303,16 +272,16 @@ def register(app, connect, apply_settings, audit, allow_nets):
         return next((s for s in SLUGS if s not in d), SLUGS[-1])
 
     def gate():
-        """After the owner account: until setup is finished, signed-in pages go to the next setup step."""
+
         ep = request.endpoint or ""
         if ep in OPEN_DURING_SETUP or ep.startswith("setup_owner") or ep.startswith("login") or ep == "unlock_master":
             return None
         import datakey
         if not datakey.is_unlocked() or complete():
-            return None        # locked: the sign-in gate (which runs first) has it
+            return None
         from flask import session as fs
         if not fs.get("uid"):
-            return None        # the login gate (which runs first) has already sent them to log in
+            return None
         return redirect(url_for("setup_step", step=first_open()))
 
     app.before_request_funcs.setdefault(None, []).insert(1, gate)
@@ -336,7 +305,7 @@ def register(app, connect, apply_settings, audit, allow_nets):
             if skip and (step != SLUGS[-1] or complete()):
                 mark(step)
                 return nxt(step)
-            err = None if skip else save(step, f)    # "Use the defaults" on the last step finishes, like Finish
+            err = None if skip else save(step, f)
             if not err:
                 mark(step)
                 if step == SLUGS[-1] and not complete():
@@ -354,15 +323,15 @@ def register(app, connect, apply_settings, audit, allow_nets):
 
     @app.post("/setup/test/<which>", endpoint="setup_test")
     def setup_test(which):
-        """Connection test from the storage and gallery steps, before anything is saved."""
+
         cfg = VW.config()
         old = cfg.get({"primary": "primary", "secondary": "secondary", "gallery": "gallery_host"}.get(which, ""), {})
         c = backend_from_form(request.form, which + "_", old)
         if c and c.get("type") == "sftp" and c.get("host") and not c.get("host_key") and not os.path.isfile(
                 os.path.expanduser(c.get("known_hosts", "~/.ssh/known_hosts"))):
-            try:                                  # first contact: show the server's fingerprint for the owner to check
+            try:
                 line, fp = B.fetch_host_key(c["host"], c.get("port", 22))
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 return {"ok": False, "message": plain_error(e, c)}
             return {"ok": False, "host_key": line, "fingerprint": fp,
                     "message": f"First connection to {c['host']}. Its key fingerprint is {fp}. Check it matches the one your "
@@ -373,10 +342,8 @@ def register(app, connect, apply_settings, audit, allow_nets):
             return {"ok": False, "message": "Works, but it's on the same disk as your data: one failure loses both."}
         return {"ok": not msg, "message": msg or "Connected: a test file was written, read back and removed."}
 
-    # ------------------------------------------------------------ "finish setting up" on Today
-
     def finish_items():
-        """What is still open after setup: each line goes away by itself once done. [] when hidden or nothing left."""
+
         if not complete() or get("finish_hidden") == "1":
             return []
         con = connect()
@@ -413,10 +380,8 @@ def register(app, connect, apply_settings, audit, allow_nets):
 
     app.config["finish_items"] = finish_items
 
-    # ------------------------------------------------------------ time zone, for installs set up without one
-
     def tz_prompt():
-        """For Settings: shown once, until a time zone is saved. None when there is one (or setup isn't finished)."""
+
         if not complete() or get("timezone"):
             return None
         import sys
@@ -427,8 +392,7 @@ def register(app, connect, apply_settings, audit, allow_nets):
 
     @app.post("/settings/timezone", endpoint="settings_timezone")
     def settings_timezone():
-        """Save the time zone from the Settings prompt. Only dates made from now on follow it: documents already
-        issued keep the dates stored on them."""
+
         from flask import g, session as fs
         tz = request.form.get("timezone", "") or request.form.get("browser_tz", "")
         if tz not in zoneinfo.available_timezones():
@@ -446,13 +410,11 @@ def register(app, connect, apply_settings, audit, allow_nets):
         put(finish_hidden="1")
         return redirect(url_for("home"))
 
-    # ------------------------------------------------------------ per-step save and context
-
     def save(step, f):
         if step == "business":
             if not f.get("business_name", "").strip() or not f.get("photographer_name", "").strip():
                 return "Your business name and your own name, please."
-            tz = f.get("timezone", "") or f.get("browser_tz", "")    # the browser's own zone, sent by the page
+            tz = f.get("timezone", "") or f.get("browser_tz", "")
             if tz not in zoneinfo.available_timezones():
                 return "Pick your time zone."
             lat = lon = ""
@@ -493,7 +455,7 @@ def register(app, connect, apply_settings, audit, allow_nets):
             else:
                 cfg.pop("secondary", None)
             if f.get("one_disk_ok"):
-                cfg["one_disk_ok"] = True                 # remembered: later saves don't ask again
+                cfg["one_disk_ok"] = True
             if backups_share_disk(cfg) and not cfg.get("one_disk_ok"):
                 return ("ONE-DISK: Your backups would be on the same disk as your data. They protect against mistakes, but"
                         " not against that disk failing. Pick a folder on another disk or dataset, add a second copy below"
@@ -545,8 +507,8 @@ def register(app, connect, apply_settings, audit, allow_nets):
             chosen = [k for k in C.PRESETS if f.get("preset_" + k)]
             keep = [t for t in C.TYPES if f.get("keep_" + t["key"])]
             if not chosen and not keep and rules().get("TYPES"):
-                return None                               # types already set (an imported settings file): kept as they are
-            have = {t["key"]: t for t in C.TYPES}       # a type you already have keeps its own label, steps and terms
+                return None
+            have = {t["key"]: t for t in C.TYPES}
             types = [have.get(t["key"], t) for t in C.preset_types(chosen or list(C.BASIC_PRESETS))]
             types = keep + [t for t in types if t["key"] not in {k["key"] for k in keep}]
             save_rules(TYPES=types)
@@ -558,7 +520,7 @@ def register(app, connect, apply_settings, audit, allow_nets):
                     items_ = json.dumps(C.preset_fees(chosen or list(C.BASIC_PRESETS)))
                     now_ = _dt.now().isoformat(timespec="seconds")
                     used = starter[2] and con.execute("SELECT 1 FROM quotes WHERE schedule_id=? LIMIT 1", (starter[2],)).fetchone()
-                    if starter[0] == 1 and not used:   # the placeholder nothing has used yet: replaced, not versioned
+                    if starter[0] == 1 and not used:
                         con.execute("UPDATE fee_schedules SET created=?, items=? WHERE id=?", (now_, items_, starter[2]))
                     else:
                         con.execute("INSERT INTO fee_schedules (created, items, note) VALUES (?,?,?)", (now_, items_, "Starting estimates"))
@@ -583,7 +545,8 @@ def register(app, connect, apply_settings, audit, allow_nets):
                     return "Gallery host: " + msg
                 base = f.get("gallery_base_url", "").strip()
                 if not base.startswith("https://"):
-                    return "The web address galleries are served from should start with https://."
+                    return ("The web address of the gallery folder must start with https://. Clients' browsers open the"
+                            " encrypted photos only over https, so the folder's web server needs a certificate.")
                 cfg["gallery_host"] = gh
                 put(gallery_base_url=base.rstrip("/") + "/")
             else:
@@ -603,7 +566,7 @@ def register(app, connect, apply_settings, audit, allow_nets):
             preset_keys = {t["key"] for pr in C.PRESETS.values() for t in pr["types"]} | {C.PERSONAL_TYPE["key"]}
             have = {t["key"] for t in C.TYPES}
             chosen = [k for k, pr in C.PRESETS.items() if all(t["key"] in have for t in pr["types"])] \
-                if "shoot" in done() else []           # a new install starts with nothing ticked; none ticked = the small set
+                if "shoot" in done() else []
             return dict(get=get, rules=C.current_rules(), types=C.SESSION_TYPES, presets=C.PRESETS, chosen=chosen,
                         custom=[t for t in C.TYPES if t["key"] not in preset_keys])
         if step == "tax":
@@ -612,8 +575,8 @@ def register(app, connect, apply_settings, audit, allow_nets):
         r = dict(C.current_rules())
         base = dict(get=get, rules=r, types=C.SESSION_TYPES, **extra_)
         if step == "business":
-            base.update(zones=timezones(), tz=get("timezone", "") or host_tz(),   # until chosen: the browser's (setup.js),
-                        tz_saved=bool(get("timezone", "")))                       # else the machine's TZ
+            base.update(zones=timezones(), tz=get("timezone", "") or host_tz(),
+                        tz_saved=bool(get("timezone", "")))
         elif step == "storage":
             def is_marked(c):
                 return c.get("type") == "local" and os.path.isfile(os.path.join(c.get("path", ""), B.LocalBackend.MARKER))
@@ -621,10 +584,10 @@ def register(app, connect, apply_settings, audit, allow_nets):
             primary = dict(cfg.get("primary", {}))
             if primary.get("type", "local") == "local" and not is_marked(primary) and (
                     os.path.isdir("/vault") or settings_io._inside_private(primary.get("path", ""))):
-                primary["path"] = suggested_vault()  # the folder the container mounts for backups, else one the
-                                                     # checks accept (never the default inside the program folder)
+                primary["path"] = suggested_vault()
+
             secondary = cfg.get("secondary", {})
-            if request.method == "POST":           # a refused save shows what was typed, not the old settings
+            if request.method == "POST":
                 primary = backend_from_form(request.form, "primary_", primary) or primary
                 secondary = backend_from_form(request.form, "secondary_", secondary) or {}
             base.update(marked={"primary_": is_marked(primary), "secondary_": is_marked(secondary)},
@@ -635,7 +598,7 @@ def register(app, connect, apply_settings, audit, allow_nets):
             base.update(pay_choices=PAYMENT_CHOICES)
         elif step == "galleries":
             gal = dict(cfg.get("gallery_host", {}))
-            if request.method == "POST" and request.form.get("gallery_type"):   # a refused save shows what was typed
+            if request.method == "POST" and request.form.get("gallery_type"):
                 gal = backend_from_form(request.form, "gallery_", gal) or gal
             base.update(gallery=gal, gallery_marked=gal.get("type") == "local" and
                         os.path.isfile(os.path.join(gal.get("path", ""), B.LocalBackend.MARKER)))

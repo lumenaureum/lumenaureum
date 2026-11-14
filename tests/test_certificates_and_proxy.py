@@ -1,4 +1,3 @@
-"""A trusted proxy sending a client address that is not an IP is refused, and the app's own certificate is made once, names its hosts, renews near expiry, and reports a stable fingerprint."""
 import ipaddress
 import os
 import re
@@ -10,8 +9,7 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import fresh_modules  # noqa: E402
-
+from helpers import fresh_modules
 
 def _gate(netsec):
     seen = {}
@@ -23,7 +21,6 @@ def _gate(netsec):
 
     return netsec.ProxyGate(inner), seen
 
-
 def _call(gate, environ):
     status = {}
 
@@ -32,7 +29,6 @@ def _call(gate, environ):
 
     body = b"".join(gate(environ, start_response))
     return status["s"], body
-
 
 @pytest.fixture
 def netsec(tmp_path, monkeypatch):
@@ -46,15 +42,13 @@ def netsec(tmp_path, monkeypatch):
     yield N
     fresh_modules()
 
-
 @pytest.mark.parametrize("fwd", ["not-an-address", "<script>", "1.2.3.4.5"])
 def test_trusted_proxy_with_non_ip_forwarded_for_is_refused(netsec, fwd):
     gate, seen = _gate(netsec)
     status, body = _call(gate, {"REMOTE_ADDR": "10.0.0.5", "HTTP_X_FORWARDED_FOR": fwd})
     assert status.startswith("400")
     assert b"not an IP address" in body
-    assert not seen                                       # the app itself never ran
-
+    assert not seen
 
 def test_trusted_proxy_with_real_address_passes(netsec):
     gate, seen = _gate(netsec)
@@ -65,11 +59,9 @@ def test_trusted_proxy_with_real_address_passes(netsec):
     assert seen["lumen.peer"] == "10.0.0.5"
     assert seen["wsgi.url_scheme"] == "https"
 
-
 def _load(path):
     from cryptography import x509
     return x509.load_pem_x509_certificate(path.read_bytes())
-
 
 def test_certificate_made_once_with_names_and_private_key(netsec, monkeypatch, tmp_path):
     monkeypatch.setenv("CRM_TLS_SAN", "192.168.1.50, nas.local")
@@ -87,9 +79,8 @@ def test_certificate_made_once_with_names_and_private_key(netsec, monkeypatch, t
     assert re.fullmatch(r"([0-9A-F]{2}:){31}[0-9A-F]{2}", fp)
     before = cert.read_bytes()
     assert netsec.ensure_cert() == (cert, key)
-    assert cert.read_bytes() == before                    # kept, so the fingerprint stays the same
+    assert cert.read_bytes() == before
     assert netsec.fingerprint(cert) == fp
-
 
 def _write_cert(netsec, cert, key, days_left):
     from cryptography import x509
@@ -107,7 +98,6 @@ def _write_cert(netsec, cert, key, days_left):
     key.write_bytes(k.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
                                     serialization.NoEncryption()))
 
-
 def test_own_certificate_renews_near_expiry(netsec):
     cert, key = netsec.cert_paths()
     _write_cert(netsec, cert, key, days_left=10)
@@ -117,14 +107,12 @@ def test_own_certificate_renews_near_expiry(netsec):
     assert netsec.fingerprint(cert) != old
     assert not netsec._expiring(cert)
 
-
 def test_own_certificate_not_renewed_far_from_expiry(netsec):
     cert, key = netsec.cert_paths()
     _write_cert(netsec, cert, key, days_left=200)
     old = cert.read_bytes()
     netsec.ensure_cert()
     assert cert.read_bytes() == old
-
 
 def test_unreadable_certificate_counts_as_expiring(netsec, tmp_path):
     bad = tmp_path / "bad.pem"
@@ -133,7 +121,6 @@ def test_unreadable_certificate_counts_as_expiring(netsec, tmp_path):
     assert netsec._expiring(tmp_path / "missing.pem")
     assert netsec.fingerprint(bad) == ""
     assert netsec.fingerprint(tmp_path / "missing.pem") == ""
-
 
 def test_supplied_certificate_is_never_replaced(netsec, monkeypatch, tmp_path):
     cert, key = tmp_path / "mine" / "cert.pem", tmp_path / "mine" / "key.pem"
@@ -145,14 +132,13 @@ def test_supplied_certificate_is_never_replaced(netsec, monkeypatch, tmp_path):
     assert cert.read_bytes() == before
     assert not (tmp_path / "data" / "tls").exists()
 
-
 def test_new_address_in_tls_san_makes_a_new_certificate(netsec, monkeypatch):
-    """CRM_TLS_SAN changed after the first start (a new address): the next start makes a certificate that names it."""
+
     monkeypatch.setenv("CRM_TLS_SAN", "192.168.1.40")
     cert, _ = netsec.ensure_cert()
     first = cert.read_bytes()
     netsec.ensure_cert()
-    assert cert.read_bytes() == first                      # same names: kept
+    assert cert.read_bytes() == first
     monkeypatch.setenv("CRM_TLS_SAN", "192.168.1.40,10.0.0.40")
     netsec.ensure_cert()
     assert cert.read_bytes() != first and netsec._covers(cert, ["10.0.0.40", "192.168.1.40"])

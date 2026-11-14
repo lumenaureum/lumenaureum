@@ -18,7 +18,7 @@
     <tr><td>Gallery host</td><td>{{ gallery }}</td></tr>
     <tr><td>Sealed sessions</td><td>{{ n_keys }}</td></tr>
     <tr><td>Daily backup at</td><td><form method="post" action="{{ url_for('vault_schedule') }}" class="row" style="gap:8px">
-      <input type="time" name="backup_time" value="{{ btime }}" style="width:auto" data-autosubmit>{% if blast %}<span class="mute" style="font-size:12px">last ran {{ nice(blast[:10]) }}, {{ ampm(blast[11:16]) }}</span>{% endif %}</form></td></tr>
+      <input type="time" name="backup_time" value="{{ btime }}" aria-label="Daily backup at" style="width:auto" data-autosubmit>{% if blast %}<span class="mute" style="font-size:12px">last ran {{ nice(blast[:10]) }}, {{ clock(blast[11:16]) }}</span>{% endif %}</form></td></tr>
     <tr><td>Last database backup</td><td>{{ nice(last_db[:10]) if last_db else '-' }}</td></tr>
     {% for o in objs %}<tr><td class="mute">{{ o.kind }} on {{ o.backend }}</td><td>{{ o.n }} objects, {{ '%.1f'|format(o.b / 1048576) }} MB</td></tr>{% endfor %}
   </tbody></table>
@@ -31,7 +31,8 @@
 </div>
 {% if backups %}<h2 style="margin-top:20px">Backups</h2>
 <table class="data" style="max-width:760px"><thead><tr><th>When</th><th>Size</th><th>Where</th></tr></thead><tbody>
-  {% for b in backups %}<tr><td>{{ nice(b.created[:10]) }} {{ ampm(b.created[11:16]) }}</td><td>{{ '%.1f'|format(b.size / 1048576) }} MB</td>
+  {% for b in backups %}<tr><td>{{ nice(b.created[:10]) }} {{ clock(b.created[11:16]) }}</td><td>{{ '%.1f'|format(b.size / 1048576) }} MB</td>
     <td>{{ primary }}{% if b.second %}; also {{ offsite }}{% endif %}</td></tr>{% endfor %}
 </tbody></table>{% endif %}
 {% endblock %}
+

@@ -61,6 +61,9 @@ It has not had an independent security audit.
 Lumen Aureum runs in a container on an always-on machine: a NAS or home server with Docker, or a Linux desktop. It needs a
 64-bit Intel or AMD processor and about 1 GB of memory. See [docs/where-it-runs.md](docs/where-it-runs.md).
 
+Coming soon: a TrueNAS app you install from the TrueNAS app catalog, and support for 64-bit ARM machines such as
+the Raspberry Pi 4 and 5.
+
 ```
 mkdir lumen && cd lumen
 curl -O https://raw.githubusercontent.com/lumenaureum/lumenaureum/main/compose.yaml
@@ -96,4 +99,5 @@ Ask questions and share ideas in [Discussions](https://github.com/lumenaureum/lu
 contact@lumenaureum.org, not in public.
 
 ## Contributing
-Issues and ideas are welcome. Code contributions are not accepted.
+Issues and ideas are welcome. Code contributions are not accepted. This repository gets one commit per release; the changes in each
+release are listed in [CHANGELOG.md](CHANGELOG.md).

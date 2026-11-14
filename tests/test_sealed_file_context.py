@@ -1,4 +1,3 @@
-"""An encrypted file opens only for the record it was written for: a face photo copied to another household is refused."""
 import io
 import os
 import sys
@@ -8,10 +7,9 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import fresh_modules, signed_in_client  # noqa: E402
+from helpers import fresh_modules, signed_in_client
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
-
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):
@@ -26,14 +24,12 @@ def env(tmp_path, monkeypatch):
     con.commit(); con.close()
     return A, c
 
-
 def upload_face(c, hid):
     from PIL import Image
     b = io.BytesIO()
     Image.new("RGB", (400, 400), "red").save(b, "JPEG")
     c.post(f"/client/{hid}/face", data={"photo": (io.BytesIO(b.getvalue()), "f.jpg")}, environ_base=E,
            content_type="multipart/form-data")
-
 
 def test_a_face_photo_copied_to_another_household_is_refused(env):
     A, c = env
@@ -43,8 +39,7 @@ def test_a_face_photo_copied_to_another_household_is_refused(env):
     (A.FACES / "2.jpg").write_bytes((A.FACES / "1.jpg").read_bytes())
     r = c.get("/face/2", environ_base=E)
     assert r.status_code == 404 and b"\xff\xd8" not in r.data[:2]
-    assert c.get("/face/1", environ_base=E).status_code == 200           # the original still opens
-
+    assert c.get("/face/1", environ_base=E).status_code == 200
 
 def test_a_sealed_blob_opens_only_under_its_own_context(env):
     A, _ = env

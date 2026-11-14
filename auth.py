@@ -1,14 +1,3 @@
-"""Owner sign-in with two-factor (TOTP), recovery codes, and the unlock of the encrypted data.
-
-Signing in IS unlocking: the password unwraps the data key from the keyring (datakey.py); there is no separate password
-hash. After a restart the app is locked until the owner signs in. A key unwrapped by the password waits in memory for
-the second factor (at most five minutes) and is dropped unless two-factor passes. Recovery codes stand in for the
-second factor only; they never open the data. A forgotten password is what the master key (on paper) is for.
-
-The first person to finish /setup/owner owns the install: account, two-factor and the master key in one sitting, so the
-paper key can recover everything from the first minute. Every page except sign-in, setup, static files and /healthz
-needs a signed-in owner. Sessions are signed with a key that changes on every restart, and tied to the process, so a
-restart always means signing in again."""
 import base64
 import hashlib
 import hmac
@@ -34,16 +23,12 @@ MAX_FAILS, LOCK_MIN = 5, 15
 IP_FAILS_PER_HOUR = 20
 OPEN = {"static", "about", "login", "login_2fa", "setup_owner", "setup_owner_verify", "setup_owner_key", "unlock_master", "healthz"}
 MIN_PASSWORD = 12
-SESSIONS = {}              # live sign-ins: session id -> user id (memory: a restart signs everyone out)
-SETUP = {}                 # owner setup in progress: token -> state (server side; the browser holds only the token)
+SESSIONS = {}
+SETUP = {}
 SETUP_TTL = 1800
-
-
-# ---------------------------------------------------------------- TOTP (RFC 6238 / 4226)
 
 def new_totp_secret():
     return base64.b32encode(secrets.token_bytes(20)).decode().rstrip("=")
-
 
 def totp(secret, at=None, step=30, digits=6):
     key = base64.b32decode(secret + "=" * (-len(secret) % 8), casefold=True)
@@ -53,10 +38,8 @@ def totp(secret, at=None, step=30, digits=6):
     code = (struct.unpack(">I", mac[off:off + 4])[0] & 0x7FFFFFFF) % 10 ** digits
     return str(code).zfill(digits)
 
-
 def totp_ok(secret, code, at=None, window=1, after=None):
-    """The time step the code belongs to (truthy) if it is valid, else None. `after`: refuse steps <= this one, so a
-    code that was already used, or an older one, is never accepted again (RFC 6238 section 5.2)."""
+
     code = "".join(ch for ch in (code or "") if ch.isdigit())
     if len(code) != 6:
         return None
@@ -67,30 +50,23 @@ def totp_ok(secret, code, at=None, window=1, after=None):
             return step
     return None
 
-
 def otpauth_uri(secret, email):
     from urllib.parse import quote
     return f"otpauth://totp/{quote('Lumen Aureum:' + email)}?secret={secret}&issuer=Lumen%20Aureum"
 
-
 def new_recovery_codes(n=10):
     codes = ["-".join(secrets.token_hex(2) for _ in range(3)) for _ in range(n)]
     return codes, [generate_password_hash(c) for c in codes]
-
 
 def start_session(uid):
     sid = secrets.token_urlsafe(24)
     SESSIONS[sid] = uid
     return sid
 
-
 def end_sessions(uid, keep=None):
-    """Sign a user out everywhere (except the session `keep`)."""
+
     for sid in [s_ for s_, u in SESSIONS.items() if u == uid and s_ != keep]:
         SESSIONS.pop(sid, None)
-
-
-
 
 def init_schema(connect):
     con = connect()
@@ -102,21 +78,14 @@ def init_schema(connect):
     finally:
         con.close()
 
-
-# ---------------------------------------------------------------- throttling (memory: the database may be locked)
-
 class Throttle:
-    """Failed attempts are counted PER SOURCE ADDRESS: five within 15 minutes lock that address out for 15 minutes,
-    and no address gets more than 20 an hour. Nobody else, the owner included, is affected, so a device on the network
-    cannot lock the owner out. Failures are remembered (in memory: the database may be locked) and reported to the
-    owner after the next successful sign-in."""
 
     def __init__(self):
-        self.ip = defaultdict(deque)        # address -> failure times (last hour)
-        self.until = {}                     # address -> locked until
-        self.log = deque(maxlen=500)        # (time, address, what) since the last report
+        self.ip = defaultdict(deque)
+        self.until = {}
+        self.log = deque(maxlen=500)
 
-    MAX_TRACKED = 10000                     # addresses remembered at most (oldest dropped first)
+    MAX_TRACKED = 10000
 
     def _trim(self, ip):
         q = self.ip.get(ip)
@@ -158,17 +127,13 @@ class Throttle:
         self.log.clear()
         return items
 
-
-SCRYPT_SLOTS = __import__("threading").BoundedSemaphore(2)   # at most two ~1 s password checks at once
-
+SCRYPT_SLOTS = __import__("threading").BoundedSemaphore(2)
 
 class Busy(Exception):
     pass
 
-
 def unwrap_password_limited(pw):
-    """At most two password checks at once; a third is refused at once (Busy) instead of waiting, so a burst of wrong
-    passwords can't tie up every request thread and lock the owner out."""
+
     if not SCRYPT_SLOTS.acquire(blocking=False):
         raise Busy()
     try:
@@ -176,11 +141,10 @@ def unwrap_password_limited(pw):
     finally:
         SCRYPT_SLOTS.release()
 
-
 def register(app, connect, allowed, audit, on_unlock):
-    app.secret_key = secrets.token_hex(32)          # per process: a restart signs everyone out (and locks the data)
+    app.secret_key = secrets.token_hex(32)
     app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
-                      SESSION_COOKIE_SECURE=True,             # the app is only ever reached over HTTPS
+                      SESSION_COOKIE_SECURE=True,
                       PERMANENT_SESSION_LIFETIME=timedelta(days=30))
     th = Throttle()
     app.config["auth_throttle"] = th
@@ -208,7 +172,7 @@ def register(app, connect, allowed, audit, on_unlock):
         return redirect(nxt or url_for("home"))
 
     def gate():
-        """Runs before everything else: transport, host name, network allow-list, then setup, the lock, sign-in."""
+
         ep = request.endpoint or ""
         if not netsec.host_ok(request.host):
             return "Unknown host name. Add it to CRM_HOSTNAMES if this is how you reach Lumen Aureum.\n", 400
@@ -224,19 +188,19 @@ def register(app, connect, allowed, audit, on_unlock):
             return None
         if not has_owner():
             return redirect(url_for("setup_owner"))
-        nxt = request.path if request.method == "GET" else None   # no query: search terms stay out of the cookie
+        nxt = request.path if request.method == "GET" else None
         if not datakey.is_unlocked():
-            session.pop("uid", None)                  # keeps a sign-in that is waiting for its code
+            session.pop("uid", None)
             return redirect(url_for("login", next=nxt))
         uid = session.get("uid")
         if uid and SESSIONS.get(session.get("sid")) != uid:
-            session.clear()                           # signed out, signed out elsewhere, or from before a restart
+            session.clear()
             uid = None
         if uid:
             con = connect()
             try:
                 if not con.execute("SELECT 1 FROM users WHERE id=?", (uid,)).fetchone():
-                    session.clear()                   # a session for an account that no longer exists
+                    session.clear()
                     uid = None
             finally:
                 con.close()
@@ -250,8 +214,6 @@ def register(app, connect, allowed, audit, on_unlock):
     def healthz():
         return {"ok": True, "locked": not datakey.is_unlocked()}
 
-    # ------------------------------------------------------------ setup: the owner account (step 1)
-
     def setup_state():
         st = SETUP.get(session.get("setup_tok", ""))
         if st and time.time() - st["at"] > SETUP_TTL:
@@ -262,7 +224,7 @@ def register(app, connect, allowed, audit, on_unlock):
     @app.route("/setup/owner", methods=["GET", "POST"], endpoint="setup_owner")
     def setup_owner():
         if has_owner():
-            abort(404)                                   # claimed: the setup page no longer exists
+            abort(404)
         err = None
         if request.method == "POST":
             f = request.form
@@ -278,7 +240,7 @@ def register(app, connect, allowed, audit, on_unlock):
             elif len(pw) < MIN_PASSWORD or pw != f.get("password2", ""):
                 err = "password"
             else:
-                # the data key is made now and wrapped to the password at once; the password itself is not kept
+
                 key = secrets.token_bytes(32)
                 tok = secrets.token_urlsafe(16)
                 for t in [t for t, v in SETUP.items() if time.time() - v["at"] > SETUP_TTL]:
@@ -312,9 +274,9 @@ def register(app, connect, allowed, audit, on_unlock):
 
     @app.route("/setup/owner/key", methods=["GET", "POST"], endpoint="setup_owner_key")
     def setup_owner_key():
-        """The master key, in the same sitting as the account: shown once, confirmed by its last six characters."""
+
         if has_owner():
-            if session.get("uid"):                       # a reload or Back after the recovery codes: say what happened
+            if session.get("uid"):
                 session["notice"] = ("Setup is finished. The recovery codes were shown once; if you didn't keep them, "
                                      "make new ones under Security.")
                 return redirect(url_for("security"))
@@ -333,7 +295,7 @@ def register(app, connect, allowed, audit, on_unlock):
             try:
                 datakey.create_from(st["key"], st["pw_wrap"], st["master_pub"])
             except FileExistsError:
-                abort(404)                               # someone else finished first
+                abort(404)
             datakey.set_unlocked(st["key"])
             on_unlock()
             codes, hashes = new_recovery_codes()
@@ -347,15 +309,12 @@ def register(app, connect, allowed, audit, on_unlock):
             finally:
                 con.close()
             SETUP.pop(session.get("setup_tok", ""), None)
-            netsec.forget_claim_code()                   # the setup code and its file are gone for good
+            netsec.forget_claim_code()
             sign_in(uid, remember=True)
             audit("Created the owner account and the master key")
             return _no_store(app, render_template("auth_recovery.html", codes=codes))
-        # shown for as long as this setup sitting lasts (memory only, tied to this browser's setup token), so a
-        # typo or a reload never strands the owner; gone once confirmed
-        return _no_store(app, render_template("auth_setup_key.html", secret=st.get("secret"), err=False))
 
-    # ------------------------------------------------------------ sign in = unlock
+        return _no_store(app, render_template("auth_setup_key.html", secret=st.get("secret"), err=False))
 
     @app.route("/login", methods=["GET", "POST"], endpoint="login")
     def login():
@@ -373,12 +332,12 @@ def register(app, connect, allowed, audit, on_unlock):
                 try:
                     key = unwrap_password_limited(pw)
                 except Busy:
-                    th.fail(ip, "password")             # counted, so a burst still slows its sender down
+                    th.fail(ip, "password")
                     key, err = None, "busy"
                 except ValueError:
                     key, err = None, "tamper"
                 if key and not _owner_email_ok(key, email):
-                    key = None                              # right password, wrong email: the same answer as a wrong password
+                    key = None
                 if key:
                     return _to_2fa(datakey.hold_pending(key, dict(email=email)))
                 if not err:
@@ -394,7 +353,7 @@ def register(app, connect, allowed, audit, on_unlock):
                 return con.execute("SELECT 1 FROM users WHERE email=?", (email,)).fetchone() is not None
             finally:
                 con.close()
-        except Exception:  # noqa: BLE001 - no users table yet: let two-factor decide, as before
+        except Exception:
             return True
 
     def _to_2fa(tok):
@@ -406,7 +365,7 @@ def register(app, connect, allowed, audit, on_unlock):
         return redirect(url_for("login_2fa"))
 
     def _check_code(u, code, set_recovery, last=None, set_last=None):
-        """TOTP (each code once), or a recovery code (used once). u = (id, totp_secret, recovery-json)."""
+
         step = totp_ok(u[1], code, after=last)
         if step:
             if set_last:
@@ -467,18 +426,16 @@ def register(app, connect, allowed, audit, on_unlock):
     @app.post("/logout", endpoint="logout")
     def logout():
         datakey.drop_pending(session.get("pending_tok"))
-        SESSIONS.pop(session.get("sid"), None)        # the cookie stops working everywhere, not only here
+        SESSIONS.pop(session.get("sid"), None)
         session.clear()
         return redirect(url_for("login"))
-
-    # ------------------------------------------------------------ forgotten password: the master key
 
     @app.route("/unlock/master", methods=["GET", "POST"], endpoint="unlock_master")
     def unlock_master():
         if not datakey.exists():
             return redirect(url_for("login"))
         err = None
-        netsec.recovery_code()                           # written to the data folder; also needed below
+        netsec.recovery_code()
         if request.method == "POST":
             f = request.form
             pw = f.get("password", "")
@@ -496,10 +453,10 @@ def register(app, connect, allowed, audit, on_unlock):
                     th.fail(request.remote_addr, "master key")
                     err, key = str(e), None
                 if key:
-                    netsec.forget_recovery_code()           # one use
+                    netsec.forget_recovery_code()
                     datakey.rewrap_password(pw, key)
                     for u_ in list(set(SESSIONS.values())):
-                        end_sessions(u_)                 # a lost-password recovery signs out every device
+                        end_sessions(u_)
                     if not datakey.is_unlocked():
                         datakey.set_unlocked(key)
                         on_unlock()
@@ -513,8 +470,6 @@ def register(app, connect, allowed, audit, on_unlock):
                     return r
         return _no_store(app, render_template("auth_master_unlock.html", err=err, min_pw=MIN_PASSWORD))
 
-    # ------------------------------------------------------------ security: password, recovery codes, unattended unlock
-
     @app.route("/security", methods=["GET", "POST"], endpoint="security")
     def security():
         msg = err = None
@@ -525,7 +480,7 @@ def register(app, connect, allowed, audit, on_unlock):
             act = f.get("act")
             busy = False
             ip_ = request.remote_addr or ""
-            if th.ip_blocked(ip_):                   # the same limits as sign-in: guesses here count too
+            if th.ip_blocked(ip_):
                 ok, blocked_ = False, True
             else:
                 blocked_ = False
@@ -589,18 +544,16 @@ def _no_store(app, html):
     r.headers["Referrer-Policy"] = "same-origin"
     return r
 
-
 def _safe_next(n):
-    """Only local paths, never another site."""
+
     from urllib.parse import urlsplit
     if not n or not n.startswith("/") or any(ord(c) < 33 or c == "\\" for c in n[:3]) or n.startswith("//"):
         return None
     if any(ord(c) < 32 or ord(c) == 127 for c in n) or "\\" in n:
-        return None                          # control characters (a TAB) are dropped by browsers: "/\t/evil" = "//evil"
+        return None
     u = urlsplit(n)
     return n if not u.scheme and not u.netloc else None
 
-
 def _qr(data):
     import segno
-    return segno.make(data, error="m").svg_inline(scale=5, border=2, dark="#000", light="#fff", omitsize=True)   # viewBox: scales to its box
+    return segno.make(data, error="m").svg_inline(scale=5, border=2, dark="#000", light="#fff", omitsize=True)

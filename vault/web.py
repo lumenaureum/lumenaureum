@@ -1,5 +1,3 @@
-"""The Vault in the CRM: storage config, the master-key ceremony, and the hooks the rest of the app calls.
-The master SECRET is only ever in memory for the few minutes of the ceremony, then dropped; it is never written."""
 import json
 import os
 import secrets
@@ -12,14 +10,12 @@ from . import backends as B, keys as K, seal as S
 
 CFG_PATH = Path(os.environ.get("CRM_STORAGE_CFG", Path(__file__).resolve().parent.parent / "data" / "storage.json"))
 DEFAULT_CFG = {"primary": {"type": "local", "path": str(Path(os.environ.get("CRM_DB", Path(__file__).resolve().parent.parent / "data" / "crm.db")).parent / "vault")}}
-PATHS = {}            # db and faces paths, set by the app at start (Back up now uses them)
-PENDING = {}          # ceremony token -> {secret, pub, at}; memory only, 10 minutes
+PATHS = {}
+PENDING = {}
 TTL = 600
 
-
 def config():
-    """Storage settings. The file is encrypted under the data key (it holds SFTP/S3 credentials), so it can only be
-    read while unlocked; a plaintext file from before encryption at rest is still read, and encrypted at unlock."""
+
     import datakey
     try:
         raw = CFG_PATH.read_bytes()
@@ -32,16 +28,13 @@ def config():
     except ValueError:
         return dict(DEFAULT_CFG)
 
-
 def write_config(cfg):
     import datakey
     datakey.write_sealed(CFG_PATH, json.dumps(cfg, indent=2).encode(), "storage", label="storage")
 
-
 def store_backends():
-    """The primary store. A second location is NOT written live: vault/sync.py copies to it once a day."""
-    return [B.from_config(config()["primary"])]
 
+    return [B.from_config(config()["primary"])]
 
 def describe(cfg):
     if not cfg:
@@ -50,11 +43,9 @@ def describe(cfg):
     return {"local": f"folder {cfg.get('path')}", "sftp": f"SFTP {cfg.get('user')}@{cfg.get('host')}:{cfg.get('root')}",
             "s3": f"S3 bucket {cfg.get('bucket')}{' at ' + cfg['endpoint'] if cfg.get('endpoint') else ''}"}.get(t, t)
 
-
 def _setting(con, key, default=""):
     r = con.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
     return r[0] if r and r[0] else default
-
 
 def _record_run(connect, now):
     con = connect()
@@ -65,9 +56,8 @@ def _record_run(connect, now):
     finally:
         con.close()
 
-
 def run_if_due(connect, db_path, faces_dir, now=None):
-    """One check of the daily schedule. Returns True when it ran a backup."""
+
     from datetime import datetime
     from . import backup as BK
     con = connect()
@@ -84,10 +74,8 @@ def run_if_due(connect, db_path, faces_dir, now=None):
     _record_run(connect, now)
     return True
 
-
 def start_scheduler(app, connect, db_path, faces_dir):
-    """The daily backup runs INSIDE the app at the time the user picks (Settings > Vault), so a packaged install needs
-    no system scheduler. Once per day, after the chosen time; a missed run (machine off) happens at the next check."""
+
     import threading
     from datetime import datetime
     from . import backup as BK
@@ -103,9 +91,8 @@ def start_scheduler(app, connect, db_path, faces_dir):
             time.sleep(60)
     threading.Thread(target=loop, name="vault-backup", daemon=True).start()
 
-
 def backups(connect, limit=30):
-    """The newest database backups: name, when, size, and where a copy is."""
+
     con = connect()
     try:
         rows = con.execute("""SELECT name, MIN(created) created, MAX(size) size, GROUP_CONCAT(DISTINCT backend) at
@@ -117,10 +104,8 @@ def backups(connect, limit=30):
         con.close()
     return [dict(name=r[0], created=r[1], size=r[2] or 0, at=r[3] or "", second=r[0] in second) for r in rows]
 
-
 def check_backup(connect, master_secret):
-    """Open the newest database backup with the master key, in a scratch folder, and check it reads back: the seal,
-    the keyring, the database's integrity. Nothing is restored. Returns [(where, ok, words)] for each location."""
+
     import shutil
     import tempfile
     from . import backup as BK, sync as SY
@@ -151,7 +136,7 @@ def check_backup(connect, master_secret):
             finally:
                 con.close()
             out.append((where, True, f"Opened the backup from {found[0]['created'][:16].replace('T', ' ')}: {n} clients, intact."))
-        except Exception as e:  # noqa: BLE001 - shown to the owner
+        except Exception as e:
             from . import seal as S_
             words = (str(e)[:1].upper() + str(e)[1:] + "." if isinstance(e, S_.Mismatch) else
                      "That isn't the master key for this install." if isinstance(e, ValueError) or "decrypt" in str(e).lower()
@@ -160,7 +145,6 @@ def check_backup(connect, master_secret):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
     return out
-
 
 def register(app, connect, audit):
     @app.get("/vault", endpoint="vault_view")
@@ -204,10 +188,10 @@ def register(app, connect, audit):
             abort(503)
         import jobs
 
-        def work(job):                                   # a background job: nothing else waits on it
+        def work(job):
             try:
                 BK.sealed_backup(str(PATHS["db"]), str(PATHS["faces"]) if PATHS["faces"].exists() else None, kind="manual")
-            except Exception as e:  # noqa: BLE001 - shown to the owner
+            except Exception as e:
                 raise RuntimeError(f"Backup failed: {type(e).__name__}. Check the backup location.") from e
             _record_run(connect, datetime.now())
             audit("Backed up now")
@@ -217,7 +201,7 @@ def register(app, connect, audit):
 
     @app.post("/vault/check", endpoint="vault_check")
     def vault_check():
-        """Restore check: the owner pastes the master key; it is used in memory for this request only."""
+
         from flask import session as _s
         secret = (request.form.get("secret") or "").strip()
         if not secret.startswith("AGE-SECRET-KEY-1") or len(secret) > 200:
@@ -245,11 +229,11 @@ def register(app, connect, audit):
         con = connect()
         try:
             if K.master_pub(con):
-                abort(409)       # one master key per installation; replacing it is a deliberate, separate act
+                abort(409)
         finally:
             con.close()
         now = time.time()
-        PENDING.clear()          # one ceremony at a time; abandoned ones leave nothing behind
+        PENDING.clear()
         secret, pub = K.generate_master()
         tok = secrets.token_urlsafe(16)
         PENDING[tok] = dict(secret=secret, pub=pub, at=now)
@@ -261,16 +245,14 @@ def register(app, connect, audit):
         if not p or time.time() - p["at"] > TTL:
             PENDING.pop(tok, None)
             return redirect(url_for("vault_view"))
-        # the secret is shown on the FIRST view only, then dropped from memory; a reload or a second visitor gets the
-        # confirm form without the key (only its last 6 characters are kept, for the check)
+
         secret = p.pop("secret", None)
         if secret:
             p["tail"] = secret[-6:].upper()
         r = app.make_response(render_template("vault_ceremony.html", secret=secret, pub=p["pub"], tok=tok,
                                               err=request.args.get("err")))
         r.headers["Cache-Control"] = "no-store"
-        # same-origin, NOT no-referrer: with no-referrer the browser posts the confirm form with "Origin: null", which
-        # the CSRF guard rightly refuses. same-origin still leaks nothing off-site.
+
         r.headers["Referrer-Policy"] = "same-origin"
         return r
 
@@ -288,6 +270,6 @@ def register(app, connect, audit):
             K.set_master_pub(con, p["pub"])
         finally:
             con.close()
-        PENDING.pop(tok, None)         # the secret leaves memory here
+        PENDING.pop(tok, None)
         audit("Created the vault master key (public half stored; private half kept by the owner)")
         return redirect(url_for("vault_view"))

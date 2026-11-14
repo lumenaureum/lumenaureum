@@ -1,2 +1,1 @@
-# optional: SFTP storage / gallery hosting
 paramiko>=3.5         # LGPL-2.1 (AGPL-compatible); pulls bcrypt, PyNaCl (Apache-2.0)

@@ -1,10 +1,8 @@
-# Lumen Aureum - core runtime. Every license is permissive and AGPL-compatible.
 flask>=3.1            # BSD-3 (pulls Werkzeug, Jinja2, MarkupSafe, itsdangerous, click, blinker: BSD/MIT)
 cryptography>=44      # Apache-2.0 OR BSD-3   gallery encryption (AES-GCM, matches the browser's WebCrypto)
 pyrage>=1.2           # MIT                    vault encryption (age format)
 pillow>=11            # MIT-CMU                image resizing, metadata stripping, face photos
 weasyprint>=65        # BSD-3                  every PDF (needs the Pango system library; no browser)
 segno>=1.6            # BSD-3                  QR code on the delivery letter
-# The database is SQLCipher (every page encrypted).
 sqlcipher3-binary>=0.6   # MIT; bundles SQLCipher (BSD-3) and OpenSSL libcrypto (Apache-2.0). x86-64 only, like the app
 gunicorn>=23           # MIT                     the web server: HTTPS, one process, threads

@@ -1,12 +1,3 @@
-"""Storage backends. One small contract, identical for every backend:
-
-    put_stream(name, reader) -> (size, sha256)   write the stream under `name`; nothing is visible until complete
-    get_stream(name, writer)                       copy the object into a writable file object
-    stat(name) -> size or None                     None when absent
-    list(prefix="") -> [names]
-    delete(name)                                   absent afterwards (verified by stat)
-
-Names are opaque (random hex + ".age"); backends never see keys or plaintext."""
 import hashlib
 import base64
 import os
@@ -16,9 +7,8 @@ import shutil
 
 CHUNK = 1024 * 1024
 
-
 class _Hashing:
-    """Wraps a reader so size and sha256 are computed as the bytes flow past."""
+
     def __init__(self, reader):
         self.r, self.h, self.n = reader, hashlib.sha256(), 0
 
@@ -27,22 +17,18 @@ class _Hashing:
         self.h.update(b); self.n += len(b)
         return b
 
-
 def _check(name):
     if not name or name.startswith("/") or ".." in name.split("/") or "\\" in name:
         raise ValueError(f"bad object name: {name!r}")
     return name
 
-
 def contained(root, path):
-    """path, once every symlink in it is followed, must stay inside root: a link planted in a folder another user can
-    write (a gallery folder a web server shares) never sends a write, read, chmod or delete elsewhere. Returns path."""
+
     base = os.path.realpath(root)
     real = os.path.realpath(path)
     if real != base and not real.startswith(base.rstrip(os.sep) + os.sep):
         raise ValueError(f"path leaves its root: {path!r}")
     return path
-
 
 class Backend:
     kind = "base"
@@ -54,26 +40,23 @@ class Backend:
     def delete(self, name): raise NotImplementedError
 
     def remove_dir(self, prefix):
-        """Drop an emptied folder where the backend has folders (no-op for object stores)."""
+        pass
 
     def delete_verified(self, name):
         self.delete(name)
         if self.stat(name) is not None:
             raise IOError(f"{self.kind}: {name} still present after delete")
 
-
 class LocalBackend(Backend):
-    """Any mounted path, including the NAS share. Writes to a hidden temp file, then renames into place."""
+
     kind = "local"
 
     MARKER = ".vault-root"
 
     def __init__(self, root, read_only=False, public=False):
-        """The root must already exist and carry the marker file: an unmounted NAS path (an empty folder on the VM's own
-        disk) must never quietly receive archives that plaintext is then deleted on the strength of. A read-only root
-        (restoring from a copied vault folder) needs no marker: nothing is ever written to it."""
+
         self.root = os.path.abspath(root)
-        self.public = public          # a folder a web server serves: its files must be readable by that server's user
+        self.public = public
         if read_only:
             if not os.path.isdir(self.root):
                 raise IOError(f"{self.root} is not a folder")
@@ -93,7 +76,7 @@ class LocalBackend(Backend):
     def put_stream(self, name, reader, content_type=None):
         dst = self._p(name)
         os.makedirs(os.path.dirname(dst), exist_ok=True)
-        contained(self.root, dst)                 # again once the folders exist (one may have appeared as a link)
+        contained(self.root, dst)
         tmp = os.path.join(os.path.dirname(dst), f".{secrets.token_hex(6)}.part")
         hr = _Hashing(reader)
         try:
@@ -104,13 +87,13 @@ class LocalBackend(Backend):
                         break
                     f.write(b)
                 f.flush(); os.fsync(f.fileno())
-            if self.public:                       # gallery files are encrypted: a web server sharing the group may read and write
+            if self.public:
                 os.chmod(tmp, 0o664)
                 d_ = os.path.dirname(dst)
-                while d_.startswith(self.root) and d_ != self.root:   # never the host's own root folder
+                while d_.startswith(self.root) and d_ != self.root:
                     try:
-                        os.chmod(d_, 0o775)   # group-writable: a web server in the group records visits and picks
-                    except OSError:               # a folder the app doesn't own: leave it as its owner set it
+                        os.chmod(d_, 0o775)
+                    except OSError:
                         pass
                     d_ = os.path.dirname(d_)
             os.replace(tmp, dst)
@@ -152,15 +135,14 @@ class LocalBackend(Backend):
         except OSError:
             pass
 
-
 class SFTPBackend(Backend):
-    """Any SFTP host. Key auth only, host key pinned from known_hosts (an unknown or changed host key is refused)."""
+
     kind = "sftp"
 
     def __init__(self, host, user, key_file, root, port=22, known_hosts="~/.ssh/known_hosts", private_key=None, host_key=None):
         self.host, self.user, self.key_file, self.root, self.port = host, user, os.path.expanduser(key_file or ""), root.rstrip("/"), port
         self.known_hosts = os.path.expanduser(known_hosts)
-        self.private_key, self.host_key = private_key, host_key     # the app's own key; the server key pinned at first use
+        self.private_key, self.host_key = private_key, host_key
 
     def _open(self):
         try:
@@ -168,7 +150,7 @@ class SFTPBackend(Backend):
         except ImportError:
             raise ImportError("SFTP storage needs paramiko: pip install -r requirements-sftp.txt") from None
         cli = paramiko.SSHClient()
-        if self.host_key:                       # pinned when the owner trusted it: only that key is accepted
+        if self.host_key:
             kt, b64 = self.host_key.split()[:2]
             cli.get_host_keys().add(self.host if int(self.port) == 22 else f"[{self.host}]:{self.port}", kt,
                                     paramiko.PKey.from_type_string(kt, base64.b64decode(b64)))
@@ -241,7 +223,7 @@ class SFTPBackend(Backend):
         except IOError as e:
             if getattr(e, "errno", None) == 2:
                 return None
-            raise            # permission or connection trouble is not "absent"
+            raise
         finally:
             sf.close(); cli.close()
 
@@ -290,16 +272,14 @@ class SFTPBackend(Backend):
         finally:
             sf.close(); cli.close()
 
-
 class S3Backend(Backend):
-    """Any S3-compatible store (AWS, Cloudflare R2, Backblaze B2, Wasabi, MinIO). Use a key scoped to this one
-    bucket, and turn bucket versioning OFF (old versions would outlive deletes; crypto-shred still covers them)."""
+
     kind = "s3"
 
     def __init__(self, bucket, access_key, secret_key, endpoint=None, region=None, prefix=""):
         import re as _re
         if endpoint and not (endpoint.startswith("https://") or _re.match(r"http://(127\.0\.0\.1|localhost)(:\d+)?(/|$)", endpoint)):
-            raise ValueError("The S3 endpoint must start with https://")      # credentials and files never cross in the clear
+            raise ValueError("The S3 endpoint must start with https://")
         try:
             import boto3
         except ImportError:
@@ -315,7 +295,7 @@ class S3Backend(Backend):
     def put_stream(self, name, reader, content_type=None):
         hr = _Hashing(reader)
         extra = {"ContentType": content_type} if content_type else None
-        self.s3.upload_fileobj(hr, self.bucket, self._k(name), ExtraArgs=extra)   # visible only once complete
+        self.s3.upload_fileobj(hr, self.bucket, self._k(name), ExtraArgs=extra)
         return hr.n, hr.h.hexdigest()
 
     def get_stream(self, name, writer):
@@ -328,7 +308,7 @@ class S3Backend(Backend):
         except ClientError as e:
             if str(e.response.get("Error", {}).get("Code")) in ("404", "NoSuchKey", "NotFound"):
                 return None
-            raise            # 403 and friends are not "absent"
+            raise
 
     def list(self, prefix=""):
         out, pre = [], self._k(prefix) if prefix else (self.prefix + "/" if self.prefix else "")
@@ -341,31 +321,26 @@ class S3Backend(Backend):
     def delete(self, name):
         self.s3.delete_object(Bucket=self.bucket, Key=self._k(name))
 
-
-# ---------------------------------------------------------------- SSH keys made and pinned by the app
 def new_ssh_key():
-    """A fresh Ed25519 key pair: (private key in OpenSSH form, public line to paste into authorized_keys)."""
+
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric import ed25519
     k = ed25519.Ed25519PrivateKey.generate()
     priv = k.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.OpenSSH, serialization.NoEncryption()).decode()
     return priv, public_line(priv)
 
-
 def public_line(private_text):
     from cryptography.hazmat.primitives import serialization
     k = serialization.load_ssh_private_key(private_text.encode(), password=None)
     return k.public_key().public_bytes(serialization.Encoding.OpenSSH, serialization.PublicFormat.OpenSSH).decode() + " lumen-aureum"
-
 
 def load_private_key(private_text):
     import io as _io
     import paramiko
     return paramiko.Ed25519Key(file_obj=_io.StringIO(private_text))
 
-
 def fetch_host_key(host, port=22, timeout=15):
-    """The server's host key, read without logging in: ("type base64", "SHA256:..."), for the owner to check once."""
+
     import paramiko
     t = paramiko.Transport((host, int(port)))
     try:
@@ -375,15 +350,13 @@ def fetch_host_key(host, port=22, timeout=15):
     finally:
         t.close()
 
-
 def host_key_fingerprint(line):
     import hashlib
     raw = base64.b64decode(line.split()[1])
     return "SHA256:" + base64.b64encode(hashlib.sha256(raw).digest()).decode().rstrip("=")
 
-
 def from_config(cfg):
-    """{"type": "local", "path": ...} | {"type": "sftp", "host", "user", "key_file", "root"} | {"type": "s3", ...}"""
+
     t = cfg.get("type")
     if t == "local":
         return LocalBackend(cfg["path"], public=bool(cfg.get("public")))

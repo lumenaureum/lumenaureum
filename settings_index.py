@@ -1,7 +1,3 @@
-"""Settings, findable from the search box: every setting by the words people use for it, and the page it lives on.
-Keep this list in step with the Settings pages (setup.html steps, settings.html tabs, type_edit.html, vault, security)."""
-
-# (label, where it lives, extra words to match, endpoint, endpoint arguments)
 ENTRIES = [
     ("Business name, your name, brand", "General", "studio photographer company party agreements", "settings_view", {}),
     ("Business email and phone", "General", "contact email phone number picks documents", "settings_view", {}),
@@ -10,6 +6,7 @@ ENTRIES = [
     ("Mileage rate and home base", "General", "mileage miles irs rate travel home base drive", "settings_view", {}),
     ("Age of majority", "General", "minor adult 18 19 21 guardian parent release", "settings_view", {}),
     ("Logo on documents", "General", "logo brand image picture header", "settings_view", {}),
+    ("Client gallery look and proof mark", "General", "gallery font background color script watermark proof mark logo", "settings_view", {}),
     ("Credit line", "General", "credit lumen aureum footer", "settings_view", {}),
     ("Delete demo clients", "General", "demo sample clients remove", "settings_view", {}),
     ("Time zone, home location for sunset times", "Business and time zone", "timezone zip latitude longitude sunset golden hour", "setup_step", {"step": "business"}),
@@ -46,9 +43,8 @@ ENTRIES = [
 ]
 TYPE_WORDS = "steps workflow intake questions terms reschedule no-show late outfits wear bring weather delivery deposit indoors who signs"
 
-
 def find(term, types, url_for):
-    """Settings matching every word typed. `types` is {key: label} for the session types."""
+
     words = [w for w in term.lower().split() if w]
     if not words:
         return []

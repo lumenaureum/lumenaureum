@@ -1,4 +1,3 @@
-"""A live gallery comes down the day after its window ends, an extension doubles the host's deadline, and a failed upload records an error of at most 200 characters."""
 import os
 import sys
 import time
@@ -9,11 +8,10 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import fresh_modules, signed_in_client  # noqa: E402
+from helpers import fresh_modules, signed_in_client
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
 GID = "galExpiry01"
-
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):
@@ -46,7 +44,6 @@ def env(tmp_path, monkeypatch):
     con.commit(); con.close()
     return A, c, G, host
 
-
 def go_live(A, G, first_visit, extension=0):
     G.upload_gallery(GID, A.C.GALLERY_DAYS, "2099-01-01")
     con = A.connect()
@@ -54,24 +51,20 @@ def go_live(A, G, first_visit, extension=0):
     con.execute("UPDATE sessions SET first_visit=?, extension_used=? WHERE id=1", (first_visit, extension))
     con.commit(); con.close()
 
-
 def state(A):
     con = A.connect()
     r = con.execute("SELECT upload_state, removed_at, upload_error FROM galleries WHERE session_id=1").fetchone()
     con.close()
     return r
 
-
 def days_ago(n):
     return (date.today() - timedelta(days=n)).isoformat()
-
 
 def test_gallery_stays_through_its_last_day(env):
     A, c, G, host = env
     go_live(A, G, days_ago(A.C.GALLERY_DAYS))
     c.post("/gallery/sync", environ_base=E)
     assert (host / GID / "index.html").exists() and state(A)[0] == "up"
-
 
 def test_gallery_is_removed_the_day_after_its_window(env):
     A, c, G, host = env
@@ -80,7 +73,6 @@ def test_gallery_is_removed_the_day_after_its_window(env):
     assert not (host / GID).exists()
     st, removed, _ = state(A)
     assert st == "removed" and removed == date.today().isoformat()
-
 
 def test_extension_doubles_the_window_before_removal(env):
     A, c, G, host = env
@@ -93,7 +85,6 @@ def test_extension_doubles_the_window_before_removal(env):
     c.post("/gallery/sync", environ_base=E)
     assert not (host / GID).exists() and state(A)[0] == "removed"
 
-
 def test_unopened_gallery_comes_down_after_a_year(env):
     A, c, G, host = env
     go_live(A, G, None)
@@ -102,7 +93,6 @@ def test_unopened_gallery_comes_down_after_a_year(env):
     con.commit(); con.close()
     c.post("/gallery/sync", environ_base=E)
     assert not (host / GID).exists() and state(A)[0] == "removed"
-
 
 def test_extension_doubles_the_host_deadline(env):
     A, c, G, host = env
@@ -114,13 +104,12 @@ def test_extension_doubles_the_host_deadline(env):
     con.close()
     assert f"days={2 * A.C.GALLERY_DAYS}\n" in (host / GID / "limits.txt").read_text()
 
-
 def test_upload_error_text_is_bounded(env, monkeypatch):
     A, c, G, host = env
 
     def fail(*a, **k):
         raise RuntimeError("host said no " + "x" * 500)
-    loaded = A.app.view_functions["upload_gallery_req"].__globals__      # the plugin module the app loaded
+    loaded = A.app.view_functions["upload_gallery_req"].__globals__
     monkeypatch.setitem(loaded, "upload_gallery", fail)
     c.post("/session/1/gallery/upload", environ_base=E)
     for _ in range(100):
@@ -131,9 +120,8 @@ def test_upload_error_text_is_bounded(env, monkeypatch):
     assert st == "error"
     assert err.startswith("host said no") and len(err) == 200
 
-
 def _client_picks(G, key, picks, nonce=None):
-    """What the gallery page sends: 'LAK1' | nonce | AES-256-GCM(JSON) under the gallery key."""
+
     import json as _json
     import secrets as _s
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -141,11 +129,10 @@ def _client_picks(G, key, picks, nonce=None):
     ct = AESGCM(G.key_bytes(key)).encrypt(iv, _json.dumps({"v": 1, "picks": picks}).encode(), G.PICKS_AAD)
     return b"LAK1" + iv + ct
 
-
 def test_picks_come_back_by_themselves(env):
     A, c, G, host = env
     go_live(A, G, None)
-    assert (host / GID / "picks.php").is_file()                       # the script goes up with the gallery
+    assert (host / GID / "picks.php").is_file()
     con = A.connect()
     key = con.execute("SELECT key FROM galleries WHERE session_id=1").fetchone()[0]
     con.close()
@@ -157,7 +144,7 @@ def test_picks_come_back_by_themselves(env):
     r = con.execute("SELECT retouch_picks, favorites, veto FROM sessions WHERE id=1").fetchone()
     con.close()
     assert tuple(r) == ("a.jpg: soften the shadow", "a.jpg", "b.jpg")
-    # something that isn't the client's (another key, or readable text) is ignored and changes nothing
+
     (host / GID / "picks.bin").write_bytes(_client_picks(G, G.new_key(), [{"i": 0, "name": "x.jpg", "v": True}]))
     c.post("/gallery/sync", environ_base=E)
     con = A.connect()

@@ -1,5 +1,3 @@
-// Photos panel: drop files (or choose them) and each is uploaded in pieces, encrypted on arrival by the app. An upload
-// that stops part way picks up from where it got to when the same file is dropped again.
 (() => {
   const fmt = n => n >= 1 << 30 ? (n / (1 << 30)).toFixed(1) + ' GB' : n >= 1 << 20 ? (n / (1 << 20)).toFixed(1) + ' MB' : Math.ceil(n / 1024) + ' KB';
   let busy = 0;
@@ -61,3 +59,4 @@
     inp && inp.addEventListener('change', () => take(zone, [...inp.files]));
   });
 })();
+

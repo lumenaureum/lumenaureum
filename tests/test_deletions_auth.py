@@ -1,9 +1,3 @@
-"""deletions.json and relink-photos only trust what the install itself wrote.
-
-deletions.json lives outside the database so a deletion survives restoring an older backup. Each entry now carries a
-MAC under a key kept in the database: a forged entry deletes nothing (it is set aside and noted in the history), a
-genuine one is applied after a restore, even across a key rotation. relink-photos takes a photo's new key only when
-its key record traces back to the key the restored database holds."""
 import io
 import json
 import os
@@ -17,10 +11,9 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import TEST_PASSWORD, fresh_modules, signed_in_client  # noqa: E402
+from helpers import TEST_PASSWORD, fresh_modules, signed_in_client
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
-
 
 @pytest.fixture
 def install(tmp_path, monkeypatch):
@@ -33,7 +26,6 @@ def install(tmp_path, monkeypatch):
     c = signed_in_client(A)
     return A, c
 
-
 def _client(A, name):
     con = A.connect()
     hid = con.execute("INSERT INTO households (name) VALUES (?)", (name,)).lastrowid
@@ -42,14 +34,12 @@ def _client(A, name):
     con.close()
     return hid, created
 
-
 def _here(A, hid):
     con = A.connect()
     try:
         return bool(con.execute("SELECT 1 FROM households WHERE id=?", (hid,)).fetchone())
     finally:
         con.close()
-
 
 def _audit(A):
     con = A.connect()
@@ -58,12 +48,10 @@ def _audit(A):
     finally:
         con.close()
 
-
 def _restore(A, snap):
     shutil.copyfile(snap, A.DB_PATH)
     for s_ in ("-wal", "-shm"):
         Path(str(A.DB_PATH) + s_).unlink(missing_ok=True)
-
 
 def test_genuine_deletion_is_signed_and_survives_a_restore(install, tmp_path):
     A, c = install
@@ -74,13 +62,12 @@ def test_genuine_deletion_is_signed_and_survives_a_restore(install, tmp_path):
     c.post(f"/client/{hid}/delete", data={"confirm": "DELETE"}, environ_base=E)
     items = json.loads(A.DELETIONS_JSON.read_text())
     assert len(items) == 1 and items[0]["id"] == hid and len(items[0]["mac"]) == 64
-    _restore(A, snap)                                                     # an older backup comes back
+    _restore(A, snap)
     assert _here(A, hid)
     assert A.reapply_deletions() == 1 and not _here(A, hid)
 
-
 def test_restore_of_a_backup_from_before_the_key_was_kept(install, tmp_path):
-    """A backup from 1.0.0 has no side_keys table: the same key is derived again from the (unchanged) data key."""
+
     A, c = install
     import db
     hid, _ = _client(A, "Harlow Family")
@@ -92,9 +79,8 @@ def test_restore_of_a_backup_from_before_the_key_was_kept(install, tmp_path):
     _restore(A, snap)
     assert A.reapply_deletions() == 1 and not _here(A, hid)
 
-
 def test_deletions_survive_a_rotation_then_a_restore_from_before_it(install, tmp_path, monkeypatch):
-    """Deleted after a key rotation, restored to a backup (database and keyring) from before it: still deleted."""
+
     A, c = install
     import datakey
     import db
@@ -110,7 +96,7 @@ def test_deletions_survive_a_rotation_then_a_restore_from_before_it(install, tmp
     new_key = datakey.unwrap_password(TEST_PASSWORD)
     assert new_key != old_key
     datakey.set_unlocked(new_key)
-    with A.app.test_request_context():                             # the delete's own work, under the new key
+    with A.app.test_request_context():
         A._delete_client_rows(hid, created, [])
         A.db().commit()
     assert not _here(A, hid)
@@ -120,7 +106,6 @@ def test_deletions_survive_a_rotation_then_a_restore_from_before_it(install, tmp
     assert datakey.dk() == old_key and _here(A, hid)
     assert A.reapply_deletions() == 1 and not _here(A, hid)
 
-
 def test_forged_entry_deletes_nothing_and_is_reported(install):
     A, c = install
     hid, created = _client(A, "Harlow Family")
@@ -128,11 +113,10 @@ def test_forged_entry_deletes_nothing_and_is_reported(install):
     assert A.reapply_deletions() == 0
     assert _here(A, hid)
     assert any("did not verify" in a for _, a in _audit(A))
-    assert json.loads(A.DELETIONS_JSON.read_text()) == []                       # out of the live file
-    assert json.loads(A.DELETIONS_ASIDE.read_text())[0]["id"] == hid            # kept to look at
-    assert A.reapply_deletions() == 0 and _here(A, hid)                         # reported once, never applied
+    assert json.loads(A.DELETIONS_JSON.read_text()) == []
+    assert json.loads(A.DELETIONS_ASIDE.read_text())[0]["id"] == hid
+    assert A.reapply_deletions() == 0 and _here(A, hid)
     assert sum("did not verify" in a for _, a in _audit(A)) == 1
-
 
 def test_a_mac_from_another_install_does_not_verify(install):
     A, c = install
@@ -144,10 +128,8 @@ def test_a_mac_from_another_install_does_not_verify(install):
     A.DELETIONS_JSON.write_text(json.dumps([dict(d_, mac=mac)]))
     assert A.reapply_deletions() == 0 and _here(A, hid)
 
-
 def test_unsigned_entries_from_1_0_0(install):
-    """An unsigned entry whose client is already gone is signed (the deletion already happened). One whose client is
-    still here is not applied: it is set aside and noted on that client's history."""
+
     A, c = install
     hid, created = _client(A, "Harlow Family")
     gone = dict(id=hid + 100, created="2025-01-01 10:00:00", at="2025-06-01 10:00:00")
@@ -159,7 +141,6 @@ def test_unsigned_entries_from_1_0_0(install):
     assert [d_["id"] for d_ in live] == [gone["id"]] and "mac" in live[0]
     assert [d_["id"] for d_ in json.loads(A.DELETIONS_ASIDE.read_text())] == [hid]
 
-
 def test_new_deletion_keeps_unverified_entries_unapplied(install):
     A, c = install
     keep, kc = _client(A, "Keep Family")
@@ -168,10 +149,6 @@ def test_new_deletion_keeps_unverified_entries_unapplied(install):
     c.post(f"/client/{drop}/delete", data={"confirm": "DELETE"}, environ_base=E)
     assert not _here(A, drop) and _here(A, keep)
     assert A.reapply_deletions() == 0 and _here(A, keep)
-
-
-# ------------------------------------------------------------------ relink-photos
-
 
 def _photo(A, c):
     import datakey
@@ -187,7 +164,6 @@ def _photo(A, c):
     con.close()
     return row, body
 
-
 def _relink(c, monkeypatch):
     from vault import cli
     out = io.StringIO()
@@ -195,7 +171,6 @@ def _relink(c, monkeypatch):
     with redirect_stdout(out):
         assert cli.main(["relink-photos"]) == 0
     return out.getvalue()
-
 
 def test_relink_takes_a_key_from_a_rotation_after_the_backup(install, tmp_path, monkeypatch):
     A, c = install
@@ -210,30 +185,28 @@ def test_relink_takes_a_key_from_a_rotation_after_the_backup(install, tmp_path, 
     shutil.copyfile(datakey.KEYRING, ring)
     monkeypatch.setattr(rotate, "app_running", lambda: False)
     monkeypatch.setattr(rotate, "hold_exclusive", __import__("contextlib").nullcontext)
-    for _ in range(2):                                             # two rotations since the backup: the trail holds
+    for _ in range(2):
         rotate.rotate(datakey.unwrap_password(TEST_PASSWORD), TEST_PASSWORD)
     _restore(A, snap)
     shutil.copyfile(ring, datakey.KEYRING)
     datakey.set_unlocked(old_key)
     with pytest.raises(Exception):
-        photostore.plain_bytes(row)                                # the restored database's key opens nothing now
+        photostore.plain_bytes(row)
     out = _relink(c, monkeypatch)
     assert "1 photo key(s) restored" in out
     con = A.connect()
     assert photostore.plain_bytes(con.execute("SELECT * FROM photo_files WHERE id=?", (row["id"],)).fetchone()) == body
     con.close()
 
-
 def test_relink_refuses_a_forged_photo_and_key_pair(install, monkeypatch):
-    """Someone who can write to the photos folder writes their own photo under their own key, and a key record for it
-    sealed to the master PUBLIC key (anyone can). The key opens the photo, but it does not trace back: refused."""
+
     A, c = install
     import datakey
     import photostore
     row, body = _photo(A, c)
     lap = photostore.path_of(row["id"])
     tmp = lap.with_name(lap.name + ".forged")
-    fkey, ct_len = photostore.rekey(row, tmp)                      # a valid file under a key the vault never issued
+    fkey, ct_len = photostore.rekey(row, tmp)
     os.replace(tmp, lap)
     photostore.write_key(dict(dict(row), fkey=fkey, key_trail=json.dumps(["0" * 64])), datakey.master_pub())
     out = _relink(c, monkeypatch)

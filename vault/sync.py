@@ -1,23 +1,15 @@
-"""Daily copy of the vault to a second location.
-
-Once a day (the nightly backup job calls run()): every live object in the primary store that the second location lacks
-is streamed across and verified by size + sha256; every object the vault has since deleted is removed there too. Only
-ciphertext under random names ever crosses. Between runs a destroyed session is still unreadable there (its key is
-shredded), so deletion promises hold."""
 from datetime import datetime
 
 from . import backends as B, seal as S, web as W
 
 SCHEMA = """CREATE TABLE IF NOT EXISTS vault_secondary (name TEXT PRIMARY KEY, size INTEGER, sha256 TEXT, copied TEXT);"""
 
-
 def second_backend():
     cfg = W.config().get("secondary")
     return B.from_config(cfg) if cfg else None
 
-
 def run(con, primary=None, second=None):
-    """Returns (copied, removed). No-op when no second location is configured."""
+
     second = second or second_backend()
     if not second:
         return 0, 0
@@ -45,8 +37,8 @@ def run(con, primary=None, second=None):
         con.execute("INSERT OR REPLACE INTO vault_secondary (name, size, sha256, copied) VALUES (?,?,?,?)", (name, size, sha or h2, now))
         con.commit()
         copied += 1
-    live_names = any_live          # never delete a second copy that is still recorded anywhere (a changed store type)
-    for name in [n for n in have if n not in live_names]:      # destroyed or pruned in the vault since the last run
+    live_names = any_live
+    for name in [n for n in have if n not in live_names]:
         second.delete_verified(name)
         con.execute("DELETE FROM vault_secondary WHERE name=?", (name,))
         con.commit()

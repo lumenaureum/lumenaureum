@@ -1,6 +1,7 @@
-{% extends "auth_base.html" %}{% block body %}
+{% extends "auth_base.html" %}{% block title %}Recovery codes - Lumen Aureum{% endblock %}{% block body %}
 <h1>Recovery codes</h1>
 <p class="mute">For a lost phone: each works once. Shown once.</p>
 <div class="card"><div class="codes">{% for c in codes %}<div>{{ c }}</div>{% endfor %}</div></div>
 <div class="row" style="margin-top:14px"><button type="button" class="quiet" data-print>Print</button><a class="btn primary" href="{{ url_for('home') }}" data-confirm="Have you printed or saved these codes? They are not shown again.">I've saved them, continue</a></div>
 {% endblock %}
+

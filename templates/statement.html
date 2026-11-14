@@ -1,7 +1,7 @@
 {% from "_doc_bar.html" import doc_bar, draft with context %}<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Statement {{ v.title }} - {{ v.bill_to }}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 {% include "_doc_style.html" %}</head><body>
-{% if not pdf %}{% set nav %}<a href="{{ url_for('statement', hid=v.hid, m=v.prev) }}">&lsaquo; Earlier</a><a href="{{ url_for('statement', hid=v.hid, m=v.next) }}">Later &rsaquo;</a>{% endset %}{{ doc_bar(v.pdf_url, v.back, before=nav) }}{% endif %}
+{% if not pdf %}{% set nav %}<a href="{{ url_for('statement', hid=v.hid, m=v.prev) }}">&lsaquo; {{ v.prev|month }}</a><a href="{{ url_for('statement', hid=v.hid, m=v.next) }}">{{ v.next|month }} &rsaquo;</a>{% endset %}{{ doc_bar(v.pdf_url, v.back, before=nav) }}{% endif %}
 <div class="page">
   {% include "_doc_logo.html" %}
   <h1>Statement, {{ v.title }}</h1>
@@ -18,7 +18,7 @@
   <table>{% for r in v.invoices %}<tr><td>{{ r.date }} - {{ r.number }}<div style="font-size:12px;color:#666">{{ r.what }}{% if r.due_on %}; due {{ r.due_on }}{% endif %}</div></td><td class="n">{{ money(r.amount) }}</td></tr>
     {% else %}<tr><td>No invoices this month.</td><td></td></tr>{% endfor %}</table>
   <h2>Payments</h2>
-  <table>{% for r in v.payments %}<tr><td>{{ r.date }} - {{ r.kind }}{% if r.method %}, {{ r.method }}{% endif %}<div style="font-size:12px;color:#666">{{ r.what }}</div></td><td class="n">{{ money(-r.amount) }}</td></tr>
+  <table>{% for r in v.payments %}<tr><td>{{ r.date }} - {{ r.kind }}{% if r.method %}, {{ r.method }}{% endif %}<div style="font-size:12px;color:#666">{{ r.what }}</div></td><td class="n">{{ money(r.amount) }}</td></tr>
     {% else %}<tr><td>No payments this month.</td><td></td></tr>{% endfor %}</table>
   <table style="margin-top:14px">
     <tr><td><b>{{ 'Balance due' if v.closing > 0.005 else ('Credit' if v.closing < -0.005 else 'Balance') }} on {{ v.end_long }}</b></td><td class="n"><b>{{ money(v.closing|abs) }}</b></td></tr>
@@ -28,3 +28,4 @@
   {% if v.closing > 0.005 %}<h2>How to pay</h2><p>{{ v.pay_words }}.{% if v.pay_details %} {{ v.pay_details }}{% endif %}</p>{% if v.bank_details %}<p>Bank transfer: {{ v.bank_details|replace('\n', '<br>'|safe) }}</p>{% endif %}{% endif %}
 {% include "_credit.html" %}
 </div>{% if not pdf %}<script src="{{ url_for('static', filename='ui.js', v=static_v('ui.js')) }}"></script>{% endif %}</body></html>
+

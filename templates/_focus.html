@@ -13,8 +13,8 @@
   <div class="flow">
     <div class="flow-h">
       <span class="flow-type">{{ type_label[s.type] }}</span>
-      {% if s.shoot_date %}<span>{{ nice(s.shoot_date) }}{% if s.start_time %}, {{ ampm(s.start_time) }}{% endif %}</span>
-        {% if f.light %}<span class="gh">golden {{ f.light.golden }} - sunset {{ f.light.sunset }}</span>{% endif %}{% endif %}
+      {% if s.shoot_date %}<span>{{ nice(s.shoot_date) }}{% if s.start_time %}, {{ clock(s.start_time) }}{% endif %}</span>
+        {% if f.light %}<span class="gh">{{ f.light.text }}</span>{% endif %}{% endif %}
       {% if f.t.quoted %}<span class="mute">{{ money(f.t.paid) }} of {{ money(f.t.quoted) }}</span>{% endif %}
       <span class="grow"></span><a class="go" href="{{ f.link }}">Open &rsaquo;</a>
     </div>
@@ -27,7 +27,7 @@
       {% endfor %}
     </div>
     <ul class="acts in-focus">{% for a in f.acts %}{% set show_face = false %}{% include "_action.html" %}{% endfor %}</ul>
-    {% if f.done %}<div class="done-steps">{% for st in f.done %}<span>{{ st.label }}</span>{% endfor %}</div>{% endif %}
+    {% if f.done %}<div class="done-steps"><b>Done:</b>{% for st in f.done %}<span>{{ st.label }}</span>{% endfor %}</div>{% endif %}
   </div>
   {% endfor %}
 
@@ -52,3 +52,4 @@
   <ul class="acts in-focus">{% for a in focus.acts %}{% set show_face = false %}{% include "_action.html" %}{% endfor %}</ul>
 </div>
 {% endif %}
+

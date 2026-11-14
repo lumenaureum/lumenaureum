@@ -1,6 +1,3 @@
-"""The agreement and the release, end to end, for every kind of session a preset brings: the standard wording and the
-owner's own wording (every [FIELD] used), the fill-ins, on the page and in the PDF. Nothing is left unfilled, the
-fill-ins reach the client, the owner's text is escaped, and the credit line never appears on a signed document."""
 import os
 import re
 import shutil
@@ -12,19 +9,16 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import fresh_modules, signed_in_client  # noqa: E402
+from helpers import fresh_modules, signed_in_client
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
 pytestmark = pytest.mark.skipif(not shutil.which("pdftotext"), reason="needs pdftotext (poppler-utils)")
 
-
 def pdf_text(data):
     return subprocess.run(["pdftotext", "-layout", "-", "-"], input=data, capture_output=True, check=True).stdout.decode()
 
-
 def flat(s):
     return " ".join(s.split())
-
 
 @pytest.fixture(scope="module")
 def studio(tmp_path_factory):
@@ -36,8 +30,7 @@ def studio(tmp_path_factory):
     import config as C
     c = signed_in_client(A)
     c.post("/setup/shoot", data={f"preset_{k}": "1" for k in C.PRESETS}, environ_base=E)
-    # these tests check both kinds of document: people sessions transfer the copyright, business ones license it
-    # (a fresh install now presets every type to license)
+
     c.post("/setup/documents", data={**{f"rights_{t['key']}": ("license" if t["kind"] == "property" or t.get("license") else "transfer")
                                         for t in C.TYPES}, "governing_law": ""}, environ_base=E)
     con = A.connect()
@@ -58,7 +51,6 @@ def studio(tmp_path_factory):
     yield A, C, c, sids
     C.apply({})
 
-
 def docs(c, sid, did):
     out = {}
     for name, url in (("agreement", f"/session/{sid}/agreement"), ("release", f"/doc/{did}/release")):
@@ -69,7 +61,6 @@ def docs(c, sid, did):
         assert r.status_code == 200 and r.data[:5] == b"%PDF-", url
         out[name + ".pdf"] = flat(pdf_text(r.data))
     return out
-
 
 def test_standard_wording_fills_every_field_for_every_type(studio):
     A, C, c, sids = studio
@@ -82,8 +73,7 @@ def test_standard_wording_fills_every_field_for_every_type(studio):
             assert not left, (key, name, left)
             assert "None" not in d[name].split() and "{{" not in d[name] and C.CREDIT not in d[name], (key, name)
         assert "Avery Lane" in d["agreement.pdf"] and f"Kid {key}" in d["release.pdf"]
-        assert flat(C.GALLERY_PHRASE.sub("", C.fill(key, "delivery")).strip()) in d["agreement.pdf"], key   # no gallery set up: none promised
-
+        assert flat(C.GALLERY_PHRASE.sub("", C.fill(key, "delivery")).strip()) in d["agreement.pdf"], key
 
 def test_own_wording_with_every_field_and_the_fill_ins(studio):
     A, C, c, sids = studio
@@ -101,21 +91,20 @@ def test_own_wording_with_every_field_and_the_fill_ins(studio):
         d = docs(c, sid, did)
         for name in ("agreement", "release"):
             for f, _ in wording.FIELDS[name]:
-                assert f"{f}=[{f}]" not in d[name + ".pdf"], (name, f)    # every known field replaced
+                assert f"{f}=[{f}]" not in d[name + ".pdf"], (name, f)
             assert "[TYPO FIELD]" in d[name + ".pdf"] and "{{ 6*7 }}" in d[name + ".pdf"] and "42" not in d[name + ".pdf"]
             assert "&lt;b&gt;bold?&lt;/b&gt;" in d[name] and "<b>bold?" not in d[name]
             assert C.CREDIT not in d[name] and C.CREDIT not in d[name + ".pdf"]
         a = d["agreement.pdf"]
         assert "HOW YOU DELIVER=on a keepsake USB & in a gallery" in a and "HOW LONG=182 days" in a
-        assert "[WEATHER PLAN]" in a                                    # an emptied fill-in shows, so it gets noticed
+        assert "[WEATHER PLAN]" in a
         assert "PERSON=Kid newborn" in d["release.pdf"] and "GUARDIAN=I am the parent" in d["release.pdf"]
-        sid2, did2 = sids["food"]                                        # a licensed type: license wording, no transfer
+        sid2, did2 = sids["food"]
         d2 = docs(c, sid2, did2)
         assert "promoting this business" in d2["agreement.pdf"] and "license" in d2["release.pdf"]
     finally:
         for doc in ("agreement", "release"):
             c.post(f"/settings/wording/{doc}", data={"reset": "1"}, environ_base=E)
-
 
 def test_credit_line_on_sales_documents_only(studio):
     A, C, c, sids = studio
@@ -123,11 +112,8 @@ def test_credit_line_on_sales_documents_only(studio):
     r = c.get(f"/session/{sid}/invoice.pdf", environ_base=E)
     assert r.status_code == 200 and "lumenaureum.org" in pdf_text(r.data)
 
-
 def test_details_and_licenses_follow_the_type(studio):
-    """The details sheet follows the type's settings; pets get animal wording and no
-    release step; headshots are licensed by default; a partner with no phone never becomes the contact; numbered
-    headings in your own wording count on when a section drops out."""
+
     A, C, c, sids = studio
     sid, _ = sids["newborn"]
     page = c.get(f"/session/{sid}/details", environ_base=E).get_data(as_text=True)
@@ -151,7 +137,6 @@ def test_details_and_licenses_follow_the_type(studio):
     out = str(wording.render("# 1. A\nx\n\n# 2. Minors\n[MINORS]\n\n# 3. C\ny", {"MINORS": ""}))
     assert "<h2>2. C</h2>" in out and "3." not in out
 
-
 def test_new_install_shoot_step_starts_unticked(tmp_path, monkeypatch):
     monkeypatch.setenv("CRM_DB", str(tmp_path / "crm.db"))
     monkeypatch.setenv("CRM_STORAGE_CFG", str(tmp_path / "storage.json"))
@@ -161,11 +146,8 @@ def test_new_install_shoot_step_starts_unticked(tmp_path, monkeypatch):
     page = c.get("/setup/shoot", environ_base=E).get_data(as_text=True)
     assert 'name="preset_portraits" value="1">' in page and "checked" not in page.split('class="checks"')[1].split("</div>")[0]
 
-
 def test_letters_per_type(studio):
-    """The printed letters: a licensed type's letter quotes that type's own license (no real-estate wording on a
-    headshot), a transfer type's letter transfers; the QR letter is a draft until there is a gallery link and an
-    address, and only a real one is recorded as printed; SD labels render."""
+
     A, C, c, sids = studio
     assert "letters" in A.LOADED
     for key, want, never in (("headshot", "professional profiles", "MLS"), ("realestate", "marketing this property", "transfers to you"),
@@ -179,7 +161,7 @@ def test_letters_per_type(studio):
     r = c.get(f"/letters/{sid}/qr-letter.pdf", environ_base=E)
     assert r.status_code == 200 and r.data[:5] == b"%PDF-"
     con = A.connect()
-    assert not con.execute("SELECT 1 FROM letters_printed WHERE session_id=?", (sid,)).fetchone()      # draft: not recorded
+    assert not con.execute("SELECT 1 FROM letters_printed WHERE session_id=?", (sid,)).fetchone()
     con.execute("UPDATE households SET address='12 Elm St\nSpringfield' WHERE id=(SELECT household_id FROM sessions WHERE id=?)", (sid,))
     con.commit(); con.close()
     before = A.app.config.get("gallery_link")
@@ -196,10 +178,8 @@ def test_letters_per_type(studio):
     assert r.status_code == 200 and r.data[:5] == b"%PDF-"
     assert c.get("/letters/99999/sd-labels.pdf", environ_base=E).status_code == 404
 
-
 def test_imported_wording_waits_for_review_and_is_announced(studio):
-    """Security pass 2026-11-11: a shared settings file may carry its own legal wording; importing it clears the
-    reviewed tick and says so; a type that skips releases is named; a question key may not shadow a form field."""
+
     import io
     import json as _json
     A, C, c, sids = studio
@@ -218,7 +198,7 @@ def test_imported_wording_waits_for_review_and_is_announced(studio):
         assert "brings its own agreement wording" in page and "Beasts &amp; co: no photo release" in page
         con = A.connect()
         r_ = con.execute("SELECT value FROM settings WHERE key='doc_reviews'").fetchone()
-        assert not r_ or not [k for k in __import__("json").loads(r_[0]) if k.startswith("agreement:")]   # its wording needs a review
+        assert not r_ or not [k for k in __import__("json").loads(r_[0]) if k.startswith("agreement:")]
         con.close()
         assert "beasts" not in C.NEEDS_RELEASE
         import settings_io
@@ -229,16 +209,13 @@ def test_imported_wording_waits_for_review_and_is_announced(studio):
     finally:
         c.post("/settings/wording/agreement", data={"reset": "1"}, environ_base=E)
 
-
 def _people_transfer(c, C):
-    """People sessions transfer the copyright; business ones license it (an earlier test may have changed the rules)."""
+
     c.post("/setup/documents", data={**{f"rights_{t['key']}": ("license" if t["kind"] == "property" or t.get("license") else "transfer")
                                         for t in C.TYPES}, "governing_law": ""}, environ_base=E)
 
-
 def test_document_text_is_whole(studio):
-    """Every sentence of the printed legal letters and the standard wording comes through whole (a publish step that
-    dropped part of a string once shipped 'effective like, with no permission needed.')."""
+
     A, C, c, sids = studio
     _people_transfer(c, C)
     text = flat(pdf_text(c.get(f"/letters/{sids['portrait'][0]}/print-release.pdf", environ_base=E).data))
@@ -251,10 +228,8 @@ def test_document_text_is_whole(studio):
     assert "If no new date works for you, I refund everything you have paid." in page and "This is your only remedy against me." in page
     assert wording.DISCLAIMER.startswith("The agreement, release and other documents that come with Lumen Aureum are examples only.")
 
-
 def test_delivery_letters_are_editable_and_drafts_until_reviewed(studio):
-    """The copyright transfer and photo license use the wording system: the owner's own wording prints, and until the
-    documents are reviewed the letter says it is a draft."""
+
     A, C, c, sids = studio
     _people_transfer(c, C)
     sid = sids["portrait"][0]

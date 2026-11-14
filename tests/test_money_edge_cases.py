@@ -1,6 +1,3 @@
-"""Fresh-eyes review, 2026-11-11: kept-deposit tax counted once; no deposit means the deposit step is done once quoted;
-a new event organizer takes over an untouched billing session; an export carries cleared settings; a bad year on
-/money is not an error."""
 import io
 import json
 import os
@@ -11,10 +8,9 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import fresh_modules, signed_in_client  # noqa: E402
+from helpers import fresh_modules, signed_in_client
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
-
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):
@@ -28,7 +24,6 @@ def env(tmp_path, monkeypatch):
     con.execute("INSERT INTO households (name) VALUES ('Ruiz')")
     con.commit(); con.close()
     return A, c
-
 
 def test_kept_deposit_tax_counted_once(env):
     A, c = env
@@ -46,7 +41,6 @@ def test_kept_deposit_tax_counted_once(env):
     page = c.get("/money?year=2026", environ_base=E).get_data(as_text=True)
     assert "$92" in page and "$84.59" not in page
 
-
 def test_no_deposit_step_done_once_quoted(env):
     A, c = env
     import config as C
@@ -57,7 +51,7 @@ def test_no_deposit_step_done_once_quoted(env):
         con.execute("INSERT INTO sessions (household_id, type, stage, shoot_date) VALUES (1, 'portrait', 'booked', '2027-06-01')")
         con.commit(); con.close()
         with A.app.test_request_context():
-            assert not A.AUTO["deposit_paid"][1](dict(t=A.totals(1)))          # nothing quoted yet
+            assert not A.AUTO["deposit_paid"][1](dict(t=A.totals(1)))
         con = A.connect()
         con.execute("INSERT INTO lines (session_id, label, amount, kind) VALUES (1, 'Session', 250, 'custom')")
         con.commit(); con.close()
@@ -65,7 +59,6 @@ def test_no_deposit_step_done_once_quoted(env):
             assert A.totals(1)["deposit_req"] == 0 and A.AUTO["deposit_paid"][1](dict(t=A.totals(1)))
     finally:
         C.DEPOSIT_AMOUNT = old
-
 
 def test_new_organizer_takes_untouched_billing_session(env):
     A, c = env
@@ -81,13 +74,12 @@ def test_new_organizer_takes_untouched_billing_session(env):
     con.commit(); con.close()
     c.post("/event/1/billing", data={"payer_hid": "1"}, environ_base=E)
     con = A.connect()
-    assert con.execute("SELECT household_id FROM sessions WHERE payer_event=1").fetchone()[0] == 2   # paid: stays
+    assert con.execute("SELECT household_id FROM sessions WHERE payer_event=1").fetchone()[0] == 2
     con.close()
-    c.post("/event/1/billing", data={"payer_hid": "999"}, environ_base=E)                                       # no such client
+    c.post("/event/1/billing", data={"payer_hid": "999"}, environ_base=E)
     con = A.connect()
     assert con.execute("SELECT payer_hid FROM events WHERE id=1").fetchone()[0] == 1
     con.close()
-
 
 def test_export_carries_cleared_settings(env):
     A, c = env
@@ -102,12 +94,10 @@ def test_export_carries_cleared_settings(env):
     assert con.execute("SELECT value FROM settings WHERE key='credit_off'").fetchone()[0] == ""
     con.close()
 
-
 def test_bad_year_on_money_is_not_an_error(env):
     A, c = env
     assert c.get("/money?year=abc", environ_base=E).status_code == 200
     assert c.get("/money?year=99999999", environ_base=E).status_code == 200
-
 
 def test_numbers_from_forms(env):
     A, c = env

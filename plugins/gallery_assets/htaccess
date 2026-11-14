@@ -1,5 +1,5 @@
 Options -Indexes
-<FilesMatch "^(seen\.(txt|key)|seen-key\.php|limits\.txt|picks\.bin.*)$">
+<FilesMatch "^(seen\.(txt|key)|seen-key\.php|limits\.txt|(picks|draft)\.bin.*)$">
   Require all denied
 </FilesMatch>
 RewriteEngine On

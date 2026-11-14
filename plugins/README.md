@@ -31,7 +31,7 @@ day the agreement names is a promise to clients, so it always runs. Online galle
 
 If a plugin needs a Python package the image doesn't have, build your own image on top of this one:
 ```dockerfile
-FROM ghcr.io/lumenaureum/lumenaureum:1.0.1     # the version you run
+FROM ghcr.io/lumenaureum/lumenaureum:1.1.0     # the version you run
 USER root
 RUN pip install some-package
 USER lumen
@@ -111,6 +111,10 @@ Append functions to these (`ctx.hooks.<name>.append(fn)`):
   instead, with its due date.
 - `steps` - `fn(session_row) -> [(stage, label, done, section)]`: extra workflow steps that tick themselves.
 - `step_actions` - `fn(step_label, session_row) -> dict(verb=, href=)` or None: the button for a step.
+- `step_notes` - `fn(step_label, session_row) -> str` or None: a short line shown under a step on Today and the session page.
+- `session_actions` - `fn(session_row) -> [dict(what=, verb=, post= or href=, fields=, theirs=, since=)]`: things to do
+  (or to wait for, with `theirs=True`) that belong to the session as a whole, whatever its stage. Each shows once, on
+  Today and the session page.
 - `step_labels` (a dict) - `{step label: short label}` for tiles.
 - `step_icons` - `(words, Material Symbol name)`: an icon for steps whose title contains one of the words.
 - `session_tabs` - `fn(session_row) -> (title, count or None, html)` or None: a section on the session record.
@@ -121,7 +125,8 @@ Append functions to these (`ctx.hooks.<name>.append(fn)`):
 - `search` - `fn(term) -> [dict(title=, rows=[dict(text=, sub=, link=)])]`: extra sections in search results.
 - `guards` (a dict) - `ctx.hooks.guards.setdefault("gallery_upload", []).append(fn)` where
   `fn(proceed, **details) -> bool`: return True to hold the action (for an approval, say) and call `proceed()` when it
-  may go ahead. `details` for a gallery upload: `sid`, `gallery_id`, `n_files`.
+  may go ahead. `details` for a gallery upload: `sid`, `gallery_id`, `n_files`, and `update=True` when a rebuilt
+  gallery goes over the one already online (the copy online stays up meanwhile).
 - `tax_region` (set it, don't append) - `dict(name=, areas=[(key, label)], area_of=fn(client_address) -> (area, warning),
   extra_pct=fn(area, local_pct) -> percent added to the base rate)`: sales tax that depends on where the client is.
   When it is set, Settings and setup offer a "regional" sales-tax choice.

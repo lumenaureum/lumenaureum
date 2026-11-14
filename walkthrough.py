@@ -1,13 +1,6 @@
-"""Walk me through this: a session type's settings one at a time, after setup (never part of it).
-
-Each step shows the setting with its current value (the sensible default until changed), a sentence on why that default
-suits this kind of shoot, and the words a client will read. Keep, Change or Skip; nothing is required. Progress per
-type is kept in the settings key "walk" as {type: {"done": [...], "skipped": [...]}}. Finishing does not mark the
-terms reviewed: that stays a separate, deliberate step (it removes SAMPLE)."""
 import config as C
 
 KIND_WHY = {"portrait": "people", "event": "events", "property": "places and products", "personal": "your own work"}
-
 
 def _num(v, lo, hi):
     try:
@@ -16,10 +9,8 @@ def _num(v, lo, hi):
         return None
     return max(lo, min(hi, n))
 
-
 def _pol(t):
     return C.POLICY[t["key"]]
-
 
 def _set_pol(t, k, v):
     t.setdefault("policy", {})
@@ -28,9 +19,8 @@ def _set_pol(t, k, v):
     else:
         t["policy"][k] = v
 
-
 def steps_for(t):
-    """The steps that apply to this type, in order, simplest first."""
+
     key, kind = t["key"], t["kind"]
     lic = key in C.LICENSE_TYPES
     out = [
@@ -113,7 +103,6 @@ def steps_for(t):
                         preview=lambda: f"Your license covers {C.fill(key, 'license_use')}."))
     return out
 
-
 def _put_deposit(t, f):
     t.pop("deposit_pct", None)
     t.pop("deposit_amount", None)
@@ -121,14 +110,12 @@ def _put_deposit(t, f):
     if v is not None and mode in ("pct", "amt"):
         t["deposit_pct" if mode == "pct" else "deposit_amount"] = min(v, 100) if mode == "pct" else v
 
-
 def _put_portfolio(t, f):
     t.pop("portfolio_pct", None)
     t.pop("portfolio_amount", None)
     mode, v = f.get("portfolio_mode"), _num(f.get("portfolio_value"), 0, 100000)
     if v and mode in ("pct", "amt"):
         t["portfolio_pct" if mode == "pct" else "portfolio_amount"] = min(v, 100) if mode == "pct" else v
-
 
 def _put_reschedule(t, f):
     _set_pol(t, "free_reschedule", bool(f.get("free_reschedule")))

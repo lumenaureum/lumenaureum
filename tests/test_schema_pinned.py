@@ -1,8 +1,6 @@
-"""A fresh install's schema is pinned in tests/schema_v<SCHEMA_VERSION>.sql: any change to it is deliberate."""
 import difflib
 
 import schema_pin
-
 
 def test_fresh_install_matches_the_pinned_schema(tmp_path, monkeypatch):
     for k, v in (("CRM_DB", "crm.db"), ("CRM_STORAGE_CFG", "storage.json"), ("CRM_PHOTOS_ROOT", "photos")):

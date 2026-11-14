@@ -1,8 +1,5 @@
-"""Session types, stages, checklists, intake questions. Edit here to change behavior."""
 import re
 
-# The small credit on sales and delivery documents and the client gallery (never on agreements or releases).
-# On unless the owner turns it off (Settings). Plain text: nothing is loaded from anywhere.
 CREDIT = "Made with Lumen Aureum\u2122 \u00b7 lumenaureum.org"
 
 STAGES = ["inquiry", "quoted", "booked", "shot", "delivered", "closed"]
@@ -12,13 +9,6 @@ STAGE_LABELS = {
     "delivered": "Delivered", "closed": "Closed", "lost": "Lost",
 }
 
-# ---------------------------------------------------------------- session types
-# A session type is data (setup's "What you shoot", Settings): a key, a label, a KIND and a length. The kind supplies
-# the workflow, paperwork and intake questions; a type can add its own intake questions and say it asks a grad year.
-# Workflow: each stage owns its steps.
-#   ("do", label, days_from_shoot)  - a step you tick off (due date set from the shoot date)
-#   ("auto", key)                   - ticks itself from the record; see AUTO in app.py
-#   ("event", label, days_from_event) - done once for a whole group event, shared by every family
 PORTRAIT_FLOW = {
     "inquiry": [("auto", "logged"), ("auto", "intake_done")],
     "quoted": [("auto", "quote_built"), ("do", "Send quote", None), ("do", "Client said yes", None)],
@@ -29,7 +19,7 @@ PORTRAIT_FLOW = {
     "delivered": [("auto", "first_visit"), ("auto", "favorites"), ("do", "Send retouched photos", 28), ("auto", "sd_shipped")],
 }
 EVENT_FLOW = {
-    # inquiry/quoted: without them a new event inquiry read "everything done" at creation
+
     "inquiry": [("auto", "logged"), ("auto", "intake_done")],
     "quoted": [("auto", "quote_built"), ("do", "Send quote", None), ("do", "Client said yes", None)],
     "booked": [("event", "Confirm the venue's photo rules", -14), ("auto", "releases_signed"),
@@ -38,9 +28,7 @@ EVENT_FLOW = {
              ("auto", "gallery_built"), ("auto", "letter_mailed")],
     "delivered": [("auto", "first_visit"), ("auto", "favorites")],
 }
-# Group events decide case by case who pays: events.billing = free | organizer | families.
-# families: each family's session also carries quote, deposit, invoice and balance. Paying is enough: no agreement per
-# family (the organizer's terms cover the event).
+
 EVENT_FAMILY_PAID_FLOW = {
     "inquiry": EVENT_FLOW["inquiry"], "quoted": EVENT_FLOW["quoted"],
     "booked": [("event", "Confirm the venue's photo rules", -14), ("auto", "deposit_paid"),
@@ -49,7 +37,7 @@ EVENT_FAMILY_PAID_FLOW = {
              ("do", "Send invoice", 10), ("auto", "balance_paid"), ("auto", "letter_mailed")],
     "delivered": EVENT_FLOW["delivered"],
 }
-# organizer: one payer session (the organizer's household) carries the money and the agreement
+
 ORGANIZER_PAYER_FLOW = {
     "inquiry": [("auto", "logged")],
     "quoted": [("auto", "quote_built"), ("do", "Send quote", None), ("do", "Client said yes", None)],
@@ -64,7 +52,7 @@ EVENT_RIGHTS = {"families": ("I keep the copyright in the event photos. Each fam
                               " receives, from the organizer through me, a permanent personal license to its own photos and to"
                               " group photos that include its child: to print, share and post them, not to sell them."),
                 "custom": ""}
-# The same terms in a family's release, where "I" is the parent signing.
+
 EVENT_RIGHTS_RELEASE = {"families": ("{photographer} keeps the copyright in the event photos. My family receives a permanent personal"
                                      " license to our own photos and to group photos that include {person}: to print, share and"
                                      " post them, not to sell them. The organizer may use event photos in its newsletter and on its"
@@ -72,7 +60,7 @@ EVENT_RIGHTS_RELEASE = {"families": ("{photographer} keeps the copyright in the 
                         "organizer": ("The organizer owns the copyright in the event photos under its agreement with"
                                       " {photographer}. My family receives a permanent personal license to our own photos and to"
                                       " group photos that include {person}: to print, share and post them, not to sell them.")}
-# In the organizer's own agreement, the organizer option is the transfer itself (a recital of ownership grants nothing).
+
 EVENT_RIGHTS_ORGANIZER = {"organizer": ("When the balance is paid in full, I transfer to the organizer all copyright in the event"
                                         " photos I deliver. The organizer grants each participating family a permanent personal"
                                         " license to its own photos and to group photos that include its child, to print, share and"
@@ -90,41 +78,36 @@ PORTFOLIO_FLOW = {
     "booked": [("auto", "date_set"), ("do", "Plan locations", -3)],
     "shot": [("do", "Back up photos", 0), ("do", "Cull", 3), ("do", "Edit", 10)],
 }
-# Steps you tick off that the app also recognizes by name (Mark sent on a document, payment ticks "Client said yes",
-# the time-and-place check, retouch notes): their wording is fixed in a type's settings so renaming one never quietly
-# loses what it does. They can still be dropped; your own steps can be renamed freely.
+
 BUILTIN_STEPS = ("Send quote", "Client said yes", "Send session details", "Confirm time and place", "Send invoice",
                  "Send retouched photos")
-# Steps that tick themselves (see AUTO in app.py). A type's own step list may use any of these.
+
 AUTO_KEYS = ("logged", "intake_done", "quote_built", "date_set", "agreement_signed", "deposit_paid", "releases_signed",
              "gallery_built", "letter_mailed", "balance_paid", "first_visit", "favorites", "sd_shipped")
 STEP_STAGES = ("inquiry", "quoted", "booked", "shot", "delivered")
-# Per-type policy wording for the terms and the agreement (setup presets set sensible ones; Settings changes them).
+
 DEFAULT_WEAR = "clothes, hair and grooming"
 DEFAULT_POLICY = dict(free_reschedule=True, notice_hours=48, late_minutes=30, outfits=True, wear=DEFAULT_WEAR,
                       delivery="as full-resolution digital files, with an online gallery",
                       weather="we reschedule at no charge",
                       keep_raw_days=90,
                       license_use="personal use: printing, sharing and posting them, and having them printed anywhere")
-# The fill-ins: (policy key, the sentence around the blank, the bracket shown when it is left empty)
+
 FILL_INS = [("delivery", "You receive the edited photos ___.", "HOW YOU DELIVER"),
             ("weather", "If the weather turns, ___.", "WEATHER PLAN"),
             ("license_use", "Your license covers ___.", "WHAT THE LICENSE COVERS")]
-BLANK = "[{}]"          # a fill-in left empty shows in the documents like this, so it gets noticed
-
+BLANK = "[{}]"
 
 def fill(stype, key):
-    """A fill-in in the photographer's own words; an empty one shows as a [BRACKET] so it gets noticed."""
+
     d = (POLICY[stype].get(key) or "").strip().rstrip(".")
     if key == "keep_raw":
         return days_words(raw_keep_days(stype))
     return d or BLANK.format(next(b for k, _, b in FILL_INS if k == key))
 
-
 def raw_keep_days(stype):
-    """Days the unedited files are kept after delivery: one number per type drives both the agreement's wording and
-    the real deletion. Older settings stored a phrase ("one year", "90 days", "six months"); it is read as days."""
-    own = next(((t.get("policy") or {}) for t in TYPES if t.get("key") == stype), {})   # the type's own, not the merged default
+
+    own = next(((t.get("policy") or {}) for t in TYPES if t.get("key") == stype), {})
     if own.get("keep_raw_days") not in (None, ""):
         try:
             return max(1, min(int(own["keep_raw_days"]), 3650))
@@ -132,13 +115,11 @@ def raw_keep_days(stype):
             pass
     return phrase_days(own.get("keep_raw")) or DEFAULT_POLICY["keep_raw_days"]
 
-
 _NUM = dict(a=1, an=1, one=1, two=2, three=3, four=4, five=5, six=6, seven=7, eight=8, nine=9, ten=10, twelve=12,
             eighteen=18, thirty=30, sixty=60, ninety=90)
 
-
 def phrase_days(text):
-    """'one year' -> 365, '90 days' -> 90, 'six months' -> 182; None when it can't be read."""
+
     m = __import__("re").match(r"\s*(\d+|[a-z]+)\s+(day|week|month|year)s?\b", (text or "").lower())
     if not m:
         return None
@@ -149,18 +130,15 @@ def phrase_days(text):
         return n // 12 * 365 if n % 12 == 0 else 182 if n == 6 else n * 30
     return n * dict(day=1, week=7, year=365)[m.group(2)]
 
-
 def days_words(n):
-    """90 -> '90 days', 365 -> 'one year', 730 -> 'two years'."""
+
     words = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five"}
     if n % 365 == 0 and n // 365 in words:
         return words[n // 365] + (" year" if n == 365 else " years")
     return f"{n} days" if n != 1 else "1 day"
 
-
 def gallery_days(stype=None):
-    """How long a proofing gallery stays up after the client first opens it: the type's own number, else the
-    general one."""
+
     if stype:
         try:
             v = int(POLICY[stype].get("gallery_days") or 0)
@@ -170,9 +148,8 @@ def gallery_days(stype=None):
             return min(v, 3650)
     return GALLERY_DAYS
 
-
 def delivery_days(stype=None):
-    """Days until the photos are ready: the type's own number, else the general one (events have their own)."""
+
     if stype:
         try:
             v = int(POLICY[stype].get("delivery_days") or 0)
@@ -184,43 +161,32 @@ def delivery_days(stype=None):
             return EVENT_DELIVERY_DAYS
     return DELIVERY_DAYS
 
-
-# What one session of a type is called on a client's documents ("Wedding, June 6"), where the type's own label is a
-# plural or a category ("Weddings", "Headshots and business"). A type can set its own (doc_label).
 DOC_LABELS = {"portrait": "Portrait session", "senior": "Senior portrait session", "family": "Family session",
               "wedding": "Wedding", "sports": "Sports portrait session", "newborn": "Newborn session",
               "engagement": "Engagement session", "headshot": "Headshot session", "pet": "Pet session", "event": "Group event",
               "realestate": "Real estate shoot", "product": "Product shoot", "food": "Food shoot", "portfolio": "Personal project"}
 
-
 def doc_label(stype):
     t = next((t_ for t_ in TYPES if t_.get("key") == stype), None)
     return ((t or {}).get("doc_label") or DOC_LABELS.get(stype) or SESSION_TYPES.get(stype, stype or "Session"))
 
-
 def has_deposit_step(stype):
-    """True when the type's workflow asks for a deposit (a 'Deposit paid' step)."""
+
     return any(st[0] == "auto" and st[1] == "deposit_paid" for steps in WORKFLOW[stype].values() for st in steps)
 
-
 GALLERY_PHRASE = __import__("re").compile(r",?\s*(?:with|through|in|via|plus)\s+(?:an?\s+)?(?:private\s+)?online gallery", __import__("re").I)
-galleries_on = lambda: True          # the app replaces this: True once a gallery address is set up
-
+galleries_on = lambda: True
 
 def wear_text(stype=None):
-    """What the client plans and brings, in the type's own words (Steps and terms); generic by default."""
+
     w = ((POLICY[stype].get("wear") if stype else "") or DEFAULT_WEAR).strip().rstrip(".")
     return w
 
-
-# How the files physically reach the client: a choice on each contract. A built-in download link
-# is for a later version; "link" is a link the photographer sends from their own service.
 DELIVERY_METHODS = {"sd": ("SD card", "on an SD card"), "usb": ("USB drive", "on a USB drive"),
                     "disc": ("CD or DVD", "on a CD or DVD"), "link": ("Download link", "through a download link I send you")}
 
-
 def delivery_method(stype, chosen=None):
-    """The session's own choice, else the type's default, else by kind (places and products: a link; people: USB)."""
+
     if chosen in DELIVERY_METHODS:
         return chosen
     d = (POLICY[stype].get("delivery_method") or "") if stype else ""
@@ -228,11 +194,8 @@ def delivery_method(stype, chosen=None):
         return d
     return "link" if stype and TYPE_KIND.get(stype) == "property" else "usb"
 
-
 def delivery_text(stype, method=None):
-    """How the photos reach the client: the type's words, then the medium (SD card, USB drive, CD/DVD, a link), then
-    the online gallery. Promising "an online gallery" with no gallery set up would be untrue, so that phrase is left
-    out until galleries are set up."""
+
     text = fill(stype, "delivery")
     try:
         on = galleries_on()
@@ -241,7 +204,7 @@ def delivery_text(stype, method=None):
     m = GALLERY_PHRASE.search(text)
     core = (GALLERY_PHRASE.sub("", text).strip().rstrip(",") or text)
     medium = DELIVERY_METHODS[delivery_method(stype, method)][1]
-    if medium.split(" ", 2)[-1] in core or core.startswith("["):   # the type's words already say it, or left blank
+    if medium.split(" ", 2)[-1] in core or core.startswith("["):
         medium = ""
     out = core + (("," if "," in core else "") + " " + medium if medium else "")
     if m and on:
@@ -262,7 +225,6 @@ KINDS = {
                      agreement=False, release=False, subjects=False),
 }
 
-# "What do you shoot?" presets: each brings session types and starter prices (placeholders, set your own).
 _ADDONS = [
     {"key": "extra_hour", "label": "Additional hour", "amount": 150, "unit": "hour"},
     {"key": "extra_person", "label": "Additional person", "amount": 25, "unit": "each"},
@@ -350,21 +312,17 @@ PRESETS = {
                        {"key": "food_dish", "label": "Additional dish", "amount": 35, "unit": "each", "type": "food"}]),
 }
 PERSONAL_TYPE = dict(key="portfolio", label="Personal project", kind="personal", minutes=120)
-BASIC_PRESETS = ("portraits", "families", "events")      # "Skip": a small neutral set
-
+BASIC_PRESETS = ("portraits", "families", "events")
 
 def preset_types(names):
     out = [t for n in names if n in PRESETS for t in PRESETS[n]["types"]]
     return out + [PERSONAL_TYPE]
 
-
 def preset_fees(names):
     return [f for n in names if n in PRESETS for f in PRESETS[n]["fees"]] + _ADDONS
 
-
 class _ByType(dict):
-    """A per-type lookup that answers for a type it doesn't know (an old session whose type was since removed):
-    the portrait defaults."""
+
     def __init__(self, data, fallback):
         super().__init__(data)
         self.fallback = fallback
@@ -372,28 +330,24 @@ class _ByType(dict):
     def __missing__(self, key):
         return self.fallback
 
-
 TYPES = preset_types(BASIC_PRESETS)
 
-
 def type_flow(t):
-    """A type's workflow: its kind's, with any stage the type lists its own steps for replaced by that list."""
+
     flow = dict(KINDS[t["kind"]]["flow"])
     for stage, steps in (t.get("steps") or {}).items():
         if stage in STEP_STAGES:
             flow[stage] = [tuple(st) for st in steps]
     return flow
 
-
 def type_questions(t):
-    """A type's intake questions: its own full list when it has one, else its extra questions and then its kind's."""
+
     if t.get("questions"):
         return [tuple(q) for q in t["questions"]]
     return [tuple(q) for q in t.get("intake", [])] + KINDS[t["kind"]]["intake"]
 
-
 def with_family_money(flow):
-    """A group event where each family pays: the type's own steps plus the money steps."""
+
     out = {k: list(v) for k, v in flow.items()}
     booked = out.setdefault("booked", [])
     if ("auto", "deposit_paid") not in booked:
@@ -403,9 +357,8 @@ def with_family_money(flow):
         shot += [("do", "Send invoice", 10), ("auto", "balance_paid")]
     return out
 
-
 def build_types():
-    """Rebuild every per-type table from TYPES (called by apply())."""
+
     g = globals()
     types = [t for t in g["TYPES"] if t.get("kind") in KINDS and t.get("key")]
     if not types:
@@ -430,53 +383,44 @@ def build_types():
     g["INDOOR_TYPES"] = {t["key"] for t in types if t.get("indoors") or "indoors" in ((t.get("policy") or {}).get("weather") or "")}
     g["TYPE_MINUTES"] = _ByType({t["key"]: int(t.get("minutes") or 60) for t in types}, 60)
     g["EVENT_TYPE"] = next((t["key"] for t in types if t["kind"] == "event"), "event")
-    g["NEW_SESSION_TYPES"] = [t["key"] for t in types if t["kind"] != "event"]   # one client; events start from Events
-
+    g["NEW_SESSION_TYPES"] = [t["key"] for t in types if t["kind"] != "event"]
 
 build_types()
 GALLERY_DAYS = 30
-CLOSED_CLIENT_YEARS = 7          # a client with nothing open for this long is offered for deletion on Today
-GALLERY_UNOPENED_DAYS = 365   # a gallery nobody opens comes down a year after upload
+CLOSED_CLIENT_YEARS = 7
+GALLERY_UNOPENED_DAYS = 365
 LEAD_QUIET_DAYS = 5
 
-
-# ---------------------------------------------------------------- quotes
-# Starter fee schedule: example amounts only - set your own in Settings. Every edited image is included in the price
-# (no per-file fees); discount presets bring a quote down. Every edit saves a new version of the schedule, and each
-# quote keeps the version it was built from.
-# unit: "flat" (one per job), "hour", "mile" (amount 0 = use the Settings mileage rate), "each".
 DEFAULT_FEES = preset_fees(BASIC_PRESETS)
-# Per-quote discount presets; the % stays editable on every quote.
+
 DISCOUNTS = [("", "No discount", 0), ("intro", "Introductory rate", 25), ("friends", "Friends and family", 20),
              ("nonprofit", "Nonprofit", 15)]
 QUOTE_TERM_DAYS = 30
-DEPOSIT_AMOUNT = 100     # holds the date; the Terms text reads these numbers
-EVENT_DEPOSIT_PCT = 50   # events: half up front
+DEPOSIT_AMOUNT = 100
+EVENT_DEPOSIT_PCT = 50
 DELIVERY_DAYS = 14
-RESCHEDULE_FEE = 50   # each reschedule after the free one; the photographer may waive it
-RETOUCH_PICKS = 5     # photos the client picks from the gallery to retouch, each with a note
-MARKETING_PICKS = 2   # photos the photographer may show in a portfolio, permanently: the photographer chooses them, the
-                      # client may suggest favorites and may ask that any photo never be shown
+RESCHEDULE_FEE = 50
+RETOUCH_PICKS = 5
+MARKETING_PICKS = 2
+
 EXTRA_PERSON_FEE = 25
 RETOUCH_FEE = 15
 TRAVEL_FREE_MILES = 25
-# Session length for double-booking checks: from the quote's fee lines (each fee may carry "minutes"; an "hour" fee
-# counts 60 x quantity) when there are any, else the type's length.
+
 BOOKING_BUFFER_MIN = 60
 PAYMENT_METHODS = ["cash", "check"]
 ADDON_FEES = ("extra_hour", "extra_person", "extra_loc", "retouch", "rush", "reschedule", "travel")
-LOST_REASONS = ["Price", "Chose someone else", "Date didn't work", "No reply", "Canceled", "No-show", "Other"]   # drive and setup between two shoots
+LOST_REASONS = ["Price", "Chose someone else", "Date didn't work", "No reply", "Canceled", "No-show", "Other"]
 EVENT_DELIVERY_DAYS = 21
-BALANCE_NET_DAYS = 30   # invoiced (business) clients: balance due this many days after the session
-BALANCE_BEFORE_DAYS = 14   # balance due this many days BEFORE the session, for the types in BEFORE_TYPES
+BALANCE_NET_DAYS = 30
+BALANCE_BEFORE_DAYS = 14
 BEFORE_TYPES = ()
-NET_TERMS_TYPES = tuple(t["key"] for t in TYPES if t["kind"] == "property")   # invoiced; everyone else pays at delivery
-LICENSE_TYPES = tuple(t["key"] for t in TYPES if t["kind"] == "property")     # licensed (photographer keeps copyright)
-OFFERED_TYPES = tuple(SESSION_TYPES)   # kept for older settings files; every defined type is offered
+NET_TERMS_TYPES = tuple(t["key"] for t in TYPES if t["kind"] == "property")
+LICENSE_TYPES = tuple(t["key"] for t in TYPES if t["kind"] == "property")
+OFFERED_TYPES = tuple(SESSION_TYPES)
 
-# What "editing" means. Shown with the fee schedule, the quote and the agreement. Rebuilt by apply().
 def build_editing(stype=None):
-    if stype and TYPE_KIND.get(stype) == "property":       # places and products: no retouching of people
+    if stype and TYPE_KIND.get(stype) == "property":
         return [
             ("Editing (every delivered image)", [
                 "The best frames only, exposure, white balance and color corrected and matched across the set.",
@@ -507,18 +451,14 @@ def build_editing(stype=None):
         ("More retouching", ["At the per-image price on the price list. Anything heavier gets a quote first."]),
     ]
 
-
 EDITING_POLICY = build_editing()
-
 
 def _or_list(words):
     words = [w for w in words if w]
     return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " or " + words[-1] if words else ""
 
-
 def portfolio_choice(n=None):
-    """The portfolio promise, in one place for every document: the photographer chooses; the client suggests and may say
-    no to any photo."""
+
     n = MARKETING_PICKS if n is None else n
     return (f"I may show up to {n} photo{'s' if n != 1 else ''} from your session in my portfolio, on my website, and on my"
             " business's social media accounts. I choose them; you are welcome to suggest favorites. Before I first show a photo,"
@@ -526,15 +466,13 @@ def portfolio_choice(n=None):
             " remove it from my portfolio, website, and social media within 14 days and will not post it again; I cannot recall"
             " copies already printed or posts others have shared.")
 
-
 def portfolio_discount_words(stype):
-    """'$25' or '10%' for the type's portfolio permission discount, or '' when it offers none."""
+
     r = PORTFOLIO_DISCOUNT.get(stype)
     return "" if not r else (f"{r[1]}%" if r[0] == "pct" else f"${r[1]:,}")
 
-
 def payment_text():
-    """How clients may pay, from the photographer's own list."""
+
     m = payment_methods()
     if not m:
         return "Ask me how to pay."
@@ -543,30 +481,25 @@ def payment_text():
     if "check" in m:
         txt += " Checks are made out to the business named on your invoice."
     how = " ".join((pay_details() or "").split())
-    if how:                                             # no period after a link: phones copy it into the address
+    if how:
         txt += " " + how + ("" if re.search(r"[./]\w+/?$", how) and not how.endswith(".") else ("" if how.endswith(".") else "."))
     return txt
-
 
 def payment_methods():
     m = list(PAYMENT_METHODS)
     if any(x not in ("cash", "check", "card", "bank transfer", "payment app") for x in m):
-        m = [x for x in m if x != "payment app"]        # a named app (Venmo, Zelle) says it better than "payment app"
+        m = [x for x in m if x != "payment app"]
     return m
 
-
 def pay_details():
-    return ""                                           # set by the app: the owner's "where to pay" line
-
+    return ""
 
 def mileage_rate():
-    return 0                                            # set by the app: Settings, the rate per mile
-
+    return 0
 
 def rights_text(stype):
     return ("I keep the copyright; you receive a license to use the photos, as the agreement describes."
             if stype in LICENSE_TYPES else "The photos are yours: the copyright transfers to you once the balance is paid.")
-
 
 def balance_text(stype):
     if stype in BEFORE_TYPES:
@@ -575,10 +508,8 @@ def balance_text(stype):
         return f"due within {BALANCE_NET_DAYS} days of the invoice, which follows the session"
     return "due on delivery; your photos are released on payment"
 
-
 def _notice(h):
     return f"{h // 24} days'" if h >= 72 and h % 24 == 0 else f"{h} hours'"
-
 
 def cancel_text(stype):
     p = POLICY[stype]
@@ -592,17 +523,14 @@ def cancel_text(stype):
         txt += " A new date depends on my availability" + ("." if no_dep else "; the deposit carries over once.")
     return txt + f" If the weather turns, {fill(stype, 'weather')}."
 
-
 def has_no_deposit(stype):
-    """True when this type takes no deposit: its own rule says $0 or 0%, or it is a place/product type whose workflow
-    never asks for one."""
+
     own = DEPOSIT_RULE.get(stype)
     if own is not None:
         return not own[1]
     if TYPE_KIND.get(stype) == "event":
         return not EVENT_DEPOSIT_PCT
     return (TYPE_KIND.get(stype) == "property" and not has_deposit_step(stype)) or not DEPOSIT_AMOUNT
-
 
 def late_text(stype):
     m = POLICY[stype]["late_minutes"]
@@ -613,9 +541,6 @@ def late_text(stype):
             f" counts as a missed session: {keep}, and a new date needs a new booking"
             + ("." if has_no_deposit(stype) else " and a new deposit."))
 
-
-# Terms shown under the prices (price list: every type; a quote: its own type). Sales tax is not a term: the quote
-# shows it as its own line once Settings has a rate.
 def build_terms(stype=None):
     types = [stype] if stype else list(SESSION_TYPES)
     kinds = {TYPE_KIND.get(t) for t in types}
@@ -665,7 +590,7 @@ def build_terms(stype=None):
                                   "I keep the copyright and you receive a license to use the photos."))
     else:
         out.append(("The photos", rights_text(types[0] if types else None)))
-    groups = {}                                    # one line per distinct wording, naming the types when they differ
+    groups = {}
     for t in types:
         groups.setdefault((cancel_text(t), late_text(t)), []).append(t)
     for (cancel, late), ts in groups.items():
@@ -688,20 +613,16 @@ def build_terms(stype=None):
                                       "each way. Location permits, parking and venue fees are charged at cost."))
     return out
 
-
 TERMS = build_terms()
 
-# Business rules a photographer sets in setup / Settings (stored as JSON in settings key "rules"). Names map to the
-# module constants above; apply() replaces them and rebuilds the Terms.
 RULE_KEYS = ("DEPOSIT_AMOUNT", "EVENT_DEPOSIT_PCT", "BALANCE_NET_DAYS", "NET_TERMS_TYPES", "LICENSE_TYPES",
              "RESCHEDULE_FEE", "PAYMENT_METHODS", "DELIVERY_DAYS", "EVENT_DELIVERY_DAYS", "GALLERY_DAYS",
              "GALLERY_UNOPENED_DAYS", "RETOUCH_PICKS", "MARKETING_PICKS", "EXTRA_PERSON_FEE", "RETOUCH_FEE",
              "TRAVEL_FREE_MILES", "OFFERED_TYPES", "TYPES", "DISCOUNTS", "BALANCE_BEFORE_DAYS", "BEFORE_TYPES")
 _DEFAULTS = {}
 
-
 def apply(rules):
-    """Overlay saved rules on the defaults (unknown keys ignored), then rebuild everything derived from them."""
+
     g = globals()
     if not _DEFAULTS:
         _DEFAULTS.update({k: g[k] for k in RULE_KEYS if k in g})
@@ -723,14 +644,13 @@ def apply(rules):
         else:
             g[k] = v
     build_types()
-    for k in ("NET_TERMS_TYPES", "LICENSE_TYPES"):            # not chosen yet: business types are invoiced, and every
-        if k not in (rules or {}):                            # type is licensed (the photographer keeps the copyright)
+    for k in ("NET_TERMS_TYPES", "LICENSE_TYPES"):
+        if k not in (rules or {}):
             g[k] = tuple(t["key"] for t in g["TYPES"] if t.get("key") in g["TYPE_KIND"]
                          and (t.get("kind") == "property" or k == "LICENSE_TYPES"))
     g["OFFERED_TYPES"] = tuple(g["SESSION_TYPES"])
     g["TERMS"] = build_terms()
     g["EDITING_POLICY"] = build_editing()
-
 
 def current_rules():
     g = globals()

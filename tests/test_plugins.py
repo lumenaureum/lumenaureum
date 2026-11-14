@@ -1,5 +1,3 @@
-"""The example in plugins/README.md works as written, from a plugin folder outside the code (CRM_PLUGIN_DIRS), and
-CRM_PLUGINS_OFF switches a plugin off."""
 import os
 import re
 import sys
@@ -7,15 +5,13 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import fresh_modules, signed_in_client  # noqa: E402
+from helpers import fresh_modules, signed_in_client
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
-
 
 def example_code():
     text = open(os.path.join(ROOT, "plugins", "README.md")).read()
     return re.search(r"`my-plugins/thank_you.py`.*?```python\n(.*?)```", text, re.S).group(1)
-
 
 def test_readme_example_plugin(tmp_path, monkeypatch):
     mine = tmp_path / "my-plugins"
@@ -41,7 +37,6 @@ def test_readme_example_plugin(tmp_path, monkeypatch):
     assert "Card sent" in c.get("/session/1", environ_base=E).get_data(as_text=True)
     assert "Send Harlow Family a thank-you card" not in c.get("/", environ_base=E).get_data(as_text=True)
 
-
 def test_plugins_off(tmp_path, monkeypatch):
     monkeypatch.setenv("CRM_DB", str(tmp_path / "crm.db"))
     monkeypatch.setenv("CRM_STORAGE_CFG", str(tmp_path / "storage.json"))
@@ -50,9 +45,8 @@ def test_plugins_off(tmp_path, monkeypatch):
     import app as A
     assert "letters" not in A.LOADED and "gallery" in A.LOADED
 
-
 def test_about_and_log_name_loaded_plugins(tmp_path, monkeypatch):
-    """The About card (signed in only) and the startup log name plugins that are not part of Lumen Aureum; built-in ones are not called out."""
+
     monkeypatch.setenv("CRM_DB", str(tmp_path / "crm.db"))
     monkeypatch.setenv("CRM_STORAGE_CFG", str(tmp_path / "storage.json"))
     fresh_modules()
@@ -61,12 +55,12 @@ def test_about_and_log_name_loaded_plugins(tmp_path, monkeypatch):
     assert A.PLUGINS_LOADED and all(p["built_in"] for p in A.PLUGINS_LOADED)
     c = signed_in_client(A)
     page = c.get("/about", environ_base={"REMOTE_ADDR": "127.0.0.1"}).get_data(as_text=True)
-    assert "not part of Lumen Aureum" not in page            # built-in plugins are not called out
+    assert "not part of Lumen Aureum" not in page
     A.PLUGINS_LOADED.append(dict(name="mine", built_in=False, folder="/plugins", label="plugins/mine"))
     page = c.get("/about", environ_base={"REMOTE_ADDR": "127.0.0.1"}).get_data(as_text=True)
     assert "The following plugins are loaded and are not part of Lumen Aureum: plugins/mine." in page and "including client data" in page
     anon = A.app.test_client().get("/about", environ_base={"REMOTE_ADDR": "127.0.0.1"}).get_data(as_text=True)
-    assert "mine" not in anon                                # strangers don't learn what runs here
+    assert "mine" not in anon
     import io, contextlib
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
@@ -77,4 +71,4 @@ def test_about_and_log_name_loaded_plugins(tmp_path, monkeypatch):
     lines = out.splitlines()
     i = next(n for n, ln in enumerate(lines) if "WARNING" in ln)
     j = next(n for n, ln in enumerate(lines) if "client data." in ln)
-    assert all(len(ln) <= 66 for ln in lines[i:j + 1])          # wrapped to the banner width
+    assert all(len(ln) <= 66 for ln in lines[i:j + 1])

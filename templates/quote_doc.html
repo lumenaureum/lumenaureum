@@ -27,3 +27,4 @@
   <p class="foot">Quote {{ v.id or "(numbered when sent)" }}, fee schedule #{{ v.schedule_id }}. Prices on this quote hold until {{ v.expires_long }}.</p>
 {% include "_credit.html" %}
 </div>{% if not pdf %}<script src="{{ url_for('static', filename='ui.js', v=static_v('ui.js')) }}"></script>{% endif %}</body></html>
+

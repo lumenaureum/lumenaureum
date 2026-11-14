@@ -1,5 +1,5 @@
-{% extends "base.html" %}{# Deletions that could not be confirmed (see unconfirmed_deletions in app.py). Never applied on their own. #}
-{% block title %}Deletions to confirm{% endblock %}
+{% extends "base.html" %}
+{% block title %}Deletions to confirm - Lumen Aureum{% endblock %}
 {% block body %}
 <h1>Deletions to confirm</h1>
 {% if rows %}
@@ -20,3 +20,4 @@
 <p>Nothing to confirm. Every deletion on record is either applied or kept.</p>
 {% endif %}
 {% endblock %}
+

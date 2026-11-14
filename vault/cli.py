@@ -30,14 +30,13 @@ import sys
 from . import backup as BK
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import datakey  # noqa: E402
-import db as D  # noqa: E402
+import datakey
+import db as D
 
 DB = os.environ.get("CRM_DB", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "crm.db"))
 
-
 def _unlock():
-    """The command line unlocks like the web app: the owner's password (or the master key if that is lost)."""
+
     if datakey.is_unlocked():
         return
     secret = getpass.getpass("Password (or the master key): ")
@@ -45,7 +44,6 @@ def _unlock():
     if not key:
         sys.exit("That password doesn't open this install.")
     datakey.set_unlocked(key)
-
 
 def main(argv):
     if not argv or argv[0] in ("-h", "--help"):
@@ -74,13 +72,13 @@ def main(argv):
         if len(argv) == 5:
             backend = B.LocalBackend(argv[4], read_only=True)
         elif datakey.exists():
-            datakey.set_unlocked(datakey.unwrap_master(secret))     # to read this install's storage settings
+            datakey.set_unlocked(datakey.unwrap_master(secret))
             backend = None
             try:
                 c_ = D.connect(DB)
-                expected = BK.recorded_sha(c_, argv[1])               # refuse a swapped or rolled-back backup
+                expected = BK.recorded_sha(c_, argv[1])
                 c_.close()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 expected = None
         else:
             print("No install here: copy or mount the vault folder and add --from <folder>."); return 2
@@ -124,7 +122,7 @@ def main(argv):
         ident = K.parse_secret(secret)
         datakey.set_unlocked(datakey.unwrap_master(secret))
         con = D.connect(DB)
-        P.ensure_trail(con)                               # the trail moves with the key (a later rotation extends it)
+        P.ensure_trail(con)
         fixed = same = missing = bad = untraced = 0
 
         class _Null:
@@ -137,13 +135,11 @@ def main(argv):
                 continue
             m = json.loads(pyrage.decrypt(kp.read_bytes(), [ident]))
             if m.get("id") != r[0] or int(m.get("size") or -1) != int(r[2]):
-                continue                                  # a record for another file is never trusted
+                continue
             if m["fkey"] == r[1]:
                 same += 1
                 continue
-            # The key record is sealed to the PUBLIC key, so anyone could write one, along with a photo file to match.
-            # A key is taken only if the record traces back to the key this database holds: each rotation adds a tag
-            # made with the key it retired (photostore.trail_tag), and only the vault ever held that key.
+
             import hmac
             want = P.trail_tag(r[1], r[0])
             trail = m.get("trail") if isinstance(m.get("trail"), list) else []
@@ -152,13 +148,13 @@ def main(argv):
                       "(recover-photos <folder> --from <photos folder> still opens it with the master key)")
                 untraced += 1
                 continue
-            try:                                          # and the key must really open the photo
+            try:
                 P.read_file_plain(P.path_of(r[0]), r[0], m["fkey"], _Null(), size=r[2])
-            except Exception:  # noqa: BLE001
+            except Exception:
                 print(f"skipped {r[0]}: its key record does not open the photo")
                 bad += 1
                 continue
-            con.execute("UPDATE photo_files SET fkey=?, mirrored=NULL, key_trail=? WHERE id=?",   # mirror re-copied
+            con.execute("UPDATE photo_files SET fkey=?, mirrored=NULL, key_trail=? WHERE id=?",
                         (m["fkey"], json.dumps([t_ for t_ in trail if isinstance(t_, str)]), r[0]))
             fixed += 1
         con.commit()
@@ -174,7 +170,7 @@ def main(argv):
         import photostore as P
         from . import keys as K
         root = Path(argv[3]) if len(argv) == 4 and argv[2] == "--from" else P.ROOT
-        if (root / "sealed").is_dir():           # the photos folder itself: its sealed files are one level down
+        if (root / "sealed").is_dir():
             root = root / "sealed"
         secret = getpass.getpass("Master key: ")
         ident = K.parse_secret(secret)
@@ -192,15 +188,14 @@ def main(argv):
                 continue
             try:
                 m = json.loads(pyrage.decrypt(kp.read_bytes(), [ident]))
-            except Exception as e:  # noqa: BLE001 - one damaged record never stops the rest
+            except Exception as e:
                 print(f"skipped {kp.name}: its key record could not be opened ({e.__class__.__name__})")
                 failed += 1
                 continue
-            if str(m.get("id")) != kp.stem:                 # a record for another file: never trusted
+            if str(m.get("id")) != kp.stem:
                 print(f"skipped {kp.name}: its key record names another file")
                 continue
-            # every part of the path is cleaned like an upload's file name, and the result must stay inside the
-            # output folder (a household name like "../x" or "AC/DC" can't send files elsewhere)
+
             base = Path(argv[1]).resolve()
             label = P.clean_name(str(m.get("label") or f"session {m.get('session')}"))
             kind = m.get("kind") if m.get("kind") in P.KINDS else "other"
@@ -210,14 +205,14 @@ def main(argv):
                 continue
             out.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
             stem_, k_ = out.stem, 2
-            while out.exists():                            # two photos with one name: keep both
+            while out.exists():
                 out = out.with_name(f"{stem_} ({k_}){out.suffix}")
                 k_ += 1
             try:
                 fd = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
                 with os.fdopen(fd, "wb") as f:
                     P.read_file_plain(lap, m["id"], m["fkey"], f, size=m.get("size"))
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 print(f"skipped {kp.name}: the photo did not decrypt ({e.__class__.__name__}); nothing kept from it")
                 out.unlink(missing_ok=True)
                 failed += 1
@@ -231,7 +226,7 @@ def main(argv):
         _unlock()
         old = getpass.getpass("OLD master key: ")
         try:
-            ok = datakey.unwrap_master(old) == datakey.dk()   # the old key must open this install's keyring
+            ok = datakey.unwrap_master(old) == datakey.dk()
         except ValueError:
             ok = False
         if not ok:
@@ -239,10 +234,10 @@ def main(argv):
         secret, pub = K.generate_master()
         con = D.connect(DB)
         try:
-            n = K.replace_master(con, old, pub)        # checks the old key against every session key, then commits
+            n = K.replace_master(con, old, pub)
         finally:
             con.close()
-        datakey.replace_master(pub)                    # the keyring follows; Settings > Vault warns if the two ever disagree
+        datakey.replace_master(pub)
         print("\nYour NEW master key (shown once; save it in your password manager and print it):\n\n  " + secret + "\n")
         print(f"{n} sealed session key(s) moved to it. Backups made BEFORE now still need the OLD key until they age")
         print("out of the vault (30 days); keep the old key until then, then destroy it.")
@@ -260,7 +255,6 @@ def main(argv):
         print("New data key in place. Older backups still open with the master key.")
         return 0
     print(USAGE); return 2
-
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))

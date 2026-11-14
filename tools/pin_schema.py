@@ -1,17 +1,9 @@
-#!/home/patrick/claude/.venv/bin/python3
-"""Regenerate the pinned schema (tests/schema_v<SCHEMA_VERSION>.sql) from a fresh install of the current code.
-
-    python tools/pin_schema.py
-
-Run it after changing the schema on purpose (see the schema versions checklist in app.py); tests/test_schema_pinned.py
-fails until the pinned file matches."""
 import os
 import sys
 import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-
 
 def main():
     with tempfile.TemporaryDirectory() as tmp:
@@ -27,7 +19,6 @@ def main():
         out = schema_pin.pinned_path(version)
         out.write_text(schema_pin.render(version, text))
         print("wrote", out)
-
 
 if __name__ == "__main__":
     main()

@@ -1,4 +1,3 @@
-"""SFTP storage pins host keys with a reject policy, uses key auth only, and refuses object names that escape its root."""
 import io
 import os
 import sys
@@ -9,16 +8,13 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import fresh_modules  # noqa: E402
-
+from helpers import fresh_modules
 
 class RejectPolicy:
     pass
 
-
 class AutoAddPolicy:
     pass
-
 
 class FakeFile(io.BytesIO):
     def __init__(self, sftp, path):
@@ -31,7 +27,6 @@ class FakeFile(io.BytesIO):
     def close(self):
         self.sftp.files[self.path] = self.getvalue()
         super().close()
-
 
 class FakeSFTP:
     def __init__(self):
@@ -60,7 +55,6 @@ class FakeSFTP:
     def close(self):
         pass
 
-
 class FakeClient:
     instances = []
 
@@ -83,7 +77,6 @@ class FakeClient:
     def close(self):
         pass
 
-
 @pytest.fixture
 def sftp(monkeypatch):
     fake = types.ModuleType("paramiko")
@@ -93,7 +86,6 @@ def sftp(monkeypatch):
     fresh_modules()
     from vault import backends as B
     return B
-
 
 def test_unknown_host_keys_are_rejected(sftp, tmp_path):
     kh = tmp_path / "known_hosts"
@@ -106,7 +98,6 @@ def test_unknown_host_keys_are_rejected(sftp, tmp_path):
     assert host == "nas.example" and kw["username"] == "crm" and kw["key_filename"] == str(tmp_path / "id")
     assert kw["look_for_keys"] is False and kw["allow_agent"] is False
 
-
 @pytest.mark.parametrize("name", ["../escape.age", "db/../../escape.age", "/etc/passwd", "db\\x.age", ""])
 def test_names_that_escape_the_root_are_refused(sftp, name):
     bk = sftp.SFTPBackend("nas.example", "crm", "~/id", "/srv/vault")
@@ -118,7 +109,6 @@ def test_names_that_escape_the_root_are_refused(sftp, name):
         bk.delete(name)
     assert not any(c.sftp.files for c in FakeClient.instances)
 
-
 def test_writes_stay_under_the_root(sftp):
     bk = sftp.SFTPBackend("nas.example", "crm", "~/id", "/srv/vault")
     size, sha = bk.put_stream("db/abc.age", io.BytesIO(b"sealed bytes"))
@@ -127,10 +117,8 @@ def test_writes_stay_under_the_root(sftp):
     import hashlib
     assert sha == hashlib.sha256(b"sealed bytes").hexdigest()
 
-
 def test_app_key_and_pinned_host_key():
-    """The app's own key pair loads into paramiko; a trusted server key is the only one accepted; the settings file
-    never carries the private key."""
+
     fresh_modules()
     import paramiko
     from vault import backends as B

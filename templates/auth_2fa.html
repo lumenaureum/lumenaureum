@@ -1,7 +1,8 @@
-{% extends "auth_base.html" %}{% block body %}
+{% extends "auth_base.html" %}{% block title %}Sign-in code - Lumen Aureum{% endblock %}{% block body %}
 <h1>Code</h1>
 <form method="post" class="card f">
   {% if err %}<div class="err">That code didn't work.</div>{% endif %}
   <input name="code" placeholder="6-digit code or a recovery code" autocomplete="one-time-code" inputmode="numeric" required autofocus>
   <button class="primary">Sign in</button>
 </form>{% endblock %}
+

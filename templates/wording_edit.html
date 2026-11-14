@@ -1,7 +1,5 @@
 {% extends "base.html" %}{% from "_macros.html" import help with context %}
-{% block title %}{{ label }} wording - Lumen Aureum{% if not stype %}<form method="post" action="{{ url_for('doc_review', doc=doc) }}" class="row" style="margin-top:10px" data-confirm="Replace your {{ label|lower }} wording with the one that ships with Lumen Aureum, and mark it SAMPLE again?">
-  <input type="hidden" name="revert" value="1"><button class="quiet">Revert to default</button><span class="mute" style="font-size:12px">The shipped wording, marked SAMPLE until you review it again.</span></form>{% endif %}
-{% endblock %}
+{% block title %}{{ label }} wording - Lumen Aureum{% endblock %}
 {% block body %}
 <div class="row"><h1 class="grow">{{ label }} wording{% if stype %}: {{ stype.label }}{% endif %}</h1><a class="go" href="{{ url_for('settings_view') }}">Settings &rsaquo;</a></div>
 <p class="mute" style="margin:4px 0 0">{% if stype %}{{ 'Wording for ' ~ stype.label ~ ' only.' if own else 'Uses the general wording until you change it here.' }}{% else %}{{ 'Your own wording, for every session type without its own.' if own else 'The standard wording.' }}{% endif %} <b># </b>starts a heading; a blank line starts a paragraph; <b>[FIELDS]</b> are filled in.</p>
@@ -26,3 +24,4 @@
 {% if not stype %}<form method="post" action="{{ url_for('doc_review', doc=doc) }}" class="row" style="margin-top:10px" data-confirm="Replace your {{ label|lower }} wording with the one that ships with Lumen Aureum, and mark it SAMPLE again?">
   <input type="hidden" name="revert" value="1"><button class="quiet">Revert to default</button><span class="mute" style="font-size:12px">The shipped wording, marked SAMPLE until you review it again.</span></form>{% endif %}
 {% endblock %}
+

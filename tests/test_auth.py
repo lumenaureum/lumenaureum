@@ -1,7 +1,3 @@
-"""Owner sign-in and the data lock: TOTP against the RFC 6238 vector; owner setup (account, two-factor and master key in
-one sitting, claimed once); the database, faces and storage settings are encrypted on disk; signing in unlocks, a
-restart locks; the key waits for two-factor and is dropped without it; recovery codes stand in for two-factor only;
-the master key resets a lost password; a tampered keyring is refused; lockout; no open redirects."""
 import os
 import re
 import sys
@@ -11,20 +7,18 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import fresh_modules  # noqa: E402
+from helpers import fresh_modules
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
 PW = "correct horse battery"
 
-
 def test_totp_rfc6238_vector():
     import auth
-    secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"            # ASCII "12345678901234567890"
+    secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
     assert auth.totp(secret, at=59, digits=8) == "94287082"
     assert auth.totp(secret, at=1111111109, digits=8) == "07081804"
-    assert auth.totp_ok(secret, auth.totp(secret, at=1000), at=1000 + 30)       # one step of clock drift is fine
+    assert auth.totp_ok(secret, auth.totp(secret, at=1000), at=1000 + 30)
     assert not auth.totp_ok(secret, auth.totp(secret, at=1000), at=1000 + 120)
-
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
@@ -35,41 +29,37 @@ def client(tmp_path, monkeypatch):
     import app as A
     return A, A.app.test_client()
 
-
 def restart(c_old=None):
-    """A new process: modules re-imported, nothing unlocked, every session signed out."""
+
     fresh_modules()
     import app as A
     return A, A.app.test_client()
 
-
 def unlocked():
-    """The CURRENT process's lock state (a restart re-imports datakey)."""
+
     return sys.modules["datakey"].is_unlocked()
 
-
 def claim(c, A, email="owner@example.com", pw=PW):
-    """Owner setup end to end. Returns (totp secret, recovery codes, master secret)."""
+
     import auth
     c.post("/setup/owner", data=dict(claim=sys.modules["netsec"].claim_code(), name="Owner", email=email, password=pw,
                                      password2=pw), environ_base=E)
     with c.session_transaction() as s:
         tok = s["setup_tok"]
-        assert "totp" not in s and "pw" not in s            # nothing secret rides in the cookie
+        assert "totp" not in s and "pw" not in s
     secret = auth.SETUP[tok]["totp"]
     r = c.post("/setup/owner/verify", data=dict(code=auth.totp(secret)), environ_base=E)
     assert r.location.endswith("/setup/owner/key")
     page = c.get("/setup/owner/key", environ_base=E).get_data(as_text=True)
     master = re.search(r"AGE-SECRET-KEY-1[0-9A-Z]+", page).group(0)
-    assert master in c.get("/setup/owner/key", environ_base=E).get_data(as_text=True)    # a reload keeps it, same sitting
+    assert master in c.get("/setup/owner/key", environ_base=E).get_data(as_text=True)
     other = A.app.test_client()
-    assert "AGE-SECRET-KEY" not in other.get("/setup/owner/key", environ_base=E).get_data(as_text=True)   # nobody else
-    assert master in c.post("/setup/owner/key", data=dict(tail="XXXXXX"), environ_base=E).get_data(as_text=True)  # a typo too
+    assert "AGE-SECRET-KEY" not in other.get("/setup/owner/key", environ_base=E).get_data(as_text=True)
+    assert master in c.post("/setup/owner/key", data=dict(tail="XXXXXX"), environ_base=E).get_data(as_text=True)
     r = c.post("/setup/owner/key", data=dict(tail=master[-6:]), environ_base=E)
-    assert not any(st.get("secret") for st in auth.SETUP.values())                       # gone once confirmed
+    assert not any(st.get("secret") for st in auth.SETUP.values())
     codes = re.findall(r"[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}", r.get_data(as_text=True))
     return secret, codes, master
-
 
 def finish_setup(A):
     con = A.connect()
@@ -77,12 +67,10 @@ def finish_setup(A):
     con.commit()
     con.close()
 
-
 def sign_in(c, secret, pw=PW, code=None):
     import auth
     c.post("/login", data=dict(email="owner@example.com", password=pw), environ_base=E)
     return c.post("/login/2fa", data=dict(code=code or auth.totp(secret)), environ_base=E)
-
 
 def test_setup_then_everything_behind_login(client):
     A, c = client
@@ -91,14 +79,13 @@ def test_setup_then_everything_behind_login(client):
     secret, codes, master = claim(c, A)
     assert len(codes) == 10
     assert c.get("/healthz", environ_base=E).get_json()["locked"] is False
-    assert c.get("/", environ_base=E).location.endswith("/setup/business")   # signed in; on to the rest of setup
-    assert c.get("/setup/owner", environ_base=E).status_code == 404       # claimed: closed for good
-    assert not sys.modules["netsec"].code_file().exists()                 # the setup code file is gone
+    assert c.get("/", environ_base=E).location.endswith("/setup/business")
+    assert c.get("/setup/owner", environ_base=E).status_code == 404
+    assert not sys.modules["netsec"].code_file().exists()
     c.post("/logout", environ_base=E)
     for p in ("/", "/settings", "/vault", "/money", "/calendar", "/security"):
         assert "/login" in c.get(p, environ_base=E).location
-    assert c.post("/settings/reset", data={"confirm": "RESET"}, environ_base=E).status_code == 302   # to login, not reset
-
+    assert c.post("/settings/reset", data={"confirm": "RESET"}, environ_base=E).status_code == 302
 
 def test_data_is_encrypted_on_disk(client, tmp_path):
     A, c = client
@@ -126,7 +113,6 @@ def test_data_is_encrypted_on_disk(client, tmp_path):
     assert c.get("/", environ_base=E).headers["Cache-Control"] == "no-store"
     assert not (tmp_path / "secret_key").exists()
 
-
 def test_restart_locks_and_sign_in_unlocks(client):
     A, c = client
     secret, _, _ = claim(c, A)
@@ -139,14 +125,13 @@ def test_restart_locks_and_sign_in_unlocks(client):
     assert "/login" in r.location
     assert b"Locked after a restart" in c.get("/login", environ_base=E).data
     c.post("/login", data=dict(email="owner@example.com", password=PW), environ_base=E)
-    assert not datakey.is_unlocked()                         # password alone does not unlock
+    assert not datakey.is_unlocked()
     assert "/login" in c.get("/", environ_base=E).location
     r = c.post("/login/2fa", data=dict(code="000000"), environ_base=E)
     assert not datakey.is_unlocked()
     import auth
     r = c.post("/login/2fa", data=dict(code=auth.totp(secret)), environ_base=E)
     assert datakey.is_unlocked() and c.get("/", environ_base=E).status_code == 200
-
 
 def test_pending_key_expires_without_second_factor(client, monkeypatch):
     A, c = client
@@ -160,7 +145,6 @@ def test_pending_key_expires_without_second_factor(client, monkeypatch):
     r = c.post("/login/2fa", data=dict(code=auth.totp(secret, at=real() + datakey.PENDING_TTL + 5)), environ_base=E)
     assert "/login" in r.location and not datakey.is_unlocked()
 
-
 def test_wrong_password_and_lockout(client):
     A, c = client
     claim(c, A)
@@ -171,7 +155,6 @@ def test_wrong_password_and_lockout(client):
         c.post("/login", data=dict(email="owner@example.com", password="nope nope nope"), environ_base=E)
     r = c.post("/login", data=dict(email="owner@example.com", password=PW), environ_base=E)
     assert "Wait 15 minutes" in r.get_data(as_text=True)
-
 
 def test_recovery_code_replaces_two_factor_once_but_never_the_password(client):
     A, c = client
@@ -185,7 +168,6 @@ def test_recovery_code_replaces_two_factor_once_but_never_the_password(client):
     r = c.post("/login", data=dict(email="owner@example.com", password=codes[1]), environ_base=E)
     assert not unlocked() and "Wrong email or password" in r.get_data(as_text=True)
 
-
 def test_master_key_resets_a_lost_password(client):
     A, c = client
     secret, _, master = claim(c, A)
@@ -197,17 +179,16 @@ def test_master_key_resets_a_lost_password(client):
     assert not datakey.is_unlocked()
     r = c.post("/unlock/master", data=dict(secret=master, password="a brand new password",
                                            password2="a brand new password", code="WRONG-CODE-0000"), environ_base=E)
-    assert not datakey.is_unlocked()                         # the master key alone is not enough
+    assert not datakey.is_unlocked()
     import netsec
     code = netsec.recovery_code()
     assert code in (netsec.tls_dir().parent / netsec.RECOVERY_FILE).read_text()
     r = c.post("/unlock/master", data=dict(secret=master, password="a brand new password",
                                            password2="a brand new password", code=code), environ_base=E)
     assert datakey.is_unlocked() and c.get("/", environ_base=E).status_code == 200
-    assert not (netsec.tls_dir().parent / netsec.RECOVERY_FILE).exists() and not netsec.recovery_ok(code)   # one use
+    assert not (netsec.tls_dir().parent / netsec.RECOVERY_FILE).exists() and not netsec.recovery_ok(code)
     A, c = restart()
     assert datakey.unwrap_password(PW) is None and datakey.unwrap_password("a brand new password")
-
 
 def test_tampered_keyring_is_refused(client, tmp_path):
     A, c = client
@@ -216,14 +197,13 @@ def test_tampered_keyring_is_refused(client, tmp_path):
     ring = json.loads((tmp_path / "keyring.json").read_text())
     from vault import keys as K
     _, other = K.generate_master()
-    ring["master_pub"] = other                               # someone swaps in their own key
+    ring["master_pub"] = other
     (tmp_path / "keyring.json").write_text(json.dumps(ring))
     A, c = restart()
     r = c.post("/login", data=dict(email="owner@example.com", password=PW), environ_base=E)
     assert "changed outside" in r.get_data(as_text=True)
     import datakey
     assert not datakey.is_unlocked() and not datakey._state["pending"]
-
 
 def test_change_password_and_new_codes(client):
     A, c = client
@@ -236,12 +216,11 @@ def test_change_password_and_new_codes(client):
     new = re.findall(r"[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}", r.get_data(as_text=True))
     assert len(new) == 10
     A, c = restart()
-    sign_in(c, secret, pw="another good one", code=codes[0])         # old code no longer works
+    sign_in(c, secret, pw="another good one", code=codes[0])
     assert not unlocked()
     A, c = restart()
     sign_in(c, secret, pw="another good one", code=new[0])
     assert unlocked()
-
 
 def test_no_open_redirect(client):
     A, c = client
@@ -253,14 +232,12 @@ def test_no_open_redirect(client):
     r = c.post("/login/2fa", data=dict(code=auth.totp(secret)), environ_base=E)
     assert "evil" not in (r.location or "")
 
-
 def test_short_password_refused_and_off_network_blocked(client):
     A, c = client
     r = c.post("/setup/owner", data=dict(claim=sys.modules["netsec"].claim_code(), name="O", email="o@example.com",
                                          password="short", password2="short"), environ_base=E)
     assert "Passwords must match" in r.get_data(as_text=True)
     assert c.get("/setup/owner", environ_base={"REMOTE_ADDR": "8.8.8.8"}).status_code == 403
-
 
 def test_failed_unlock_work_leaves_the_app_locked(client):
     A, c = client
@@ -277,9 +254,8 @@ def test_failed_unlock_work_leaves_the_app_locked(client):
     assert c.get("/healthz", environ_base=E).get_json()["locked"] is True
     A.UNLOCK_HOOKS.remove(boom)
     import auth, time
-    sign_in(c, secret, code=auth.totp(secret, at=time.time() + 30))   # a fresh code: the first one is spent
+    sign_in(c, secret, code=auth.totp(secret, at=time.time() + 30))
     assert unlocked() and c.get("/", environ_base=E).status_code == 200
-
 
 def test_unlock_key_file_must_be_on_another_volume(client, tmp_path, monkeypatch):
     A, c = client
@@ -290,23 +266,21 @@ def test_unlock_key_file_must_be_on_another_volume(client, tmp_path, monkeypatch
         datakey.enable_auto()
     assert not datakey.auto_enabled()
 
-
 def test_tampered_keyring_with_auto_unlock_starts_locked(client, tmp_path, monkeypatch):
     A, c = client
     claim(c, A)
     import datakey, json
     from pyrage import x25519
     import pyrage, base64
-    ident = x25519.Identity.generate()                     # turn auto-unlock on by hand (tmp is one volume here)
+    ident = x25519.Identity.generate()
     (tmp_path / "unlock.key").write_text(str(ident))
     ring = json.loads((tmp_path / "keyring.json").read_text())
     ring["auto"] = base64.b64encode(pyrage.encrypt(datakey.dk(), [ident.to_public()])).decode()
-    ring["auto_pub"] = str(ident.to_public())               # written without a fresh MAC: a tampered ring
+    ring["auto_pub"] = str(ident.to_public())
     (tmp_path / "keyring.json").write_text(json.dumps(ring))
     monkeypatch.setenv("CRM_UNLOCK_KEY_FILE", str(tmp_path / "unlock.key"))
-    A, c = restart()                                        # must not crash at import
+    A, c = restart()
     assert not unlocked()
-
 
 def test_about_is_open_and_lists_what_it_includes(client):
     A, c = client
@@ -316,11 +290,10 @@ def test_about_is_open_and_lists_what_it_includes(client):
     assert "Flask" in t and "sqlcipher3-binary" in t and "gunicorn" in t
     import about
     v = __import__("importlib.metadata").metadata.version("flask")
-    assert f"Flask {v}" not in t and "Version " not in t                 # signed out: names, no versions
-
+    assert f"Flask {v}" not in t and "Version " not in t
 
 def test_gateway_refusal_message_is_whole(monkeypatch):
-    """The Docker-proxy refusal tells the owner what to do, in full."""
+
     import inspect
     import auth
     src = inspect.getsource(auth)

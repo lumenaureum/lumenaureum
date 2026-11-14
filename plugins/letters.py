@@ -1,10 +1,3 @@
-"""Printable delivery documents: the QR letter that hands over the gallery key, the copyright transfer that goes
-with the SD card, and a sheet of SD card labels. All generated on the fly as PDFs; nothing is stored.
-
-The gallery link comes from app.config['gallery_link'] (registered by the gallery plugin), looked up at request
-time. Without it the letter prints a placeholder box where the QR goes and is marked draft.
-Printing the letter never marks it mailed; that stays the photographer's own act (Mark mailed).
-"""
 from datetime import date
 
 from flask import abort, current_app, url_for
@@ -16,20 +9,17 @@ BLOCK = """<div id="letters" class="letters">
   <div class="row" style="gap:18px;flex-wrap:wrap">
     {% if gal %}<a class="go" href="{{ url_for('letter_qr', sid=s.id) }}" target="_blank"{% if not link %} data-tip="No gallery link yet"{% endif %}>QR letter &rsaquo;</a>
     {% if not link %}<span class="mute" style="font-size:13px" data-tip="No gallery link yet: prints with a blank box where the QR goes">draft</span>{% endif %}{% endif %}
-    <a class="go" href="{{ url_for('letter_release', sid=s.id) }}" target="_blank">{{ 'Photo license' if s.type in C.LICENSE_TYPES else 'Copyright transfer' }} &rsaquo;</a>
+    <a class="go" href="{{ url_for('letter_release', sid=s.id) }}" target="_blank">{{ 'Photo license' if lic else 'Copyright transfer' }} &rsaquo;</a>
     {% if C.delivery_method(s.type, s.delivery_method) == 'sd' %}<a class="go" href="{{ url_for('letter_labels', sid=s.id) }}" target="_blank">SD labels &rsaquo;</a>{% endif %}
   </div>
   {% if s.address %}<div class="mute" style="font-size:13px;margin-top:6px;white-space:pre-line"{% if printed %} data-tip="Letter printed {{ nice(printed) }}"{% endif %}>{{ s.address }}</div>{% endif %}
 </div>"""
-
 
 def register(ctx):
     app, q, x = ctx.app, ctx.q, ctx.x
     from flask import render_template_string
     ctx.migrate("""CREATE TABLE IF NOT EXISTS letters_printed (
         session_id INTEGER PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE, at TEXT NOT NULL);""")
-
-    # ------------------------------------------------------------ data
 
     def setting(key, default=""):
         r = q("SELECT value FROM settings WHERE key=?", (key,), one=True)
@@ -80,7 +70,7 @@ def register(ctx):
         return "Dear " + (name[4:] if name.lower().startswith("the ") else name) + ","
 
     def who_shot(s, subjects):
-        if ctx.C.TYPE_KIND.get(s["type"]) == "property":    # a house, a product line, a menu: not people
+        if ctx.C.TYPE_KIND.get(s["type"]) == "property":
             return ("your products" if s["type"] in ctx.C.PRODUCT_TYPES else
                     "your food" if s["type"] in ctx.C.INDOOR_TYPES else "the property")
         subjects = [p for p in subjects if (p["role"] if "role" in p.keys() else "") != "pet"] or subjects
@@ -91,8 +81,6 @@ def register(ctx):
     def studio():
         return setting("studio_name", "") or ""
 
-    # ------------------------------------------------------------ PDF
-
     def qr_svg(data):
         import segno
         return segno.make(data, error="m", micro=False).svg_inline(scale=4, border=4, dark="#000", light="#fff")
@@ -102,8 +90,6 @@ def register(ctx):
 
     def pdf(tpl, name, **kw):
         return ctx.html_pdf(render_template_string(tpl, **kw), name)
-
-    # ------------------------------------------------------------ QR letter (positions for a #10 window envelope)
 
     @app.get("/letters/<int:sid>/qr-letter.pdf", endpoint="letter_qr")
     def letter_qr(sid):
@@ -116,7 +102,7 @@ def register(ctx):
                   lines=lines, today=date.today().strftime("%B %-d, %Y"), greeting=greeting(s, adults),
                   who=who_shot(s, subjects), when=when, qr=qr_svg(link) if link else None, days=ctx.C.gallery_days(s["type"]),
                   sd=any(st == ("auto", "sd_shipped") for steps in ctx.C.WORKFLOW[s["type"]].values() for st in steps),
-                  license=s["type"] in ctx.C.LICENSE_TYPES, delivery=ctx.C.delivery_text(s["type"], s["delivery_method"]),
+                  license=ctx.licensed(sid), delivery=ctx.C.delivery_text(s["type"], s["delivery_method"]),
                   credit="" if setting("credit_off") == "1" else ctx.C.CREDIT, logo=__import__("app").logo_src(),
                   codeword=bool(link and "&c=1" in link), event_family=bool(s["event_id"]))
         if not draft:
@@ -127,19 +113,17 @@ def register(ctx):
                 ctx.audit("Printed the QR letter", sid=sid)
         return out
 
-    # ------------------------------------------------------------ copyright transfer / real estate photo license
-
     @app.get("/letters/<int:sid>/print-release.pdf", endpoint="letter_release")
     def letter_release(sid):
         s, subjects, adults = load(sid)
         name_studio, photographer = studio(), setting("photographer_name")
         owner = photographer or name_studio
-        realestate = s["type"] in ctx.C.LICENSE_TYPES or bool(s["event_id"])   # licensed: the photographer (or, at a
-        # group event, the organizer) keeps the copyright; a family at an event gets a personal license, never a transfer
+        realestate = ctx.licensed(sid) or bool(s["event_id"])
+
         places = ctx.C.TYPE_KIND.get(s["type"]) == "property"
         kind = ctx.C.doc_label(s["type"])
         picks = ctx.C.MARKETING_PICKS
-        if s["portfolio_no"]:                     # the client declined portfolio use
+        if s["portfolio_no"]:
             favorites = "I will not show any photo from this session in my portfolio, on my website, on social media, or anywhere else."
             portfolio = favorites
         else:
@@ -167,8 +151,8 @@ def register(ctx):
                                  + " needs my written permission."),
                   "PRINT RELEASE": ("" if places else f"This is a print release: any print lab may print these photos for"
                                                       f" {s['household']} and the people photographed.")}
-        sections = wording.sections(core.own_wording(doc, s["type"]), values)   # your wording, or the standard example
-        if s["event_id"]:                       # a family at a group event: the event's owner sentence, and a print release
+        sections = wording.sections(core.own_wording(doc, s["type"]), values)
+        if s["event_id"]:
             rights_ = core.event_rights_text(s["event_id"]) or ("I keep the copyright in the event photos. Each family"
                       " receives a permanent personal license to its own photos and to group photos that include its child.")
             sections = [("Your photos", rights_), ("Printing", values["PRINT RELEASE"] or
@@ -180,16 +164,12 @@ def register(ctx):
                              for n_ in (core.agreement_signers(core.plan_head(sid))[1] or [adults[0]["name"] if adults else ""])],
                    draft=not core.doc_reviewed(doc, s["type"]))
 
-    # ------------------------------------------------------------ SD card labels (0.85 x 0.8 in, fits the card's recess)
-
     @app.get("/letters/<int:sid>/sd-labels.pdf", endpoint="letter_labels")
     def letter_labels(sid):
         s, _, _ = load(sid)
         fam = s["household"]
         return pdf(LABELS, f"sd-labels-{slug(s)}.pdf", head=studio().upper()[:22], fam=fam[:24], small=len(fam) > 16,
                    when=full_date(s["shoot_date"]) if s["shoot_date"] else "", n=70)
-
-    # ------------------------------------------------------------ UI hooks
 
     def printed_on(sid):
         r = q("SELECT at FROM letters_printed WHERE session_id=?", (sid,), one=True)
@@ -200,14 +180,14 @@ def register(ctx):
             return []
         steps_ = {st[1] for steps in ctx.C.WORKFLOW[s["type"]].values() for st in steps}
         html = render_template_string(BLOCK, s=s, link=gallery_link(s["id"]), printed=printed_on(s["id"]),
-                                      nice=ctx.nice, gal=bool(steps_ & {"gallery_built", "letter_mailed", "first_visit"}))
+                                      nice=ctx.nice, lic=ctx.licensed(s["id"]) or bool(s["event_id"]), gal=bool(steps_ & {"gallery_built", "letter_mailed", "first_visit"}))
         return [("Letters", html)]
 
     def step_action(label, s):
         if label != STEP or s["letter_mailed"] or printed_on(s["id"]):
-            return None   # once printed, the app's own Mark mailed button takes over
+            return None
         owed = ctx.release_blocked(s["id"])
-        if owed:   # the letter carries the gallery key: released on payment
+        if owed:
             return dict(verb=f"Collect {ctx.money(owed)} first", href=url_for("client_stage", hid=s["household_id"]) + f"?s={s['id']}")
         return dict(verb="Print letter",
                     href=url_for("client_stage", hid=s["household_id"]) + f"?s={s['id']}#letters",
@@ -216,9 +196,6 @@ def register(ctx):
 
     ctx.hooks.stage_blocks.append(block)
     ctx.hooks.step_actions.append(step_action)
-
-
-# ---------------------------------------------------------------- templates (same layout the reportlab version drew)
 
 LETTER = """<!doctype html><html><head><meta charset="utf-8"><style>
 @page { size: Letter; margin: 0; }

@@ -38,6 +38,8 @@ Vera / public domain), tzdata (public domain).
 |---|---|---|
 | `zip_latlon.json.gz` (ZIP code to latitude/longitude) | US Census Bureau, 2020 Gazetteer ZCTA file | Public domain (US government work) |
 | `static/fonts` Material Symbols | Google | Apache-2.0 |
+| `plugins/gallery_assets/fonts/great-vibes.woff2` Great Vibes (subset to Latin) | The Great Vibes Pro Project Authors, via Google Fonts | SIL Open Font License 1.1 (`great-vibes-OFL.txt` beside it) |
+| `plugins/gallery_assets/fonts/cormorant-garamond.woff2` Cormorant Garamond (regular weight, subset to Latin) | The Cormorant Project Authors, via Google Fonts | SIL Open Font License 1.1 (`cormorant-garamond-OFL.txt` beside it) |
 | `brand/` wordmark (Fraunces, outlined) | Undercase Type | SIL Open Font License 1.1 |
 
 The Lumen Aureum name and logo are not covered by the software license; see brand/README.md.
