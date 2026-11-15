@@ -1295,9 +1295,12 @@ def balance_rule(stype):
     return C.balance_text(stype)
 
 def gallery_expires(s):
-    if not s["first_visit"]:
+
+    dl_ = app.config.get("gallery_download_online")
+    opened = s["sd_shipped"] if callable(dl_) and dl_(s["id"]) else s["first_visit"]
+    if not opened:
         return None
-    return d(s["first_visit"]) + timedelta(days=C.gallery_days(s["type"]) * (2 if s["extension_used"] else 1))
+    return d(opened) + timedelta(days=C.gallery_days(s["type"]) * (2 if s["extension_used"] else 1))
 
 def _fair_due(base, t):
 
@@ -3359,12 +3362,12 @@ def session_view(sid):
 
 SESSION_FORM_FIELDS = (("title", "Title"), ("type", "Type"), ("shoot_date", "Date"), ("start_time", "Start"),
                        ("duration_min", "Minutes"), ("po_number", "PO / reference"), ("lic_term", "License term"),
-                       ("lic_territory", "Territory"), ("stops", "Where"), ("notes", "Notes"))
+                       ("lic_territory", "Territory"), ("stops", "Where"), ("notes", "Notes"), ("delivery_method", "Files delivered by"))
 CLIENT_FORM_FIELDS = (("name", "Name"), ("company", "Company"), ("address", "Mailing address"), ("source", "Source"),
                       ("notes", "Notes"))
 
 STAMPED = {"sessions": ("title", "type", "shoot_date", "start_time", "duration_min", "po_number", "lic_term", "lic_territory",
-                        "lic_exclusive", "date_tentative", "stops", "notes", "event_id"),
+                        "lic_exclusive", "date_tentative", "stops", "notes", "event_id", "delivery_method"),
            "households": ("name", "company", "address", "source", "referred_by", "notes"),
 
            "intake": ("intake",),
@@ -3419,6 +3422,32 @@ def _clash_page(sid, form, what="session"):
     g.edit_clash_reload = stage_url(sid)
     return client_stage(session_full(sid)["household_id"]), 409
 
+def set_delivery_method(sid, new):
+
+    s_ = q("SELECT type, delivery_method FROM sessions WHERE id=?", (sid,), one=True)
+    old = C.delivery_method(s_["type"], s_["delivery_method"])
+    if new == old:
+        return
+    x("UPDATE sessions SET delivery_method=? WHERE id=?", (new, sid))
+    audit(f"Delivery changed from {C.DELIVERY_METHODS[old][0]} to {C.DELIVERY_METHODS[new][0]}", sid=sid)
+    said = signed_delivery_differs(sid)
+    if said:
+        session["notice"] = f"The signed agreement says you deliver the photos {said}. Tell the client, or have it signed again."
+
+def signed_delivery_differs(sid):
+
+    s_ = q("SELECT type, delivery_method, plan_of FROM sessions WHERE id=?", (sid,), one=True)
+    if not s_:
+        return None
+    for ref_ in [sid] + ([s_["plan_of"]] if s_["plan_of"] else []):
+        copy_ = signed_copy("agreement", ref_)
+        if copy_ and copy_.get("delivery"):
+            now_ = C.delivery_text(s_["type"], s_["delivery_method"])
+            return copy_["delivery"] if copy_["delivery"] != now_ else None
+    return None
+
+app.jinja_env.globals["signed_delivery_differs"] = lambda sid_: signed_delivery_differs(sid_)
+
 @app.post("/session/<int:sid>")
 def session_save(sid):
     f = request.form
@@ -3441,6 +3470,8 @@ def session_save(sid):
         x("UPDATE sessions SET lic_exclusive=? WHERE id=?", (1 if f.get("lic_exclusive") else 0, sid))
     if "date_tentative_present" in f:
         x("UPDATE sessions SET date_tentative=? WHERE id=?", (1 if f.get("date_tentative") else 0, sid))
+    if f.get("delivery_method") in C.DELIVERY_METHODS:
+        set_delivery_method(sid, f["delivery_method"])
     if f.get("subjects_present"):
         db().execute("DELETE FROM session_people WHERE session_id=?", (sid,))
         for pid in f.getlist("subjects"):
@@ -3480,7 +3511,7 @@ def session_delivery(sid):
             g.refused = True
             return redirect(url_for("session_view", sid=sid) + "#delivery")
     if f.get("delivery_method") in C.DELIVERY_METHODS:
-        x("UPDATE sessions SET delivery_method=? WHERE id=?", (f["delivery_method"], sid))
+        set_delivery_method(sid, f["delivery_method"])
     if "retouch_picks" in f:
         x("UPDATE sessions SET retouch_picks=? WHERE id=?", ((f.get("retouch_picks") or "")[:5000], sid))
     if "gallery_codeword" in f and (f.get("gallery_codeword") or "").strip() != (s_["gallery_codeword"] or ""):
@@ -4529,7 +4560,11 @@ def photo_summary(sid):
     finally:
         con.close()
     out = {}
+    wants_ = app.config.get("gallery_wants_finals")
+    s_ = q("SELECT * FROM sessions WHERE id=?", (sid,), one=True)
     for k, label in photostore.KINDS.items():
+        if k == "final" and not any(r["kind"] == k for r in rows) and not (callable(wants_) and s_ and wants_(s_)):
+            continue
         rs = sorted((r for r in rows if r["kind"] == k),
                     key=lambda r: [int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", r["name"])])
         done = [r for r in rs if r["state"] == "done"]
@@ -4678,6 +4713,8 @@ def agreement_ctx(sid):
                 license=s["type"] in C.LICENSE_TYPES, kind=C.TYPE_KIND[s["type"]], payment=C.payment_text(),
                 cancel=C.cancel_text(s["type"]), late=C.late_text(s["type"]), outfits=C.POLICY[s["type"]]["outfits"], animals=s["type"] in C.ANIMAL_TYPES, stype=s["type"],
                 delivery=C.delivery_text(s["type"], s["delivery_method"]), keep_raw=C.fill(s["type"], "keep_raw"),
+                link_days=C.gallery_days(s["type"]) if C.delivery_method(s["type"], s["delivery_method"]) == "link"
+                and C.galleries_on() else None,
                 license_use=C.fill(s["type"], "license_use"),
                 event_rights=event_rights_text(s["event_id"] or s["payer_event"], voice="organizer" if s["payer_event"] else "photographer"),
                 photographer=setting("photographer_name") or "[YOUR NAME]", business=setting("business_name"),
@@ -4752,6 +4789,9 @@ def agreement_fields(a):
             "PAYMENT": a["payment"], "CANCELLATION": a["cancel"] + (" " + a["late"] if a["late"] else ""),
             "IF I CANNOT": cannot_text(a.get("stype")),
             "WHAT I PROVIDE": provide, "HOW YOU DELIVER": deliver, "DELIVERY DAYS": str(a["delivery_days"]),
+
+            "THE LINK": (f"The link stays open for {a['link_days']} days after you first open it; ask once and I'll extend"
+                         " it.") if a.get("link_days") else "",
             "HOW LONG": a["keep_raw"], "THE PHOTOS": photos, "HOW I MAY USE THEM": use,
             "MINORS": "A parent or guardian signs this agreement and is present for the whole session." if a["minor"] else "",
             "PRODUCTS": ("I handle the products you lend me with care and return them as we agreed. While they are in my care,"
@@ -5681,10 +5721,16 @@ def money_view():
 def settings_view():
     if request.method == "POST":
         for k in ("mileage_rate", "home_base", "photographer_name", "studio_name", "business_name", "business_address", "business_email", "business_phone", "gallery_base_url",
-                  "business_tax_id", "bank_details", "pay_details"):
+                  "business_tax_id", "bank_details", "pay_details", "business_website"):
             if k not in request.form:
                 continue
             v = request.form.get(k, "")
+            if k == "business_website":
+                import settings_io as _sio
+                raw_, v = v, _sio.clean_site(v)
+                if v is None:
+                    session["notice"] = f"The website wasn't saved: {_sio.site_problem(raw_)}. Everything else was saved."
+                    continue
             if k == "gallery_base_url" and v.strip() and not v.strip().startswith("https://"):
                 session["notice"] = ("The gallery address wasn't saved: it must start with https://. Clients' browsers"
                                      " open the encrypted photos only over https.")
@@ -5738,7 +5784,8 @@ def settings_view():
                                   taxable=bool(request.form.get("new_taxable"))))
             if items != cur["items"]:
                 x("INSERT INTO fee_schedules (created, items, note) VALUES (?,?,?)", (now_local(), json.dumps(items), ""))
-        return redirect(url_for("settings_view", tab=request.args.get("tab") or None, saved=1))
+        return redirect(url_for("settings_view", tab=request.args.get("tab") or None,
+                                saved=None if session.get("notice") else 1))
     n_demo = q("SELECT COUNT(*) n FROM households WHERE demo=1", one=True)["n"]
     import settings_io
     look = settings_io.clean_look(setting("gallery_font"), setting("gallery_bg"), setting("proof_mark"),
@@ -6378,7 +6425,7 @@ def _wipe_after_backup(saved):
     con.execute("VACUUM")
     return saved
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 MIGRATIONS = {}
 
 def _migrate_2(con):
@@ -6424,6 +6471,11 @@ def _migrate_5(con):
 
 MIGRATIONS[5] = _migrate_5
 
+def _migrate_6(con):
+    pass
+
+MIGRATIONS[6] = _migrate_6
+
 class SchemaTooNew(RuntimeError):
     pass
 
@@ -6453,6 +6505,7 @@ def _upgrade_backup(con):
         _UPGRADE_BACKED.append(True)
 
 _UPGRADE_BACKED = []
+_MIGRATED = []
 
 def _tz_from_settings(con):
 
@@ -6475,7 +6528,7 @@ def _note_update():
     x("INSERT OR REPLACE INTO settings (key, value) VALUES ('app_version', ?)", (now_v,))
     if was or _UPGRADE_BACKED:
         x("INSERT OR REPLACE INTO settings (key, value) VALUES ('update_notice', ?)",
-          (json.dumps(dict(version=now_v, backup=bool(_UPGRADE_BACKED))),))
+          (json.dumps(dict(version=now_v, backup=bool(_UPGRADE_BACKED), changed=bool(_MIGRATED))),))
 
 def _migrate(con, have, backed_up=False):
 
@@ -6484,6 +6537,7 @@ def _migrate(con, have, backed_up=False):
         return
     if not backed_up:
         _upgrade_backup(con)
+    _MIGRATED.append(True)
     con.execute("BEGIN IMMEDIATE")
     try:
         for n in todo:

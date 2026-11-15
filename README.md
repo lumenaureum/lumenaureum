@@ -60,10 +60,10 @@ It has not had an independent security audit.
 
 ## Running it
 Lumen Aureum runs in a container on an always-on machine: a NAS or home server with Docker, or a Linux desktop. It needs a
-64-bit Intel or AMD processor and about 1 GB of memory. See [docs/where-it-runs.md](docs/where-it-runs.md).
+64-bit processor (Intel or AMD, or 64-bit ARM such as a Raspberry Pi 4 or 5 or an ARM NAS) and about 1 GB of memory.
+See [docs/where-it-runs.md](docs/where-it-runs.md).
 
-Coming soon: a TrueNAS app you install from the TrueNAS app catalog, and support for 64-bit ARM machines such as
-the Raspberry Pi 4 and 5.
+Coming soon: a TrueNAS app you install from the TrueNAS app catalog.
 
 ```
 mkdir lumen && cd lumen

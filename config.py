@@ -184,6 +184,11 @@ def wear_text(stype=None):
 
 DELIVERY_METHODS = {"sd": ("SD card", "on an SD card"), "usb": ("USB drive", "on a USB drive"),
                     "disc": ("CD or DVD", "on a CD or DVD"), "link": ("Download link", "through a download link I send you")}
+DELIVERY_CHOICES = [(k_, v_[0]) for k_, v_ in DELIVERY_METHODS.items()]
+
+def is_place(stype):
+
+    return bool(stype) and TYPE_KIND.get(stype) == "property" and stype not in PRODUCT_TYPES and stype not in INDOOR_TYPES
 
 def delivery_method(stype, chosen=None):
 

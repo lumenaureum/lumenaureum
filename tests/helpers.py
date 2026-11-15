@@ -57,3 +57,12 @@ def signed_in_client(A, setup_done=True):
         s["sid"] = auth.start_session(1)
     c.master_secret = secret
     return c
+
+def posted_envelope(buf):
+
+    import base64
+    from urllib.parse import parse_qs
+    if buf and buf.startswith(b"d="):
+        d = parse_qs(buf.decode())["d"][0]
+        return base64.urlsafe_b64decode(d + "=" * (-len(d) % 4))
+    return buf

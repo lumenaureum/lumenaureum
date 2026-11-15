@@ -33,6 +33,7 @@ PHOTOS_ROOT = Path(os.environ.get("CRM_PHOTOS_ROOT", _DATA / "photos"))
 FOLDERS = os.environ.get("CRM_PHOTO_FOLDERS", "") == "1"
 DEFAULT_BASE_URL = ""
 STEP_LABEL = "Gallery built"
+NO_PICKS_ACTION = "Deliver without picks: the next build is the download gallery"
 WEB_EDGE, THUMB_EDGE = 2048, 480
 JPEG_EXT = {".jpg", ".jpeg"}
 GID_OK = re.compile(r"^[A-Za-z0-9_-]{6,64}$")
@@ -70,10 +71,16 @@ BLOCK = """
 {% elif s.stage == 'closed' %}
   {% if not (g and g.built_at) %}<div class="mute" style="font-size:13px">No gallery</div>{% endif %}
 {% else %}
-  <form method="post" action="{{ url_for('build_gallery', sid=s.id) }}" class="row"><input type="hidden" name="from" value="uploads">
-    <span class="grow" style="font-size:13px">{% if n_up %}{{ n_up }} edited JPEG{{ '' if n_up == 1 else 's' }} uploaded{% else %}<span class="mute">Upload the edited JPEGs in Photos first</span>{% endif %}</span>
-    <button class="{{ '' if g and g.built_at else 'primary' }}"{{ ' disabled' if not n_up }}>{{ 'Rebuild' if g and g.built_at else 'Build gallery' }}</button>
+  {% if use_fin %}<form method="post" action="{{ url_for('build_gallery', sid=s.id) }}" class="row"><input type="hidden" name="from" value="finals">
+    <span class="grow" style="font-size:13px">{% if n_fin %}{{ n_fin }} retouched final{{ '' if n_fin == 1 else 's' }} uploaded{% else %}<span class="mute">Upload the retouched finals in Photos</span>{% endif %}</span>
+    <button class="{{ '' if g and g.built_at and dl == dl_next else 'primary' }}"{{ ' disabled' if not n_fin }}>{{ 'Build download gallery' if not dl else 'Rebuild' }}</button>
   </form>
+  {% if not n_fin and n_up %}<form method="post" action="{{ url_for('build_gallery', sid=s.id) }}" class="row" data-confirm="Build the download gallery from the {{ n_up }} proofs? They aren't retouched."><input type="hidden" name="from" value="uploads"><input type="hidden" name="proofs_ok" value="1">
+    <span class="grow"></span><button class="quiet">Use the proofs</button></form>{% endif %}
+  {% else %}<form method="post" action="{{ url_for('build_gallery', sid=s.id) }}" class="row"><input type="hidden" name="from" value="uploads">
+    <span class="grow" style="font-size:13px">{% if n_up %}{{ n_up }} edited JPEG{{ '' if n_up == 1 else 's' }} uploaded{% else %}<span class="mute">Upload the edited JPEGs in Photos first</span>{% endif %}</span>
+    <button class="{{ '' if g and g.built_at and dl == dl_next else 'primary' }}"{{ ' disabled' if not n_up }}>{{ 'Build download gallery' if dl_next and not dl else 'Rebuild' if g and g.built_at else 'Build gallery' }}</button>
+  </form>{% endif %}
   {% if folders %}<form method="post" action="{{ url_for('build_gallery', sid=s.id) }}" class="row">
     <input name="source_dir" list="gal-dirs" value="{{ src }}" placeholder="Folder" class="grow" style="width:auto;min-width:0" required>
     <datalist id="gal-dirs">{% for d_ in dirs %}<option value="{{ d_ }}">{% endfor %}</datalist>
@@ -84,16 +91,18 @@ BLOCK = """
   {% else %}<div class="sub" style="font-size:13px" data-tip="{{ src }}">{{ src_n }} JPEG{{ '' if src_n == 1 else 's' }} in folder</div>{% endif %}{% endif %}
   {% if job and job.state == 'error' %}<div style="color:var(--red);font-size:13px">{{ job.error }}</div>{% endif %}
 {% endif %}
+{% if skip_picks %}<form method="post" action="{{ url_for('gallery_no_picks', sid=s.id) }}" class="row" data-confirm="Make the next build the download gallery, without the client's picks?"><button class="quiet">Deliver without picks</button></form>{% endif %}
 {% if cw_on and not s.gallery_codeword and not (g and g.cw_fixed == 'none') %}<div class="row" style="font-size:13px"><span class="grow">This gallery asks for a codeword the client chooses. None yet.</span>
   <a class="go" href="{{ url_for('session_view', sid=s.id) }}#delivery">Add the codeword &rsaquo;</a></div>{% endif %}
 {% if stale_cw %}<div style="font-size:13px;color:var(--amber, #b07a12)">The codeword changed after this build: press Rebuild so the gallery asks for the new one.</div>{% endif %}
 {% if g and g.built_at %}
-  <div class="row" style="font-size:14px"><span class="grow"><b>{{ g.n_files }}</b> photo{{ '' if g.n_files == 1 else 's' }}, built {{ nice(g.built_at) }}</span>
+  <div class="row" style="font-size:14px"><span class="grow"><b>{{ g.n_files }}</b> photo{{ '' if g.n_files == 1 else 's' }}{{ ' to download' if dl }}, built {{ nice(g.built_at) }}</span>
     <a class="go" href="{{ preview }}" target="_blank" rel="noopener">Preview &rsaquo;</a></div>
   {% set us = g.upload_state or '' %}
   <div class="row" style="font-size:14px">
   {% if us == 'up' %}<span class="grow">On the web since {{ nice(g.uploaded_at) }}</span>
-    {% if link %}<span hidden id="gal-link-{{ s.id }}">{{ link }}</span><button type="button" class="quiet" data-copy="#gal-link-{{ s.id }}" data-tip="The client's link, to text or email. Anyone with it can open the gallery{{ ' (with the codeword)' if '&c=1' in link }}.">Copy link</button>{% endif %}
+    {% if link %}<span hidden id="gal-link-{{ s.id }}">{{ link }}</span><button type="button" class="quiet" data-copy="#gal-link-{{ s.id }}" data-tip="The client's link, to text or email. Anyone with it can open the gallery{{ ' (with the codeword)' if '&c=1' in link }}.">Copy link</button>
+    {% if mailto %}<a class="go" href="{{ mailto }}">Email link</a>{% endif %}{% endif %}
     <form method="post" action="{{ url_for('gallery_sync_now') }}" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="quiet">Check now</button></form>
   {% elif us == 'awaiting' %}<span class="grow">Waiting for approval</span>
   {% elif us == 'uploading' %}<span class="grow">Uploading</span>
@@ -101,18 +110,22 @@ BLOCK = """
   {% elif not has_host %}<span class="grow mute">Previews work here; putting it online needs a web host.</span>
     <a class="go" href="{{ url_for('setup_step', step='galleries') }}">Set up galleries &rsaquo;</a>
   {% elif owed and not proof %}<span class="grow">{{ money(owed) }} still due. Your terms release the gallery on payment.</span>
-    <form method="post" action="{{ url_for('upload_gallery_req', sid=s.id) }}" class="inline" data-confirm="Put the gallery online before the balance is paid? Use this for a proofing gallery the client picks from."><input type="hidden" name="early" value="1"><button class="quiet">Upload before payment</button></form>
+    <form method="post" action="{{ url_for('upload_gallery_req', sid=s.id) }}" class="inline" data-confirm="{{ 'Put the download gallery online before the balance is paid? The client can download the full-size photos right away.' if dl else 'Put the gallery online before the balance is paid? Use this for a proofing gallery the client picks from.' }}"><input type="hidden" name="early" value="1"><button class="quiet">Upload before payment</button></form>
   {% else %}<span class="grow">{% if us == 'declined' %}Upload declined{% elif us == 'expired' %}Tap expired{% elif us == 'error' and not (g.upload_error or '').startswith('balance') %}<span style="color:var(--red)">Upload failed: {{ g.upload_error }}</span>{% elif owed and proof %}These proofs carry your mark, so they can go online before payment{% else %}Ready to upload{% endif %}</span>
     <form method="post" action="{{ url_for('upload_gallery_req', sid=s.id) }}" class="inline"><button class="primary">Upload</button></form>{% endif %}
   </div>
   {% if us == 'up' and updating %}{% if not (job and job.state == 'running') %}<div class="row" style="font-size:14px"><span class="grow" role="status"><span id="gal-up-what">Updating the copy online{% if updating.total %}: file {{ updating.done }} of {{ updating.total }}{% endif %}</span>. The client's link keeps working meanwhile.</span></div>
   <span hidden data-poll="{{ url_for('gallery_status', sid=s.id) }}" data-label="gal-up-what"></span>{% endif %}
+  {% elif us == 'up' and stale and dl != dl_online %}<div class="row" style="font-size:14px">{% if owed and not proof %}<span class="grow">{{ money(owed) }} still due. Your terms release the download gallery on payment.</span>
+    <form method="post" action="{{ url_for('upload_gallery_req', sid=s.id) }}" class="inline" data-confirm="Put the download gallery online before the balance is paid? The client can download the full-size photos right away."><input type="hidden" name="early" value="1"><button class="quiet">Upload before payment</button></form>
+    {% else %}<span class="grow">{{ 'The proofing gallery is online. Upload puts the download gallery in its place.' if dl else 'The download gallery is online. Upload puts this build in its place.' }}</span>
+    <form method="post" action="{{ url_for('upload_gallery_req', sid=s.id) }}" class="inline"><button class="primary">Upload</button></form>{% endif %}</div>
   {% elif us == 'up' and stale %}<div class="row" style="font-size:14px"><span class="grow" style="color:var(--amber, #b07a12)">The copy online is older than this build{% if g.upload_error %}. The upload didn't finish: {{ g.upload_error }}{% endif %}</span>
     <form method="post" action="{{ url_for('upload_gallery_req', sid=s.id) }}" class="inline"><button class="primary">Upload the new build</button></form></div>{% endif %}
   {% if expires %}
   <div class="row" style="font-size:14px">
     <span class="grow" {% if exp_status %}style="color:var(--{{ exp_status }})"{% endif %}
-      data-tip="Opened {{ nice(s.first_visit) }}, plus {{ days }} days{{ ' and the extension' if s.extension_used }}">Planned deletion {{ nice(expires.isoformat()) }}</span>
+      data-tip="Opened {{ nice(opened) }}, plus {{ days }} days{{ ' and the extension' if s.extension_used }}">Planned deletion {{ nice(expires.isoformat()) }}</span>
     {% if s.extension_used %}<span class="mute" style="font-size:12px">extended</span>{% endif %}
   </div>
   {% else %}
@@ -242,11 +255,31 @@ def watermark(img, mark):
             d.text((W - box[2] - m, H - box[3] - m), text, font=f, fill=white)
     return Image.alpha_composite(base, layer).convert("RGB")
 
-def clean_jpeg(path, mark=None):
+def file_meta(creator, rights):
+
+    import unicodedata
+    from xml.sax.saxutils import escape
+    from PIL import Image
+    ascii_ = lambda t: unicodedata.normalize("NFKD", t.replace("\u00a9", "(c)")).encode("ascii", "ignore").decode()
+    exif = Image.Exif()
+    if creator:
+        exif[0x013B] = ascii_(creator)
+    if rights:
+        exif[0x8298] = ascii_(rights)
+    desc = "".join(
+        [f'<dc:creator><rdf:Seq><rdf:li>{escape(creator)}</rdf:li></rdf:Seq></dc:creator>' if creator else ""]
+        + [f'<dc:rights><rdf:Alt><rdf:li xml:lang="x-default">{escape(rights)}</rdf:li></rdf:Alt></dc:rights>' if rights else ""])
+    xmp = ('<?xpacket begin="\ufeff" id="W5M0MpCehiHzreSzNTczkc9d"?><x:xmpmeta xmlns:x="adobe:ns:meta/">'
+           '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about=""'
+           ' xmlns:dc="http://purl.org/dc/elements/1.1/">' + desc + '</rdf:Description></rdf:RDF></x:xmpmeta>'
+           '<?xpacket end="w"?>') if desc else ""
+    return exif.tobytes() if (creator or rights) else b"", xmp.encode("utf-8")
+
+def clean_jpeg(path, mark=None, full=False, meta=None):
 
     from PIL import Image, ImageCms, ImageOps
     with Image.open(path) as im:
-        if im.format == "JPEG":
+        if im.format == "JPEG" and not full:
             w_, h_ = im.size
             r_ = min(1.0, WEB_EDGE / max(w_, h_))
             im.draft("RGB", (max(1, -(-int(w_ * r_ * 1000) // 1000)), max(1, -(-int(h_ * r_ * 1000) // 1000))))
@@ -273,7 +306,13 @@ def clean_jpeg(path, mark=None):
 
     web, wsize = encode(pixels, WEB_EDGE, 86)
     thumb, tsize = encode(pixels, THUMB_EDGE, 80)
-    return web, wsize, thumb, tsize
+    if not full:
+        return web, wsize, thumb, tsize
+    b = io.BytesIO()
+    exif_, xmp_ = meta or (b"", b"")
+    extra = {**({"exif": exif_} if exif_ else {}), **({"xmp": xmp_} if xmp_ else {})}
+    pixels.save(b, "JPEG", quality=95, optimize=True, progressive=True, **extra)
+    return web, wsize, thumb, tsize, b.getvalue(), pixels.size
 
 def natural(p):
     return [int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", p.name)]
@@ -291,18 +330,42 @@ class Built(NamedTuple):
 THEME_FONTS = {"elegant": "cormorant-garamond.woff2", "script": "great-vibes.woff2"}
 THEME_FONT_FILE = "font.woff2"
 
-def build(gid, src, key, progress=lambda done, total: None, picks=None, credit="", brand=None, mark=None):
+ZIP_PART = 8 * 1024 * 1024
+ZIP_SPLIT = 500 * 1024 * 1024
+DL_MARK = ".download"
+WAS_MARK = ".online-was"
 
+def zip_names(names):
+
+    out, seen = [], set()
+    for i, n in enumerate(names):
+        n = re.sub(r"[\x00-\x1f\x7f]", "", str(n).replace("\\", "/").rsplit("/", 1)[-1]).strip() or f"photo-{i + 1:03d}.jpg"
+        stem, dot, ext = n.rpartition(".")
+        stem, ext = (stem, "." + ext) if dot and stem else (n, "")
+        cand, k = n, 2
+        while cand.lower() in seen:
+            cand, k = f"{stem} ({k}){ext}", k + 1
+        seen.add(cand.lower())
+        out.append(cand)
+    return out
+
+def build(gid, src, key, progress=lambda done, total: None, picks=None, credit="", brand=None, mark=None, download=False):
+
+    import zipfile
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     aes = AESGCM(key_bytes(key))
     files = [opener for _, opener in src] if isinstance(src, list) else list_jpegs(src)
     names = [n_ for n_, _ in src] if isinstance(src, list) else [p_.name for p_ in files]
     if not files:
         raise ValueError("No JPEGs in folder")
+    if download:
+        mark = None
     OUT_ROOT.mkdir(parents=True, exist_ok=True)
     final = OUT_ROOT / gid
     tmp = OUT_ROOT / f".{gid}.building"
+    plain_zip = OUT_ROOT / f".{gid}.zip"
     shutil.rmtree(tmp, ignore_errors=True)
+    plain_zip.unlink(missing_ok=True)
     tmp.mkdir()
     used, items = set(), []
 
@@ -313,26 +376,83 @@ def build(gid, src, key, progress=lambda done, total: None, picks=None, credit="
                 used.add(n)
                 return n
 
+    meta = None
+    if download:
+        b_ = brand or {}
+        owner = (b_.get("studio") or b_.get("photographer") or "").strip()
+        year = (re.findall(r"\b(\d{4})$", str(b_.get("date") or "")) or [str(date.today().year)])[0]
+        meta = file_meta(owner, f"\u00a9 {year} {owner}. All rights reserved." if owner and b_.get("owns") is True else "")
     progress(0, len(files))
     skipped = []
-    for i, p in enumerate(files):
-        try:
-            web, (w, h), thumb, (tw, th) = clean_jpeg(p() if callable(p) else p, mark)
-        except Exception:
-            skipped.append(names[i])
+    zips = []
+    zf, zsize = None, 0
+
+    def seal_zip():
+        nonlocal zf, zsize
+        zf.close()
+        zf = None
+        parts, size = [], plain_zip.stat().st_size
+        with open(plain_zip, "rb") as fz:
+            while True:
+                chunk = fz.read(ZIP_PART)
+                if not chunk:
+                    break
+                n_ = fresh()
+                (tmp / n_).write_bytes(seal(aes, chunk, n_))
+                parts.append(n_)
+        plain_zip.unlink()
+        zips.append(dict(parts=parts, size=size))
+        zsize = 0
+
+    try:
+        in_zip = zip_names(names)
+        stamp = date.today().timetuple()[:3] + (12, 0, 0)
+        for i, p in enumerate(files):
+            try:
+                out = clean_jpeg(p() if callable(p) else p, mark, full=download, meta=meta)
+            except Exception:
+                skipped.append(names[i])
+                progress(i + 1, len(files))
+                continue
+            web, (w, h), thumb, (tw, th) = out[:4]
+            f, t = fresh(), fresh()
+            (tmp / f).write_bytes(seal(aes, web, f))
+            (tmp / t).write_bytes(seal(aes, thumb, t))
+            item = dict(f=f, t=t, w=w, h=h, tw=tw, th=th, n=names[i])
+            if download:
+                o = fresh()
+                (tmp / o).write_bytes(seal(aes, out[4], o))
+                item.update(o=o, ow=out[5][0], oh=out[5][1], on=in_zip[i], os=len(out[4]))
+                adds = len(out[4]) + 2 * len(in_zip[i].encode()) + 140
+                if zf is not None and zsize + adds > ZIP_SPLIT:
+                    seal_zip()
+                if zf is None:
+                    zf = zipfile.ZipFile(plain_zip, "w", zipfile.ZIP_STORED)
+                zf.writestr(zipfile.ZipInfo(in_zip[i], stamp), out[4])
+                zsize += adds
+                item["z"] = len(zips)
+            items.append(item)
+            del out
             progress(i + 1, len(files))
-            continue
-        f, t = fresh(), fresh()
-        (tmp / f).write_bytes(seal(aes, web, f))
-        (tmp / t).write_bytes(seal(aes, thumb, t))
-        items.append(dict(f=f, t=t, w=w, h=h, tw=tw, th=th, n=names[i]))
-        progress(i + 1, len(files))
-    if not items:
+        if not items:
+            raise ValueError("None of these files is a JPEG photo this can read: " + ", ".join(skipped[:5]))
+        if zf is not None:
+            seal_zip()
+    except BaseException:
         shutil.rmtree(tmp, ignore_errors=True)
-        raise ValueError("None of these files is a JPEG photo this can read: " + ", ".join(skipped[:5]))
+        raise
+    finally:
+        if zf is not None:
+            zf.close()
+        plain_zip.unlink(missing_ok=True)
     brand = dict(brand or {})
     font = THEME_FONTS.get(((brand.get("theme") or {}).get("font")) or "")
     manifest = dict(v=1, title=brand.pop("client", "") or "Your photos", items=items, picks=picks or {}, brand=brand)
+    if download:
+        base = re.sub(r'[\\/:*?"<>|\x00-\x1f\x7f]+', "", manifest["title"]).strip() or "Photos"
+        for j, z in enumerate(zips):
+            z["name"] = base + (f"-part-{j + 1}-of-{len(zips)}" if len(zips) > 1 else "") + ".zip"
+        manifest.update(dl=1, zips=zips)
     (tmp / "manifest.bin").write_bytes(seal(aes, json.dumps(manifest, separators=(",", ":")).encode(), "manifest.bin"))
     page = (ASSETS / "viewer.html").read_text()
     page = page.replace('<html lang="en">', f'<html lang="en" data-gid="{gid}">', 1)
@@ -351,6 +471,11 @@ def build(gid, src, key, progress=lambda done, total: None, picks=None, credit="
     shutil.copyfile(ASSETS / "htaccess", tmp / ".htaccess")
     if font:
         shutil.copyfile(ASSETS / "fonts" / font, tmp / THEME_FONT_FILE)
+    if download:
+        (tmp / DL_MARK).write_text("1\n")
+    was = online_mode(gid)
+    if was is not None:
+        (tmp / WAS_MARK).write_text(("download" if was else "proofing") + "\n")
     old = OUT_ROOT / f".{gid}.old"
     shutil.rmtree(old, ignore_errors=True)
     if final.exists():
@@ -358,6 +483,26 @@ def build(gid, src, key, progress=lambda done, total: None, picks=None, credit="
     tmp.rename(final)
     shutil.rmtree(old, ignore_errors=True)
     return Built(final, len(items), skipped)
+
+def is_download(gid):
+
+    return bool(gid) and GID_OK.match(gid) is not None and (OUT_ROOT / gid / DL_MARK).is_file()
+
+def online_mode(gid):
+
+    if not gid or not GID_OK.match(gid) or not (OUT_ROOT / gid).is_dir():
+        return None
+    if online_is_current(gid):
+        return is_download(gid)
+    try:
+        was = (OUT_ROOT / gid / WAS_MARK).read_text().strip()
+    except OSError:
+        return None
+    return {"download": True, "proofing": False}.get(was)
+
+def online_download(gid):
+
+    return bool(online_mode(gid))
 
 SYNC_MIN = 30
 _HAS_LIMITS = set()
@@ -397,12 +542,22 @@ def put_limits(gid, days, unopened_until, host=None):
     body = body.encode()
     (host or gallery_host()).put_stream(f"{gid}/limits.txt", io.BytesIO(body), content_type="text/plain")
 
+CACHE_FRESH = "no-cache"
+CACHE_FOREVER = "public, max-age=31536000, immutable"
+
+def cache_for(name):
+    if name in ("index.html", "manifest.bin"):
+        return CACHE_FRESH
+    if re.fullmatch(r"[0-9a-f]{24}\.bin", name):
+        return CACHE_FOREVER
+    return CACHE_FRESH
+
 def upload_gallery(gid, days=None, unopened_until=None, progress=lambda done, total: None):
 
     if not GID_OK.match(gid):
         raise ValueError("bad gallery id")
     host = gallery_host()
-    files = sorted((p for p in (OUT_ROOT / gid).iterdir() if p.is_file() and p.name != ONLINE_MARK),
+    files = sorted((p for p in (OUT_ROOT / gid).iterdir() if p.is_file() and p.name not in (ONLINE_MARK, DL_MARK, WAS_MARK)),
                    key=lambda p: (p.name == "index.html", p.name == "manifest.bin"))
     with host.session():
         if days is not None:
@@ -410,7 +565,7 @@ def upload_gallery(gid, days=None, unopened_until=None, progress=lambda done, to
         progress(0, len(files))
         for i, p in enumerate(files):
             with open(p, "rb") as f:
-                host.put_stream(f"{gid}/{p.name}", f, content_type=MIME.get(p.suffix or p.name))
+                host.put_stream(f"{gid}/{p.name}", f, content_type=MIME.get(p.suffix or p.name), cache_control=cache_for(p.name))
             progress(i + 1, len(files))
     return len(files) + (1 if days is not None else 0)
 
@@ -621,8 +776,49 @@ def register(ctx):
         _con.commit(); _con.close()
 
     def has_gallery_step(s):
+
         flow = ctx.C.WORKFLOW.get(s["type"], {})
-        return any(st[0] == "auto" and st[1] == "gallery_built" for steps in flow.values() for st in steps)
+        return any(st[0] == "auto" and st[1] == "gallery_built" for steps in flow.values() for st in steps) or link_delivery(s)
+
+    def link_delivery(s):
+        return ctx.C.delivery_method(s["type"], s["delivery_method"] if "delivery_method" in s.keys() else None) == "link"
+
+    def wants_download(s):
+
+        if not link_delivery(s):
+            return False
+        flow = ctx.C.WORKFLOW[s["type"]]
+        picking = any(st[0] == "auto" and st[1] == "favorites" for steps in flow.values() for st in steps)
+        return not picking or picks_in(s) or no_picks_chosen(s["id"])
+
+    def picks_in(s):
+        return bool(s["favorites"] or s["retouch_picks"] or s["veto"])
+
+    def no_picks_chosen(sid):
+
+        return bool(q("SELECT 1 FROM audit WHERE session_id=? AND action=? LIMIT 1", (sid, NO_PICKS_ACTION), one=True))
+
+    def picking_type(s):
+        flow = ctx.C.WORKFLOW[s["type"]]
+        return any(st[0] == "auto" and st[1] == "favorites" for steps in flow.values() for st in steps)
+
+    def wants_finals(s):
+
+        return link_delivery(s) and picking_type(s)
+
+    app.config["gallery_wants_finals"] = wants_finals
+
+    def needs_finals(s):
+
+        return wants_download(s) and picking_type(s) and picks_in(s)
+
+    def build_from_finals(s, n_fin):
+
+        return wants_download(s) and wants_finals(s) and (n_fin > 0 or needs_finals(s))
+
+    def may_skip_picks(s):
+
+        return link_delivery(s) and s["stage"] != "closed" and not picks_in(s) and not wants_download(s)
 
     def gal(sid):
         return q("SELECT * FROM galleries WHERE session_id=?", (sid,), one=True)
@@ -659,10 +855,13 @@ def register(ctx):
             label = (ev["name"] if ev and ev["name"] else "") or label
         else:
             owns = ctx.licensed(s["id"])
-        return dict(client=h["name"] if h else "", owns=owns,
+        title = ((s["title"] if "title" in s.keys() else "") or "").strip()
+
+        return dict(client=title or (h["name"] if h else ""), owns=owns,
                     what=label, date=when, logo=setting("logo_png"),
                     studio=setting("business_name") or setting("studio_name") or setting("photographer_name"),
-                    photographer=setting("photographer_name"), email=setting("business_email"), phone=setting("business_phone"))
+                    photographer=setting("photographer_name"), email=setting("business_email"), phone=setting("business_phone"),
+                    site=setting("business_website") if setting("business_website").startswith("https://") else "")
 
     def setting_(k):
         r_ = q("SELECT value FROM settings WHERE key=?", (k,), one=True)
@@ -700,12 +899,12 @@ def register(ctx):
                 pass
         return out[:200]
 
-    def uploaded(sid):
+    def uploaded(sid, kind="export"):
 
         import photostore
         con = ctx.connect()
         try:
-            rows = [r for r in photostore.files(con, sid, "export", done_only=True)
+            rows = [r for r in photostore.files(con, sid, kind, done_only=True)
                     if Path(r["name"]).suffix.lower() in JPEG_EXT]
         finally:
             con.close()
@@ -717,8 +916,13 @@ def register(ctx):
         s = session(sid)
         back = url_for("client_stage", hid=s["household_id"]) + f"?s={sid}#gallery"
         gid, g = ensure(s)
-        if request.form.get("from") == "uploads" or not FOLDERS:
-            src = uploaded(sid)
+        if request.form.get("from") in ("uploads", "finals") or not FOLDERS:
+            finals = uploaded(sid, "final")
+            if needs_finals(s) and not finals and not request.form.get("proofs_ok"):
+
+                JOBS[sid] = dict(state="error", done=0, total=0, error="Upload the retouched finals in Photos first.")
+                return redirect(back)
+            src = finals if build_from_finals(s, len(finals)) and finals else uploaded(sid)
             if not src:
                 JOBS[sid] = dict(state="error", done=0, total=0, error="No edited JPEGs uploaded yet: drop them in Photos first.")
                 return redirect(back)
@@ -747,9 +951,12 @@ def register(ctx):
 
         from vault import web as VW
         host_type = (VW.config().get("gallery_host") or {}).get("type", "")
+        download = wants_download(s)
         picks_cfg = dict(retouch=ctx.C.RETOUCH_PICKS, market=0 if s["portfolio_no"] else ctx.C.MARKETING_PICKS,
                          email=(em["value"] if em else ""), ref=gid,
                          post=host_type in ("sftp", "local"))
+        if download:
+            picks_cfg = dict(post=picks_cfg["post"])
         off = q("SELECT value FROM settings WHERE key='credit_off'", one=True)
         credit = "" if off and off["value"] == "1" else ctx.C.CREDIT
         brand = gallery_brand(s)
@@ -760,7 +967,7 @@ def register(ctx):
 
         brand["logo"] = settings_io.gallery_logo(look["gallery_bg"], brand.get("logo") or "", setting_("logo_dark_png"))
         mark = None
-        if look["proof_mark"]:
+        if look["proof_mark"] and not download:
             logo_ = setting_("logo_png")
             mark = dict(style=look["proof_mark"], text=look["proof_mark_text"], strength=int(look["proof_mark_strength"]),
                         logo=base64.b64decode(logo_) if look["proof_mark"] == "corner" and logo_ else None)
@@ -774,7 +981,8 @@ def register(ctx):
             lk = locks.session(sid)
             lk.acquire()
             try:
-                out, n, skipped = build(gid, src, key, progress, picks=picks_cfg, credit=credit, brand=brand, mark=mark)
+                out, n, skipped = build(gid, src, key, progress, picks=picks_cfg, credit=credit, brand=brand, mark=mark,
+                                        download=download)
                 with app.app_context():
                     gone = not q("SELECT 1 FROM sessions WHERE id=?", (sid,), one=True) or (
                         q("SELECT 1 FROM sqlite_master WHERE name='retention'", one=True)
@@ -785,12 +993,13 @@ def register(ctx):
                     x("UPDATE galleries SET built_at=?, n_files=?, out_dir=?, ekey=?, proof=? WHERE session_id=?",
                       (date.today().isoformat(), n, str(out) + "/", key, 1 if mark else 0, sid))
                     x("UPDATE sessions SET gallery_built=? WHERE id=?", (date.today().isoformat(), sid))
-                    ctx.audit(f"Gallery built: {n} photos encrypted" + (f"; skipped (not a JPEG this can read): {', '.join(skipped[:10])}" if skipped else ""),
+                    ctx.audit(("Download gallery" if download else "Gallery") + f" built: {n} photos encrypted" + (f"; skipped (not a JPEG this can read): {', '.join(skipped[:10])}" if skipped else ""),
                               sid=sid, who="Lumen Aureum")
                     ctx.advance(sid)
                     live = q("SELECT 1 FROM galleries WHERE session_id=? AND upload_state='up' AND removed_at IS NULL",
                              (sid,), one=True)
-                if live:
+                if live and online_download(gid) == download:
+
                     try:
                         if not ctx.hooks.guard("gallery_upload", lambda: do_update(sid, gid), sid=sid, gallery_id=gid,
                                                n_files=n, update=True):
@@ -818,7 +1027,15 @@ def register(ctx):
         threading.Thread(target=run, name=f"gallery-{sid}", daemon=True).start()
         return redirect(back)
 
-    app.config.setdefault("quiet_endpoints", set()).add("picks_paste")
+    app.config.setdefault("quiet_endpoints", set()).update({"picks_paste", "gallery_no_picks"})
+
+    @app.post("/session/<int:sid>/gallery/no-picks", endpoint="gallery_no_picks")
+    def gallery_no_picks(sid):
+
+        s = session(sid)
+        if may_skip_picks(s):
+            ctx.audit(NO_PICKS_ACTION, sid=sid)
+        return redirect(url_for("client_stage", hid=s["household_id"]) + f"?s={sid}#gallery")
     @app.post("/session/<int:sid>/picks/paste", endpoint="picks_paste")
     def picks_paste(sid):
 
@@ -876,10 +1093,15 @@ def register(ctx):
             r.headers["Content-Security-Policy"] = ctx.csp(VIEWER_SCRIPT_HASHES)
         return r
 
-    def do_upload(sid, gid):
+    def do_upload(sid, gid, replace=False):
+
         with app.app_context():
             x("UPDATE galleries SET upload_state='uploading', upload_error='' WHERE session_id=?", (sid,))
         try:
+            if replace:
+                delete_gallery(gid)
+                with app.app_context():
+                    x("UPDATE galleries SET draft_n=NULL, draft_at=NULL, prune_due=NULL WHERE session_id=?", (sid,))
             with app.app_context():
                 ext = (q("SELECT extension_used FROM sessions WHERE id=?", (sid,), one=True) or {"extension_used": 0})["extension_used"]
                 days_ = gdays(sid)
@@ -898,7 +1120,8 @@ def register(ctx):
                 return
             mark_online(gid)
             with app.app_context():
-                ctx.audit(f"Gallery uploaded ({k} files)", sid=sid, who="Lumen Aureum")
+                ctx.audit(("Download gallery" if is_download(gid) else "Gallery") + f" uploaded ({k} files)"
+                          + (", in place of the one that was online" if replace else ""), sid=sid, who="Lumen Aureum")
         except Exception as e:
             app.logger.exception("gallery upload")
             with app.app_context():
@@ -926,9 +1149,16 @@ def register(ctx):
                 delete_gallery(gid)
                 return
             mark_online(gid)
+            try:
+                gone_, bad_ = prune_host(gid)
+            except Exception:
+                app.logger.exception("gallery prune %s", gid)
+                gone_, bad_ = 0, None
             with app.app_context():
-                x("UPDATE galleries SET prune_due=? WHERE session_id=?", (_now_iso(PRUNE_GRACE_MIN), sid))
-                ctx.audit(f"Gallery updated on the web ({k} files; the earlier files are removed at the next check)",
+                x("UPDATE galleries SET prune_due=? WHERE session_id=?", (_now_iso(PRUNE_GRACE_MIN) if bad_ is None else None, sid))
+                ctx.audit(f"Gallery updated on the web ({k} files; {gone_} earlier file{'' if gone_ == 1 else 's'} removed"
+                          + (f"; {len(bad_)} could not be removed: {', '.join(bad_[:5])}" if bad_ else "")
+                          + ("; the earlier files are removed at the next check" if bad_ is None else "") + ")",
                           sid=sid, who="Lumen Aureum")
         except Exception as e:
             app.logger.exception("gallery update")
@@ -945,12 +1175,17 @@ def register(ctx):
         back = url_for("client_stage", hid=s["household_id"]) + f"?s={sid}#gallery"
         if not g or not g["built_at"] or g["upload_state"] in ("awaiting", "uploading"):
             return redirect(back)
+        replace = False
         if g["upload_state"] == "up" and not g["removed_at"]:
             gid = s["gallery_id"]
             if JOBS.get(sid, {}).get("state") == "running" or sid in UPDATING:
                 from flask import g as _g
                 _g.refused = True
                 return redirect(back)
+            if gid and not online_is_current(gid) and online_download(gid) != is_download(gid):
+                replace = True
+        if g["upload_state"] == "up" and not g["removed_at"] and not replace:
+            gid = s["gallery_id"]
             if gid and not online_is_current(gid):
                 try:
                     if not ctx.hooks.guard("gallery_upload", lambda: do_update(sid, gid), sid=sid, gallery_id=gid,
@@ -961,24 +1196,30 @@ def register(ctx):
             return redirect(back)
         owed = 0 if proof_built(sid) else ctx.release_blocked(sid)
         if owed and not request.form.get("early"):
-            x("UPDATE galleries SET upload_state='error', upload_error=? WHERE session_id=?",
-              (f"balance {ctx.money(owed)} due - the gallery is released on payment", sid))
+            if replace:
+                x("UPDATE galleries SET upload_error=? WHERE session_id=?",
+                  (f"balance {ctx.money(owed)} due - the download gallery is released on payment", sid))
+            else:
+                x("UPDATE galleries SET upload_state='error', upload_error=? WHERE session_id=?",
+                  (f"balance {ctx.money(owed)} due - the gallery is released on payment", sid))
             return redirect(back)
         gid = s["gallery_id"]
         word = (s["gallery_codeword"] if "gallery_codeword" in s.keys() else "") or ""
         if codeword_key(g["key"], gid, word) != (g["ekey"] or g["key"]):
-            x("UPDATE galleries SET upload_state='error', upload_error=? WHERE session_id=?",
-              ("the codeword changed after the gallery was built: press Rebuild, then Upload", sid))
+            x("UPDATE galleries SET upload_state=?, upload_error=? WHERE session_id=?",
+              ("up" if replace else "error", "the codeword changed after the gallery was built: press Rebuild, then Upload", sid))
             return redirect(back)
         try:
 
-            if ctx.hooks.guard("gallery_upload", lambda: do_upload(sid, gid), sid=sid, gallery_id=gid, n_files=g["n_files"]):
-                x("UPDATE galleries SET upload_state='awaiting', upload_error='' WHERE session_id=?", (sid,))
+            if ctx.hooks.guard("gallery_upload", lambda: do_upload(sid, gid, replace), sid=sid, gallery_id=gid,
+                               n_files=g["n_files"]):
+                if not replace:
+                    x("UPDATE galleries SET upload_state='awaiting', upload_error='' WHERE session_id=?", (sid,))
                 return redirect(back)
         except Exception as e:
             x("UPDATE galleries SET upload_state='error', upload_error=? WHERE session_id=?", (f"held upload failed: {e}"[:200], sid))
             return redirect(back)
-        threading.Thread(target=do_upload, args=(sid, gid), name=f"gal-up-{sid}", daemon=True).start()
+        threading.Thread(target=do_upload, args=(sid, gid, replace), name=f"gal-up-{sid}", daemon=True).start()
         return redirect(back)
 
     PICKS_ON = lambda r: True
@@ -986,11 +1227,12 @@ def register(ctx):
     def sync_once():
 
         from datetime import datetime, timezone
-        rows = q("""SELECT g.*, s.gallery_id, s.first_visit, s.extension_used, s.id AS sid FROM galleries g
+        rows = q("""SELECT g.*, s.gallery_id, s.first_visit, s.sd_shipped, s.extension_used, s.id AS sid FROM galleries g
                     JOIN sessions s ON s.id=g.session_id WHERE g.upload_state='up' AND g.removed_at IS NULL""")
         for r in rows:
             gid = r["gallery_id"]
-            first = r["first_visit"]
+            dl = online_download(gid)
+            first = r["sd_shipped"] if dl else r["first_visit"]
             try:
                 if gid not in _HAS_LIMITS:
                     host = gallery_host()
@@ -1013,10 +1255,18 @@ def register(ctx):
                     if st:
                         local = datetime.fromisoformat(st.replace("Z", "+00:00")).astimezone().date().isoformat()
                         x("UPDATE sessions SET first_visit=? WHERE id=? AND first_visit IS NULL", (local, r["sid"]))
-                        ctx.audit("Client opened the gallery", sid=r["sid"], who="Lumen Aureum")
+                        if dl:
+                            x("UPDATE sessions SET sd_shipped=? WHERE id=? AND sd_shipped IS NULL", (local, r["sid"]))
+                            x("""UPDATE tasks SET done=? WHERE session_id=? AND title='Send retouched photos' AND done IS NULL""",
+                              (local, r["sid"]))
+                        ctx.audit("Client opened the download gallery: files delivered" if dl else "Client opened the gallery",
+                                  sid=r["sid"], who="Lumen Aureum")
                         ctx.advance(r["sid"])
                         first = local
-                if PICKS_ON(r):
+                if dl:
+                    if r["draft_n"] is not None:
+                        x("UPDATE galleries SET draft_n=NULL, draft_at=NULL WHERE session_id=?", (r["sid"],))
+                elif PICKS_ON(r):
                     blob = picks_blob(gid)
                     if blob:
                         import hashlib as _h
@@ -1126,6 +1376,20 @@ def register(ctx):
         return bool(g_ and g_["built_at"] and "proof" in g_.keys() and g_["proof"])
 
     app.config["gallery_proofs"] = proof_built
+
+    def download_built(sid):
+
+        s_ = q("SELECT gallery_id FROM sessions WHERE id=?", (sid,), one=True)
+        g_ = gal(sid)
+        return bool(s_ and g_ and g_["built_at"] and is_download(s_["gallery_id"]))
+
+    def download_online(sid):
+
+        s_ = q("SELECT gallery_id FROM sessions WHERE id=?", (sid,), one=True)
+        return bool(s_ and online_download(s_["gallery_id"]))
+
+    app.config["gallery_download"] = download_built
+    app.config["gallery_download_online"] = download_online
     app.config["gallery_brand"] = gallery_brand
 
     def gdays(sid):
@@ -1166,8 +1430,10 @@ def register(ctx):
         job = JOBS.get(s["id"])
         days = ctx.C.gallery_days(s["type"])
         expires = exp_status = ext_date = None
-        if s["first_visit"]:
-            first = date.fromisoformat(s["first_visit"][:10])
+        dl_online = online_download(gid)
+        opened = s["sd_shipped"] if dl_online else s["first_visit"]
+        if opened:
+            first = date.fromisoformat(opened[:10])
             expires = first + timedelta(days=days * (2 if s["extension_used"] else 1))
             ext_date = first + timedelta(days=days * 2)
             left = (expires - date.today()).days
@@ -1176,8 +1442,10 @@ def register(ctx):
         if g and g["built_at"]:
             preview = url_for("gallery_preview", gid=gid) + "#k=" + (g["ekey"] or g["key"])
         pct = round(100 * job["done"] / job["total"]) if job and job.get("total") else 0
+        n_fin_ = len(uploaded(s["id"], "final"))
         html = render_template_string(BLOCK, s=s, g=g, job=job, pct=pct, src=src, src_n=src_n, dirs=src_dirs() if FOLDERS else [],
                                       n_up=len(uploaded(s["id"])), folders=FOLDERS,
+                                      n_fin=n_fin_, use_fin=build_from_finals(s, n_fin_),
                                       preview=preview, expires=expires, exp_status=exp_status, ext_date=ext_date,
                                       days=days, nice=ctx.nice, money=ctx.money, has_host=has_host(),
                                       owed=ctx.release_blocked(s["id"]), proof=proof_built(s["id"]),
@@ -1188,12 +1456,57 @@ def register(ctx):
                                           != (g["ekey"] or g["key"])),
                                       back=url_for("client_stage", hid=s["household_id"]) + f"?s={s['id']}#gallery",
                                       link=gallery_link(s["id"]) if g and g["upload_state"] == "up" else None,
-                                      stale=bool(g and gid and g["upload_state"] == "up" and not online_is_current(gid)))
+                                      stale=bool(g and gid and g["upload_state"] == "up" and not online_is_current(gid)),
+                                      dl=is_download(gid) if g and g["built_at"] else False, dl_next=wants_download(s),
+                                      dl_online=dl_online, opened=opened,
+                                      skip_picks=may_skip_picks(s) and not (job and job.get("state") == "running"),
+                                      mailto=link_mail(s) if g and g["upload_state"] == "up" else "")
         return [("Gallery", html)]
 
+    def link_mail(s):
+
+        from urllib.parse import quote as qu
+        link = gallery_link(s["id"])
+        if not link:
+            return ""
+        who = q("""SELECT name, email FROM people WHERE household_id=? AND role IN ('parent','adult') AND COALESCE(email,'') != ''
+                   ORDER BY role='parent' DESC, id LIMIT 1""", (s["household_id"],), one=True)
+        first = ((who["name"] or "").split() or [""])[0] if who else ""
+        sign = setting_("photographer_name") or setting_("business_name") or setting_("studio_name")
+        dl = online_download(s["gallery_id"])
+        title = ((s["title"] if "title" in s.keys() else "") or "").strip()
+        picked = not dl and bool(s["favorites"] or s["retouch_picks"] or s["veto"])
+        subject = ("Your photos are ready to download" if dl else "Your gallery link" if picked
+                   else "Your photos are ready to pick from") + (f": {title}" if title else "")
+        days = gdays(s["id"]) * (2 if s["extension_used"] else 1)
+        lines = [f"Hi {first}," if first else "Hello,",
+                 ("Your photos are ready to download:" if dl else
+                  "Thank you for your picks. Here is your gallery link again:" if picked else
+                  "Your photos are ready. Open your gallery to pick your favorites:") + "\n" + link,
+                 f"The gallery is open for {days} days after you first open it."
+                 + (" Please download your photos in that time." if dl else "")
+                 + (" When it asks, enter the word you chose with me." if "&c=1" in link else ""),
+                 f"Thank you,\n{sign}" if sign else "Thank you"]
+        body = "\n\n".join(lines)
+        return f"mailto:{qu(who['email'] if who else '', safe='@')}?subject={qu(subject)}&body={qu(body)}"
+
     def step_action(label, s):
+        here = url_for("client_stage", hid=s["household_id"]) + f"?s={s['id']}#gallery"
         if label == STEP_LABEL and has_gallery_step(s):
-            return dict(verb="Build gallery", href=url_for("client_stage", hid=s["household_id"]) + f"?s={s['id']}#gallery")
+            return dict(verb="Build gallery", href=here)
+        if label == "Files delivered" and link_delivery(s) and s["stage"] != "closed":
+
+            g = gal(s["id"])
+            gid = s["gallery_id"] or ""
+            alt = dict(verb="Mark delivered", post=url_for("quick", sid=s["id"]), fields=dict(act="mark", field="sd_shipped"))
+            if not wants_download(s):
+                return None
+            if not (g and g["built_at"] and is_download(gid)):
+                return dict(what="Build the download gallery", verb="Build download gallery", href=here, alt=alt)
+            if not (g["upload_state"] == "up" and not g["removed_at"] and online_download(gid)):
+                return dict(what="Upload the download gallery", verb="Upload", href=here, alt=alt)
+            return dict(what="Files delivered when the client opens the download gallery", verb="Check now",
+                        post=url_for("gallery_sync_now"), fields={}, theirs=True, alt=alt)
         return None
 
     ctx.hooks.stage_blocks.append(block)
@@ -1202,7 +1515,8 @@ def register(ctx):
     def still_picking(s):
 
         g = gal(s["id"])
-        if not (g and g["draft_n"] is not None and g["upload_state"] == "up" and not g["removed_at"]):
+        if not (g and g["draft_n"] is not None and g["upload_state"] == "up" and not g["removed_at"]) \
+                or online_download(s["gallery_id"]):
             return []
         n = g["draft_n"]
         return [dict(what=f"Client is still picking ({n} photo{'' if n == 1 else 's'} marked)", theirs=True,

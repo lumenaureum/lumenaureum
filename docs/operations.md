@@ -8,8 +8,8 @@
 
 The database records which version of its layout it has. When a new version needs to change it, the change runs at
 the first sign-in, after the app has made an encrypted **upgrade** backup (listed under Backups); if that backup
-can't be made, nothing is changed and sign-in says why. The change runs all at once or not at all. After an upgrade,
-Today shows a one-time note with the new version number, saying a backup was made before the update. An older
+can't be made, nothing is changed and sign-in says why. The change runs all at once or not at all. After an update,
+Today shows a one-time note with the new version number, and says when a backup was made before it. An older
 version never opens a database a newer one has changed: it says so and points here.
 
 Images are signed. To check one before running it:
@@ -32,7 +32,8 @@ check the clients list and the next invoice number.)
 
 Going back to an earlier version is always this restore: each version that changes the database updates it at the
 first sign-in (1.0.1 turned refunds recorded the 1.0.0 way into credits; 1.1 added the gallery draft fields; 1.1.1
-keeps a copy of each issued invoice and receipt), and an earlier version refuses the updated database. Anything
+keeps a copy of each issued invoice and receipt; 1.2 marks the data as using download galleries), and an earlier
+version refuses the updated database. Anything
 entered after the upgrade is not in that backup: before rolling back, look through each client's History and the
 audit log for what changed since, and note it. A rollback cannot undo a leak: if you rolled back because of a security
 problem, also follow "If you suspect a compromise".

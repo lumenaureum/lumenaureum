@@ -23,6 +23,7 @@ FIELDS = {
         ("WHAT I PROVIDE", "the opening of section 5, by kind of session"),
         ("HOW YOU DELIVER", "how the photos reach the client"),
         ("DELIVERY DAYS", "days until the photos are ready"),
+        ("THE LINK", "for delivery by download link: how long the link stays open (empty otherwise)"),
         ("HOW LONG", "how long you keep unedited files"),
         ("THE PHOTOS", "who owns the photos, or what the license covers"),
         ("HOW I MAY USE THEM", "your portfolio permission"),
@@ -73,7 +74,7 @@ If I cannot photograph your session because of illness, injury, emergency or equ
 If photos are lost, damaged or not taken, for any reason, or I do not do something this agreement says, I will, at your choice, refund the part of the price that covers what was lost or not done, or reshoot it at no charge if that is possible. In no case will I owe you more than you have paid me under this agreement. This is your only remedy against me. I am not responsible for indirect or consequential losses, such as the cost of re-staging an event, or for emotional distress. This section does not limit my responsibility for harm I cause through gross negligence or on purpose.
 
 # 6. What I provide, and what you receive
-[WHAT I PROVIDE] You receive the edited photos [HOW YOU DELIVER], within [DELIVERY DAYS] days of the session. I keep the unedited files and my copies of the edited photos for [HOW LONG] after delivery, then delete them. Copies in my backups are removed as those backups are replaced. If you ask me in writing, I will delete your photos sooner. Please keep your own copies of the photos you receive.
+[WHAT I PROVIDE] You receive the edited photos [HOW YOU DELIVER], within [DELIVERY DAYS] days of the session. [THE LINK] I keep the unedited files and my copies of the edited photos for [HOW LONG] after delivery, then delete them. Copies in my backups are removed as those backups are replaced. If you ask me in writing, I will delete your photos sooner. Please keep your own copies of the photos you receive.
 
 # 7. The photos
 [THE PHOTOS]

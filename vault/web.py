@@ -155,7 +155,7 @@ def register(app, connect, audit):
             mp = K.master_pub(con)
             objs = con.execute("""SELECT kind, backend, COUNT(*) n, COALESCE(SUM(size),0) b FROM vault_objects
                                   WHERE deleted IS NULL GROUP BY kind, backend""").fetchall()
-            last_db = con.execute("SELECT MAX(created) FROM vault_objects WHERE kind='db' AND deleted IS NULL").fetchone()[0]
+            last_db = con.execute("SELECT MAX(created) FROM vault_objects WHERE kind IN ('db', 'manual', 'upgrade') AND deleted IS NULL").fetchone()[0]
             n_keys = con.execute("SELECT COUNT(*) FROM vault_keys").fetchone()[0]
         finally:
             con.close()

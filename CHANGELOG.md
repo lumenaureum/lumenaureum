@@ -2,6 +2,32 @@
 
 New features, behavior changes, security fixes, and other fixes in each release.
 
+## 1.2.0 (2026-11-15)
+
+### Features
+
+- Runs on 64-bit ARM.
+- Download galleries for sessions delivered by Download link: full-size photos, Download, and Download all.
+- Download all shows the time left and can be canceled. Large galleries download in parts.
+- Retouched finals: after proofs, the download gallery is built from them.
+- Deliver without picks, for a client who never sends picks.
+- Add your website in Settings. Galleries link to it.
+- Email the gallery link from the session.
+
+### Behavior changes
+
+- The delivery method can be chosen from the first inquiry on. Changes are noted in History.
+- A client's first open of a download gallery counts as Files delivered.
+- Agreements for Download link sessions say how long the link stays open.
+- Galleries use the session's title when it has one.
+- Delivered files name your studio as the creator, and carry your copyright notice when you keep the copyright.
+- An open gallery page notices a rebuild and asks the client to reload.
+
+### Upgrading
+
+- 1.1.1 can't open your data once 1.2 has updated it. The update makes a backup first.
+- Rebuild a gallery to get the new gallery page.
+
 ## 1.1.1 (2026-11-14)
 
 ### Features

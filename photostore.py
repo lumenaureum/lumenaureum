@@ -13,7 +13,7 @@ MAGIC = b"LAP1"
 REC = 1 << 20
 PIECE = 8 * REC
 MAX_FILE = 4 << 30
-KINDS = {"raw": "RAWs", "export": "Edited exports"}
+KINDS = {"raw": "RAWs", "export": "Edited exports", "final": "Retouched finals"}
 
 SCHEMA = """CREATE TABLE IF NOT EXISTS photo_files (
   id TEXT PRIMARY KEY, session_id INTEGER REFERENCES sessions(id) ON DELETE CASCADE, kind TEXT NOT NULL,

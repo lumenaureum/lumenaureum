@@ -8,7 +8,7 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import fresh_modules
+from helpers import fresh_modules, posted_envelope
 
 sync_api = pytest.importorskip("playwright.sync_api")
 GID = "galBrowse01"
@@ -61,7 +61,7 @@ class Host:
         if name.startswith("gate.php?f="):
             name = name.split("=", 1)[1]
         if name.startswith("picks.php"):
-            self.files["draft.bin" if "kind=draft" in name else "picks.bin"] = req.post_data_buffer
+            self.files["draft.bin" if "kind=draft" in name else "picks.bin"] = posted_envelope(req.post_data_buffer)
             return route.fulfill(status=204, body=b"")
         if name == "seen.php":
             return route.fulfill(status=204, body=b"")
@@ -98,6 +98,7 @@ def test_sent_stays_and_the_other_device_knows(gallery, browser):
     pick_retouch(page, 0, "fix the glare")
     page.wait_for_function("document.querySelector('#trayn').textContent.endsWith('Saved  \\u00b7  Not sent yet')")
     page.locator("#send").click()
+    page.wait_for_function("document.querySelector('#sent').textContent.startsWith('Sent.')")
     time.sleep(2.5)
     assert page.locator("#sent").inner_text() == "Sent. Thank you! You can change them and send again."
     assert page.locator("#sent").is_visible() and page.locator("#sent").get_attribute("role") == "status"
@@ -221,4 +222,35 @@ def test_a_photo_that_cannot_load_says_so(gallery, browser):
     page.locator("#lbagain").click()
     page.wait_for_selector("#big.on")
     assert page.locator("#lberr").is_hidden()
+    ctx.close()
+
+class Swapped(Host):
+
+    def __init__(self, folder, manifest):
+        super().__init__(folder)
+        self.new_manifest, self.swapped = manifest, False
+
+    def handle(self, route):
+        name = route.request.url.split("#")[0][len(BASE):]
+        if self.swapped and name in ("manifest.bin", "gate.php?f=manifest.bin"):
+            return route.fulfill(status=200, body=self.new_manifest, headers={"content-type": "application/octet-stream"})
+        return super().handle(route)
+
+def test_a_stale_proofs_page_never_claims_to_send_picks(gallery, browser):
+    folder, key = gallery
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    from plugins import gallery as G
+    blob = G.seal(AESGCM(G.key_bytes(key)), b'{"v":1,"title":"Newer","items":[],"picks":{},"dl":1,"zips":[]}', "manifest.bin")
+    host = Swapped(folder, blob)
+    ctx, page = open_page(browser, host, key)
+    pick_retouch(page, 1, "brighter")
+    host.swapped = True
+    host.files.pop("picks.bin", None)
+    page.locator("#send").click()
+    page.wait_for_selector("#upd:not([hidden])")
+    page.wait_for_function("document.querySelector('#sent').textContent.includes('updated')")
+    assert "Sent." not in page.locator("#sent").inner_text() and "picks.bin" not in host.files
+    page.locator("#send").click()
+    page.wait_for_timeout(300)
+    assert "picks.bin" not in host.files
     ctx.close()

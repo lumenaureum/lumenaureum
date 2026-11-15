@@ -1,4 +1,4 @@
--- The schema of a fresh install at SCHEMA_VERSION 5. Do not edit by hand: regenerate with
+-- The schema of a fresh install at SCHEMA_VERSION 6. Do not edit by hand: regenerate with
 -- python tools/pin_schema.py (see the schema versions checklist in app.py).
 index audit_hh: CREATE INDEX audit_hh ON audit(household_id, at)
 index audit_sid: CREATE INDEX audit_sid ON audit(session_id)

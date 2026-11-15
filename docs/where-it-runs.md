@@ -5,9 +5,12 @@ Lumen Aureum is a small web app that you run yourself and open in a browser on y
 ## The machine
 It needs a machine that is **always on**: the daily backup, gallery checks and scheduled deletions run in the
 background. Suitable machines:
-- **A NAS that runs containers** (Docker). Intel or AMD models only for now: many budget NAS models use ARM
-  processors. Support for 64-bit ARM is coming soon.
+- **A NAS that runs containers** (Docker), with an Intel, AMD or 64-bit ARM processor.
 - **A home server or mini PC** running Linux with Docker.
+- **A Raspberry Pi 4 or 5** with a 64-bit operating system (Raspberry Pi OS 64-bit, or another 64-bit Linux) and
+  Docker (the 32-bit system does not work). Choose a model with at least 2 GB of memory, so 1 GB stays free for the
+  app. Keep the app's data and your photos on an SSD (USB or
+  NVMe), not on the SD card: SD cards are slow and wear out under the constant small writes of a database.
 - **A desktop computer running Linux with Docker** works, but only while it is on and awake; scheduled work waits
   until it is.
 
@@ -17,10 +20,10 @@ A laptop that sleeps or travels is a poor choice.
 
 After any restart the app is locked until you sign in (see [Security](security.md)).
 
-Minimum: a 64-bit Intel or AMD processor (x86-64), 1 GB of free memory, and room for your photos. In our tests the app
-used about 70 MB at rest and about 150 MB while sealing a 12 GB session. Building a client gallery takes the most: about
-310 MB for 52 photos of 4,000 pixels, and up to about 470 MB for 200 photos of 24 megapixels. The app hands that memory
-back once the build ends. `docker stats` also counts the system's file cache, so it can read well above these figures.
+Minimum: a 64-bit processor (Intel or AMD x86-64, or 64-bit ARM), 1 GB of free memory, and room for your photos. In
+our tests the app used about 70 MB at rest and about 150 MB while sealing a 12 GB session. Building a client gallery
+takes the most: about 310 MB for 52 photos of 4,000 pixels, and up to about 470 MB for 200 photos of 24 megapixels.
+The app hands that memory back once the build ends. `docker stats` also counts the system's file cache, so it can read well above these figures.
 The database stays small (under a few megabytes for hundreds of sessions).
 
 ## A server in the cloud
@@ -63,6 +66,11 @@ enforces its own expiry date, so it comes down on time even if the app is locked
 back to the app by themselves. A plain S3 bucket can't;
 there the app removes galleries, and a bucket lifecycle rule (delete after, say, 400 days) is a good outer limit.
 
+On S3, each gallery file is uploaded with its own Cache-Control. The page and `manifest.bin` get `no-cache`, so a
+rebuilt gallery shows at once. The photo files get a year, since their names are never used twice. If a CDN sits in
+front of the bucket, set it to follow the origin's Cache-Control. A CDN that keeps the page or the manifest longer
+shows clients an old gallery after a rebuild, with photos that are no longer there.
+
 Give galleries an address of their own, such as `photos.example.com`, rather than a folder on your main website. The
 gallery page keeps the client's picks and notes in the browser's storage for that address, and any script on the same
 address (a website plugin, an analytics script) could read them.
@@ -71,8 +79,8 @@ On a PHP host, use Apache with `.htaccess` files allowed (most shared hosting is
 its encrypted files behind the gate script; other web servers need the same rules added by hand. See
 [Security](security.md), "The PHP files on a gallery host".
 
-When you rebuild a gallery that is already online, the new files go up first. The old photo files are removed at the
-app's next gallery check, about 30 minutes later, so a page a client already has open keeps working.
+When you rebuild a gallery that is already online, the new files go up first, and the old photo files are removed as
+soon as the new page is up. A page a client already has open notices the new build and asks them to reload.
 
 ## Folders outside the container
 The app runs inside a container and sees only the folders `compose.yaml` mounts into it. A folder that exists on the

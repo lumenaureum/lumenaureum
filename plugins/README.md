@@ -31,7 +31,7 @@ day the agreement names is a promise to clients, so it always runs. Online galle
 
 If a plugin needs a Python package the image doesn't have, build your own image on top of this one:
 ```dockerfile
-FROM ghcr.io/lumenaureum/lumenaureum:1.1.1     # the version you run
+FROM ghcr.io/lumenaureum/lumenaureum:1.2.0     # the version you run
 USER root
 RUN pip install some-package
 USER lumen

@@ -188,6 +188,33 @@ def test_picks_php_writes_a_draft_only_with_the_proof_and_the_envelope(php_host)
         pass
     assert (d / "draft.bin").read_bytes() == good
 
+def test_picks_and_the_visit_stamp_arrive_as_forms(php_host):
+
+    import base64
+    from urllib.parse import urlencode
+    base, d, proof, G, key = php_host
+    good = sealed(G, key, DRAFT, G.DRAFT_AAD)
+
+    def form(url, fields, proof_=None):
+        req = urllib.request.Request(url, data=urlencode(fields).encode(), method="POST",
+                                     headers={"Content-Type": "application/x-www-form-urlencoded",
+                                              **({"X-Proof": proof_} if proof_ else {})})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                return r.status
+        except urllib.error.HTTPError as e:
+            return e.code
+    d64 = base64.urlsafe_b64encode(good).decode().rstrip("=")
+    assert form(base + "picks.php?kind=draft", {"d": d64}) == 403
+    assert form(base + "picks.php?kind=draft", {"d": base64.urlsafe_b64encode(b"LAK1" + b"plain words here " * 6).decode()},
+                proof) == 400
+    assert form(base + "picks.php?kind=draft", {"d": "not base64!"}, proof) == 413
+    assert form(base + "picks.php?kind=draft", {"d": d64}, proof) == 204
+    assert (d / "draft.bin").read_bytes() == good
+    (d / "seen.txt").unlink(missing_ok=True)
+    assert form(base + "seen.php", {"p": "0" * 32}) == 204 and not (d / "seen.txt").exists()
+    assert form(base + "seen.php", {"p": proof}) == 204 and (d / "seen.txt").exists()
+
 def test_gate_says_missing_draft_plainly(php_host):
     base, d, proof, G, key = php_host
     assert call(base + "gate.php?f=draft.bin", proof=proof)[0] == 404

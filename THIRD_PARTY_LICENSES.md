@@ -13,7 +13,7 @@ AGPL. Versions are those in the published container image; each package's full l
 | cffi | MIT-0 |
 | pycparser | BSD-3-Clause |
 | pyrage (age encryption) | MIT |
-| sqlcipher3-binary (bundles SQLCipher, BSD-3-Clause, and OpenSSL libcrypto, Apache-2.0) | MIT |
+| sqlcipher3 (bundles SQLCipher, BSD-3-Clause, and OpenSSL libcrypto, Apache-2.0) | Zlib |
 | pillow | MIT-CMU |
 | weasyprint, pydyf, tinycss2, cssselect2, webencodings | BSD-3-Clause |
 | tinyhtml5 | MIT |

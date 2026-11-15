@@ -47,7 +47,8 @@ no one (you included) can open your data or any backup. Keep two copies in diffe
 
 ### 2. Your business
 - Your name, the business name that appears on contracts and invoices, and a brand name if it is different.
-- Business email, phone and mailing address, printed on your documents. On a gallery host that runs PHP, the client's
+- Business email, phone and mailing address, printed on your documents. Your website, if you add one in Settings,
+  is linked from your client galleries. On a gallery host that runs PHP, the client's
   picks come back to the app by themselves. On any other host, the client's picks arrive by email at this address.
 - **Time zone**, and your home ZIP code (or latitude and longitude), used for sunset and golden hour times.
 
@@ -155,9 +156,11 @@ download the PDF and attach it before you send.
 
 ## Galleries: proofing or delivery
 Client galleries are for session types with a Gallery step: portraits, seniors, families, weddings, sports,
-newborns, engagements, headshots, pets, and group events. Real estate, products, food, and personal projects have no
-gallery: deliver those yourself. On the session page, open **Show files** under Photos, download the edited files,
-and send them the way you and the client agreed (a file transfer service, say).
+newborns, engagements, headshots, pets, and group events. They are also for any session delivered by **Download
+link** (the default for real estate, products, and food; choose it per session under **Files delivered by** on the
+session page's Shoot section). Without either, deliver
+the photos yourself: on the session page, open **Show files** under Photos, download the edited files, and send them
+the way you and the client agreed.
 
 A gallery is one of two kinds, set by the proof mark in Settings, General, Client galleries:
 - **Proofing gallery (a proof mark on).** The photos carry your mark, and the client picks the ones to retouch. The
@@ -166,9 +169,24 @@ A gallery is one of two kinds, set by the proof mark in Settings, General, Clien
 - **Delivery gallery (no proof mark).** The finished photos, released on payment: while a balance is due, the
   gallery waits. To put it online before payment anyway, press **Upload before payment**.
 
-Rebuilding a gallery that is already online updates it at the same link. The old photo files stay on the host until
-the app's next gallery check (about 30 minutes later), so a page the client already has open keeps working; a page
-left open longer than that asks the client to reload.
+- **Download gallery (delivery by Download link).** The final photos at full size, for the client to keep. Each photo
+  has a Download button, and **Download all** saves every photo in one zip (several zips of about 500 MB each for a
+  large gallery). No picking and no proof mark. Released on payment, like a delivery gallery. The client's first open
+  ticks **Files delivered**, and the gallery's days count from then. Each full-size file names your studio as its
+  creator, and carries your copyright notice when you keep the copyright. Nothing else from your files goes along:
+  no location, no camera details.
+
+A session delivered by Download link builds its download gallery straight away when the type has no picking round
+(real estate, products, food). A type with picks builds a proofing gallery first. Once the picks are in, drop the
+retouched photos onto **Retouched finals** under Photos, then press **Build download gallery**. If the client never
+sends picks, press **Deliver without picks**. The download gallery takes the proofs' place at the same link when you
+press **Upload**, after payment. It holds every photo
+twice (one by one and in the zip), so it needs about twice as much space on the gallery host as the photos
+themselves.
+
+Rebuilding a gallery that is already online updates it at the same link. The old photo files are removed from the
+host as soon as the new build is up. A page the client already has open notices the new build and asks them to
+reload.
 
 ## Hard to change later, at a glance
 | Decision | Why it is sticky |

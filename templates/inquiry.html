@@ -20,7 +20,7 @@
 <form method="post" class="card f" style="max-width:640px;margin-top:16px">
   <input type="hidden" name="household_id" value="{{ h.id }}"><input type="hidden" name="type" value="{{ type_ }}">
   <div class="row"><b class="grow">{{ C.SESSION_TYPES[type_] }}</b><a class="go" href="{{ url_for('inquiry', hid=h.id) }}">Change type</a></div>
-  <div class="f2"><div><label class="l" for="f-title">Title (optional)</label><input id="f-title" name="title" maxlength="200"></div>
+  <div class="f2"><div><label class="l" for="f-title">Title (optional)</label><input id="f-title" name="title" maxlength="200"{% if C.is_place(type_) %} placeholder="Property address"{% endif %}></div>
     <div><label class="l" for="f-shoot_date">Shoot date (leave blank if not yet known)</label><input type="date" id="f-shoot_date" name="shoot_date" data-avail="0" data-type="{{ type_ }}" autofocus></div></div>
   {% if type_ in C.SUBJECT_TYPES %}
   <label class="l" id="who-l">Who is being photographed</label>

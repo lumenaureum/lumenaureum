@@ -1,6 +1,7 @@
 ENTRIES = [
     ("Business name, your name, brand", "General", "studio photographer company party agreements", "settings_view", {}),
     ("Business email and phone", "General", "contact email phone number picks documents", "settings_view", {}),
+    ("Website", "General", "website site web address url link gallery homepage", "settings_view", {}),
     ("Mailing address", "General", "address post po box checks mailed", "settings_view", {}),
     ("Tax ID and bank details", "General", "ein tax id bank transfer account routing invoice", "settings_view", {}),
     ("Mileage rate and home base", "General", "mileage miles irs rate travel home base drive", "settings_view", {}),

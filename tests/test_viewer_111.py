@@ -10,7 +10,7 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import fresh_modules
+from helpers import fresh_modules, posted_envelope
 
 sync_api = pytest.importorskip("playwright.sync_api")
 GID, MAIL_GID = "galView111a", "galView111m"
@@ -73,7 +73,7 @@ class Host:
         if name.startswith("gate.php?f="):
             name = name.split("=", 1)[1]
         if name.startswith("picks.php"):
-            self.files["draft.bin" if "kind=draft" in name else "picks.bin"] = route.request.post_data_buffer
+            self.files["draft.bin" if "kind=draft" in name else "picks.bin"] = posted_envelope(route.request.post_data_buffer)
             return route.fulfill(status=204, body=b"")
         if name == "seen.php":
             return route.fulfill(status=204, body=b"")

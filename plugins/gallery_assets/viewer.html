@@ -52,11 +52,19 @@ body.welcomeopen { overflow: hidden; }
 header.two { display: grid; grid-template-columns: auto 1px minmax(0, 1fr); column-gap: 28px; align-items: center; max-width: 980px; text-align: left; }
 header.two #brand { grid-column: 1; grid-row: 1 / span 3; margin: 0; align-items: flex-end; }
 header.two .rule { grid-column: 2; grid-row: 1 / span 3; width: 1px; height: 100%; min-height: 90px; margin: 0; align-self: stretch; }
-header.two h1, header.two #meta, header.two #how { grid-column: 3; }
+header.two h1, header.two #meta, header.two #how, header.two #dlall { grid-column: 3; }
+#brand a { display: flex; flex-direction: column; align-items: inherit; gap: 12px; color: inherit; text-decoration: none; }
+#dlall { margin: 16px auto 0; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; } #dlall[hidden] { display: none; }
+header.two #dlall { margin: 14px 0 0; justify-content: flex-start; }
+#dlall button { font: 600 15px/1 -apple-system, sans-serif; padding: 11px 22px; border: 0; border-radius: 20px; background: #e3aa48; color: #1a1308; cursor: pointer; }
+#dlall button:disabled { opacity: .75; cursor: default; }
+#dlwait { margin: 10px auto 0; font-size: 13px; color: var(--mute); } #dlwait[hidden] { display: none; }
+header.two #dlwait { grid-column: 3; margin: 8px 0 0; }
+#lb #pickbar #dl { background: #e3aa48; border-color: #e3aa48; color: #1a1308; opacity: 1; }
 header.two #how { margin: 8px 0 0; }
 @media (max-width: 640px) { header.two { display: block; text-align: center; }
   header.two #brand { align-items: center; margin-bottom: 18px; } header.two .rule { width: 56px; height: 1px; min-height: 0; margin: 0 auto 16px; }
-  header.two #how { margin: 14px auto 0; } }
+  header.two #how, header.two #dlall { margin: 14px auto 0; } header.two #dlall { justify-content: center; } }
 #filter { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 0 16px 18px; }
 #filter[hidden] { display: none; }
 #filter button { font: 600 15px/1 -apple-system, sans-serif; padding: 10px 18px; border: 1px solid var(--edge); border-radius: 20px; background: none; color: var(--ink); cursor: pointer; }
@@ -130,6 +138,7 @@ body.lbopen #tray { display: none; }
 #upd { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; gap: 12px; align-items: center;
   max-width: calc(100vw - 20px); padding: 10px 14px; border-radius: 10px; background: rgba(20,18,16,.97); color: #ece5d8; font-size: 14px; }
 #upd[hidden] { display: none; }
+@media (max-width: 640px) { #upd { left: 8px; right: 8px; transform: none; max-width: none; flex-wrap: wrap; justify-content: center; text-align: center; } }
 #upd button, #lb #lberr button.reload { font: 600 14px/1 -apple-system, sans-serif; padding: 9px 18px; border: 0; border-radius: 18px; background: #e3aa48; color: #1a1308; cursor: pointer; }
 #lb #lberr button { position: static; font: 600 14px/1 -apple-system, sans-serif; padding: 9px 18px; margin-top: 12px; border: 1px solid rgba(236,229,216,.45); border-radius: 18px; }
 #note { width: 260px; max-width: 48vw; padding: 7px 10px; border-radius: 16px; border: 1px solid #26221e; background: #171513; color: #ece5d8; font-size: 13px; }
@@ -155,7 +164,7 @@ body.lbopen #tray { display: none; }
 </style>
 </head>
 <body>
-<header hidden><div id="brand"><img id="logo" alt="" hidden><div id="studio"></div></div><hr class="rule"><h1 id="title"></h1><p id="meta"></p><div id="how" hidden></div></header>
+<header hidden><div id="brand"><img id="logo" alt="" hidden><div id="studio"></div></div><hr class="rule"><h1 id="title"></h1><p id="meta"></p><div id="how" hidden></div><div id="dlall" hidden><button id="dlallb" type="button">Download all</button></div><p id="dlwait" hidden>Keep this page open until the download finishes.</p></header>
 <nav id="filter" hidden aria-label="Show"></nav>
 <main id="grid"></main>
 <div id="msg" hidden><div><div id="msgsay" role="status" aria-live="polite" aria-atomic="true"></div><div id="msgerr" role="alert" aria-atomic="true"></div><div id="msgact"></div></div></div>
@@ -182,7 +191,7 @@ body.lbopen #tray { display: none; }
   <button id="close" aria-label="Close">&times;</button>
   <div id="count"></div>
   <div id="bigtag" class="tag" aria-hidden="true"></div>
-  <div id="pickbar"><button id="pr" type="button">Retouch</button><input id="note" placeholder="What should be fixed?" aria-label="What should be fixed in this photo?" maxlength="200" hidden><button id="pm" type="button">Suggest for portfolio</button><button id="pv" type="button">Please don't show</button><button id="done" type="button">Done</button></div>
+  <div id="pickbar"><button id="pr" type="button">Retouch</button><input id="note" placeholder="What should be fixed?" aria-label="What should be fixed in this photo?" maxlength="200" hidden><button id="pm" type="button">Suggest for portfolio</button><button id="pv" type="button">Please don't show</button><button id="dl" type="button" hidden>Download</button><button id="done" type="button">Done</button></div>
 </div>
 <script>
 "use strict";
@@ -248,21 +257,25 @@ async function keyProof() {                    // sha256(key), first 32 hex: wha
 }
 async function reach(u, opts) {
   try { return await fetch(u, opts); }
-  catch (e) { throw Object.assign(new Error("network"), { network: true }); }
+  catch (e) { if (e && e.name === "AbortError") throw e; throw Object.assign(new Error("network"), { network: true }); }
 }
-async function fetchBin(name, fresh) {         // the encrypted bytes of one file, as the host sends them
+async function fetchBin(name, fresh, signal) { // the encrypted bytes of one file, as the host sends them
   let r = await reach(GATE ? "gate.php?f=" + encodeURIComponent(name) : name, { credentials: PREVIEW ? "same-origin" : "omit",
-    headers: GATE && subtle ? { "X-Proof": await keyProof() } : {}, cache: fresh ? "no-store" : "default" });
+    headers: GATE && subtle ? { "X-Proof": await keyProof() } : {}, cache: fresh ? "no-store" : "default", signal });
   if (GATE && !r.ok && r.status !== 404 && r.status !== 410 && r.status !== 403) r = null;   // the gate isn't running here (no PHP)
   if (GATE && r && r.ok && (r.headers.get("content-type") || "").includes("php")) r = null;
-  if (!r) r = await reach(name, { credentials: PREVIEW ? "same-origin" : "omit", cache: fresh ? "no-store" : "default" });
+  if (!r) r = await reach(name, { credentials: PREVIEW ? "same-origin" : "omit", cache: fresh ? "no-store" : "default", signal });
   if (!r.ok) throw Object.assign(new Error("http"), { status: r.status });
   try { return await r.arrayBuffer(); }
-  catch (e) { throw Object.assign(new Error("network"), { network: true }); }   // the connection dropped mid-file
+  catch (e) { if (e && e.name === "AbortError") throw e;
+    throw Object.assign(new Error("network"), { network: true }); }   // the connection dropped mid-file
 }
-async function get(name) {
-  return open(await fetchBin(name), name);
+async function get(name, signal) {
+  return open(await fetchBin(name, false, signal), name);
 }
+const b64u = u8 => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000));
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
+const form = (k, v) => new URLSearchParams([[k, v]]);
 const isClosed = e => e.status === 404 || e.status === 410;
 const isWrongKey = e => !e.network && !e.insecure && (!e.status || (GATE && e.status === 403));
 const blobs = new Map();
@@ -362,7 +375,7 @@ async function main() {
   $("msg").remove();
   if (!location.pathname.startsWith("/gallery-preview/")) try {
     const proof = [...new Uint8Array(await subtle.digest("SHA-256", raw))].map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
-    fetch("seen.php", { method: "POST", credentials: "omit", cache: "no-store", body: proof }).catch(() => {});
+    fetch("seen.php", { method: "POST", credentials: "omit", cache: "no-store", body: form("p", proof) }).catch(() => {});
   } catch (e) {}
   const B = m.brand || {};
   look(B.theme, true);
@@ -380,23 +393,38 @@ async function main() {
   $("studio").textContent = B.logo ? "" : (B.studio || "");     // a logo already carries the name
   $("studio").classList.toggle("word", !B.logo);
   document.querySelector("header").classList.toggle("two", !!(B.logo || B.studio));
+  const SITE = /^https:\/\/[^\s"'<>\\]+$/.test(B.site || "") ? B.site : "";
+  if (SITE && (B.logo || B.studio)) { const a = document.createElement("a"); a.href = SITE; a.rel = "noopener"; a.target = "_blank";
+    a.id = "site"; a.append($("logo"), $("studio")); $("brand").append(a); }
   const ct = $("contact");
   if (B.email) { const sp = document.createElement("span"), a = document.createElement("a");
     a.href = "mailto:" + B.email; a.textContent = B.email; sp.append(a); ct.append(sp); }
   if (B.phone) { const sp = document.createElement("span"); sp.textContent = B.phone; ct.append(sp); }
+  if (SITE) { const sp = document.createElement("span"), a = document.createElement("a");
+    a.href = SITE; a.rel = "noopener"; a.target = "_blank"; a.textContent = SITE.replace(/^https:\/\/(www\.)?/, "").replace(/\/$/, "");
+    sp.append(a); ct.append(sp); }
   if (B.studio || B.photographer) { const sp = document.createElement("span"); sp.textContent = B.photographer && B.photographer !== B.studio ? B.photographer + ", " + (B.studio || "") : (B.studio || B.photographer); ct.prepend(sp); }
   const owner = B.studio || B.photographer || "", yr = (String(B.date || "").match(/\b(\d{4})$/) || [])[1] || new Date().getFullYear();
   const RIGHTS = !owner ? "" : B.owns === true ? "\u00a9 " + yr + " " + owner + ". All rights reserved." : "Photos by " + owner + ".";
   if (RIGHTS) { $("rights").textContent = RIGHTS; $("rights").hidden = false; }
   document.querySelector("header").hidden = false;
   const grid = $("grid");
-  document.addEventListener("contextmenu", e => { if (e.target && e.target.tagName === "IMG") e.preventDefault(); });
-  document.addEventListener("dragstart", e => { if (e.target && e.target.tagName === "IMG") e.preventDefault(); });
-  let updP = null;
+  const DL = m.dl === 1 && Array.isArray(m.zips);           // a download gallery: the final photos, to keep (nothing to pick)
+  if (!DL) {
+    document.addEventListener("contextmenu", e => { if (e.target && e.target.tagName === "IMG") e.preventDefault(); });
+    document.addEventListener("dragstart", e => { if (e.target && e.target.tagName === "IMG") e.preventDefault(); });
+  }
+  let updP = null, stale = false;              // stale: the host has a newer build than this page
   const updated = () => updP || (updP = fetchBin("manifest.bin", true).then(b => open(b, "manifest.bin"))
     .then(b => new TextDecoder().decode(b) !== mText, () => false)
-    .then(yes => { if (yes) $("upd").hidden = false; else updP = null; return yes; }));
+    .then(yes => { if (yes) { stale = true; $("upd").hidden = false; } else updP = null; return yes; }));
   $("updgo").onclick = () => location.reload();
+  if (!PREVIEW) {
+    const look = () => { if (!stale && document.visibilityState === "visible") updated(); };
+    document.addEventListener("visibilitychange", look);
+    window.addEventListener("focus", look);
+    setInterval(look, 3 * 60000);
+  }
   const thumbs = [];                            // each grid photo's thumbnail, once it has loaded
   const io = new IntersectionObserver(es => es.forEach(e => {
     if (!e.isIntersecting) return;
@@ -419,7 +447,7 @@ async function main() {
       if (b) return askRemove(i, b.dataset.k); show(i); };
   });
 
-  const P = m.picks || {}, KEY = "picks:" + location.pathname;
+  const P = DL ? {} : m.picks || {}, KEY = "picks:" + location.pathname;
   const KEYS = (() => { const seen = {};
     return m.items.map((it, i) => { const n = it.n ? "n:" + it.n : "#" + i; seen[n] = (seen[n] || 0) + 1;
       return seen[n] > 1 ? n + "#" + seen[n] : n; }); })();
@@ -446,7 +474,10 @@ async function main() {
   let legacySig = "";                           // picks carried over from a page before 1.1, which kept no record of sending
   let sendNote = "";                            // a problem sending, shown until the picks change
   const announce = t => { $("live").textContent = ""; setTimeout(() => { $("live").textContent = t; }, 50); };
-  try {
+  if (DL) try {                                 // a download gallery: picks made on the proofs at this address are over
+    [KEY, KEY + ":sent", KEY + ":legacy", KEY + ":welcomed"].forEach(k => localStorage.removeItem(k));
+  } catch (e) {}
+  if (!DL) try {
     const st = JSON.parse(localStorage.getItem(KEY) || "{}") || {};
     sentSig = localStorage.getItem(KEY + ":sent") || "";
     legacySig = localStorage.getItem(KEY + ":legacy") || "";
@@ -575,7 +606,8 @@ async function main() {
     try {
       const body = await sealPicks("draft.bin", changed || new Date().toISOString());
       if (body.length > 262144) throw new Error("too big");
-      const r = await fetch("picks.php?kind=draft", { method: "POST", credentials: "omit", cache: "no-store", body,
+      if (stale) return;                                  // the gallery was replaced: nothing goes to the new one
+      const r = await fetch("picks.php?kind=draft", { method: "POST", credentials: "omit", cache: "no-store", body: form("d", b64u(body)),
         headers: { "X-Proof": await keyProof() }, keepalive: !!leaving && body.length < 60000 });
       hostOk = r.ok;
     } catch (e) { hostOk = false; }
@@ -623,14 +655,18 @@ async function main() {
     paint();
   }
   $("send").onclick = async e => {
+    const notNow = () => { sendNote = "These photos were just updated. Reload the page before you send."; paint(); };
+    if (stale) { e.preventDefault(); notNow(); return; }
     if (!P.post || PREVIEW) { if (!PREVIEW) markSent(); return; }   // the mailto link does its job (counted as sent)
     e.preventDefault();
+    if (await updated()) { notNow(); return; }       // a newer build (the download gallery, say): its picks are not these
     try {
       const body = await sealPicks("picks.bin", new Date().toISOString());
       if (body.length > 262144) {                                      // the same limit picks.php and the app use
         sendNote = "That is too many picks to send at once. Please send fewer, or tell your photographer."; paint(); return; }
       const proof = [...new Uint8Array(await subtle.digest("SHA-256", raw))].map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
-      const r = await fetch("picks.php", { method: "POST", credentials: "omit", cache: "no-store", body, headers: { "X-Proof": proof } });
+      const r = await fetch("picks.php", { method: "POST", credentials: "omit", cache: "no-store", body: form("d", b64u(body)),
+        headers: { "X-Proof": proof } });
       if (r.status === 410) { sendNote = "This gallery has closed, so picks can't be sent now. Please tell your photographer."; paint(); return; }
       if (!r.ok) throw new Error("http " + r.status);
       sendNote = ""; markSent();                                     // Sent shows until the picks change
@@ -641,7 +677,11 @@ async function main() {
     }
   };
   $("send").onkeydown = e => { if (e.key === " ") { e.preventDefault(); $("send").click(); } };   // a button: Space presses it
-  if (!P.email && !P.post) $("pickbar").style.display = "none";
+  if (DL) {                                     // Download on the big photo; Download all builds nothing here: the zip
+    ["pr", "pm", "pv", "note"].forEach(id => { $(id).hidden = true; });   // was made at home, sealed in parts
+    $("dl").hidden = false;
+    downloads();
+  } else if (!P.email && !P.post) $("pickbar").style.display = "none";
   if (!P.market) { $("pm").hidden = true; $("pv").hidden = true; }      // the client declined portfolio use: nothing to suggest
   if ((P.retouch || P.market) && (P.email || P.post)) {   // a welcome box says how to pick; "How to pick" opens it again
     const W = $("welcome"), wl = $("wlist"), seenKey = KEY + ":welcomed";
@@ -723,6 +763,8 @@ async function main() {
     const want = cur, th = thumbs[cur];
     big.onload = big.onerror = null;
     $("lberr").hidden = true; picking(false);
+    if (DL && !$("dl").disabled) $("dl").textContent = "Download";
+    prefetchFull(cur);
     if (th) { big.src = th; big.classList.add("on", "ph"); } else { big.removeAttribute("src"); big.classList.remove("on", "ph"); }
     $("lbload").hidden = false;
     const near = new Set([-2, -1, 0, 1, 2].map(d => m.items[((cur + d) % n + n) % n].f));
@@ -742,6 +784,111 @@ async function main() {
   }
   function picking(on) {                        // the pick buttons and the note, for the photo on screen
     ["pr", "pm", "pv", "note"].forEach(id => { $(id).disabled = !on; });
+  }
+  const savedUrls = [];
+  function saveFile(blob, name) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = name; savedUrls.push(a.href);
+    document.body.append(a); a.click(); a.remove();
+  }
+  if (DL) window.addEventListener("pagehide", () => savedUrls.forEach(u => URL.revokeObjectURL(u)));
+  let canShareFiles = false;
+  try {
+    const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    canShareFiles = IOS && !!(navigator.canShare && navigator.canShare({ files: [new File([""], "x.jpg", { type: "image/jpeg" })] }));
+  } catch (e) {}
+  const fullFiles = new Map();                  // the photo on screen only: a phone never holds more than one
+  const fullName = i => m.items[i].on || m.items[i].n || "photo-" + (i + 1) + ".jpg";
+  function fullFile(i) {
+    if (!fullFiles.has(i)) {
+      fullFiles.clear();
+      fullFiles.set(i, get(m.items[i].o || m.items[i].f).then(b => new File([b], fullName(i), { type: "image/jpeg" }),
+        e => { fullFiles.delete(i); throw e; }));
+    }
+    return fullFiles.get(i);
+  }
+  function prefetchFull(i) { if (DL && canShareFiles) fullFile(i).catch(() => {}); }
+  function downloads() {
+    const zs = m.zips.filter(z => z && Array.isArray(z.parts));
+    zs.forEach((z, j) => zipButton(z, zs.length > 1 ? [j + 1, zs.length] : null, j));
+    $("dlall").hidden = !zs.length;
+    document.addEventListener("keydown", e => { if (e.key === "Escape" && cur < 0) running.forEach(c => c.abort()); });
+    window.addEventListener("pagehide", () => running.forEach(c => c.abort()));
+    singleDownload();
+  }
+  const running = new Set();                    // the AbortController of each Download all in progress
+  const PHONE = !!(window.matchMedia && matchMedia("(pointer: coarse)").matches);
+  const waitLine = () => { $("dlwait").hidden = !(PHONE && running.size); };
+  function timeLeft(bytes, total, t0) {         // once the speed is known: "about 4 min left"
+    const secs = (performance.now() - t0) / 1000;
+    if (secs < 3 || !bytes) return "";
+    const left = (total - bytes) / (bytes / secs);
+    return left < 60 ? "less than a minute left" : "about " + Math.round(left / 60) + " min left";
+  }
+  function zipButton(Z, part, j) {             // one zip: its own button, progress, Cancel, and Try again
+    const b = j ? $("dlallb").cloneNode(false) : $("dlallb"), parts = Z.parts, total = +Z.size || 0;
+    if (j) { b.id = ""; $("dlall").append(b); }
+    const mb = total >= 1e9 ? (total / 1e9).toFixed(1) + " GB" : Math.max(1, Math.round(total / 1e6)) + " MB";
+    const label = (part ? "Download all, part " + part[0] + " of " + part[1] : "Download all") + " (" + mb + ")";
+    const zipName = String(Z.name || "").replace(/[\\/:*?"<>|\x00-\x1f\x7f]+/g, "").trim() || "Photos.zip";
+    b.textContent = label;
+    let ctl = null;
+    b.onclick = async () => {
+      if (ctl) { ctl.abort(); return; }          // pressed while it runs: Cancel
+      if (b.disabled) return;
+      b.disabled = true;
+      if (stale || await updated()) { b.disabled = false; return; }   // never a zip of an older build: the notice says reload
+      const me = ctl = new AbortController();
+      running.add(me); waitLine();
+      b.disabled = false;
+      const got = new Array(parts.length), t0 = performance.now();
+      let next = 0, bytes = 0;
+      const show = () => {
+        const pct = Math.min(99, Math.floor(100 * bytes / Math.max(1, total))) + "%", left = timeLeft(bytes, total, t0);
+        b.textContent = (part ? "Part " + part[0] + " of " + part[1] + ": " : "Downloading ") + pct
+          + (left ? " \u00b7 " + left : "") + " \u00b7 Cancel";
+      };
+      show();
+      const worker = async () => {
+        while (next < parts.length && !me.signal.aborted) {
+          const i = next++, d = await get(parts[i], me.signal);
+          got[i] = new Blob([d]); bytes += d.length; show();
+        }
+      };
+      try {
+        await Promise.all([0, 1, 2, 3].map(worker));
+        if (me.signal.aborted) throw Object.assign(new Error("stopped"), { name: "AbortError" });
+        saveFile(new Blob(got, { type: "application/zip" }), zipName);
+        b.textContent = label;
+      } catch (e) {
+        next = parts.length;
+        b.textContent = me.signal.aborted ? label : "Try again";      // stopped: back to the start, nothing kept
+        if (!me.signal.aborted && e && e.status === 404) updated();   // rebuilt meanwhile: the notice offers a reload
+        me.abort();
+      }
+      got.fill(undefined);
+      ctl = null; running.delete(me); waitLine();
+    };
+  }
+  function singleDownload() {
+    $("dl").onclick = async e => {
+      e.stopPropagation();
+      const d = $("dl"), i = cur;
+      if (!m.items[i] || d.disabled) return;
+      if (stale) { $("upd").hidden = false; return; }
+      d.disabled = true; d.textContent = "Downloading";
+      try {
+        if (!canShareFiles && await updated()) { d.textContent = "Download"; d.disabled = false; return; }
+        const f = await fullFile(i);
+        if (canShareFiles) {
+          try { await navigator.share({ files: [f] }); }
+          catch (err) { if (err.name !== "AbortError") saveFile(f, fullName(i)); }   // closed the sheet: nothing more
+        } else saveFile(f, fullName(i));
+        if (!canShareFiles) fullFiles.delete(i);
+        d.textContent = "Download";
+      } catch (err) { d.textContent = "Try again"; if (err && err.status === 404) updated(); }
+      d.disabled = false;
+    };
   }
   async function lbFail(e) {                    // the big photo didn't come: say why, as far as the page can tell
     const want = cur;

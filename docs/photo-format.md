@@ -66,6 +66,18 @@ Gallery files on the web host are a different, simpler format, because each one 
 `lumen-aureum-gallery:<file name>`, so a host cannot serve one file in place of another. The key travels only in the
 `#` fragment of the gallery link, which browsers never send to any server; the browser decrypts with WebCrypto.
 
+### Download galleries
+
+A download gallery also carries each photo's full-size file, re-encoded from its pixels (JPEG quality 95), sealed
+the same way. The file keeps no metadata from the original. It gets two fields, in EXIF and XMP: Creator, the studio's
+name, always; and the copyright notice, only when the photographer keeps the copyright for that type. The client's
+name is never written into a file. For **Download all**, the app writes stored (uncompressed) zips of the full-size files
+at home, with the original file names in UTF-8, split between photos into zips of about 500 MB at most. Each zip is cut
+into 8 MiB pieces, and each piece is sealed as its own file under a random name. The encrypted manifest lists each
+zip's pieces in order, its size, and its file name. The browser fetches the pieces, decrypts each one, and saves the
+pieces in order as one file. No readable zip leaves the app's machine, and the readable copy there is deleted as soon
+as its pieces are sealed.
+
 ### Galleries with a codeword
 
 A photographer can have a gallery ask for a word the client chose. The gallery is then encrypted, as above, under:

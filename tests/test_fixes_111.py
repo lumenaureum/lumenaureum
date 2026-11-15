@@ -246,28 +246,39 @@ def test_a_draft_listing_picks_in_another_order_is_not_still_picking(gal):
 def _rebuild(A, G, key, src, sid):
     G.build(GID, src, key, picks=dict(retouch=3, market=2, post=True))
 
-def test_an_update_keeps_the_old_files_until_a_later_check(gal, monkeypatch):
+def test_an_update_removes_the_old_files_once_the_new_page_is_up(gal, monkeypatch):
+
     A, c, G, host, key, sid, src = gal
     old = {p.name for p in (host / GID).iterdir() if re.fullmatch(r"[0-9a-f]{24}\.bin", p.name)}
+
+    def upload_and_wait():
+        c.post(f"/session/{sid}/gallery/upload", environ_base=E)
+        import time
+        for _ in range(100):
+            if G.online_is_current(GID) and sid not in A.app.view_functions["upload_gallery_req"].__globals__["UPDATING"]:
+                break
+            time.sleep(0.05)
     _rebuild(A, G, key, src, sid)
-    c.post(f"/session/{sid}/gallery/upload", environ_base=E)
-    import time
-    for _ in range(100):
-        if G.online_is_current(GID) and sid not in A.app.view_functions["upload_gallery_req"].__globals__["UPDATING"]:
-            break
-        time.sleep(0.05)
+    upload_and_wait()
     have = {p.name for p in (host / GID).iterdir()}
-    assert old <= have
-    due = _q(A, "SELECT prune_due FROM galleries WHERE session_id=?", (sid,))[0][0]
-    assert due
-    c.post("/gallery/sync", environ_base=E)
+    assert not (old & have) and (host / GID / "manifest.bin").exists()
+    assert not _q(A, "SELECT prune_due FROM galleries WHERE session_id=?", (sid,))[0][0]
+    assert _q(A, "SELECT COUNT(*) FROM audit WHERE action LIKE 'Gallery updated on the web%earlier files removed%'")[0][0] == 1
+
+    old = {p.name for p in (host / GID).iterdir() if re.fullmatch(r"[0-9a-f]{24}\.bin", p.name)}
+    glb = A.app.view_functions["upload_gallery_req"].__globals__
+    real = glb["prune_host"]
+    monkeypatch.setitem(glb, "prune_host", lambda gid: (_ for _ in ()).throw(IOError("host busy")))
+    _rebuild(A, G, key, src, sid)
+    upload_and_wait()
     assert old <= {p.name for p in (host / GID).iterdir()}
+    assert _q(A, "SELECT prune_due FROM galleries WHERE session_id=?", (sid,))[0][0]
+    monkeypatch.setitem(glb, "prune_host", real)
     con = A.connect()
     con.execute("UPDATE galleries SET prune_due='2000-01-01T00:00:00' WHERE session_id=?", (sid,))
     con.commit(); con.close()
     c.post("/gallery/sync", environ_base=E)
     assert not (old & {p.name for p in (host / GID).iterdir()})
-    assert (host / GID / "manifest.bin").exists()
 
 def test_one_bad_file_does_not_stop_the_cleanup(gal, tmp_path):
     A, c, G, host, key, sid, src = gal

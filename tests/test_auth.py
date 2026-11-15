@@ -287,7 +287,7 @@ def test_about_is_open_and_lists_what_it_includes(client):
     r = c.get("/about", environ_base=E)
     t = r.get_data(as_text=True)
     assert r.status_code == 200 and "Walk Up Web LLC" in t and "Affero" in t and "github.com/lumenaureum" in t
-    assert "Flask" in t and "sqlcipher3-binary" in t and "gunicorn" in t
+    assert "Flask" in t and "sqlcipher3" in t and "gunicorn" in t
     import about
     v = __import__("importlib.metadata").metadata.version("flask")
     assert f"Flask {v}" not in t and "Version " not in t

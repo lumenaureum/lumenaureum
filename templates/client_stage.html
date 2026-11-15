@@ -70,7 +70,7 @@
           {% set lvl = 'signed' if d.status == 'signed' else ('problem' if s.shoot_date and s.shoot_date < today.isoformat() else ('warn' if s.shoot_date and s.shoot_date <= (today + delta3).isoformat() else 'normal')) %}
           {% set url_ = url_for('release_doc', did=d.id) if d.kind == 'release' else url_for('agreement', sid=s.id) %}
           <div class="paper {{ lvl }}"><span class="pstat">{{ d.status }}</span><a href="{{ url_ }}" target="_blank">{{ 'Signed ' if d.status == 'signed' else '' }}{{ d.kind if d.status == 'signed' else d.kind|capitalize }}{% if d.status != 'signed' %} to sign{% endif %}{% if d.person %} - {{ d.person }}{% endif %} &rsaquo;</a>{% if d.signer %}<small>{{ d.signer }}</small>{% endif %}</div>
-        {% endfor %}<a class="go" href="{{ url_for('session_view', sid=s.id) }}#paperwork">Who signs, add a release &rsaquo;</a></div></div>{% endif %}
+        {% endfor %}{% set said_ = signed_delivery_differs(s.id) %}{% if said_ %}<div style="color:var(--amber, #b07a12);font-size:13px;flex-basis:100%">The signed agreement says you deliver the photos {{ said_ }}.</div>{% endif %}<a class="go" href="{{ url_for('session_view', sid=s.id) }}#paperwork">Who signs, add a release &rsaquo;</a></div></div>{% endif %}
     </div>
 
     <div class="context">
@@ -95,7 +95,7 @@
         {% for k, g_ in photos.items() %}
         <div class="dropzone" data-upload="{{ url_for('photos_upload', sid=s.id) }}" data-status="{{ url_for('photos_status', sid=s.id) }}" data-kind="{{ k }}">
           <b>{{ g_.label }}</b>{% if g_.done %} <span class="mute">{{ g_.done|length }} file{{ '' if g_.done|length == 1 else 's' }}, {{ g_.bytes|size }}</span>{% endif %}
-          <label class="dz-pick">Drop files or <u>choose</u><input type="file" multiple{% if k == 'export' %} accept="image/jpeg,.jpg,.jpeg"{% endif %} class="vh" aria-label="Choose {{ g_.label }} to upload"></label>
+          <label class="dz-pick">Drop files or <u>choose</u><input type="file" multiple{% if k in ('export', 'final') %} accept="image/jpeg,.jpg,.jpeg"{% endif %} class="vh" aria-label="Choose {{ g_.label }} to upload"></label>
           <div class="dz-list"></div>
           {% if g_.sealed %}<div class="mute" style="font-size:12px">{{ g_.sealed|length }} file{{ '' if g_.sealed|length == 1 else 's' }} sealed in the vault (open them for a reprint from Photo storage).</div>{% endif %}
           {% if g_.partial %}<div class="mute" style="font-size:12px">Unfinished: {{ g_.partial|map(attribute='name')|join(', ') }}. Drop the same file again to finish it.</div>{% endif %}

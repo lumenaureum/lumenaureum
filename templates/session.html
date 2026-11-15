@@ -33,8 +33,10 @@
 <section class="sec" id="shoot"><h2 class="sec-h">Shoot</h2>
   {% include "_edit_clash.html" %}
   <form method="post" action="{{ here }}" class="f" style="max-width:760px"><input type="hidden" name="seen" value="{{ edit_stamp('sessions', s.id) }}">
-    <div class="f2"><div><label class="l" for="f-title">Title</label><input id="f-title" name="title" maxlength="200" value="{{ s.title }}"></div>
+    <div class="f2"><div><label class="l" for="f-title">Title</label><input id="f-title" name="title" maxlength="200" value="{{ s.title }}"{% if C.is_place(s.type) %} placeholder="Property address"{% endif %}></div>
       <div><label class="l" id="type-l">Type</label>{{ seg('type', C.SESSION_TYPES.items()|list, s.type, by='type-l') }}</div></div>
+    {% if s.stage not in ('closed', 'lost') %}<div><label class="l" id="dm-l">Files delivered by</label>{{ seg('delivery_method', C.DELIVERY_CHOICES, C.delivery_method(s.type, s.delivery_method), by='dm-l') }}
+      {% set said_ = signed_delivery_differs(s.id) %}{% if said_ %}<div class="warn-line" style="color:var(--amber, #b07a12);font-size:13px">The signed agreement says you deliver the photos {{ said_ }}.</div>{% endif %}</div>{% endif %}
     <div class="f3"><div><label class="l" for="f-shoot_date">Date</label><input type="date" id="f-shoot_date" name="shoot_date" value="{{ s.shoot_date or '' }}" data-avail="{{ s.id }}">
       <input type="hidden" name="date_tentative_present" value="1"><label class="row" style="gap:5px;font-size:13px"><input type="checkbox" name="date_tentative" value="1"{{ ' checked' if s.date_tentative }} style="width:auto;margin:0">Tentative (waiting on a due date or other news)</label></div>
       <div><label class="l" for="f-start_time">Start</label><input type="time" id="f-start_time" name="start_time" value="{{ s.start_time }}"></div>

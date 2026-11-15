@@ -28,6 +28,10 @@ async function seal(keyBytes, data, name) {
 }
 async function unseal(keyBytes, body, name) {
   const k = await subtle.importKey("raw", keyBytes, "AES-GCM", false, ["decrypt"]);
+  if (body instanceof URLSearchParams) {        // 1.2: the envelope goes as a form field, d=<base64url>
+    const d = body.get("d").replace(/-/g, "+").replace(/_/g, "/");
+    body = Uint8Array.from(atob(d + "===".slice((d.length + 3) % 4)), c => c.charCodeAt(0));
+  }
   const b = new Uint8Array(body);
   if (String.fromCharCode(...b.subarray(0, 4)) !== "LAK1") return { bad: "magic" };
   try {

@@ -426,11 +426,96 @@ class More110:
 def scenario_110(x, made_with):
     return scenario_101(x, made_with, more=More110())
 
+class More111(More110):
+
+    def gallery(self, x, s_lane):
+
+        super().gallery(x, s_lane)
+        post, one = x.post, x.one
+        src = Path(x.work, "photos", "export", "lane")
+        from PIL import Image
+        Image.new("RGB", (64, 48), "orange").save(src / "img4.jpg", "JPEG")
+        post(f"/session/{s_lane}/gallery/build", source_dir=str(src))
+        _wait_threads(f"gallery-{s_lane}")
+        _wait_threads(f"gal-up-{s_lane}")
+        g = one("SELECT proof, prune_due, n_files, upload_state, upload_error FROM galleries WHERE session_id=?", (s_lane,))
+        assert g[0] == 1 and g[1] and g[2] == 4 and g[3] == "up", tuple(g)
+
+    def data(self, x):
+
+        super().data(x)
+        post, one, A = x.post, x.one, x.A
+        post("/contact/new", contact_name="Robin Kim", household_name="Kim", email="robin@example.com")
+        kim = one("SELECT id FROM households WHERE name='Kim'")[0]
+        post(f"/client/{kim}/session", type="family", stage="inquiry", title="Kim family", shoot_date=f"{YEAR}-08-22")
+        s_kim = one("SELECT MAX(id) FROM sessions")[0]
+        post(f"/session/{s_kim}/money", what="line", label="Family session", amount="300")
+        post(f"/session/{s_kim}/quote/send")
+        x.get(f"/session/{s_kim}")
+        assert "family" in A.C.NEEDS_AGREEMENT, sorted(A.C.NEEDS_AGREEMENT)
+        assert one("SELECT 1 FROM documents WHERE session_id=? AND kind='agreement'", (s_kim,)), "no agreement to sign"
+        post(f"/session/{s_kim}/quick", act="sign", kind="agreement")
+        assert one("SELECT stage FROM sessions WHERE id=?", (s_kim,))[0] in ("inquiry", "quoted")
+        post(f"/session/{s_kim}/money", what="payment", kind="deposit", amount="100", method="check", received=f"{YEAR}-07-01")
+        post(f"/session/{s_kim}/stage", stage="booked")
+        post(f"/session/{s_kim}/stage", stage="shot")
+        from PIL import Image
+        src = Path(x.work, "photos", "export", "kim")
+        src.mkdir(parents=True)
+        for i, col in enumerate(("navy", "olive"), 1):
+            Image.new("RGB", (64, 48), col).save(src / f"kim{i}.jpg", "JPEG")
+        post(f"/session/{s_kim}/gallery/build", source_dir=str(src))
+        _wait_threads(f"gallery-{s_kim}")
+        assert x.in_request(lambda: A.release_blocked(s_kim)) > 0, "Kim should still owe the balance"
+        post(f"/session/{s_kim}/gallery/upload")
+        _wait_threads(f"gal-up-{s_kim}")
+        g = one("SELECT proof, upload_state, upload_error FROM galleries WHERE session_id=?", (s_kim,))
+        assert g[0] == 1 and g[1] == "up", tuple(g)
+        self.s_kim = s_kim
+
+    def measure(self, x, expected):
+        out = super().measure(x, expected)
+        A, one, rows, in_request = x.A, x.one, x.rows, x.in_request
+        import hashlib
+        sids = [r[0] for r in rows("SELECT id FROM sessions ORDER BY id")]
+        for sid in sids:
+            x.get(f"/session/{sid}")
+
+        def due(sid):
+            s = A.session_full(sid)
+            return A.deposit_due(sid, s, A.priced_on(sid, s, A.totals(sid)["quoted"]))
+        stages = {sid: one("SELECT stage FROM sessions WHERE id=?", (sid,))[0] for sid in sids}
+        galleries = {}
+        for r in rows("SELECT session_id, proof, prune_due, upload_state, n_files, built_at FROM galleries ORDER BY session_id"):
+            galleries[str(r[0])] = dict(proof=r[1], prune_due=r[2], upload_state=r[3], n_files=r[4], built_at=r[5])
+        return dict(
+            out,
+            sessions_by_name=dict(out["sessions_by_name"], kim=self.s_kim),
+            snapshot_html={r[0]: hashlib.sha256(r[1].encode()).hexdigest()
+                           for r in rows("SELECT number, html FROM bill_snapshots ORDER BY number")},
+            priced_on={str(r[0]): r[1] for r in rows("SELECT id, priced_on FROM sessions ORDER BY id")},
+
+            deposit_due={str(s_): in_request(lambda: due(s_)) for s_ in sids if stages[s_] not in ("inquiry", "quoted")},
+            agreements={str(r[0]): [r[1], r[2]] for r in rows(
+                "SELECT session_id, status, signed FROM documents WHERE kind='agreement' ORDER BY session_id, id")},
+            booked_on={str(r[0]): r[1] for r in rows(
+                "SELECT session_id, MIN(at) FROM stage_log WHERE stage='booked' GROUP BY session_id ORDER BY session_id")},
+            galleries=galleries,
+            proof_owed={str(self.s_kim): round(in_request(lambda: A.release_blocked(self.s_kim)), 2)},
+            app_version=(one("SELECT value FROM settings WHERE key='app_version'") or [None])[0],
+        )
+
+def scenario_111(x, made_with):
+    return scenario_101(x, made_with, more=More111())
+
 VERSIONS = {
     "1.0.0": dict(commit="a0966c9", scenario=scenario_100, files=("crm-before-delete.db",), env={}),
     "1.0.1": dict(commit="v1.0.1", scenario=scenario_101, files=(),
                   env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
     "1.1.0": dict(commit="v1.1.0", scenario=scenario_110, files=(),
+                  env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
+
+    "1.1.1": dict(commit="9e0e799", scenario=scenario_111, files=(),
                   env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
 }
 

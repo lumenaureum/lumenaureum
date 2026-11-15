@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parent
 SOURCE = "https://github.com/lumenaureum/lumenaureum"
 REQS = ("requirements.txt", "requirements-sftp.txt", "requirements-s3.txt")
 
-OTHER = [("SQLCipher", "BSD-3-Clause", "inside sqlcipher3-binary"), ("OpenSSL libcrypto", "Apache-2.0", "inside sqlcipher3-binary"),
+OTHER = [("SQLCipher", "BSD-3-Clause", "inside sqlcipher3"), ("OpenSSL libcrypto", "Apache-2.0", "inside sqlcipher3"),
          ("Fraunces font", "OFL-1.1", "Undercase Type"), ("Material Symbols font", "Apache-2.0", "Google"),
          ("US Census ZIP code tables", "Public domain", "US Census Bureau")]
 
@@ -22,6 +22,8 @@ def version():
 def _name(req):
     return re.split(r"[<>=!~;\[ ]", req.strip(), maxsplit=1)[0]
 
+NO_LICENSE_FIELD = {"sqlcipher3": "Zlib"}
+
 def _license(dist):
     m = dist.metadata
     lic = m.get("License-Expression") or ""
@@ -30,6 +32,7 @@ def _license(dist):
         lic = " / ".join(c.replace(" License", "") for c in cls) or (m.get("License") or "")
     lic = lic.replace("GNU Lesser General Public License v2 or later (LGPLv2+)", "LGPL-2.0+")
     lic = {"Apache Software": "Apache-2.0", "MIT License": "MIT", "BSD License": "BSD", "BSD": "BSD"}.get(lic, lic)
+    lic = lic or NO_LICENSE_FIELD.get(m["Name"].lower(), "")
     return lic if len(lic) <= 40 else lic.split("\n")[0][:40]
 
 def components():

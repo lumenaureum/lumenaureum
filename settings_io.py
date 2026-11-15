@@ -9,7 +9,8 @@ SETTING_KEYS = ("business_name", "photographer_name", "studio_name", "business_e
                 "home_zip", "home_lat", "home_lon", "mileage_rate", "quote_term_days", "tax_mode", "sales_tax_pct",
                 "local_tax_pct", "gallery_base_url", "backup_time", "governing_law", "credit_off", "agreement_text", "release_text", "transfer_text", "license_text",
                 "home_base", "business_tax_id", "bank_details", "pay_details", "age_majority", "logo_png",
-                "logo_dark_png", "gallery_font", "gallery_bg", "proof_mark", "proof_mark_text", "proof_mark_strength")
+                "logo_dark_png", "gallery_font", "gallery_bg", "proof_mark", "proof_mark_text", "proof_mark_strength",
+                "business_website")
 SECRET_FIELDS = ("secret_key", "password", "private_key")
 STORAGE_PARTS = ("primary", "secondary", "gallery_host")
 BACKEND_FIELDS = {"local": ("type", "path"), "sftp": ("type", "host", "user", "key_file", "root", "port", "known_hosts", "host_key"),
@@ -26,6 +27,38 @@ PALETTES = {
     "#262422": dict(bg="#262422", ink="#eee7dc", mute="#a59b8f", line="#3a3631", cell="#33302c", edge="#57514a"),
     "#0d0c0b": dict(bg="#0d0c0b", ink="#ece6dc", mute="#968d82", line="#24211e", cell="#1a1816", edge="#46413b"),
 }
+
+def site_problem(value):
+
+    return ("it must start with https://" if re.match(r"\s*http://", value or "", re.I)
+            else "that isn't a web address")
+
+def clean_site(value):
+
+    from urllib.parse import urlsplit
+    v = (value or "").strip()
+    if not v:
+        return ""
+    if len(v) > 200 or re.search(r"[\s\"'<>\\\x00-\x1f\x7f]", v):
+        return None
+    m = re.match(r"([A-Za-z][A-Za-z0-9+.-]*)://", v)
+    if m and m.group(1).lower() != "https":
+        return None
+    if not m and re.match(r"[A-Za-z][A-Za-z0-9+.-]*:(?!\d)", v):
+        return None
+    rest = v[m.end():] if m else v
+    try:
+        u = urlsplit("https://" + rest)
+        port = u.port
+    except ValueError:
+        return None
+    host = u.hostname or ""
+    labels = host.split(".")
+    if u.username or u.password or len(labels) < 2 or not all(
+            re.fullmatch(r"[^\W_](?:[\w-]*[^\W_])?", l_) for l_ in labels) or not re.fullmatch(r"[^\W\d_]{2,}|xn--[a-z0-9-]+", labels[-1]):
+        return None
+    return "https://" + host + (f":{port}" if port else "") + u.path + (f"?{u.query}" if u.query else "") \
+        + (f"#{u.fragment}" if u.fragment else "")
 
 def clean_look(font, bg, mark, text, strength):
 
@@ -429,6 +462,13 @@ def parse(text, current_storage):
     settings.update({k: v for k, v in look.items() if k in settings})
     if settings.get("gallery_base_url") and not settings["gallery_base_url"].startswith("https://"):
         raise ImportProblem("gallery_base_url: must start with https://")
+    if "business_website" in settings:
+        site = clean_site(settings["business_website"])
+        if site is None:
+            raise ImportProblem(("the website in this file must start with https://" if site_problem(settings["business_website"])
+                                 .startswith("it must") else "the website in this file isn't a web address")
+                                + ". Fix it in the file, or remove it.")
+        settings["business_website"] = site
     rules = _rules(data.get("rules") or {})
     fees = _fees(data["fees"]) if data.get("fees") else None
     storage = _storage(data.get("storage") or {}, current_storage)

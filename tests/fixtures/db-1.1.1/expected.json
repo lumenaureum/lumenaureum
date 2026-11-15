@@ -1,0 +1,481 @@
+{
+ "agreements": {
+  "1": [
+   "needed",
+   null
+  ],
+  "2": [
+   "needed",
+   null
+  ],
+  "3": [
+   "needed",
+   null
+  ],
+  "7": [
+   "signed",
+   "2026-11-14"
+  ],
+  "8": [
+   "signed",
+   "2026-11-14"
+  ]
+ },
+ "app_version": "1.1.1",
+ "bill_snapshots": {
+  "INV-2026-0001": {
+   "balance": 250.0,
+   "kind": "INV",
+   "paid": 100.0,
+   "payments": 1,
+   "session": 1,
+   "total": 350.0
+  },
+  "INV-2026-0002": {
+   "balance": 60.0,
+   "kind": "INV",
+   "paid": 0.0,
+   "payments": 0,
+   "session": 6,
+   "total": 60.0
+  },
+  "R-2026-0001": {
+   "balance": 0.0,
+   "kind": "R",
+   "paid": 310.0,
+   "payments": 3,
+   "session": 1,
+   "total": 350.0
+  }
+ },
+ "bills": {
+  "1": {
+   "invoice": {
+    "balance": 250.0,
+    "number": "INV-2026-0001",
+    "paid": 100.0,
+    "since": "This is the invoice as issued. It has since been paid in full.",
+    "total": 350.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "R-2026-0001",
+    "paid": 310.0,
+    "since": "",
+    "total": 350.0
+   }
+  },
+  "2": {
+   "invoice": {
+    "balance": 175.0,
+    "number": "",
+    "paid": 75.0,
+    "since": "",
+    "total": 250.0
+   },
+   "receipt": {
+    "balance": 175.0,
+    "number": "",
+    "paid": 75.0,
+    "since": "",
+    "total": 250.0
+   }
+  },
+  "3": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 0.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 0.0
+   }
+  },
+  "5": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 60.0,
+    "since": "",
+    "total": 60.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 60.0,
+    "since": "",
+    "total": 60.0
+   }
+  },
+  "6": {
+   "invoice": {
+    "balance": 60.0,
+    "number": "INV-2026-0002",
+    "paid": 0.0,
+    "since": "",
+    "total": 60.0
+   },
+   "receipt": {
+    "balance": 60.0,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 60.0
+   }
+  },
+  "7": {
+   "invoice": {
+    "balance": 175.0,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 175.0
+   },
+   "receipt": {
+    "balance": 175.0,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 175.0
+   }
+  },
+  "8": {
+   "invoice": {
+    "balance": 200.0,
+    "number": "",
+    "paid": 100.0,
+    "since": "",
+    "total": 300.0
+   },
+   "receipt": {
+    "balance": 200.0,
+    "number": "",
+    "paid": 100.0,
+    "since": "",
+    "total": 300.0
+   }
+  }
+ },
+ "booked_hint": {
+  "1": "",
+  "2": "deposit and agreement still open",
+  "3": "",
+  "5": "agreement still open",
+  "6": "agreement still open",
+  "7": "deposit still open",
+  "8": ""
+ },
+ "booked_hint_before_signing": "deposit and agreement still open",
+ "booked_on": {
+  "2": "2026-11-14",
+  "7": "2026-11-14",
+  "8": "2026-11-14"
+ },
+ "clients": {
+  "1": "Lane",
+  "2": "Ortiz",
+  "3": "Bell",
+  "4": "Chen",
+  "5": "Price",
+  "6": "Kim"
+ },
+ "deleted": {
+  "client": 7,
+  "quote": 2,
+  "quoted_session": 4,
+  "session": 9
+ },
+ "deletions": [
+  {
+   "at": "2026-11-14 18:22:57",
+   "created": "2026-11-14 23:22:57",
+   "id": 7,
+   "mac": "2d088578f755ef50c83255f136fcfe3ecc9fa7ecf03b0d04cb3770cac5e53c3a"
+  }
+ ],
+ "deposit_due": {
+  "1": "2026-11-14",
+  "2": "2026-11-14",
+  "5": "2026-11-14",
+  "6": "2026-11-14",
+  "7": "2026-11-14",
+  "8": "2026-11-14"
+ },
+ "doc_numbers": {
+  "INV-2026-0001": {
+   "issued": "2026-11-14",
+   "kind": "INV",
+   "session": 1
+  },
+  "INV-2026-0002": {
+   "issued": "2026-11-14",
+   "kind": "INV",
+   "session": 6
+  },
+  "R-2026-0001": {
+   "issued": "2026-11-14",
+   "kind": "R",
+   "session": 1
+  }
+ },
+ "event": {
+  "families": [
+   "Bell",
+   "Chen"
+  ],
+  "id": 1
+ },
+ "finances": {
+  "by_month": {
+   "2026-02": 100.0,
+   "2026-03": 250.0,
+   "2026-04": -40.0,
+   "2026-05": 135.0,
+   "2026-07": 100.0
+  },
+  "outstanding": {
+   "8": 200.0
+  },
+  "received": {
+   "event": 60.0,
+   "family": 485.0
+  },
+  "refunds": -40.0,
+  "tax_due": 0.0,
+  "total": 545.0,
+  "upcoming": {
+   "2": 175.0,
+   "6": 60.0,
+   "7": 175.0
+  }
+ },
+ "galleries": {
+  "1": {
+   "built_at": "2026-11-14",
+   "n_files": 4,
+   "proof": 1,
+   "prune_due": "2026-11-14T18:42:56",
+   "upload_state": "up"
+  },
+  "8": {
+   "built_at": "2026-11-14",
+   "n_files": 2,
+   "proof": 1,
+   "prune_due": null,
+   "upload_state": "up"
+  }
+ },
+ "gallery": {
+  "built_at": "2026-11-14",
+  "codeword": "amber harbor willow",
+  "cw_fixed": "word",
+  "draft_at": "2026-11-14T16:22-05:00",
+  "draft_n": 3,
+  "ekey": "Okhck5A2p7gTi7TBBxxWBOU6RZbLyqN4wYw8xCxXcUU",
+  "favorites": "",
+  "first_visit": "2026-11-13",
+  "gallery_id": "-izF3-Kn32WY",
+  "has_codeword_key": true,
+  "key": "rszB9yQxnRnR4KoKHMVvCQ4oO0_fz7dr8bC811YLExM",
+  "limits_days": 30,
+  "link_asks_for_word": true,
+  "n_files": 4,
+  "picks_hash": "0c9b325359b237dc566f61ebd97affbfe855ed5384531b33d7b240cfd64f513e",
+  "removed_at": null,
+  "retouch_picks": "img1.jpg: soften the light",
+  "session": 1,
+  "session_built": "2026-11-14",
+  "still_picking": [
+   "Client is still picking (3 photos marked)"
+  ],
+  "upload_state": "up",
+  "uploaded_at": "2026-11-14",
+  "veto": ""
+ },
+ "id_marks": {
+  "events": 1,
+  "households": 7,
+  "sessions": 9,
+  "tasks": 81
+ },
+ "invoice_sent": {
+  "1": "INV-2026-0001"
+ },
+ "issued_text": {
+  "INV-2026-0001": "Invoice Invoice INV-2026-0001 Date November 14, 2026 Terms Due on delivery Bill to Avery Lane Session Family session, March 14, 2026 Services Family session (1 hr) $300 Extra prints $50 Total $350 Payments February 20, 2026 - deposit, check $100 Balance due $250 How to pay Cash or check. Due on delivery: your photos are released on payment. INV-2026-0001. Questions about this invoice? Just reply or call.",
+  "INV-2026-0002": "Invoice Invoice INV-2026-0002 Date November 14, 2026 Terms Due on delivery Bill to Lee Chen Session Spring Recital, May 16, 2026 Services Spring Recital - family session $60 Total $60 Payments None yet Balance due $60 How to pay Cash or check. Due on delivery: your photos are released on payment. INV-2026-0002. Questions about this invoice? Just reply or call.",
+  "R-2026-0001": "Receipt Receipt R-2026-0001 Date April 2, 2026 Received from Avery Lane Session Family session, March 14, 2026 Services Family session (1 hr) $300 Extra prints $50 Total $350 Payments February 20, 2026 - deposit, check $100 March 20, 2026 - balance, card $250 April 2, 2026 - refund, card -$40 Total paid $310 Thank you. With this payment, the copyright in your delivered photos is yours. R-2026-0001. Questions about this receipt? Just reply or call."
+ },
+ "license_types": [
+  "headshot"
+ ],
+ "licensed": {
+  "1": false,
+  "2": false,
+  "3": false,
+  "5": false,
+  "6": false,
+  "7": true,
+  "8": false
+ },
+ "logos": {
+  "logo_dark_png": "90b63bd9cc27bcfe9aeef4730dc0a7619186d9d9f6757e6445438d77c1d729fb",
+  "logo_png": "a07057a76eca8ffd61adbf4910fa9b93dd97e8de0925b09efaba11da451bab98"
+ },
+ "made_with": "1.1.1 (9e0e799)",
+ "number_marks": {
+  "E": 1,
+  "H": 7,
+  "INV-2026-": 2,
+  "Q": 4,
+  "R-2026-": 1,
+  "S": 9,
+  "T": 81
+ },
+ "password": "test password 123",
+ "payments": {
+  "1": {
+   "amount": 100.0,
+   "kind": "deposit",
+   "received": "2026-02-20",
+   "session": 1
+  },
+  "2": {
+   "amount": 250.0,
+   "kind": "balance",
+   "received": "2026-03-20",
+   "session": 1
+  },
+  "3": {
+   "amount": -40.0,
+   "kind": "refund",
+   "received": "2026-04-02",
+   "session": 1
+  },
+  "4": {
+   "amount": 75.0,
+   "kind": "deposit",
+   "received": "2026-05-01",
+   "session": 2
+  },
+  "5": {
+   "amount": 60.0,
+   "kind": "balance",
+   "received": "2026-05-16",
+   "session": 5
+  },
+  "6": {
+   "amount": 100.0,
+   "kind": "deposit",
+   "received": "2026-07-01",
+   "session": 8
+  }
+ },
+ "priced_on": {
+  "1": "2026-11-14",
+  "2": "2026-11-14",
+  "3": null,
+  "5": "2026-11-14",
+  "6": "2026-11-14",
+  "7": "2026-11-14",
+  "8": "2026-11-14"
+ },
+ "proof_owed": {
+  "8": 200.0
+ },
+ "quote_versions": {
+  "1": 2,
+  "3": 7,
+  "4": 8
+ },
+ "refund_credits": {
+  "3": {
+   "amount": 40.0,
+   "session": 1
+  }
+ },
+ "schema_version": 5,
+ "sessions": {
+  "1": {
+   "due": 0.0,
+   "paid": 310.0,
+   "quoted": 350.0,
+   "refund_credit": 40.0,
+   "stage": "delivered"
+  },
+  "2": {
+   "due": 175.0,
+   "paid": 75.0,
+   "quoted": 250.0,
+   "refund_credit": 0.0,
+   "stage": "booked"
+  },
+  "3": {
+   "due": 0.0,
+   "paid": 0.0,
+   "quoted": 0.0,
+   "refund_credit": 0.0,
+   "stage": "inquiry"
+  },
+  "5": {
+   "due": 0.0,
+   "paid": 60.0,
+   "quoted": 60.0,
+   "refund_credit": 0.0,
+   "stage": "booked"
+  },
+  "6": {
+   "due": 60.0,
+   "paid": 0.0,
+   "quoted": 60.0,
+   "refund_credit": 0.0,
+   "stage": "booked"
+  },
+  "7": {
+   "due": 175.0,
+   "paid": 0.0,
+   "quoted": 175.0,
+   "refund_credit": 0.0,
+   "stage": "booked"
+  },
+  "8": {
+   "due": 200.0,
+   "paid": 100.0,
+   "quoted": 300.0,
+   "refund_credit": 0.0,
+   "stage": "shot"
+  }
+ },
+ "sessions_by_name": {
+  "bell": 5,
+  "chen": 6,
+  "kim": 8,
+  "lane": 1,
+  "ortiz": 2,
+  "ortiz_inquiry": 3,
+  "price": 7
+ },
+ "settings": {
+  "gallery_bg": "#262422",
+  "gallery_font": "elegant",
+  "proof_mark": "tiled",
+  "proof_mark_strength": "35",
+  "proof_mark_text": "SAMPLE",
+  "timezone": "America/New_York"
+ },
+ "side_keys": [
+  "deletions"
+ ],
+ "snapshot_html": {
+  "INV-2026-0001": "f75b2cf536987c23eb649fd2fba940e0ad7953f7bfde1765d73fa0347700e737",
+  "INV-2026-0002": "08f5ee49ac44bfde01d9b6873f52fa716a56da4bb9c680bc292b595cc79488f8",
+  "R-2026-0001": "2ed4b3c8c8cf7bfa142f3f7459c1e6eacc5f84f767c731f55d3288c1c2d8f0a2"
+ },
+ "year": "2026"
+}

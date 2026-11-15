@@ -34,7 +34,9 @@ def contained(root, path):
 class Backend:
     kind = "base"
 
-    def put_stream(self, name, reader, content_type=None): raise NotImplementedError
+    def put_stream(self, name, reader, content_type=None, cache_control=None):
+
+        raise NotImplementedError
     def get_stream(self, name, writer): raise NotImplementedError
     def stat(self, name): raise NotImplementedError
     def list(self, prefix=""): raise NotImplementedError
@@ -79,7 +81,7 @@ class LocalBackend(Backend):
     def _p(self, name):
         return contained(self.root, os.path.join(self.root, *_check(name).split("/")))
 
-    def put_stream(self, name, reader, content_type=None):
+    def put_stream(self, name, reader, content_type=None, cache_control=None):
         dst = self._p(name)
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         contained(self.root, dst)
@@ -239,7 +241,7 @@ class SFTPBackend(Backend):
             except IOError:
                 sf.mkdir(cur)
 
-    def put_stream(self, name, reader, content_type=None):
+    def put_stream(self, name, reader, content_type=None, cache_control=None):
         dst = self._p(name)
         start = reader.tell() if hasattr(reader, "seek") and hasattr(reader, "tell") else None
 
@@ -354,9 +356,9 @@ class S3Backend(Backend):
         _check(name)
         return f"{self.prefix}/{name}" if self.prefix else name
 
-    def put_stream(self, name, reader, content_type=None):
+    def put_stream(self, name, reader, content_type=None, cache_control=None):
         hr = _Hashing(reader)
-        extra = {"ContentType": content_type} if content_type else None
+        extra = {k_: v_ for k_, v_ in (("ContentType", content_type), ("CacheControl", cache_control)) if v_} or None
         self.s3.upload_fileobj(hr, self.bucket, self._k(name), ExtraArgs=extra)
         return hr.n, hr.h.hexdigest()
 

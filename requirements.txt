@@ -4,5 +4,5 @@ pyrage>=1.2           # MIT                    vault encryption (age format)
 pillow>=11            # MIT-CMU                image resizing, metadata stripping, face photos
 weasyprint>=65        # BSD-3                  every PDF (needs the Pango system library; no browser)
 segno>=1.6            # BSD-3                  QR code on the delivery letter
-sqlcipher3-binary>=0.6   # MIT; bundles SQLCipher (BSD-3) and OpenSSL libcrypto (Apache-2.0). x86-64 only, like the app
+sqlcipher3>=0.6.5       # Zlib; bundles SQLCipher (BSD-3) and OpenSSL libcrypto (Apache-2.0). x86-64 and 64-bit ARM
 gunicorn>=23           # MIT                     the web server: HTTPS, one process, threads
