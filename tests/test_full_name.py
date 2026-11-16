@@ -3,7 +3,7 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-BARE = re.compile(r"\blumen(?![ _%-]?(?:20)?aureum)(?!_HOST_IP\b)", re.I)
+BARE = re.compile(r"\blumen(?![ _%-]?(?:20)?aureum)", re.I)
 
 def test_no_bare_lumen_in_shipped_files():
     r = subprocess.run(["git", "-C", str(ROOT), "ls-files"], capture_output=True, text=True)

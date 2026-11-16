@@ -38,8 +38,6 @@ New features, behavior changes, security fixes, and other fixes in each release.
 ### Upgrading
 
 - 1.2 can't open your data once 1.3 has updated it. The update makes a backup first.
-- LUMEN_HOST_IP is now LUMENAUREUM_HOST_IP, and the compose service is lumenaureum. Your existing compose.yaml keeps
-  working.
 
 ## 1.2.0 (2026-11-15)
 
