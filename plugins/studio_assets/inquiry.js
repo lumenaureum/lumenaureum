@@ -100,14 +100,15 @@
       var r = await fetch(f.dataset.post, { method: "POST", credentials: "omit", referrerPolicy: "no-referrer",
         headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "w=" + w + "&d=" + b64u(env) });
       if (r.status !== 204) throw new Error(String(r.status));
+      f.reset();                       // sent: a page brought back from the browser's history starts empty
       f.hidden = true;
       say(f.dataset.thanks, false);
     } catch (err) {
-      btn.disabled = false;
-      btn.textContent = label;
       say(f.dataset.fail, true);
       if (alt) alt.hidden = false;
     } finally {
+      btn.disabled = false;            // sent or not, the button reads Send again
+      btn.textContent = label;
       btn.removeAttribute("aria-busy");
       f.removeAttribute("aria-busy");
     }

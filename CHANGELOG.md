@@ -2,6 +2,46 @@
 
 New features, behavior changes, security fixes, and other fixes in each release.
 
+## 1.3.1 (2026-11-16)
+
+### Behavior changes
+
+- When a gallery's days end, the copy an earlier move left on your old gallery host comes down too.
+- What a failed upload leaves on a gallery host is listed on Move galleries and cleaned up.
+- Payments and expenses can't be dated before 2000, and expenses can't be dated in the future.
+- Miles must be above 0, and an expense needs an amount or miles.
+- A quantity that isn't a number is refused instead of becoming 1.
+- When a money entry is refused, the form keeps what you typed.
+
+### Security
+
+- Wrong codeword tries on a gallery are refused at once and counted: 10 in an hour from one address, then that
+  address waits an hour. Before, each wrong try held the web host busy for a second, so a flood of them could slow or
+  stop the host. A gallery gets this when it is next uploaded.
+- Settings > Security shows how strong your password's protection is on this machine, and how to strengthen it on a
+  faster computer (`python -m vault.cli rewrap-password`).
+- The docs explain why Forgot your password skips two-factor.
+
+### Fixed
+
+- After moving galleries away and back, an expired gallery's old photos could stay on the host under its dark page.
+- An upload approved after its gallery was taken down could show as failed instead of removed.
+- A gallery whose upload failed partway could drop out of Move galleries.
+- An unreachable gallery host is now remembered by every part of the app, so it is tried only once a day.
+- Studio page: switched off with a settings problem, it now still shows the problem, client photos to remove, and Remove it anyway.
+- Studio page: the preview's "not found" page is styled at any folder depth.
+- Your own font's light file is now used for light text on the studio page and in galleries, even when the regular file is a variable font.
+- Studio page: after an inquiry is sent, the Send button no longer reads "Sending...".
+- Canceling a booking with money paid wrote three statement lines instead of one.
+- Deleting a session could leave a 0.00 row on Finances.
+- Odd statement months, such as 2026-1, were accepted.
+- A password set on a much faster computer, which this one can't check, now says so at sign-in instead of "Wrong
+  email or password".
+
+### Upgrading
+
+- Updating from 1.2: payments marked "tip" by hand now count as 1.2 counted them, and show as Other.
+
 ## 1.3.0 (2026-11-15)
 
 ### Features

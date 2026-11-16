@@ -465,8 +465,8 @@ def build(gid, src, key, progress=lambda done, total: None, picks=None, credit="
         brand["theme"] = dict(brand["theme"], font="own" if own[0] else "classic", light=bool(own[0] and own[1]))
         if own[0]:
             import settings_io
-            brand["theme"].update(wr=settings_io.font_weights(own[0], 400),
-                                  **({"wl": settings_io.font_weights(own[1], 300)} if own[1] else {}))
+            wr, wl = settings_io.own_font_weights(own[0], own[1])
+            brand["theme"].update(wr=wr, **({"wl": wl} if wl else {}))
     manifest = dict(v=1, title=brand.pop("client", "") or "Your photos", items=items, picks=picks or {}, brand=brand)
     if download:
         base = re.sub(r'[\\/:*?"<>|\x00-\x1f\x7f]+', "", manifest["title"]).strip() or "Photos"
@@ -834,17 +834,44 @@ def host_label(cfg):
     return t or "a gallery host"
 
 UNREACHABLE_RETRY = 24 * 3600
+UNREACHABLE_KEY = "gallery_unreachable:"
 _UNREACHABLE = {}
+_DB = None
+
+def _unreach_db(fn):
+
+    if _DB is None:
+        return None
+    app_, q_, x_ = _DB
+    try:
+        from flask import has_app_context
+        if has_app_context():
+            return (fn(q_, x_),)
+        with app_.app_context():
+            return (fn(q_, x_),)
+    except Exception:
+        return None
 
 def may_try(fp):
+    got = _unreach_db(lambda q_, x_: q_("SELECT value FROM settings WHERE key=?", (UNREACHABLE_KEY + fp,), one=True))
     t = _UNREACHABLE.get(fp)
+    if got and got[0]:
+        try:
+            t = max(t or 0, float(got[0]["value"]))
+        except (TypeError, ValueError):
+            pass
     return not t or time.time() - t >= UNREACHABLE_RETRY
 
 def _host_failed(fp):
-    _UNREACHABLE[fp] = time.time()
+    now = time.time()
+    if not _unreach_db(lambda q_, x_: x_(
+            "INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (UNREACHABLE_KEY + fp, str(now)))):
+        _UNREACHABLE[fp] = now
 
 def _host_reached(fp):
     _UNREACHABLE.pop(fp, None)
+    _unreach_db(lambda q_, x_: x_("DELETE FROM settings WHERE key=?", (UNREACHABLE_KEY + fp,)))
 
 def open_host(cfg):
     from vault import backends as VB
@@ -1194,8 +1221,9 @@ class _Stranded(Exception):
     pass
 
 def register(ctx):
-    global CONTACT
+    global CONTACT, _DB
     app, q, x = ctx.app, ctx.q, ctx.x
+    _DB = (app, q, x)
 
     def _contact():
         with app.app_context():
@@ -1279,6 +1307,18 @@ def register(ctx):
                 pass
         _con.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('gallery_online_marks', '1')")
 
+        try:
+            fp_ = host_fingerprint()
+        except Exception:
+            fp_ = ""
+        for sid_, gid_, at_ in [] if not fp_ else _con.execute(
+                """SELECT g.session_id, s.gallery_id, g.host_fp FROM galleries g JOIN sessions s ON s.id=g.session_id
+                   WHERE g.upload_state='uploading'""").fetchall():
+            if not at_:
+                _con.execute("UPDATE galleries SET host_fp=? WHERE session_id=?", (fp_, sid_))
+            elif at_ != fp_ and GID_OK.match(gid_ or ""):
+                _con.execute("INSERT OR IGNORE INTO gallery_leftovers (gallery_id, host_fp, added) VALUES (?,?,?)",
+                             (gid_, fp_, date.today().isoformat()))
         _con.execute("""UPDATE galleries SET upload_state=CASE WHEN uploaded_at IS NOT NULL AND removed_at IS NULL THEN 'up' ELSE 'error' END,
                         upload_error='the upload stopped when the app restarted: press Upload again'
                         WHERE upload_state IN ('uploading', 'awaiting')""")
@@ -1628,7 +1668,7 @@ def register(ctx):
             r.headers["Content-Security-Policy"] = ctx.csp(VIEWER_SCRIPT_HASHES)
         return r
 
-    def do_upload(sid, gid, replace=False):
+    def do_upload(sid, gid, replace=False, held=False):
 
         with app.app_context():
             s_ = q("SELECT id, household_id FROM sessions WHERE id=?", (sid,), one=True)
@@ -1637,7 +1677,20 @@ def register(ctx):
             was = q("SELECT removed_at FROM galleries WHERE session_id=?", (sid,), one=True)
             back_up = bool(was and was["removed_at"])
 
-            x("UPDATE galleries SET upload_state='uploading', upload_error='' WHERE session_id=?", (sid,))
+        con_ = ctx.connect()
+        try:
+            n_ = con_.execute("""UPDATE galleries SET upload_state='uploading', upload_error='' WHERE session_id=?
+                                 AND (NOT ? OR upload_state='awaiting' OR (? AND upload_state='up' AND removed_at IS NULL))""",
+                              (sid, 1 if held else 0, 1 if replace else 0)).rowcount
+            con_.commit()
+        finally:
+            con_.close()
+        if n_ != 1:
+            return
+        try:
+            fp_up = host_fingerprint()
+        except Exception:
+            fp_up = ""
         try:
             if replace:
                 delete_gallery(gid)
@@ -1695,6 +1748,14 @@ def register(ctx):
             try:
                 n_ = con_.execute("UPDATE galleries SET upload_state='error', upload_error=? WHERE session_id=? AND upload_state='uploading'",
                                   (str(e)[:200], sid)).rowcount
+                if n_ == 1 and fp_up:
+
+                    at_ = con_.execute("SELECT host_fp FROM galleries WHERE session_id=?", (sid,)).fetchone()[0]
+                    if not at_:
+                        con_.execute("UPDATE galleries SET host_fp=? WHERE session_id=?", (fp_up, sid))
+                    elif at_ != fp_up:
+                        con_.execute("INSERT OR IGNORE INTO gallery_leftovers (gallery_id, host_fp, added) VALUES (?,?,?)",
+                                     (gid, fp_up, date.today().isoformat()))
                 con_.commit()
             finally:
                 con_.close()
@@ -1804,7 +1865,7 @@ def register(ctx):
             return redirect(back)
         try:
 
-            if ctx.hooks.guard("gallery_upload", lambda: do_upload(sid, gid, replace), sid=sid, gallery_id=gid,
+            if ctx.hooks.guard("gallery_upload", lambda: do_upload(sid, gid, replace, held=True), sid=sid, gallery_id=gid,
                                n_files=g["n_files"]):
                 if not replace:
                     x("UPDATE galleries SET upload_state='awaiting', upload_error='' WHERE session_id=?", (sid,))
@@ -1862,7 +1923,7 @@ def register(ctx):
                     JOIN households h ON h.id=s.household_id
                     WHERE g.host_fp IS NOT NULL AND g.host_fp != ? AND
                           (g.upload_state='up' OR (g.upload_state IN ('removed', 'error') AND g.dark_at IS NOT NULL)
-                           OR (g.upload_state='error' AND g.removed_at IS NULL AND g.uploaded_at IS NOT NULL))
+                           OR (g.upload_state='error' AND g.removed_at IS NULL))
                     ORDER BY h.name""", (fp,))
 
     def new_link_rows():
@@ -1895,9 +1956,14 @@ def register(ctx):
         if k:
             out.append(dict(text=f"The gallery address changed: {k} client{' needs' if k == 1 else 's need'} the new link",
                             link=url_for("galleries_move") + "#links"))
-        m = len(leftover_rows())
+        gone = q("""SELECT COUNT(*) AS n FROM gallery_leftovers l WHERE NOT EXISTS
+                    (SELECT 1 FROM sessions s WHERE s.gallery_id=l.gallery_id)""", one=True)["n"]
+        m = len(leftover_rows()) - gone
+        if gone:
+            out.append(dict(text=f"{gone} galler{'y of a deleted session still has' if gone == 1 else 'ies of deleted sessions still have'}"
+                                 " to come down from a gallery host", link=url_for("galleries_move") + "#earlier"))
         if m:
-            out.append(dict(text=f"{m} galler{'y of a deleted session still has' if m == 1 else 'ies of deleted sessions still have'}"
+            out.append(dict(text=f"{m} old cop{'y of a gallery still has' if m == 1 else 'ies of galleries still have'}"
                                  " to come down from a gallery host", link=url_for("galleries_move") + "#earlier"))
         return out
 
@@ -1905,18 +1971,28 @@ def register(ctx):
 
     def possibly_online(fp):
 
-        rows = q("""SELECT s.id AS sid, s.gallery_id, h.name AS client, g.host_fp, g.moved_from, g.upload_state, g.dark_at
+        rows = q("""SELECT s.id AS sid, s.gallery_id, h.name AS client, g.host_fp, g.moved_from, g.upload_state, g.dark_at,
+                           g.removed_at, g.uploaded_at
                     FROM galleries g JOIN sessions s ON s.id=g.session_id JOIN households h ON h.id=s.household_id
                     WHERE (g.host_fp=? AND (g.upload_state IN ('up', 'removed', 'error'))) OR g.moved_from=? ORDER BY h.name""", (fp, fp))
-        out = []
+        out, named = [], set()
         for r in rows:
-            what = ("not moved yet" if r["host_fp"] == fp and r["upload_state"] == "up" else
-                    "not moved yet; its last upload failed" if r["host_fp"] == fp and r["upload_state"] == "error"
-                    and not r["dark_at"] else
-                    "its dark page" if r["host_fp"] == fp and r["dark_at"] else
-                    "its copy there could not be removed" if r["host_fp"] == fp else "the old copy")
+            here, err = r["host_fp"] == fp, r["upload_state"] == "error"
+            what = ("not moved yet" if here and r["upload_state"] == "up" else
+                    "its dark page" if here and r["dark_at"] else
+                    "not moved yet; its last upload failed" if here and err and not r["removed_at"] and r["uploaded_at"] else
+                    "its upload failed partway; parts of it may be there" if here and err and not r["removed_at"] else
+                    "putting it back online failed partway; parts of it may be there" if here and err else
+                    "its copy there could not be removed" if here else "the old copy")
             out.append(dict(sid=r["sid"], text=f"{r['client']} ({what}, folder {r['gallery_id']})"))
-        out += [dict(sid=None, text=f"a deleted session's gallery (folder {r['gallery_id']})") for r in leftover_rows(fp)]
+            named.add(r["gallery_id"])
+        for r in leftover_rows(fp):
+            if r["gallery_id"] in named:
+                continue
+            o = q("""SELECT s.id AS sid, h.name AS client FROM sessions s JOIN households h ON h.id=s.household_id
+                     WHERE s.gallery_id=?""", (r["gallery_id"],), one=True)
+            out.append(dict(sid=o["sid"], text=f"{o['client']} (an old copy, folder {r['gallery_id']})") if o else
+                       dict(sid=None, text=f"a deleted session's gallery (folder {r['gallery_id']})"))
         return out
 
     def earlier_view():
@@ -1941,7 +2017,7 @@ pointing at the new host), every link and every QR letter keeps working. A new a
 down now. Turn them on again (Setup, Galleries) to carry on: with the same host, everything is where it was.</p>{% endif %}
 <section class="card" style="max-width:820px;margin-top:14px">
 <h3>On the earlier host</h3>
-{% if rows %}<ul>{% for r in rows %}<li>{{ r.client }}: {{ 'online' if r.upload_state == 'up' else 'gone dark' if r.removed_at else 'online, but its last upload failed: press Upload on its session' }}{% if r.upload_state == 'up' and not built(r.gallery_id) %} <span style="color:var(--red)">(no build here: press Rebuild on the session first)</span>{% endif %}</li>{% endfor %}</ul>
+{% if rows %}<ul>{% for r in rows %}<li>{{ r.client }}: {{ 'online' if r.upload_state == 'up' else 'gone dark' if r.removed_at else 'online, but its last upload failed: press Upload on its session' if r.uploaded_at else 'its upload failed partway: press Upload on its session' }}{% if r.upload_state == 'up' and not built(r.gallery_id) %} <span style="color:var(--red)">(no build here: press Rebuild on the session first)</span>{% endif %}</li>{% endfor %}</ul>
 <form method="post" action="{{ url_for('galleries_move_go') }}" data-confirm="Put {{ rows|length }} galler{{ 'y' if rows|length == 1 else 'ies' }} on the new gallery host, with their days, picks and links as they are?"><button class="primary">Put {{ rows|length }} galler{{ 'y' if rows|length == 1 else 'ies' }} on the new host</button></form>
 {% elif on %}<p class="mute">Nothing: every gallery is on the gallery host set up now.</p>{% else %}<p class="mute">Nothing moves while galleries are off.</p>{% endif %}
 </section>
@@ -2005,6 +2081,9 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
                     failed.append(r["client"])
                 elif r["upload_state"] == "removed" or r["removed_at"]:
                     b_ = gallery_brand(session(r["sid"]))
+
+                    remove_from(gid, host)
+                    drop_leftover(gid, fp)
                     put_dark(gid, b_["studio"], contact_email(), host=host)
                     x("UPDATE galleries SET host_fp=?, moved_from=? WHERE session_id=?", (fp, r["host_fp"], r["sid"]))
                     dark += 1
@@ -2310,11 +2389,21 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
                 with h_.session():
                     for gid in gids:
                         live = q("""SELECT 1 FROM galleries g JOIN sessions s ON s.id=g.session_id
-                                    WHERE s.gallery_id=? AND g.upload_state IN ('up', 'uploading', 'awaiting')
-                                    AND g.removed_at IS NULL AND (? OR g.host_fp=?)""", (gid, 1 if fp == fp_now else 0, fp), one=True)
+                                    WHERE s.gallery_id=? AND (g.upload_state IN ('uploading', 'awaiting')
+                                    OR (g.upload_state='up' AND g.removed_at IS NULL)) AND (? OR g.host_fp=?)""",
+                                 (gid, 1 if fp == fp_now else 0, fp), one=True)
                         if not live and GID_OK.match(gid or ""):
                             delete_gallery(gid, host=h_)
-                            n += 1
+                            own = q("""SELECT s.id AS sid, g.dark_at, g.host_fp FROM galleries g
+                                       JOIN sessions s ON s.id=g.session_id WHERE s.gallery_id=?""", (gid,), one=True)
+                            if own and own["dark_at"] and own["host_fp"] == fp:
+                                b_ = gallery_brand(session(own["sid"]))
+                                put_dark(gid, b_["studio"], contact_email(), host=h_)
+                            if own:
+                                ctx.audit(f"An old copy of the gallery came down from the gallery host {host_label(cfg_)}",
+                                          sid=own["sid"], who="Lumen Aureum")
+                            else:
+                                n += 1
                         drop_leftover(gid, fp)
                 _host_reached(fp)
             except Exception:
@@ -2434,13 +2523,25 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
                     b_ = gallery_brand(session(r["sid"]))
                     fp_after, left_behind = fp_now, ""
                     if stranded:
-                        n, dark = 0, put_dark(gid, b_["studio"], contact_email())
+
+                        dark = False
+                        try:
+                            remove_from(gid, gallery_host())
+                            dark = put_dark(gid, b_["studio"], contact_email())
+                        except Exception:
+                            app.logger.exception("gallery expiry %s: the copy on the host in use", gid)
+                            add_leftover(gid, fp_now)
                         n, left_behind = take_down_earlier(gid, r["host_fp"])
                         if left_behind:
                             fp_after = r["host_fp"]
                     else:
                         n, dark = go_dark(gid, b_["studio"], contact_email())
-                    x("UPDATE galleries SET removed_at=?, upload_state='removed', dark_at=?, host_fp=? WHERE session_id=?",
+                    old_ = r["moved_from"]
+                    if old_ and old_ not in (fp_now, r["host_fp"]) and host_cfg_for(old_):
+                        add_leftover(gid, old_)
+                        if not take_down_earlier(gid, old_)[1]:
+                            drop_leftover(gid, old_)
+                    x("UPDATE galleries SET removed_at=?, upload_state='removed', dark_at=?, host_fp=?, moved_from=NULL WHERE session_id=?",
                       (date.today().isoformat(), date.today().isoformat() if dark else None, fp_after or None, r["sid"]))
                     if left_behind:
                         ctx.audit("Its days are over, but its copy on the earlier gallery host could not be removed ("
@@ -2563,7 +2664,8 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
         if not r or not GID_OK.match(r["gallery_id"] or ""):
             return
         gid = r["gallery_id"]
-        live = r["upload_state"] in ("up", "uploading", "awaiting") and not r["removed_at"]
+
+        live = r["upload_state"] in ("uploading", "awaiting") or (r["upload_state"] == "up" and not r["removed_at"])
         if not (live or r["upload_state"] or r["uploaded_at"] or r["host_fp"] or r["moved_from"]):
             return
         from vault import web as VW
@@ -2581,7 +2683,7 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
                 try:
                     delete_gallery(gid)
                 except Exception:
-                    x("UPDATE galleries SET removed_at=NULL, upload_state=? WHERE session_id=?", (r["upload_state"], sid))
+                    x("UPDATE galleries SET removed_at=?, upload_state=? WHERE session_id=?", (r["removed_at"], r["upload_state"], sid))
                     raise
                 done_cur = True
         if fp_now and not done_cur:
@@ -2601,7 +2703,8 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
 
     def gallery_online(sid):
 
-        r = q("SELECT 1 FROM galleries WHERE session_id=? AND upload_state IN ('up', 'uploading', 'awaiting') AND removed_at IS NULL",
+        r = q("""SELECT 1 FROM galleries WHERE session_id=? AND (upload_state IN ('uploading', 'awaiting')
+                 OR (upload_state='up' AND removed_at IS NULL))""",
               (sid,), one=True)
         return bool(r)
 

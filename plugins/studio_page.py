@@ -550,11 +550,12 @@ def build_site(out_dir, conf, photos):
         if own.get(400):
             face = ""
             import settings_io
+            weights = dict(zip((400, 300), settings_io.own_font_weights(own[400], own.get(300))))
             for w_ in (400, 300):
                 if own.get(w_):
                     put(f"assets/own-{w_}.woff2", own[w_])
                     face += ('@font-face { font-family: "Site Own"; font-weight: %s; font-display: swap; '
-                             'src: url(own-%d.woff2) format("woff2"); }\n' % (settings_io.font_weights(own[w_], w_), w_))
+                             'src: url(own-%d.woff2) format("woff2"); }\n' % (weights[w_], w_))
             title_f = body_f = f'"Site Own", {serif}'
             own_css = ('\nbody, nav, .tagline, .btn, .inq button, .inq input, .inq select, .inq textarea, footer '
                        '{ font-family: "Site Own", Georgia, serif; }\n'
@@ -1110,7 +1111,8 @@ SETTINGS_PAGE = """{% extends "base.html" %}
     {% if not problem %}<form method="post" action="{{ url_for('studio_page_upload') }}" class="inline" data-confirm="Put the studio page online at {{ site_url }}? It is built fresh first. Your galleries aren't touched."><button class="primary"{{ ' disabled' if busy }}>Upload</button></form>{% endif %}
   </div>
   {% else %}<h2>Your site is still online</h2>
-  <p style="font-size:13px;margin:0">The studio page is switched off, but the files it put on your web host{% if site_url %} ({{ site_url }}){% endif %} are still there{% if inq_live %}, and so is its inquiry form: what visitors send is still collected{% endif %}. Take the site down to remove them.</p>
+  <p style="font-size:13px;margin:0">The studio page is switched off, but the files it put on your web host{% if site_url %} ({{ site_url }}){% endif %} are still there{% if inq_live %}, and so is its inquiry form: what visitors send is still collected{% endif %}. {{ 'Take them down below.' if problem else 'Take the site down to remove them.' }}</p>
+  {% if problem %}<p style="font-size:13px;margin:0;color:var(--amber, #b07a12)">{{ problem }} Until then, each web host the studio page put files on is listed here.</p>{% endif %}
   {% endif %}
   <div class="sub" style="font-size:13px" role="status">{% if busy %}{{ job.label or 'Working' }}{% if job.total %}: {{ job.done }} of {{ job.total }}{% endif %}
     {% elif state == 'awaiting' %}Waiting for approval. Press {{ 'Upload' if on else 'Take the site down' }} again to ask again.
@@ -1120,9 +1122,9 @@ SETTINGS_PAGE = """{% extends "base.html" %}
     {% else %}Not online yet.{% endif %}{% if note %} {{ note }}{% endif %}</div>
   {% for s_ in stale %}<div class="row" style="gap:8px;flex-wrap:wrap"><span class="grow" style="font-size:13px;color:var(--amber, #b07a12)">{{ s_.name }} is a photo its client no longer allows{% if s_.edited %}. It was changed on your web host since it went up, so an upload or a take-down leaves it there: delete it on your host, or remove it here{% else %}{{ ': press Upload to take it off' if on else ': take the site down to remove it' }}{% endif %}.</span>
     {% if s_.edited and not busy %}<form method="post" action="{{ url_for('studio_page_remove_file') }}" class="inline" data-confirm="Remove {{ s_.name }} from your web host, whatever was changed in it there?"><input type="hidden" name="name" value="{{ s_.name }}"><button class="ghost">Remove it anyway</button></form>{% endif %}</div>{% endfor %}
-  {% for h_ in earlier %}<div class="row" style="gap:8px;flex-wrap:wrap"><span class="grow" style="font-size:13px;color:var(--amber, #b07a12)">Left on an earlier web host, {{ h_.label }}: {{ h_.n }} file{{ '' if h_.n == 1 else 's' }} the studio page put there before your gallery host settings changed to another place{% if h_.stale %}, among them {{ h_.stale|map(attribute='name')|join(', ') }}: {{ 'client photos their clients no longer allow' if h_.stale|length > 1 else 'a client photo its client no longer allows' }}{% endif %}.{% if not h_.known %} Its settings aren't known here: delete the files on that host yourself.{% endif %}</span>
+  {% for h_ in earlier %}<div class="row" style="gap:8px;flex-wrap:wrap"><span class="grow" style="font-size:13px;color:var(--amber, #b07a12)">{% if problem %}On {{ h_.label }}: {{ h_.n }} file{{ '' if h_.n == 1 else 's' }} the studio page put there{% else %}Left on an earlier web host, {{ h_.label }}: {{ h_.n }} file{{ '' if h_.n == 1 else 's' }} the studio page put there before your gallery host settings changed to another place{% endif %}{% if h_.stale %}, among them {{ h_.stale|map(attribute='name')|join(', ') }}: {{ 'client photos their clients no longer allow' if h_.stale|length > 1 else 'a client photo its client no longer allows' }}{% endif %}.{% if not h_.known %} Its settings aren't known here: delete the files on that host yourself.{% endif %}</span>
     {% if not busy %}{% if h_.known %}<form method="post" action="{{ url_for('studio_page_take_down_earlier') }}" class="inline" data-confirm="Remove the studio page's files from {{ h_.label }}? Only the files Lumen Aureum put there are removed, and only while they are as it put them."><input type="hidden" name="host" value="{{ h_.fp }}"><button class="ghost">Take down there</button></form>{% endif %}
-    <form method="post" action="{{ url_for('studio_page_forget_host') }}" class="inline" data-confirm="Forget {{ h_.label }} and its list of files? Do this only when that host is gone for good: nothing is removed from it, and Today stops reminding about it."><input type="hidden" name="host" value="{{ h_.fp }}"><button class="quiet">Gone for good</button></form>{% endif %}</div>
+    {% if not problem %}<form method="post" action="{{ url_for('studio_page_forget_host') }}" class="inline" data-confirm="Forget {{ h_.label }} and its list of files? Do this only when that host is gone for good: nothing is removed from it, and Today stops reminding about it."><input type="hidden" name="host" value="{{ h_.fp }}"><button class="quiet">Gone for good</button></form>{% endif %}{% endif %}</div>
     {% for s_ in h_.stale if s_.edited and h_.known and not busy %}<div class="row" style="gap:8px"><span class="grow" style="font-size:13px">{{ s_.name }} on {{ h_.label }} was changed there since it went up, so taking down leaves it.</span><form method="post" action="{{ url_for('studio_page_remove_file') }}" class="inline" data-confirm="Remove {{ s_.name }} from {{ h_.label }}, whatever was changed in it there?"><input type="hidden" name="name" value="{{ s_.name }}"><input type="hidden" name="host" value="{{ h_.fp }}"><button class="ghost">Remove it anyway</button></form></div>{% endfor %}{% endfor %}
   {% if inq_live or (on and inq_on and n_files) %}<form method="post" action="{{ url_for('studio_page_inquiries') }}" class="row" style="gap:8px">
     <span class="grow sub" style="font-size:13px">{% if inq_at %}Inquiries last collected {{ inq_at }}{% if inq_note %}: {{ inq_note }}{% endif %}.{% else %}Inquiries from the form are collected every {{ inq_min }} minutes.{% endif %}</span>
@@ -1613,10 +1615,14 @@ def register(ctx):
                     "margin:2em'>Press Preview on the Studio page settings to build one.</p>"), 404
         if p == "" or p.endswith("/"):
             p += "index.html"
-        if not NAME_OK.match(p) and p not in ("about/index.html", "galleries/index.html") or ".." in p.split("/"):
-            abort(404)
-        if not (root / p).is_file():
-            return send_from_directory(root, "404.html"), 404
+
+        if (not NAME_OK.match(p) and p not in ("about/index.html", "galleries/index.html")
+                or ".." in p.split("/") or not (root / p).is_file()):
+            if not (root / "404.html").is_file():
+                abort(404)
+            r = send_from_directory(root, "404.html")
+            r.status_code, r.headers["Cache-Control"] = 404, "no-store"
+            return r
         r = send_from_directory(root, p)
         r.headers["Cache-Control"] = "no-store"
         return r
@@ -2273,12 +2279,11 @@ def register(ctx):
 
         from flask import g as _g
         at = asked_host()
-        cur = ""
         try:
             cur = host_fingerprint(target()[0])
         except SiteProblem:
-            pass
-        if JOB.get("state") == "running" or not at or at == cur:
+            cur = None
+        if JOB.get("state") == "running" or not at or cur is None or at == cur:
             _g.refused = True
             return redirect(back("#publish"))
         label, n = host_name(at), len(owned(at))
@@ -2567,6 +2572,9 @@ def register(ctx):
         except SiteProblem:
             fp = ""
         out = []
+        if not fp:
+            return [dict(text="Your studio page's web host still has a photo a client no longer allows: take it down "
+                              "on the Studio page", link=url_for("studio_page") + "#publish")]
         if any(r_["host_fp"] != fp for r_ in st):
             out.append(dict(text="An earlier web host of your studio page still has a photo a client no longer allows: "
                                  "take it down there on the Studio page", link=url_for("studio_page") + "#publish"))

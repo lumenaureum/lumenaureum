@@ -14,7 +14,7 @@ fix ships, you'll be credited in the release notes unless you'd rather not be.
 
 ## Supported versions
 
-Fixes go into the latest 1.0.x release. Please test against the latest release before reporting.
+Fixes go into the next release of the current version. Please test against the latest release before reporting.
 
 ## In scope
 

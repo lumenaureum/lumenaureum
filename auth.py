@@ -375,6 +375,8 @@ def register(app, connect, allowed, audit, on_unlock):
                 except Busy:
                     th.fail(ip, "password")
                     key, err = None, "busy"
+                except datakey.TooSlow:
+                    key, err = None, "tooslow"
                 except ValueError:
                     key, err = None, "tamper"
                 if key and not _owner_email_ok(key, email):
@@ -623,7 +625,8 @@ def register(app, connect, allowed, audit, on_unlock):
         return _no_store(app, render_template("auth_security.html", msg=msg, err=err, codes=codes, left=left,
                                               auto=datakey.auto_enabled(), auto_file=datakey.auto_file(),
                                               auto_refused=datakey.auto_refused(),
-                                              min_pw=MIN_PASSWORD))
+                                              min_pw=MIN_PASSWORD, pw_work=datakey.password_work(),
+                                              std_work=datakey.STANDARD_WORK))
 
 def _no_store(app, html):
     r = app.make_response(html)

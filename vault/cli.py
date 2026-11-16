@@ -19,6 +19,10 @@ USAGE = """Command line for the vault. The master key is read from the terminal 
     python -m vault.cli recover-photos <dir> [--from <photos folder>]
                                                 uploaded photos this database doesn't know: decrypted into a NEW folder
                                                 with the master key (each photo's key is sealed beside it)
+    python -m vault.cli rewrap-password [<keyring.json>]
+                                                wrap the data key under your password again with THIS computer's
+                                                scrypt work factor: run on a faster computer, with a copy of the
+                                                keyring, to strengthen a wrap a slow machine made (asks for the password)
     python -m vault.cli relink-photos           after restoring a backup older than a key rotation: puts each photo's
                                                 current key (sealed beside it to the master key) back into the database,
                                                 only when it traces back to the key this database holds
@@ -241,6 +245,18 @@ def main(argv):
         print("\nYour NEW master key (shown once; save it in your password manager and print it):\n\n  " + secret + "\n")
         print(f"{n} sealed session key(s) moved to it. Backups made BEFORE now still need the OLD key until they age")
         print("out of the vault (30 days); keep the old key until then, then destroy it.")
+        return 0
+    if cmd == "rewrap-password" and len(argv) in (1, 2):
+        path = argv[1] if len(argv) == 2 else None
+        pw = getpass.getpass("Password: ")
+        try:
+            got = datakey.rewrap_password_here(pw, path)
+        except ValueError as e:
+            sys.exit(str(e))
+        if not got:
+            sys.exit("That password doesn't open this keyring.")
+        print(f"Re-wrapped: work factor {got[0]} -> {got[1]}. Put this keyring.json back in the data folder "
+              "(with Lumen Aureum stopped), then sign in as usual.")
         return 0
     if cmd == "rotate":
         import rotate

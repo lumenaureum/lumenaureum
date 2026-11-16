@@ -159,6 +159,20 @@ def font_weights(data, default):
         pass
     return str(default)
 
+def own_font_weights(regular, light):
+
+    wr = font_weights(regular, 400)
+    if not light:
+        return wr, None
+    wl = font_weights(light, 300)
+    lo, _, hi = wr.partition(" ")
+    if hi and int(lo) < 400 <= int(hi):
+        wr = "400" if int(hi) == 400 else f"400 {hi}"
+    lo, _, hi = wl.partition(" ")
+    if hi and int(lo) < 400 <= int(hi):
+        wl = f"{lo} 399"
+    return wr, wl
+
 GALLERY_BG = "#f6f3ed"
 PROOF_MARKS = ("", "tiled", "corner")
 PALETTES = {

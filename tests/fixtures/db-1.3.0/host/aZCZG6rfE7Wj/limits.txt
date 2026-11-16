@@ -1,0 +1,6 @@
+days=30
+unopened_until=2027-11-16
+unopened_ts=1826427599
+warn_days=7
+proof=1
+moved=1

@@ -433,6 +433,10 @@ def _old_date(sid):
     r = q("SELECT shoot_date FROM sessions WHERE id=?", (sid,), one=True) if sid else None
     return r["shoot_date"] if r else None
 
+def is_id(v):
+
+    return isinstance(v, str) and v.isascii() and v.isdigit()
+
 def describe(ep, va, f):
 
     sid, hid, eid = va.get("sid"), va.get("hid"), va.get("eid")
@@ -452,12 +456,12 @@ def describe(ep, va, f):
         if said:
             g.said_prefix = f"Said {nice(said[:10])}, {clock(said[11:16])}. "
         if f.get("task"):
-            t = _title(int(f["task"]))
+            t = _title(int(f["task"])) if is_id(f["task"]) else None
             if t:
                 sid, eid = t["session_id"], t["event_id"]
                 act = f"Closed '{t['title']}' as {outcome}"
-        else:
-            sid = int(f["sid"]) if f.get("sid") else None
+        elif is_id(f.get("sid")):
+            sid = int(f["sid"])
             act = f"Closed '{AUTO.get(f.get('step'), (f.get('step'),))[0]}' as {outcome}"
     elif ep == "quick":
         a = f.get("act")
@@ -720,7 +724,7 @@ def _session_exists():
     elif request.endpoint not in ("session_view", "client_view", "client_stage", "event_view"):
         return None
     for table_, id_ in asks:
-        if id_ is None or not str(id_).isdigit():
+        if id_ is None or not is_id(str(id_)):
             continue
         if not q("SELECT 1 FROM " + dbmod.ident(table_) + " WHERE id=?", (int(id_),), one=True):
             if 0 < int(id_) <= id_mark(table_):
@@ -850,7 +854,12 @@ def globals_():
     def take_notice():
 
         from flask import session as _fs
+        g.refill = _fs.pop("refill", None)
         return _fs.pop("notice", None)
+
+    def take_refill():
+
+        return g.get("refill")
 
     def import_result():
 
@@ -859,7 +868,7 @@ def globals_():
         if r and r.get("plugins") is None and not r.get("gallery") and not r.get("storage"):
             _fs.pop("import_result", None)
         return r
-    return dict(take_notice=take_notice, import_result=import_result, C=C, hooks=hooks, today=today(), stage_label=C.STAGE_LABELS,
+    return dict(take_notice=take_notice, take_refill=take_refill, import_result=import_result, C=C, hooks=hooks, today=today(), stage_label=C.STAGE_LABELS,
                 type_label=C.SESSION_TYPES, money=money, nice=nice, light=light, face=face, clock=clock, month_label=month_label, OUTCOMES=OUTCOMES, sym_group=sym_group, delta3=timedelta(days=3),
                 who_is=who_is, age_of=age_of, age_label=age_label, RELATIONS=RELATIONS, edit_stamp=edit_stamp,
                 DOC_DISCLAIMER=__import__("wording").DISCLAIMER)
@@ -1222,8 +1231,9 @@ def _legacy_1_2(sids):
     pays, kept, years = {}, [], {}
     for sid in sids:
         s_ = q("SELECT stage, lost_reason, stage_changed, tax_exempt FROM sessions WHERE id=?", (sid,), one=True)
-        rows = q("SELECT * FROM payments WHERE session_id=? AND voided IS NULL AND kind != 'tip' ORDER BY received, id",
-                 (sid,))
+
+        rows = q("""SELECT * FROM payments WHERE session_id=? AND voided IS NULL AND (kind != 'tip' OR tax IS NULL)
+                    ORDER BY received, id""", (sid,))
         todo = [p_ for p_ in rows if p_["tax"] is None]
         if not s_ or not todo:
             continue
@@ -1266,12 +1276,16 @@ def _fill_payment_taxes(sid=None):
     else:
         return
     pays, kept = _legacy_1_2(sids)
+
+    if sid is None:
+        x("UPDATE payments SET kind='other' WHERE kind='tip' AND tax IS NULL AND voided IS NULL AND session_id IS NOT NULL")
+    else:
+        x("UPDATE payments SET kind='other' WHERE kind='tip' AND tax IS NULL AND voided IS NULL AND session_id=?", (sid,))
     for pid_, (tax_, taxable_) in pays.items():
         x("UPDATE payments SET tax=?, taxable=? WHERE id=? AND tax IS NULL", (tax_, taxable_, pid_))
     for sid_, day_, tax_, taxable_ in kept:
         x("INSERT INTO tax_adjustments (session_id, at, tax, taxable, why) VALUES (?,?,?,?, 'kept_1_2')",
           (sid_, day_, tax_, taxable_))
-    x("UPDATE payments SET tax=0, taxable=0 WHERE kind='tip' AND tax IS NULL")
     g.pop("tot_cache", None)
 
 TAX_WHY = {"canceled": "called off: only what is kept stays taxed", "reopened": "reopened after it was called off",
@@ -1444,6 +1458,8 @@ def _seed_charges():
 
     if setting("charges_seeded"):
         return
+
+    x("UPDATE books SET kind='other' WHERE kind='tip'")
     sids = [r_["id"] for r_ in q("SELECT id FROM sessions WHERE id NOT IN (SELECT session_id FROM charges WHERE session_id IS NOT NULL)")]
     for sid_ in sids:
         amt, number, label, day = _charge_target(sid_, legacy=True)
@@ -3606,6 +3622,9 @@ def session_stage(sid):
     old_ = (q("SELECT stage FROM sessions WHERE id=?", (sid,), one=True) or abort(404))["stage"]
     back_ = old_ in C.STAGES and stage in C.STAGES and C.STAGES.index(stage) < C.STAGES.index(old_)
     reopen_ = old_ in C.OFF_PIPELINE and stage in C.STAGES
+    if stage == "lost" and old_ != "lost" and request.form.get("lost_reason") in C.LOST_REASONS:
+
+        x("UPDATE sessions SET lost_reason=? WHERE id=?", (request.form["lost_reason"], sid))
     set_stage(sid, stage)
     x("UPDATE sessions SET hold_stage=? WHERE id=?", (stage if back_ or reopen_ else None, sid))
     if back_ or reopen_:
@@ -4748,6 +4767,8 @@ def _keep_books(sids, why="client deleted"):
     for sid in sids:
         s_ = q("SELECT type FROM sessions WHERE id=?", (sid,), one=True)
         for e_ in tax_entries(sid):
+            if e_["kind"] == "adjustment" and abs(round(e_["tax"], 2)) < 0.005:
+                continue
             x("INSERT INTO books (received, amount, tax, type, kind) VALUES (?,?,?,?,?)",
               (e_["day"], e_["amount"], round(e_["tax"], 2), s_["type"] if s_ else "", e_["kind"]))
         for e_ in q("SELECT date, amount, miles, rate FROM expenses WHERE session_id=?", (sid,)):
@@ -4805,7 +4826,7 @@ def close_step():
     outcome = f.get("outcome", "done")
     if outcome not in OUTCOMES:
         abort(400)
-    if (f.get("task") and not f["task"].isdigit()) or (not f.get("task") and f.get("sid") and not f["sid"].isdigit()):
+    if (f.get("task") and not is_id(f["task"])) or (not f.get("task") and f.get("sid") and not is_id(f["sid"])):
         abort(400)
     if f.get("task"):
         x("UPDATE tasks SET done=?, outcome=? WHERE id=?", (today().isoformat(), outcome, int(f["task"])))
@@ -4939,9 +4960,27 @@ def day_in(v):
     return d_.isoformat() if 1900 <= d_.year <= 2100 else None
 
 def _refuse(notice, back):
+
     session["notice"] = notice
+    session["refill"] = request.path
     g.refused = True
     return redirect(back)
+
+MONEY_DAY_MIN = "2000-01-01"
+TOO_EARLY = "That date is before 2000. Check the year. Nothing was recorded."
+FUTURE_PAY = "A payment is recorded once it arrives: that date is in the future. Nothing was recorded."
+
+def money_day_in(v, what="payment"):
+
+    d_ = day_in(v)
+    if d_ is None:
+        return None, BAD_DAY
+    if d_ and d_ < MONEY_DAY_MIN:
+        return None, TOO_EARLY
+    if d_ and d_ > (today() + timedelta(days=1)).isoformat():
+        return None, (FUTURE_PAY if what == "payment" else
+                      "An expense is recorded once it is spent: that date is in the future. Nothing was recorded.")
+    return d_, None
 
 TOO_MUCH = f"Amounts over ${MONEY_CAP:,} aren't taken. Nothing was recorded."
 BAD_DAY = "That date isn't a real date (year-month-day). Nothing was recorded."
@@ -4974,11 +5013,9 @@ def money_add(sid):
             return _refuse(TOO_MUCH, back)
         if not amt or amt <= 0:
             return _refuse("Enter the amount as a positive number. For money going back, choose Refund.", back)
-        received = day_in(f.get("received"))
-        if received is None:
-            return _refuse(BAD_DAY, back)
-        if received and received > (today() + timedelta(days=1)).isoformat():
-            return _refuse("A payment is recorded once it arrives: that date is in the future. Nothing was recorded.", back)
+        received, why_ = money_day_in(f.get("received"))
+        if why_:
+            return _refuse(why_, back)
         t_ = totals(sid) if kind == "refund" else None
         if t_ is not None and amt > t_["paid"] + 0.005:
             return _refuse(f"A refund can't be more than what was paid toward the price ({money(max(t_['paid'], 0))})."
@@ -5009,11 +5046,9 @@ def _tip_back(sid, f, back):
         return _refuse(TOO_MUCH, back)
     if not amt or amt <= 0:
         return _refuse("Enter the amount as a positive number. Nothing was recorded.", back)
-    received = day_in(f.get("received"))
-    if received is None:
-        return _refuse(BAD_DAY, back)
-    if received and received > (today() + timedelta(days=1)).isoformat():
-        return _refuse("A payment is recorded once it arrives: that date is in the future. Nothing was recorded.", back)
+    received, why_ = money_day_in(f.get("received"))
+    if why_:
+        return _refuse(why_, back)
     tips = totals(sid)["tips"]
     if amt > tips + 0.005:
         return _refuse(f"Only {money(max(tips, 0))} in tips was received, so no more than that can go back. For money "
@@ -5075,7 +5110,10 @@ def paying_means_yes(sid):
 
 def add_expense(sid, f):
 
-    miles = num(f.get("miles"), lo=0, hi=100000)
+    miles_typed = str(f.get("miles") or "").strip()
+    miles = num(miles_typed, None, lo=float("-inf"), hi=float("inf")) if miles_typed else None
+    if miles_typed and (miles is None or not 0 < miles <= 100000):
+        return "Miles are a number above 0 (up to 100,000). Nothing was recorded."
     try:
         amt = amount_in(f.get("amount"))
     except TooMuch:
@@ -5083,11 +5121,13 @@ def add_expense(sid, f):
     if amt is not None and amt < 0:
         return ("An expense is a positive amount. A purchase returned is recorded as money in, or by removing the "
                 "expense. Nothing was recorded.")
-    day = day_in(f.get("date"))
-    if day is None:
-        return BAD_DAY
+    day, why_ = money_day_in(f.get("date"), "expense")
+    if why_:
+        return why_
+    if not miles and not amt:
+        return "Enter the amount, the miles, or both. Nothing was recorded."
     x("INSERT INTO expenses (session_id, date, label, amount, miles, rate) VALUES (?,?,?,?,?,?)",
-      (sid, day or today().isoformat(), f["label"], amt, miles, float(setting("mileage_rate") or 0) if miles else None))
+      (sid, day or today().isoformat(), f["label"], amt, miles or 0, float(setting("mileage_rate") or 0) if miles else None))
     return None
 
 @app.post("/money/overhead")
@@ -5133,15 +5173,20 @@ def money_delete(what, rid):
         return redirect(safe_back(request.form.get("back")) or url_for("money_view") + "#overhead")
     return redirect(safe_back(request.form.get("back")) or url_for("session_view", sid=r["session_id"]) + "#money")
 
+def qty_in(v):
+
+    typed = str(v or "").strip()
+    return num(typed, None, lo=float("-inf"), hi=float("inf")) if typed else 1.0
+
 @app.post("/session/<int:sid>/quote/fee")
 def quote_fee(sid):
 
     back = safe_back(request.form.get("back")) or url_for("session_view", sid=sid) + "#money"
     if sent_twice():
         return _refuse_twice(back)
-    qty = num(request.form.get("qty"), 1.0, lo=float("-inf"), hi=float("inf"))
-    if not 0.5 <= qty <= 100000:
-        return _refuse("A quantity is from 0.5 to 100,000. Nothing was added.", back)
+    qty = qty_in(request.form.get("qty"))
+    if qty is None or not 0.5 <= qty <= 100000:
+        return _refuse("A quantity is a number from 0.5 to 100,000. Nothing was added.", back)
     ensure_quote(sid)
     if not request.form.get("fee_key"):
         session["notice"] = "Pick a line from the list first, then press Add."
@@ -5184,9 +5229,9 @@ def line_qty(lid):
     back = safe_back(request.form.get("back")) or stage_url(l_["session_id"]) + "#billing"
     if s_["stage"] not in PRICE_STAGES or l_["kind"] in ("discount", "tax") or not l_["unit"]:
         return redirect(back)
-    qty = num(request.form.get("qty"), 1.0, lo=float("-inf"), hi=float("inf"))
-    if not 0.5 <= qty <= 100000:
-        return _refuse("A quantity is from 0.5 to 100,000. To drop the line, remove it (the x beside it). Nothing was "
+    qty = qty_in(request.form.get("qty"))
+    if qty is None or not 0.5 <= qty <= 100000:
+        return _refuse("A quantity is a number from 0.5 to 100,000. To drop the line, remove it (the x beside it). Nothing was "
                        "changed.", back)
     base = re.sub(r" x [0-9.]+$", "", l_["label"])
     x("UPDATE lines SET qty=?, amount=?, label=? WHERE id=?",
@@ -6247,6 +6292,8 @@ def bill_ctx(sid, receipt=False, live=False):
 def statement_ctx(hid, month):
 
     h = q("SELECT * FROM households WHERE id=?", (hid,), one=True) or abort(404)
+    if not re.fullmatch(r"[0-9]{4}-[0-9]{2}", month or ""):
+        abort(400)
     try:
         y_, m_ = (int(v_) for v_ in month.split("-"))
         first = date(y_, m_, 1)
@@ -6884,10 +6931,12 @@ def year_money(year):
 
     y = str(year)
     rate = float(setting("mileage_rate") or 0)
+
     received = q("""SELECT type, SUM(v) v FROM (
                       SELECT s.type, p.amount v FROM payments p JOIN sessions s ON s.id=p.session_id
                       WHERE substr(p.received,1,4)=? AND p.voided IS NULL
-                      UNION ALL SELECT type, amount FROM books WHERE substr(received,1,4)=?) GROUP BY type""", (y, y))
+                      UNION ALL SELECT type, amount FROM books WHERE substr(received,1,4)=? AND kind IS NOT 'adjustment')
+                    GROUP BY type""", (y, y))
     exp = q("""SELECT COALESCE(SUM(amount),0) a, COALESCE(SUM(miles),0) m, COALESCE(SUM(ROUND(miles * COALESCE(rate, ?), 2)),0) mc
                FROM expenses WHERE substr(date,1,4)=?""", (rate, y), one=True)
     refunds = q("""SELECT COALESCE(SUM(amount),0) v FROM (SELECT amount FROM payments WHERE kind='refund' AND voided IS NULL
@@ -6901,7 +6950,8 @@ def year_money(year):
     tax_adjusted = round(sum(r_["tax"] for r_ in tax_rows if r_["kind"] == "adjustment"), 2)
     by_month = q("""SELECT substr(received,1,7) mo, SUM(amount) v FROM (
                       SELECT received, amount FROM payments WHERE substr(received,1,4)=? AND voided IS NULL
-                      UNION ALL SELECT received, amount FROM books WHERE substr(received,1,4)=?) GROUP BY mo ORDER BY mo""", (y, y))
+                      UNION ALL SELECT received, amount FROM books WHERE substr(received,1,4)=? AND kind IS NOT 'adjustment')
+                    GROUP BY mo ORDER BY mo""", (y, y))
     return dict(rate=rate, received=received, total=sum(r["v"] for r in received), exp=exp, refunds=refunds,
                 tax_rows=tax_rows, tax_due=round(sum(r_["tax"] for r_ in tax_rows), 2), tax_adjusted=tax_adjusted, by_month=by_month,
                 written_off=written_off, tips=tips)

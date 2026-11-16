@@ -6,7 +6,8 @@
   <input type="hidden" name="next" value="{{ next }}">
   {% if err == 'bad' %}<div class="err">Wrong email or password.</div>{% elif err == 'slow' %}<div class="err">Too many tries from here. Wait 15 minutes.</div>
   {% elif err == 'busy' %}<div class="err">Busy checking other sign-ins. Try again in a moment.</div>
-  {% elif err == 'tamper' %}<div class="err">The keyring file was changed outside Lumen Aureum. Restore it from a backup first.</div>{% endif %}
+  {% elif err == 'tamper' %}<div class="err">The keyring file was changed outside Lumen Aureum. Restore it from a backup first.</div>
+  {% elif err == 'tooslow' %}<div class="err">This password was set on a much faster computer, and this one is too slow to check it. Use Forgot your password (your master key) to set it again here.</div>{% endif %}
   <label class="l" for="in-email">Email</label><input type="email" id="in-email" name="email" maxlength="200" autocomplete="username" required autofocus>
   <label class="l" for="in-password">Password</label><input type="password" id="in-password" name="password" autocomplete="current-password" required>
   <label class="row" style="gap:6px;font-size:13px"><input type="checkbox" name="remember" value="1" style="width:auto;margin:0">Stay signed in on this device</label>

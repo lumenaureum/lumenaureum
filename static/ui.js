@@ -191,6 +191,21 @@ document.addEventListener('submit', e => {
   try { sessionStorage.setItem('scrollAt', JSON.stringify({p: location.pathname, y: scrollY, t: Date.now()})); } catch (_) {} });
 try { const s = JSON.parse(sessionStorage.getItem('scrollAt') || 'null'); sessionStorage.removeItem('scrollAt');
   if (s && s.p === location.pathname && Date.now() - s.t < 15 * 1000 && !location.hash) scrollTo(0, s.y); } catch (_) {}
+const keptKinds = el => el.name && !['hidden', 'password', 'file', 'submit', 'button', 'reset'].includes(el.type);
+document.addEventListener('submit', e => {
+  const f = e.target; if ((f.getAttribute('method') || '').toLowerCase() !== 'post' || f.target === '_blank') return;
+  try { sessionStorage.setItem('la-form', JSON.stringify({a: new URL(f.action, location.href).pathname, t: Date.now(),
+    v: [...f.elements].filter(keptKinds).map(el => [el.name, el.value, el.type === 'radio' || el.type === 'checkbox' ? el.checked : null])})); } catch (_) {} });
+try { const k = JSON.parse(sessionStorage.getItem('la-form') || 'null'); sessionStorage.removeItem('la-form');
+  const at = (document.querySelector('.toast[data-refill]') || {dataset: {}}).dataset.refill;
+  if (k && at && k.a === at && Date.now() - k.t < 60 * 1000) {
+    const f = [...document.querySelectorAll('form')].find(f_ => new URL(f_.action, location.href).pathname === at
+      && k.v.every(([n]) => f_.elements[n]));
+    if (f) {
+      k.v.forEach(([n, v, on]) => { const els = f.elements[n] instanceof RadioNodeList ? [...f.elements[n]] : [f.elements[n]];
+        els.filter(keptKinds).forEach(el => { if (on === null) el.value = v; else if (el.value === v) el.checked = on; }); });
+      for (let d = f.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) d.open = true;
+    } } } catch (_) {}
 document.addEventListener('change', e => {
   const r = e.target.closest('[data-fill]'); if (r && r.form && r.form[r.dataset.fill]) r.form[r.dataset.fill].value = r.dataset.value; });
 document.querySelectorAll('[data-filter-rows]').forEach(inp => inp.addEventListener('input', () => {

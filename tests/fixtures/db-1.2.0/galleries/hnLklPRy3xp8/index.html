@@ -10,7 +10,7 @@
 <style>
 :root { --bg: #f6f3ed; --ink: #1f1b16; --mute: #756b60; --line: #e2dbcf; --gold: #b8862f; --ring: #b5842e; --cell: #e9e3d8; --edge: #cfc5b4;
   --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif; color-scheme: light; }
-
+/* the look the photographer chose (inside the manifest): Elegant swaps the serif, Script is for the title only */
 html.dark { color-scheme: dark; }
 html.f-elegant { --serif: "Gallery Serif", "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif; }
 html.f-script header h1 { font-family: "Gallery Script", var(--serif); font-size: clamp(40px, 6vw, 64px); line-height: 1.1; }
@@ -47,8 +47,8 @@ body.welcomeopen { overflow: hidden; }
 #ask #askgo { background: var(--ink); border-color: var(--ink); color: var(--bg); }
 .cell .tag i[data-k] { cursor: pointer; }
 .nw { white-space: nowrap; }
-#grid img, #lb img { -webkit-user-drag: none; user-select: none; -webkit-touch-callout: none; }   
-
+#grid img, #lb img { -webkit-user-drag: none; user-select: none; -webkit-touch-callout: none; }   /* no drag-out or long-press save */
+/* two columns when there is a studio mark: [ logo | shoot details ], stacked again on a phone */
 header.two { display: grid; grid-template-columns: auto 1px minmax(0, 1fr); column-gap: 28px; align-items: center; max-width: 980px; text-align: left; }
 header.two #brand { grid-column: 1; grid-row: 1 / span 3; margin: 0; align-items: flex-end; }
 header.two .rule { grid-column: 2; grid-row: 1 / span 3; width: 1px; height: 100%; min-height: 90px; margin: 0; align-self: stretch; }
@@ -142,7 +142,7 @@ body.lbopen #tray { display: none; }
 #upd button, #lb #lberr button.reload { font: 600 14px/1 -apple-system, sans-serif; padding: 9px 18px; border: 0; border-radius: 18px; background: #e3aa48; color: #1a1308; cursor: pointer; }
 #lb #lberr button { position: static; font: 600 14px/1 -apple-system, sans-serif; padding: 9px 18px; margin-top: 12px; border: 1px solid rgba(236,229,216,.45); border-radius: 18px; }
 #note { width: 260px; max-width: 48vw; padding: 7px 10px; border-radius: 16px; border: 1px solid #26221e; background: #171513; color: #ece5d8; font-size: 13px; }
-
+/* a phone, upright or on its side: the photo takes the screen; the count and the pick buttons sit below it, compact */
 @media (max-width: 640px), (max-height: 500px) {
   #lb.open { padding: 0 0 max(6px, env(safe-area-inset-bottom)); }
   #count { padding: 4px 0 0; font-size: 12px; }
@@ -197,6 +197,8 @@ body.lbopen #tray { display: none; }
 "use strict";
 (() => {
 const $ = id => document.getElementById(id);
+// The look the photographer chose (colors, font) rides in the encrypted manifest. The colors are remembered on this
+// device, so the next visit opens in them before the manifest is read.
 const LOOK = "look:" + location.pathname;
 function look(T, built) {
   if (!T || typeof T !== "object") return;
@@ -216,6 +218,7 @@ try { look(JSON.parse(localStorage.getItem(LOOK) || "null"), false); } catch (e)
 
 const subtle = window.crypto && window.crypto.subtle;
 let ckey = null;
+// the key travels in the link's #fragment (never sent to any server)
 const HP = new URLSearchParams(location.hash.slice(1));
 const k = HP.get("k") || "";
 const NEEDS_WORD = HP.get("c") === "1";   // the gallery is protected by a codeword the client chose
@@ -226,6 +229,7 @@ let raw = (() => {
     return b.length === 32 ? Uint8Array.from(b, c => c.charCodeAt(0)) : null;
   } catch (e) { return null; }
 })();
+// the photographer's preview inside the app needs the app sign-in; a client gallery on the web sends no cookies
 const PREVIEW = location.pathname.startsWith("/gallery-preview/");
 
 async function open(buf, name) {
@@ -235,8 +239,11 @@ async function open(buf, name) {
     return new Uint8Array(await subtle.decrypt({ name: "AES-GCM", iv: data.subarray(0, 12),
       additionalData: new TextEncoder().encode("lumen-aureum-gallery:" + name) }, ckey, data.subarray(12)));
   }
+  // WebCrypto exists only on secure (https) pages: a gallery opened any other way refuses to decrypt.
   throw Object.assign(new Error("insecure"), { insecure: true });
 }
+// The picks email carries a fingerprint: HMAC-SHA256 over the exact list of picks, under a key derived from the gallery
+// key (HKDF-SHA256). The photographer's app recomputes it, so a list changed after it left the gallery shows up.
 async function fingerprint(lines) {
   const text = lines.map(l => l.trim().replace(/\s+/g, " ")).filter(Boolean).join("\n");
   const base = await subtle.importKey("raw", raw, "HKDF", false, ["deriveKey"]);
@@ -255,6 +262,7 @@ async function keyProof() {                    // sha256(key), first 32 hex: wha
     proofHex = [...new Uint8Array(await subtle.digest("SHA-256", raw))].map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 32); }
   return proofHex;
 }
+// A fetch that never arrived (offline, DNS, a dropped connection) is marked network, so it is never taken for a wrong key.
 async function reach(u, opts) {
   try { return await fetch(u, opts); }
   catch (e) { if (e && e.name === "AbortError") throw e; throw Object.assign(new Error("network"), { network: true }); }
@@ -273,11 +281,17 @@ async function fetchBin(name, fresh, signal) { // the encrypted bytes of one fil
 async function get(name, signal) {
   return open(await fetchBin(name, false, signal), name);
 }
+// What the page sends to the host's small scripts goes as a form (proof, picks), never as text/plain or raw bytes:
+// web firewalls (ModSecurity's core rules) flag other content types on every visit.
 const b64u = u8 => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000));
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
 const form = (k, v) => new URLSearchParams([[k, v]]);
+// Why the manifest didn't open: the gallery closed, the key (or word) is wrong, or the host couldn't be reached.
+// A wrong key is a decryption failure, or the gate refusing the key's proof (403); anything else is the connection.
 const isClosed = e => e.status === 404 || e.status === 410;
 const isWrongKey = e => !e.network && !e.insecure && (!e.status || (GATE && e.status === 403));
+// Big photos are kept as object URLs only near the one on screen (see keepNear): a phone that pages through hundreds
+// of photos would otherwise hold every one of them in memory.
 const blobs = new Map();
 async function url(name) {
   if (!blobs.has(name)) blobs.set(name, get(name).then(b => URL.createObjectURL(new Blob([b], { type: "image/jpeg" })),
@@ -287,6 +301,8 @@ async function url(name) {
 function keepNear(names) {                     // release every big photo not in names
   for (const [n, p] of blobs) if (!names.has(n)) { blobs.delete(n); p.then(u => URL.revokeObjectURL(u), () => {}); }
 }
+// Messages go to a live region, so a screen reader hears them: status (polite) for asking and opening, alert for
+// anything that went wrong. Both regions are in the page from the start; the one not in use is emptied.
 function say(head, line, error) {
   const to = $(error ? "msgerr" : "msgsay"), other = $(error ? "msgsay" : "msgerr");
   other.textContent = ""; to.textContent = "";
@@ -297,6 +313,8 @@ function say(head, line, error) {
 }
 const fail = (head, line) => say(head, line, true);
 
+// A codeword gallery's key: PBKDF2-SHA256(word, salt = the link's 32-byte secret + the gallery id, 600000 rounds), the
+// same as codeword_key() in the app. The word is normalized the same way (NFKC, trimmed, lowercase, single spaces).
 async function wordKey(word) {
   const w = word.normalize("NFKC").replace(/[\u200b-\u200d\u2060\ufeff\u00ad]/g, "")
     .replace(/[\x00-\x1f\x7f-\x9f\s\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/g, " ").trim().toLowerCase();
@@ -338,6 +356,7 @@ function askWord(why, last) {                  // why: "" (first ask), "wrong" (
 
 async function main() {
   if (!raw) { fail("This gallery is locked", "Open it from the code in your letter."); return; }
+  // manifest.bin is fetched once: its bytes are kept and decrypted again with each word tried
   let mbuf = null, plain = null;
   const manifest = async () => { if (!mbuf) mbuf = await fetchBin("manifest.bin"); return open(mbuf, "manifest.bin"); };
   if (NEEDS_WORD) {
@@ -373,6 +392,7 @@ async function main() {
     }
   }
   $("msg").remove();
+  // the visit counts only with proof of the key: sha256(key), first 32 hex, matched by seen.php
   if (!location.pathname.startsWith("/gallery-preview/")) try {
     const proof = [...new Uint8Array(await subtle.digest("SHA-256", raw))].map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
     fetch("seen.php", { method: "POST", credentials: "omit", cache: "no-store", body: form("p", proof) }).catch(() => {});
@@ -393,6 +413,7 @@ async function main() {
   $("studio").textContent = B.logo ? "" : (B.studio || "");     // a logo already carries the name
   $("studio").classList.toggle("word", !B.logo);
   document.querySelector("header").classList.toggle("two", !!(B.logo || B.studio));
+  // the studio's own website (Settings, https only): the name or logo links to it, and the footer shows it
   const SITE = /^https:\/\/[^\s"'<>\\]+$/.test(B.site || "") ? B.site : "";
   if (SITE && (B.logo || B.studio)) { const a = document.createElement("a"); a.href = SITE; a.rel = "noopener"; a.target = "_blank";
     a.id = "site"; a.append($("logo"), $("studio")); $("brand").append(a); }
@@ -404,21 +425,29 @@ async function main() {
     a.href = SITE; a.rel = "noopener"; a.target = "_blank"; a.textContent = SITE.replace(/^https:\/\/(www\.)?/, "").replace(/\/$/, "");
     sp.append(a); ct.append(sp); }
   if (B.studio || B.photographer) { const sp = document.createElement("span"); sp.textContent = B.photographer && B.photographer !== B.studio ? B.photographer + ", " + (B.studio || "") : (B.studio || B.photographer); ct.prepend(sp); }
+  // Copyright: the shoot's year (else this year) and the studio, in the footer and on every big photo. Only when the
+  // photographer keeps the copyright (brand.owns); otherwise it may be the client's, and the line names the photographer.
   const owner = B.studio || B.photographer || "", yr = (String(B.date || "").match(/\b(\d{4})$/) || [])[1] || new Date().getFullYear();
   const RIGHTS = !owner ? "" : B.owns === true ? "\u00a9 " + yr + " " + owner + ". All rights reserved." : "Photos by " + owner + ".";
   if (RIGHTS) { $("rights").textContent = RIGHTS; $("rights").hidden = false; }
   document.querySelector("header").hidden = false;
   const grid = $("grid");
+  // Proofs are not for saving: no right-click menu and no dragging on the photos (a screenshot still works; this only
+  // stops the easy way, the way proofing galleries usually do)
   const DL = m.dl === 1 && Array.isArray(m.zips);           // a download gallery: the final photos, to keep (nothing to pick)
   if (!DL) {
     document.addEventListener("contextmenu", e => { if (e.target && e.target.tagName === "IMG") e.preventDefault(); });
     document.addEventListener("dragstart", e => { if (e.target && e.target.tagName === "IMG") e.preventDefault(); });
   }
+  // A file named in the manifest that the host no longer has (404): the photographer may have just updated the
+  // gallery and removed the old files. If the manifest on the host is now a different one, the page says so and offers
+  // a reload (picks are kept by file name, on this device and on the host, so nothing is lost).
   let updP = null, stale = false;              // stale: the host has a newer build than this page
   const updated = () => updP || (updP = fetchBin("manifest.bin", true).then(b => open(b, "manifest.bin"))
     .then(b => new TextDecoder().decode(b) !== mText, () => false)
     .then(yes => { if (yes) { stale = true; $("upd").hidden = false; } else updP = null; return yes; }));
   $("updgo").onclick = () => location.reload();
+  // An open page looks for a newer build by itself: when it comes back into view, and every few minutes while shown.
   if (!PREVIEW) {
     const look = () => { if (!stale && document.visibilityState === "visible") updated(); };
     document.addEventListener("visibilitychange", look);
@@ -447,6 +476,9 @@ async function main() {
       if (b) return askRemove(i, b.dataset.k); show(i); };
   });
 
+  // picks: retouch (with a note), portfolio suggestions, and photos never to be shown; kept on this device until sent
+  // Picks are kept by the photo's file name, not its place in the grid: a rebuild that adds or removes photos moves
+  // the places, and each pick must stay on its own photo. Two photos with the same name are told apart by their order.
   const P = DL ? {} : m.picks || {}, KEY = "picks:" + location.pathname;
   const KEYS = (() => { const seen = {};
     return m.items.map((it, i) => { const n = it.n ? "n:" + it.n : "#" + i; seen[n] = (seen[n] || 0) + 1;
@@ -457,6 +489,7 @@ async function main() {
   const sigOf = (pp, ks) => JSON.stringify(ks.filter(k => pp[k] && (pp[k].r || pp[k].m || pp[k].v)).map(k => [k, canon(pp[k])]));
   const resig = s => { try { const o = {}; JSON.parse(s || "[]").forEach(([k, p]) => { if (p && typeof p === "object") o[k] = p; });
     return s ? sigOf(o, KEYS) : ""; } catch (e) { return ""; } };
+  // A pick list as the host holds it (draft.bin or picks.bin: entries with name, i, and from 1.1 k) -> this page's picks
   function fromList(list) {
     const got = {}, byName = {};
     KEYS.forEach((k, i) => { const n = m.items[i].n; if (n && !(("n:" + n) in byName)) byName["n:" + n] = k; });
@@ -500,7 +533,12 @@ async function main() {
         nV = () => Object.values(picks).filter(p => p.v).length;
   const keep = () => { try { localStorage.setItem(KEY, JSON.stringify({ v: 2, picks, at: changed })); } catch (e) {} };
   const save = () => { changed = new Date().toISOString(); keep(); sendNote = ""; if (DRAFTS) hostOk = false; paint(); later(); };
+  // Unsent picks: what was last sent is remembered, and leaving the page with something newer asks first
+  // "Sent" is only ever what this device sent itself, or what picks.bin on the host holds (verifySent): a draft from
+  // another device never says so on its own.
   const sig = () => sigOf(picks, KEYS);
+  // picks from a page before 1.1 on a gallery picked by email: whether they were sent can't be known, so until the client
+  // changes them they read "Saved on this device", with no "Not sent yet" and no question on leaving
   const quietLegacy = () => !P.post && !!legacySig && sig() === legacySig;
   const isSent = () => sig() !== "[]" && sig() === sentSig;
   const unsent = () => sig() !== "[]" && !isSent() && !quietLegacy();
@@ -520,6 +558,7 @@ async function main() {
     return ["Photo " + (i + 1)].concat(p.r ? ["Retouch" + (p.n ? ": " + p.n : "")] : [], p.m ? ["Suggested for portfolio"] : [],
       p.v ? ["Please don't show"] : []).join(", ");
   }
+  // Dialogs keep focus inside them: what is behind is inert while one is open, and Escape closes it from anywhere.
   function modal(box, first, onClose) {
     const was = behind().concat([lb]).filter(el => !el.inert);
     was.forEach(el => el.inert = true);
@@ -564,6 +603,7 @@ async function main() {
     const r = nR(), mk = nM(), vt = nV();
     $("tray").classList.toggle("on", !!(P.email || P.post) && (r + mk + vt) > 0);
     document.body.classList.toggle("tray", $("tray").classList.contains("on"));
+    // the counts (shorter on a phone: only the kinds picked) and, until they are sent, where the picks are kept
     const span = (cls, t) => { const s = document.createElement("span"); s.className = cls; s.textContent = t; return s; };
     const short = ["Retouch " + r + "/" + (P.retouch || 0)].concat(mk ? ["Suggested " + mk] : [], vt ? ["Don't show " + vt] : []);
     $("trayn").textContent = "";
@@ -589,8 +629,10 @@ async function main() {
     document.body.classList.toggle("sentline", !!note);
   }
   let painted = null;
+  // The picks as sent: one entry per photo with a pick, by file name (k: the key this page keeps it under)
   const listOf = () => m.items.map((it, i) => [i, it, picks[pk(i)]]).filter(([, , p]) => p).map(([i, it, p]) => ({ i, name: it.n || "",
     k: pk(i), r: !!p.r, note: p.n || "", m: !!p.m, v: !!p.v })).filter(p => p.r || p.m || p.v);
+  // "LAK1" | 12-byte nonce | AES-256-GCM under the gallery key, bound to the file name it is saved as
   async function sealPicks(name, at) {
     const ek = await subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt"]);
     const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -601,6 +643,8 @@ async function main() {
     body.set(new TextEncoder().encode("LAK1")); body.set(iv, 4); body.set(ct, 16);
     return body;
   }
+  // On a PHP host the picks are also kept on the host as an encrypted draft (draft.bin), saved a moment after each
+  // change, so they carry over to the client's other devices and the photographer sees they are still picking.
   async function pushDraft(leaving) {
     pending = false;
     try {
@@ -619,6 +663,9 @@ async function main() {
     window.addEventListener("pagehide", flush);
     document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flush(); });
   }
+  // What was really sent: picks.bin on the host, read back through the gate with the key proof. When it can be read,
+  // it decides whether this device's picks count as sent; when it can't (no PHP, no connection), this device keeps its
+  // own record of what it sent.
   async function verifySent() {
     if (!DRAFTS) return;
     let host = null;
@@ -636,6 +683,8 @@ async function main() {
     } catch (e) { return; }
     if (host !== sentSig) { setSent(host); paint(); }
   }
+  // On opening: the host's draft and this device's picks, whichever changed last. A draft that is missing or can't be
+  // read changes nothing here, and neither does one dated more than 5 minutes ahead of this device's clock.
   async function pullDraft() {
     let d = null;
     try {
@@ -654,6 +703,8 @@ async function main() {
     if (cur >= 0) bar();
     paint();
   }
+  // Send my picks: on a host that runs the small picks script, the picks go back encrypted with the gallery key
+  // (never readable on the host) and the photographer's app collects them; otherwise the email draft opens.
   $("send").onclick = async e => {
     const notNow = () => { sendNote = "These photos were just updated. Reload the page before you send."; paint(); };
     if (stale) { e.preventDefault(); notNow(); return; }
@@ -760,6 +811,8 @@ async function main() {
     document.body.style.overflow = "hidden";
     $("count").textContent = (cur + 1) + " / " + n; bar();
     lb.setAttribute("aria-label", "Photo " + (cur + 1) + " of " + n);
+    // Until the photo itself is here: its thumbnail (when already loaded) stands in, "Loading photo..." shows, and the
+    // pick buttons wait, so nothing is picked for a photo the client can't see yet.
     const want = cur, th = thumbs[cur];
     big.onload = big.onerror = null;
     $("lberr").hidden = true; picking(false);
@@ -785,6 +838,11 @@ async function main() {
   function picking(on) {                        // the pick buttons and the note, for the photo on screen
     ["pr", "pm", "pv", "note"].forEach(id => { $(id).disabled = !on; });
   }
+  // ---- a download gallery. Each photo's full-size file opens here and is handed to the browser to save. Download all
+  // fetches the zip prepared at home, sealed in parts: four parts at a time, each decrypted as it arrives and kept in
+  // order as a Blob (never joined into one buffer), then saved as one file named after the gallery.
+  // iPhone Safari: no rel=noopener on the link (Safari then opens the file where the blob can't be read: WebKitBlobResource
+  // error 1), and the blob stays until the page goes away, so a slow "Download?" prompt still finds it.
   const savedUrls = [];
   function saveFile(blob, name) {
     const a = document.createElement("a");
@@ -792,6 +850,8 @@ async function main() {
     document.body.append(a); a.click(); a.remove();
   }
   if (DL) window.addEventListener("pagehide", () => savedUrls.forEach(u => URL.revokeObjectURL(u)));
+  // On iPhone and iPad one photo goes through the share sheet, where Save Image puts it in Photos (a zip still goes to
+  // Files). The photo on screen is fetched ahead, so the sheet opens inside the tap.
   let canShareFiles = false;
   try {
     const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -812,6 +872,7 @@ async function main() {
     const zs = m.zips.filter(z => z && Array.isArray(z.parts));
     zs.forEach((z, j) => zipButton(z, zs.length > 1 ? [j + 1, zs.length] : null, j));
     $("dlall").hidden = !zs.length;
+    // Esc (with no photo open) or leaving the page stops every Download all that is running
     document.addEventListener("keydown", e => { if (e.key === "Escape" && cur < 0) running.forEach(c => c.abort()); });
     window.addEventListener("pagehide", () => running.forEach(c => c.abort()));
     singleDownload();
@@ -942,4 +1003,3 @@ main();
 <linearGradient id="rose" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e3b3c0" stop-opacity=".2"/><stop offset=".5" stop-color="#ecd3da"/><stop offset="1" stop-color="#e3b3c0" stop-opacity=".2"/></linearGradient></defs><path d="M10.00,62.00 A40.00,40.00 0 0 1 90.00,62.00 Z M44.00,61.00 L46.40,46.00 A7.00,7.00 0 1 1 53.60,46.00 L56.00,61.00 Z" fill="url(#gold)" fill-rule="evenodd"/><rect x="6.00" y="67.00" width="88.00" height="6.00" rx="3.00" fill="url(#rose)"/><rect x="20.00" y="79.00" width="60.00" height="5.00" rx="2.50" fill="url(#rose)" opacity="0.55"/></svg><span>Gallery by <b>Lumen Aureum</b><small>lumenaureum.org</small></span></a></footer>
 </body>
 </html>
-

@@ -80,14 +80,48 @@ def test_picks_php_refuses_writes_once_the_window_has_closed(host):
     assert call(base + "picks.php?kind=draft", draft, proof)[0] == 410
     assert not (d / "picks.bin").exists() and not (d / "draft.bin").exists()
 
-def test_gate_answers_at_once_without_a_proof_and_waits_on_a_wrong_one(host):
+def test_gate_answers_at_once_without_a_proof_and_on_a_wrong_one(host):
     base, d, proof, G, key = host
     (d / "draft.bin").write_bytes(sealed(G, key, G.DRAFT_AAD))
     for f in ("draft.bin", "picks.bin", "manifest.bin"):
         code, _, took = call(base + "gate.php?f=" + f)
         assert code == 403 and took < 0.5, f
+    assert not (d / "tries.php").exists()
     code, _, took = call(base + "gate.php?f=draft.bin", proof="0" * 32)
-    assert code == 403 and took >= 0.9
+    assert code == 403 and took < 0.5
+    assert (d / "tries.php").is_file()
+
+def test_wrong_proofs_lock_the_sender_out_for_an_hour(host):
+    base, d, proof, G, key = host
+    assert call(base + "gate.php?f=manifest.bin", proof=proof)[0] == 200
+    for i in range(6):
+        assert call(base + "gate.php?f=manifest.bin", proof=f"{i:032x}")[0] == 403
+    for i in range(4):
+        assert call(base + "picks.php", sealed(G, key, G.PICKS_AAD), proof=f"{i + 6:032x}")[0] == 403
+    t = time.monotonic()
+    for _ in range(3):
+        assert call(base + "gate.php?f=manifest.bin", proof=proof)[0] == 429
+        assert call(base + "picks.php", sealed(G, key, G.PICKS_AAD), proof)[0] == 429
+    assert time.monotonic() - t < 3
+    assert not (d / "picks.bin").exists()
+    raw = (d / "tries.php").read_text()
+    assert raw.startswith("<?php exit; ?>\n") and "127.0.0.1" not in raw
+    assert call(base + "tries.php")[1] == b""
+
+    head, body = raw.split("\n", 1)
+    old = {k: [t_ - 3601 for t_ in v] for k, v in json.loads(body).items()}
+    (d / "tries.php").write_text(head + "\n" + json.dumps(old) + "\n")
+    assert call(base + "gate.php?f=manifest.bin", proof=proof)[0] == 200
+    assert call(base + "picks.php", sealed(G, key, G.PICKS_AAD), proof)[0] == 204
+    assert call(base + "gate.php?f=manifest.bin", proof="f" * 32)[0] == 403
+    assert [len(v) for v in json.loads((d / "tries.php").read_text().split("\n", 1)[1]).values()] == [1]
+
+def test_a_burst_of_wrong_proofs_gets_no_more_than_ten_answers(host):
+    base, d, proof, G, key = host
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(8) as ex:
+        codes = list(ex.map(lambda i: call(base + "gate.php?f=manifest.bin", proof=f"{i:032x}")[0], range(30)))
+    assert codes.count(403) == 10 and codes.count(429) == 20
 
 def test_gate_serves_picks_bin_only_with_the_proof(host):
     base, d, proof, G, key = host

@@ -110,7 +110,7 @@ def test_a_deleted_clients_gallery_on_an_unreachable_earlier_host_is_kept_in_min
     _back(site.host)
     site.sync()
     assert "manifest.bin" in _files(site.host, gid)
-    _plugin(site)["_UNREACHABLE"].clear()
+    site.q("DELETE FROM settings WHERE key LIKE 'gallery_unreachable:%'")
     site.sync()
     assert _files(site.host, gid) == [] and not site.q("SELECT 1 FROM gallery_leftovers")
     assert "still has to come down" not in _today(site)
@@ -156,8 +156,8 @@ def test_an_unreachable_earlier_host_is_tried_once_a_day(site, monkeypatch):
     site.sync()
     site.sync()
     assert len(tries) == 1
-    fp = next(iter(P["_UNREACHABLE"]))
-    P["_UNREACHABLE"][fp] = time.time() - P["UNREACHABLE_RETRY"] - 1
+    (key,), = site.q("SELECT key FROM settings WHERE key LIKE 'gallery_unreachable:%'")
+    site.q("UPDATE settings SET value=? WHERE key=?", (str(time.time() - P["UNREACHABLE_RETRY"] - 1), key))
     site.sync()
     assert len(tries) == 2
     monkeypatch.setitem(P, "open_host", real)

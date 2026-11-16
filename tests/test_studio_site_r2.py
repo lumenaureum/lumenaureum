@@ -384,7 +384,7 @@ def test_a_variable_own_font_declares_its_weight_range(tmp_path):
                 own_font={400: var, 300: static})
     SP.build_site(tmp_path / "site", conf, [])
     css = (tmp_path / "site" / "assets" / "site.css").read_text()
-    assert "font-weight: 300 700; font-display: swap; src: url(own-400.woff2)" in css
+    assert "font-weight: 400 700; font-display: swap; src: url(own-400.woff2)" in css
     assert "font-weight: 300; font-display: swap; src: url(own-300.woff2)" in css
     page = (G.ASSETS / "viewer.html").read_text()
     assert "weight: W(T.wr, \"400\")" in page and "weight: W(T.wl, \"300\")" in page

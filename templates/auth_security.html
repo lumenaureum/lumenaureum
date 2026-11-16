@@ -14,6 +14,11 @@
     <div><label class="l" for="pw-new">New password ({{ min_pw }}+ characters)</label><input type="password" id="pw-new" name="password" autocomplete="new-password" minlength="{{ min_pw }}" required></div>
     <div><label class="l" for="pw-new2">New password again</label><input type="password" id="pw-new2" name="password2" autocomplete="new-password" required></div>
     <button class="primary">Change password</button></form>
+  {% if pw_work %}<p class="mute" id="pw-strength">How costly each guess is, for someone with a stolen copy of your data, depends on this
+    computer's speed when the password was last set (scrypt work factor {{ pw_work }}{% if pw_work < std_work %}, below the
+    {{ std_work }} the standard age tool uses{% endif %}). A long password matters more on a slow machine.{% if pw_work < std_work %}
+    To strengthen it, run <span class="mono">python -m vault.cli rewrap-password</span> on a faster computer with a copy of
+    keyring.json, then put the copy back (see Security in the docs).{% endif %}</p>{% endif %}
 
   <h2 style="margin-top:20px">Master key</h2>
   <p class="mute">Kept on paper and in your password manager, never by the app. Check now and then that you can still find it.</p>

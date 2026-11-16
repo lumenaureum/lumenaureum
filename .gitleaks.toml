@@ -1,10 +1,11 @@
 # The secret scan's own rules, plus three known test fixtures that look like secrets and are not:
 # the published gallery-codeword test vectors, the RFC 6238 TOTP test secret, an all-Q age key used to test refusal,
-# and the throwaway gallery keys the release fixtures record so their upgrade tests can check them.
+# the throwaway gallery keys the release fixtures record so their upgrade tests can check them, and the public
+# inquiry-form key on a fixture's saved studio page (public by design, and a throwaway test key).
 [extend]
 useDefault = true
 
 [allowlist]
 description = "Published test vectors and fixed test values"
-paths = ['''^tests/vectors/.*\.json$''', '''^tests/fixtures/db-[0-9.]+/expected\.json$''']
+paths = ['''^tests/vectors/.*\.json$''', '''^tests/fixtures/db-[0-9.]+/expected\.json$''', '''^tests/fixtures/db-[0-9.]+/web/''']
 regexes = ['''GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ''', '''AGE-SECRET-KEY-1Q{20,}''']

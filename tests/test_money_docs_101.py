@@ -10,15 +10,10 @@ import pytest
 import time
 
 @pytest.fixture(autouse=True)
-def _clean_process(monkeypatch):
+def _clean_start(monkeypatch):
 
-    saved = dict(os.environ)
     monkeypatch.delenv("TZ", raising=False)
     monkeypatch.delenv("CRM_GALLERY_ROOT", raising=False)
-    time.tzset()
-    yield
-    os.environ.clear()
-    os.environ.update(saved)
     time.tzset()
 
 def _payments_table(page):

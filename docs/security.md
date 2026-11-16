@@ -26,14 +26,28 @@ the data key; it stays in memory only after your two-factor code is accepted (a 
 after five minutes). Recovery codes stand in for the two-factor code only; they never unlock the data without your
 password. `/healthz` reports `"locked": true` so a NAS can show it.
 
-**Choose a long password.** The keyring's password wrap uses `age`'s passphrase mode, which sets how slow each guess is
-from the speed of the machine it runs on; on a slow NAS each guess is cheaper for an attacker who has a copy of the
-keyring. A passphrase of several unrelated words (at least 12 characters; longer is better) is what protects it.
+**Choose a long password.** The keyring's password wrap uses `age`'s passphrase mode (scrypt), which sets how slow
+each guess is from the speed of the machine it runs on; on a slow NAS each guess is cheaper for an attacker who has a
+copy of the keyring. The library the app uses has no setting for a minimum, and the app does not build its own
+encryption to get one. A passphrase of several unrelated words (at least 12 characters; longer is better) is what
+protects it. Settings > Security shows the work factor your wrap has, and says when it is below 18, the setting the
+standard `age` tool uses on every machine.
+
+To strengthen a wrap a slow machine made: stop the app, copy `keyring.json` to a faster computer with Lumen Aureum's
+code, run `python -m vault.cli rewrap-password <path to the copy>` there and enter your password, then put the copy
+back in the data folder and start the app. The password stays the same. The command changes nothing when the faster
+computer is no faster, or when it is so much faster (more than 3 above the current work factor) that the slower
+machine might be unable to check the password: `age` refuses a work factor more than 4 above the one it would choose
+itself. If that ever happens, the sign-in page says so, and Forgot your password sets the password again.
 
 **Forgot your password?** "Forgot your password?" on the sign-in page takes your master key plus a one-time code it
 writes to `RECOVERY-CODE.txt` in your data folder (it lasts 15 minutes), and lets you set a new one. The master key
 alone is not enough: whoever resets the password must also be able to open the data folder on the machine.
-This signs you in without the two-factor code: the master key outranks both, which is why it lives on paper.
+This signs you in without the two-factor code, on purpose. The master key plus the data folder already open
+everything without signing in at all: the stock `age` tool unwraps the data key from `keyring.json` with the master
+key, offline, and the data key opens the database and every file. A two-factor check on this page would stop no one
+who holds both, and would only lock you out if you lost your phone along with your password. The master key outranks
+the password and the two-factor code alike, which is why it lives on paper: keep it as carefully as the data itself.
 
 ## Unattended unlock (off by default)
 Some installs restart unattended (NAS updates). Set `CRM_UNLOCK_KEY_FILE` to a path on a **separate** volume and turn
@@ -102,13 +116,17 @@ Each gallery folder holds a few small PHP files and two small text files beside 
 | `seen-key.php` | The SHA-256 of the key proof (the proof is the first 32 hex characters of the SHA-256 of the gallery key). It starts with `<?php exit; ?>`, so fetching it shows nothing. |
 | `seen.php` | Records the first visit in `seen.txt`, once, and only for a visitor who sends the key proof. A stamp left empty is replaced. |
 | `gate.php` | Serves the encrypted photo files, `manifest.bin`, `draft.bin` and `picks.bin`, and only while the window is open. A missing or unreadable `limits.txt` counts as closed. On galleries built since 1.1 it also asks for the key proof for every file. `draft.bin` and `picks.bin` always need the proof. |
-| `picks.php` | Saves the client's picks (`picks.bin`) or the picks still being made (`draft.bin`). It takes only an encrypted body of the right shape, up to 256 KB, from a visitor who sends the key proof, and only while the window is open. On a copy marked moved it saves nothing and answers with your email. |
-| `.htaccess` | Apache rules: refuse `seen.txt`, `seen-key.php`, `limits.txt`, `picks.bin` and `draft.bin` to everyone, and send every photo file and `manifest.bin` through `gate.php`. |
+| `picks.php` | Saves the client's picks (`picks.bin`) or the picks still being made (`draft.bin`). It takes only an encrypted body of the right shape, up to 256 KB, from a visitor who sends the key proof, and only while the window is open. Wrong proofs count toward the same limit as the gate's. On a copy marked moved it saves nothing and answers with your email. |
+| `tries.php` | Written by the gate and `picks.php`: recent wrong key proofs, by sender. Each sender is kept as a hash keyed by the gallery's proof hash, never the address itself. It starts with `<?php exit; ?>`, so fetching it shows nothing. |
+| `.htaccess` | Apache rules: refuse `seen.txt`, `seen-key.php`, `tries.php`, `limits.txt`, `picks.bin` and `draft.bin` to everyone, and send every photo file and `manifest.bin` through `gate.php`. |
 
 How the gate answers:
 - A request with no key proof is refused at once.
-- A wrong key proof waits one second before the refusal, on purpose. It slows anyone guessing a codeword through the
-  host. Each wrong guess holds one PHP worker for that second.
+- A wrong key proof is refused at once too, and counted. After 10 wrong proofs in an hour from one sender (an IPv4
+  address, or an IPv6 /56), every proof from that sender is refused for that gallery, unchecked, until the hour is up.
+  That limits guessing a codeword through the host. Nothing waits, so a script sending wrong proofs can't tie up the
+  host's PHP workers and take the galleries (or a site sharing the host) offline. Before 1.3.1 a wrong proof waited one
+  second, which held a worker for that second; a gallery gets this version's gate when it is next uploaded.
 - The gallery page reads `picks.bin` through the gate, with the proof, to check what was really sent. The app reads
   it over the upload connection, not through the gate. With `manifest.bin`, and only for a visitor who sent the right
   proof, the gate says whether `draft.bin` and `picks.bin` are there, so the page asks only for the ones that are.
@@ -122,7 +140,7 @@ offline, at their own pace. Use Apache with `.htaccess` allowed, or add the same
 inside the server block for your gallery address:
 
 ```
-location ~ /(seen\.txt|seen-key\.php|limits\.txt|(picks|draft)\.bin.*)$ { return 403; }
+location ~ /(seen\.txt|seen-key\.php|tries\.php|limits\.txt|(picks|draft)\.bin.*)$ { return 403; }
 location ~ ^/(.+)/([0-9a-f]{24}\.bin|manifest\.bin)$ { rewrite ^/(.+)/([^/]+)$ /$1/gate.php?f=$2 last; }
 ```
 

@@ -178,14 +178,57 @@ def _check(ring, key):
                          "(the master key opens any backup) before signing in.")
     return key
 
-def unwrap_password(password):
+class TooSlow(ValueError):
+    pass
 
-    ring = _read()
+def unwrap_password(password, path=None):
+
+    ring = _read(path)
     try:
         key = passphrase.decrypt(base64.b64decode(ring["password"]), password)
-    except Exception:
+    except Exception as e:
+        if "xcessive work" in str(e):
+            raise TooSlow("This keyring's password protection was made on a much faster computer, and this one is too "
+                          "slow to check it. Use Forgot your password (the master key) to set the password here.")
         return None
     return _check(ring, key)
+
+STANDARD_WORK = 18
+
+def password_work(ring=None):
+
+    try:
+        head = base64.b64decode((ring or _read())["password"])[:200].split(b"\n")
+        parts = head[1].split(b" ")
+        if head[0] == b"age-encryption.org/v1" and len(parts) == 4 and parts[:2] == [b"->", b"scrypt"] and parts[3].isdigit():
+            return int(parts[3])
+    except (OSError, ValueError, KeyError, IndexError, TypeError):
+        pass
+    return None
+
+class NotStronger(ValueError):
+    pass
+
+def rewrap_password_here(password, path=None):
+
+    key = unwrap_password(password, path)
+    if not key:
+        return None
+    old = password_work(_read(path))
+    wrap = _b64(passphrase.encrypt(key, password))
+    new = password_work({"password": wrap})
+    if old is None or new is None or new <= old:
+        raise NotStronger(f"This computer is no faster than the one that set the password (work factor {new} here, "
+                          f"{old} now). Nothing was changed.")
+    if new > old + 3:
+        raise NotStronger(f"This computer is so much faster (work factor {new} here, {old} now) that the machine "
+                          "running Lumen Aureum might be unable to check the password. Nothing was changed.")
+    with _RING_LOCK:
+        ring = _read(path)
+        _check(ring, key)
+        ring["password"] = wrap
+        _write(ring, key, path)
+    return old, new
 
 def unwrap_master(secret, ring_path=None):
     ring = _read(ring_path)
