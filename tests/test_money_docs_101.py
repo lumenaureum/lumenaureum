@@ -6,6 +6,25 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_user_testing_fixes import _app, _q, _new, E
+import pytest
+import time
+
+@pytest.fixture(autouse=True)
+def _clean_process(monkeypatch):
+
+    saved = dict(os.environ)
+    monkeypatch.delenv("TZ", raising=False)
+    monkeypatch.delenv("CRM_GALLERY_ROOT", raising=False)
+    time.tzset()
+    yield
+    os.environ.clear()
+    os.environ.update(saved)
+    time.tzset()
+
+def _payments_table(page):
+
+    m = re.search(r"<h2>Payments</h2>\s*<table>(.*?)</table>", page, re.S)
+    return re.sub(r"\s+", " ", m.group(1)) if m else "(no Payments table; page starts: " + page[:300] + ")"
 
 def _line(c, sid, amount, label="Session"):
     c.post(f"/session/{sid}/money", data={"what": "line", "label": label, "amount": amount}, environ_base=E)
@@ -74,7 +93,11 @@ def test_an_issued_receipt_stays_as_issued_after_a_refund(tmp_path, monkeypatch)
     _pay(c, sid, "50", kind="refund")
     page = _page(c, f"/session/{sid}/receipt")
     assert num in page and "refund" not in page.split('class="page"')[1].lower().replace("refunds", "")
-    assert re.search(r"Total paid</b></td><td class=\"n\"><b>\$300<", page)
+    assert re.search(r"Total paid</b></td><td class=\"n\"><b>\$300<", page), (
+        f"receipt {num} payments: {_payments_table(page)}; payments recorded: "
+        f"{_q(A, 'SELECT kind, amount, received, voided FROM payments WHERE session_id=?', (sid,))}; "
+        f"snapshots: {_q(A, 'SELECT number, at FROM bill_snapshots WHERE session_id=?', (sid,))}; "
+        f"TZ={os.environ.get('TZ')!r} today={A.today()}")
 
 def test_a_refund_is_money_back_and_never_lowers_the_quote(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
