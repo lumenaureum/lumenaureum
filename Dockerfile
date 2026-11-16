@@ -17,12 +17,12 @@ RUN pip install --require-hashes --no-deps -r requirements.lock \
  && rm -rf /usr/local/lib/python3.13/ensurepip /usr/local/lib/python3.13/site-packages/setuptools* /usr/local/bin/pip*
 
 COPY . .
-RUN useradd --system --uid 10001 --home-dir /data --shell /usr/sbin/nologin lumen \
- && mkdir -p /data /photos && chown lumen:lumen /data /photos
+RUN useradd --system --uid 10001 --home-dir /data --shell /usr/sbin/nologin lumenaureum \
+ && mkdir -p /data /photos && chown lumenaureum:lumenaureum /data /photos
 
-ARG LUMEN_BUILD=""
-ENV LUMEN_BUILD=${LUMEN_BUILD}
-USER lumen
+ARG LUMENAUREUM_BUILD=""
+ENV LUMENAUREUM_BUILD=${LUMENAUREUM_BUILD}
+USER lumenaureum
 VOLUME ["/data", "/photos"]
 EXPOSE 8780
 HEALTHCHECK --interval=60s --timeout=5s --start-period=30s \

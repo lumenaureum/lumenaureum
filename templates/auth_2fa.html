@@ -2,7 +2,7 @@
 <h1>Code</h1>
 <form method="post" class="card f">
   {% if err %}<div class="err">That code didn't work.</div>{% endif %}
-  <input name="code" placeholder="6-digit code or a recovery code" autocomplete="one-time-code" inputmode="numeric" required autofocus>
+  <label class="l" for="in-code">Code from your authenticator app, or a recovery code</label><input id="in-code" name="code" placeholder="6-digit code or a recovery code" autocomplete="one-time-code" inputmode="numeric" required autofocus>
   <button class="primary">Sign in</button>
 </form>{% endblock %}
 

@@ -91,6 +91,15 @@ def _write_all(fd, data):
             raise DiskFull("The photos folder is full. Free some space, then drop the file again.")
         view = view[n:]
 
+def _rec_len(b4):
+
+    if len(b4) != 4:
+        raise ValueError("a sealed photo is cut short")
+    n = int.from_bytes(b4, "big")
+    if not 16 < n <= REC + 16:
+        raise ValueError("a sealed photo has a record of the wrong length")
+    return n
+
 def _nonce(index):
     return b"\0\0\0\0" + index.to_bytes(8, "big")
 
@@ -123,7 +132,7 @@ def read_file_plain(path, fid, fkey, out, size=None):
         if not nxt:
             raise ValueError("a sealed photo with no records")
         while nxt:
-            ct = f.read(int.from_bytes(nxt, "big"))
+            ct = f.read(_rec_len(nxt))
             nxt = f.read(4)
             pt = aes.decrypt(_nonce(index), ct, _aad(fid, index, not nxt))
             total += len(pt)
@@ -149,6 +158,8 @@ def start(con, sid, kind, name, size, create=True, master_pub=None, label=""):
         r = get()
         if r and r["received"] == 0:
             write_key(r, master_pub, label)
+    elif r and create:
+        r = restart_if_diverged(con, r, master_pub, label)
     if not r:
         raise Gone("That file was deleted here; drop it again to upload it again.")
     if r["size"] != size:
@@ -158,9 +169,35 @@ def start(con, sid, kind, name, size, create=True, master_pub=None, label=""):
 class Gone(UploadError):
     pass
 
-def append(con, row, offset, stream, length):
+def _on_disk(fid):
+    try:
+        return path_of(fid).stat().st_size
+    except FileNotFoundError:
+        return 0
+
+def restart_if_diverged(con, row, master_pub=None, label=""):
+
+    if row["state"] != "partial" or _on_disk(row["id"]) == row["ct_len"]:
+        return row
+    p = path_of(row["id"])
+    if p.exists():
+        with open(p, "r+b") as f:
+            f.truncate(0)
+            f.flush(); os.fsync(f.fileno())
+    cur = con.execute("""UPDATE photo_files SET fkey=?, received=0, ct_len=0, records=0 WHERE id=? AND state='partial'
+                         AND received=?""", (secrets.token_bytes(32).hex(), row["id"], row["received"]))
+    con.commit()
+    row = con.execute("SELECT * FROM photo_files WHERE id=?", (row["id"],)).fetchone()
+    if cur.rowcount == 1 and row:
+        write_key(row, master_pub, label)
+    return row
+
+def append(con, row, offset, stream, length, master_pub=None, label=""):
 
     fid, size = row["id"], row["size"]
+    if row["state"] == "partial" and _on_disk(fid) != row["ct_len"]:
+        restart_if_diverged(con, row, master_pub, label)
+        raise UploadError("resume at 0")
     start_at = row["received"]
     if row["state"] != "partial" or offset != start_at:
         raise UploadError(f"resume at {row['received']}")
@@ -174,7 +211,9 @@ def append(con, row, offset, stream, length):
     import fcntl
     fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     try:
-        os.ftruncate(fd, ct_len)
+        if os.fstat(fd).st_size != ct_len:
+            raise UploadError("resume at -1")
+
         if ct_len == 0:
             _write_all(fd, MAGIC)
             ct_len = len(MAGIC)
@@ -200,6 +239,7 @@ def append(con, row, offset, stream, length):
                 elif left == 0:
                     break
         finally:
+            os.ftruncate(fd, ct_len)
             os.fsync(fd)
             done = received == size
             cur = con.execute("""UPDATE photo_files SET received=?, ct_len=?, records=?, state=?,
@@ -227,7 +267,7 @@ def iter_plain(row):
         if f.read(4) != MAGIC:
             raise ValueError("not a sealed photo")
         for index in range(row["records"]):
-            n = int.from_bytes(f.read(4), "big")
+            n = _rec_len(f.read(4))
             ct = f.read(n)
             if len(ct) != n:
                 raise ValueError("a sealed photo is cut short")
@@ -236,6 +276,11 @@ def iter_plain(row):
             yield pt
     if total != row["size"]:
         raise ValueError("a sealed photo is not the size it was")
+
+def verify(row):
+
+    for _ in iter_plain(row):
+        pass
 
 def plain_bytes(row):
     return b"".join(iter_plain(row))
@@ -263,25 +308,34 @@ def files(con, sid, kind=None, done_only=False):
 
 def delete(con, row, commit=True):
 
-    p = path_of(row["id"])
-    try:
-        n = p.stat().st_size
-        with open(p, "r+b") as f:
-            f.write(b"\0" * min(n, 1 << 20))
-            f.flush(); os.fsync(f.fileno())
-        p.unlink()
-    except FileNotFoundError:
-        pass
-    key_path(row["id"]).unlink(missing_ok=True)
     con.execute("DELETE FROM photo_files WHERE id=?", (row["id"],))
     con.execute("INSERT OR IGNORE INTO photo_deleted (id) VALUES (?)", (row["id"],))
-    if commit:
-        con.commit()
+    if not commit:
+        return [row["id"]]
+    con.commit()
+    destroy_files([row["id"]])
+    return []
+
+def destroy_files(fids):
+
+    for fid in fids:
+        p = path_of(fid)
+        try:
+            n = p.stat().st_size
+            with open(p, "r+b") as f:
+                f.write(b"\0" * min(n, 1 << 20))
+                f.flush(); os.fsync(f.fileno())
+            p.unlink()
+        except FileNotFoundError:
+            pass
+        key_path(fid).unlink(missing_ok=True)
 
 def delete_session(con, sid):
+    gone = []
     for r in con.execute("SELECT * FROM photo_files WHERE session_id=?", (sid,)).fetchall():
-        delete(con, r, commit=False)
+        gone += delete(con, r, commit=False)
     con.commit()
+    destroy_files(gone)
 
 def orphan_age(con, fids, days=30):
 
@@ -326,7 +380,7 @@ def rekey(row, dst):
             _write_all(fd, MAGIC)
             n = 4
             for index in range(row["records"]):
-                size = int.from_bytes(f.read(4), "big")
+                size = _rec_len(f.read(4))
                 last = row["state"] == "done" and index == row["records"] - 1
                 pt = old.decrypt(_nonce(index), f.read(size), _aad(row["id"], index, last))
                 ct = new.encrypt(_nonce(index), pt, _aad(row["id"], index, last))
@@ -342,6 +396,24 @@ VAULT_PREFIX = "p/"
 
 def vault_name(row):
     return f"{VAULT_PREFIX}{row['session_id']}/{row['id']}.lap"
+
+def _file_sha(path):
+    h_ = hashlib.sha256()
+    with open(path, "rb") as f:
+        for piece in iter(lambda: f.read(1 << 20), b""):
+            h_.update(piece)
+    return h_.hexdigest()
+
+def _remote_sha(backend, name):
+
+    h_ = hashlib.sha256()
+
+    class _W:
+        def write(self, b):
+            h_.update(b)
+            return len(b)
+    backend.get_stream(name, _W())
+    return h_.hexdigest()
 
 def seal_to_vault(con, rows, backends, master_pub, label=""):
 
@@ -366,18 +438,13 @@ def seal_to_vault(con, rows, backends, master_pub, label=""):
             with open(key_path(r["id"]), "rb") as f:
                 kb = f.read()
             bk.put_stream(name[:-4] + ".key", io.BytesIO(kb))
-            if bk.stat(name) != r["ct_len"] or bk.stat(name[:-4] + ".key") != len(kb):
-                raise IOError(f"the vault copy of {r['name']} did not verify")
             copies.append(bk)
-        import hashlib
-        if lap is None:
-            h_ = hashlib.sha256()
-            with open(path_of(r["id"]), "rb") as f:
-                for piece in iter(lambda: f.read(1 << 20), b""):
-                    h_.update(piece)
-            sha = h_.hexdigest()
-        else:
-            sha = hashlib.sha256(lap).hexdigest()
+        sha = hashlib.sha256(lap).hexdigest() if lap is not None else _file_sha(path_of(r["id"]))
+        kb_sha = hashlib.sha256(kb).hexdigest()
+        for bk in copies:
+            if (bk.stat(name) != r["ct_len"] or bk.stat(name[:-4] + ".key") != len(kb)
+                    or _remote_sha(bk, name) != sha or _remote_sha(bk, name[:-4] + ".key") != kb_sha):
+                raise IOError(f"the vault copy of {r['name']} did not verify")
         VS.record(con, r["session_id"], "photo", name, [(b_, r["ct_len"], sha) for b_ in copies])
         VS.record(con, r["session_id"], "photo-key", name[:-4] + ".key",
                   [(b_, len(kb), hashlib.sha256(kb).hexdigest()) for b_ in copies])
@@ -422,6 +489,26 @@ def open_sealed(con, sid, master_secret, backend, dest_dir, only=()):
 
 MIRROR = "photos/"
 
+def fetch_back(r, backend):
+
+    p, name = path_of(r["id"]), MIRROR + f"{r['id']}.lap"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_name(p.name + ".fetch")
+    with open(tmp, "wb") as f:
+        backend.get_stream(name, f)
+    if tmp.stat().st_size != r["ct_len"]:
+        tmp.unlink()
+        raise IOError(f"the mirror copy of {r['name']} is not the size it should be")
+    os.replace(tmp, p)
+    kp = key_path(r["id"])
+    if not kp.exists():
+        try:
+            with open(kp.with_name(kp.name + ".fetch"), "wb") as f:
+                backend.get_stream(MIRROR + f"{r['id']}.key", f)
+            os.replace(kp.with_name(kp.name + ".fetch"), kp)
+        except Exception:
+            kp.with_name(kp.name + ".fetch").unlink(missing_ok=True)
+
 def mirror_pass(con, backend, audit=False):
 
     copied = fetched = removed = 0
@@ -429,22 +516,7 @@ def mirror_pass(con, backend, audit=False):
     for r in rows:
         p, name = path_of(r["id"]), MIRROR + f"{r['id']}.lap"
         if not p.exists() and r["mirrored"]:
-            p.parent.mkdir(parents=True, exist_ok=True)
-            tmp = p.with_name(p.name + ".fetch")
-            with open(tmp, "wb") as f:
-                backend.get_stream(name, f)
-            if tmp.stat().st_size != r["ct_len"]:
-                tmp.unlink()
-                raise IOError(f"the mirror copy of {r['name']} is not the size it should be")
-            os.replace(tmp, p)
-            kp = key_path(r["id"])
-            if not kp.exists():
-                try:
-                    with open(kp.with_name(kp.name + ".fetch"), "wb") as f:
-                        backend.get_stream(MIRROR + f"{r['id']}.key", f)
-                    os.replace(kp.with_name(kp.name + ".fetch"), kp)
-                except Exception:
-                    kp.with_name(kp.name + ".fetch").unlink(missing_ok=True)
+            fetch_back(r, backend)
             fetched += 1
             continue
         if r["mirrored"] == backend.kind and (not audit or backend.stat(name) == r["ct_len"]):
@@ -454,7 +526,7 @@ def mirror_pass(con, backend, audit=False):
         if key_path(r["id"]).exists():
             with open(key_path(r["id"]), "rb") as f:
                 backend.put_stream(MIRROR + f"{r['id']}.key", f)
-        if backend.stat(name) != r["ct_len"]:
+        if backend.stat(name) != r["ct_len"] or _remote_sha(backend, name) != _file_sha(p):
             backend.delete(name)
             raise IOError(f"the mirror copy of {r['name']} did not verify")
         con.execute("UPDATE photo_files SET mirrored=? WHERE id=?", (backend.kind, r["id"]))

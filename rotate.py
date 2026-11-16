@@ -40,7 +40,40 @@ def _counts(con):
     tables = [r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")]
     return {t: con.execute("SELECT COUNT(*) FROM " + db_ident(t)).fetchone()[0] for t in tables}
 
+def _fetch_missing_photos(old):
+
+    import photostore
+    con = D.connect(key=old)
+    try:
+        if not con.execute("SELECT 1 FROM sqlite_master WHERE name='photo_files'").fetchone():
+            return 0
+        rows = [r for r in con.execute("SELECT * FROM photo_files WHERE state='done' AND mirrored IS NOT NULL").fetchall()
+                if not photostore.path_of(r["id"]).exists()]
+    finally:
+        con.close()
+    if not rows:
+        return 0
+    failed = []
+    try:
+        from vault import backends as VB
+        raw = VW.CFG_PATH.read_bytes()
+        cfg = json.loads(datakey.open_bytes(raw, "storage", label="storage", key=old) if raw.startswith(datakey.FILE_MAGIC) else raw)
+        target = VB.from_config(cfg.get("secondary") or cfg["primary"])
+    except Exception as e:
+        target, failed = None, [f"the backup location can't be opened ({e})"]
+    for r in rows if target else []:
+        try:
+            photostore.fetch_back(r, target)
+        except Exception as e:
+            failed.append(f"{r['name']} ({e})")
+    if failed:
+        raise RuntimeError(f"{len(rows)} photo(s) are only on the backup location and could not all be fetched back: "
+                           + "; ".join(failed[:5]) + ". Nothing was changed. Make the backup location reachable, then "
+                           "rotate again.")
+    return len(rows)
+
 def stage(old, new, password):
+    _fetch_missing_photos(old)
     db_new = Path(str(D.DB_PATH) + STAGED)
     D.remove_with_sidecars(db_new)
     con = D.connect(key=old)

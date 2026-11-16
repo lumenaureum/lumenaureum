@@ -1,6 +1,6 @@
 # Lumen Aureum. Before the first start:
-#   1. Set LUMEN_HOST_IP to the address your computers use to reach this machine, in a file named .env next to
-#      this one:   LUMEN_HOST_IP=192.168.1.10
+#   1. Set LUMENAUREUM_HOST_IP to the address your computers use to reach this machine, in a file named .env next to
+#      this one:   LUMENAUREUM_HOST_IP=192.168.1.10
 #      No .env file (a NAS app screen such as TrueNAS "Install via YAML")? Write the address straight into the
 #      ports line instead:   - "192.168.1.10:8780:8780"
 #      A machine with more than one network (a separate storage network) must use the address on the network your
@@ -10,22 +10,22 @@
 #      separate dataset is fine; then add a second backup copy in another place (Settings), which is what protects you.
 # Then: docker compose up -d, and open https://<that address>:8780 from another device on your network.
 services:
-  lumen:
-    image: ghcr.io/lumenaureum/lumenaureum:1.2.0     # a fixed version; change it deliberately to upgrade
+  lumenaureum:
+    image: ghcr.io/lumenaureum/lumenaureum:1.3.0     # a fixed version; change it deliberately to upgrade
     restart: unless-stopped
     user: "10001:10001"                              # the user and group that own the folders below
     ports:
-      - "${LUMEN_HOST_IP:?Set LUMEN_HOST_IP to this machine's address on your network}:8780:8780"
+      - "${LUMENAUREUM_HOST_IP:?Set LUMENAUREUM_HOST_IP (called LUMEN_HOST_IP before 1.3) to this machine's address on your network}:8780:8780"
     volumes:
       - ./data:/data                                 # database, keyring, settings
-      - /path/to/another/disk/lumen-vault:/vault     # backups: a different disk or dataset from ./data
+      - /path/to/another/disk/lumenaureum-vault:/vault     # backups: a different disk or dataset from ./data
       - ./photos:/photos                             # uploaded RAWs and exports, stored encrypted: make room for them
     # The app sees only the folders listed here. To use another folder on this machine, add a line and type the name
     # after the colon in setup (docs/where-it-runs.md, Folders outside the container). Give it the owner in "user".
-    #  - /mnt/usb-backup/lumen:/backup2              # a second backup copy on another disk: type /backup2 in setup
+    #  - /mnt/usb-backup/lumenaureum:/backup2              # a second backup copy on another disk: type /backup2 in setup
     #  - /srv/www/galleries:/galleries               # a folder a web server here serves: type /galleries in setup
-    # Optional: unattended unlock (see docs/security.md). The key file must be on a different volume from ./data.
-    #  - /path/to/other-volume/lumen-unlock:/unlock
+    # Optional: unattended unlock (see docs/security.md). The key file must be on another device than ./data (another disk, a USB key).
+    #  - /path/to/other-volume/lumenaureum-unlock:/unlock
     # Settings such as CRM_ALLOW_ONLY are lines under environment: (docs/where-it-runs.md, Settings in compose.yaml).
     # environment:
     #   CRM_UNLOCK_KEY_FILE: /unlock/unlock.key

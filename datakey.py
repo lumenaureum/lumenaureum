@@ -45,11 +45,18 @@ def set_unlocked(key, ready=False):
         _state["ready"] = ready
         _state["pending"].clear()
 
+ON_LOCK = []
+
 def lock():
     with _lock:
         _state["dk"] = None
         _state["ready"] = False
         _state["pending"].clear()
+    for fn in list(ON_LOCK):
+        try:
+            fn()
+        except Exception:
+            pass
 
 def hold_pending(key, extra=None):
 
@@ -145,17 +152,24 @@ def _mac(ring, key):
 def _read(path=None):
     return json.loads(Path(path or KEYRING).read_text())
 
+_RING_LOCK = threading.RLock()
+
 def _write(ring, key, path=None):
     ring["mac"] = _mac(ring, key)
     dest = Path(path or KEYRING)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_name(dest.name + ".tmp")
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w") as f:
-        json.dump(ring, f, indent=1)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp, dest)
+    tmp = dest.with_name(f"{dest.name}.{os.getpid()}.{secrets.token_hex(4)}.tmp")
+    with _RING_LOCK:
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(ring, f, indent=1)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, dest)
+        finally:
+            if os.path.exists(tmp):
+                os.remove(tmp)
     _fsync_dir(dest.parent)
 
 def _check(ring, key):
@@ -187,10 +201,12 @@ def unwrap_master(secret, ring_path=None):
 
 def rewrap_password(new_password, key=None):
     key = key or dk()
-    ring = _read()
-    _check(ring, key)
-    ring["password"] = _b64(passphrase.encrypt(key, new_password))
-    _write(ring, key)
+    wrap = _b64(passphrase.encrypt(key, new_password))
+    with _RING_LOCK:
+        ring = _read()
+        _check(ring, key)
+        ring["password"] = wrap
+        _write(ring, key)
 
 def master_pub():
     try:
@@ -208,47 +224,143 @@ def auto_enabled():
     except (OSError, ValueError):
         return False
 
+def _mounts():
+
+    try:
+        with open("/proc/self/mountinfo") as f:
+            lines = f.read().splitlines()
+    except OSError:
+        return None
+    out = []
+    for line in lines:
+        head, _, tail = line.partition(" - ")
+        h = head.split()
+        if len(h) > 4:
+            out.append((h[4].replace("\\040", " "), (tail.split() or [""])[0]))
+    return out
+
+def _best_mount(path):
+    mounts = _mounts()
+    if mounts is None:
+        return None
+    real = os.path.realpath(path)
+    best = None
+    for mp, fstype in mounts:
+        if real == mp or real.startswith(mp.rstrip("/") + "/") or mp == "/":
+            if best is None or len(mp) >= len(best[0]):
+                best = (mp, fstype)
+    return best
+
+def _mount_point(path):
+
+    b = _best_mount(path)
+    return b[0] if b else None
+
+def _mount_fstype(path):
+
+    b = _best_mount(path)
+    return b[1] if b else None
+
+def _in_container():
+    return os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")
+
+def _existing(p):
+
+    p = Path(p)
+    while not p.exists() and p.parent != p:
+        p = p.parent
+    return p
+
+MEMORY_ONLY = ("tmpfs", "ramfs")
+
+class PlaceRefused(ValueError):
+
+    def __init__(self, msg, where):
+        super().__init__(msg)
+        self.where = where
+
+def check_auto_place(path):
+
+    parent = Path(path).resolve().parent
+    data = KEYRING.resolve().parent
+    here = _existing(parent)
+    msg = ("The unlock key file must be on a different volume from the data: on the same disk it would be no "
+           "protection at all.")
+    if parent == data or data in parent.parents:
+        raise PlaceRefused(msg, "the data folder")
+    if os.stat(here).st_dev == os.stat(data).st_dev:
+        raise PlaceRefused(msg, "the same volume as the data")
+    kp, dp = _mount_point(here), _mount_point(data)
+    if kp is not None and kp == dp:
+        raise PlaceRefused(msg + " Mount a separate volume for it (see docs/security.md).", "the same volume as the data")
+    if kp is not None and kp == "/" and _in_container():
+        raise PlaceRefused(msg + " Mount a separate volume for it (see docs/security.md).",
+                           "the container's own filesystem")
+    if _mount_fstype(here) in MEMORY_ONLY:
+        raise PlaceRefused("The unlock key file can't go there: this place is emptied at every restart, so the app "
+                           "could never unlock itself. Use a separate volume on disk.",
+                           "a memory-only filesystem that is emptied at every restart")
+
 def enable_auto(key=None):
 
     key = key or dk()
     path = auto_file()
     if not path:
         raise ValueError("Set CRM_UNLOCK_KEY_FILE to a path on a separate volume first.")
-    parent = path.resolve().parent
-    parent.mkdir(parents=True, exist_ok=True)
-    data = KEYRING.resolve().parent
-    if parent == data or data in parent.parents or os.stat(parent).st_dev == os.stat(data).st_dev:
-        raise ValueError("The unlock key file must be on a different volume from the data: on the same disk it would "
-                         "be no protection at all.")
-    ident = x25519.Identity.generate()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w") as f:
-        f.write(str(ident) + "\n")
-    ring = _read()
-    _check(ring, key)
-    ring["auto"] = _b64(pyrage.encrypt(key, [ident.to_public()]))
-    ring["auto_pub"] = str(ident.to_public())
-    _write(ring, key)
+    check_auto_place(path)
+    path.resolve().parent.mkdir(parents=True, exist_ok=True)
+    with _RING_LOCK:
+        ring = _read()
+        _check(ring, key)
+        ident = x25519.Identity.generate()
+        tmp = path.with_name(f"{path.name}.{secrets.token_hex(4)}.tmp")
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(str(ident) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+        ring["auto"] = _b64(pyrage.encrypt(key, [ident.to_public()]))
+        ring["auto_pub"] = str(ident.to_public())
+        _write(ring, key)
+        AUTO_REFUSED[0] = None
 
 def disable_auto(key=None):
     key = key or dk()
-    ring = _read()
-    _check(ring, key)
-    ring.pop("auto", None)
-    ring.pop("auto_pub", None)
-    _write(ring, key)
+    with _RING_LOCK:
+        ring = _read()
+        _check(ring, key)
+        ring.pop("auto", None)
+        ring.pop("auto_pub", None)
+        _write(ring, key)
+    AUTO_REFUSED[0] = None
     p = auto_file()
     if p and p.exists():
         p.unlink()
 
+AUTO_REFUSED = [None]
+
+def auto_refused():
+    return AUTO_REFUSED[0]
+
 def try_auto_unlock():
 
+    AUTO_REFUSED[0] = None
     path = auto_file()
     if not path or not path.exists() or not exists():
         return None
     ring = _read()
     if not ring.get("auto"):
+        return None
+    try:
+        check_auto_place(path)
+    except PlaceRefused as e:
+        AUTO_REFUSED[0] = (f"Unattended unlock is off: the key file is on {e.where}. Move it to its own volume.")
+        print(f"WARNING: {AUTO_REFUSED[0]} ({path}) Starting locked: sign in to unlock.", flush=True)
+        return None
+    except (OSError, ValueError) as e:
+        AUTO_REFUSED[0] = "Unattended unlock is off: the key file's place could not be checked."
+        print(f"WARNING: {AUTO_REFUSED[0]} ({path}: {e}) Starting locked: sign in to unlock.", flush=True)
         return None
     try:
         ident = x25519.Identity.from_str(path.read_text().strip())
@@ -281,8 +393,9 @@ def create_from(key, pw_wrap, master_pub_):
 def replace_master(new_pub, key=None):
 
     key = key or dk()
-    ring = _read()
-    _check(ring, key)
-    ring["master"] = _b64(pyrage.encrypt(key, [x25519.Recipient.from_str(new_pub)]))
-    ring["master_pub"] = new_pub
-    _write(ring, key)
+    with _RING_LOCK:
+        ring = _read()
+        _check(ring, key)
+        ring["master"] = _b64(pyrage.encrypt(key, [x25519.Recipient.from_str(new_pub)]))
+        ring["master_pub"] = new_pub
+        _write(ring, key)

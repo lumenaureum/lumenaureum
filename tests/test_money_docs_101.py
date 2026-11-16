@@ -39,9 +39,9 @@ def test_an_issued_invoice_stays_as_issued_after_later_payments(tmp_path, monkey
     num = _number(A, sid, "INV")
     assert num and _q(A, "SELECT 1 FROM bill_snapshots WHERE number=?", (num,))
     before = _page(c, f"/session/{sid}/invoice")
-    _pay(c, sid, "200", kind="balance", received="2026-12-01")
+    _pay(c, sid, "200", kind="balance", received="2026-01-15")
     after = _page(c, f"/session/{sid}/invoice")
-    assert num in after and "$200" in after and "Dec 1" not in after.split('class="page"')[1]
+    assert num in after and "$200" in after and "Jan 15" not in after.split('class="page"')[1]
     assert re.search(r"Balance due</b></td><td class=\"n\"><b>\$200<", after)
     assert "It has since been paid in full." in after
     pdf = c.get(f"/session/{sid}/invoice.pdf", environ_base=E).get_data(as_text=True)

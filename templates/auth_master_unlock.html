@@ -3,10 +3,10 @@
 <p class="mute">Paste your master key, type the recovery code from the file <b>RECOVERY-CODE.txt</b> in your data folder (it lasts 15 minutes and works once), and choose a new password.</p>
 <form method="post" class="card f" autocomplete="off">
   {% if err == 'code' %}<div class="err">That recovery code is wrong or has expired. Open RECOVERY-CODE.txt in your data folder again.</div>{% elif err == 'password' %}<div class="err">New passwords must match and be at least {{ min_pw }} characters.</div>{% elif err == 'slow' %}<div class="err">Too many tries from here. Try again later.</div>{% elif err %}<div class="err">{{ err }}</div>{% endif %}
-  <input name="secret" placeholder="AGE-SECRET-KEY-1..." required autofocus spellcheck="false">
-  <input name="code" placeholder="Recovery code (XXXX-XXXX-XXXX)" required spellcheck="false" autocomplete="off">
-  <input type="password" name="password" placeholder="New password ({{ min_pw }}+ characters)" autocomplete="new-password" minlength="{{ min_pw }}" required>
-  <input type="password" name="password2" placeholder="New password again" autocomplete="new-password" required>
+  <div><label class="l" for="mu-secret">Master key</label><input type="password" id="mu-secret" name="secret" placeholder="AGE-SECRET-KEY-1..." autocomplete="off" required autofocus spellcheck="false"></div>
+  <div><label class="l" for="mu-code">Recovery code from RECOVERY-CODE.txt</label><input id="mu-code" name="code" placeholder="XXXX-XXXX-XXXX" required spellcheck="false" autocomplete="off"></div>
+  <div><label class="l" for="mu-pw">New password ({{ min_pw }}+ characters)</label><input type="password" id="mu-pw" name="password" autocomplete="new-password" minlength="{{ min_pw }}" required></div>
+  <div><label class="l" for="mu-pw2">New password again</label><input type="password" id="mu-pw2" name="password2" autocomplete="new-password" required></div>
   <button class="primary">Unlock and set password</button>
 </form>
 <p style="margin-top:12px"><a href="{{ url_for('login') }}">Back to sign in</a></p>{% endblock %}

@@ -231,7 +231,7 @@ def test_a_bad_draft_date_never_stops_expiry(gal, at):
     con.execute("UPDATE sessions SET first_visit=? WHERE id=?", (old, sid))
     con.commit(); con.close()
     c.post("/gallery/sync", environ_base=E)
-    assert not (host / GID).exists()
+    assert [p.name for p in (host / GID).iterdir()] == ["index.html"]
     assert _q(A, "SELECT upload_state FROM galleries WHERE session_id=?", (sid,))[0][0] == "removed"
 
 def test_a_draft_listing_picks_in_another_order_is_not_still_picking(gal):

@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en" data-gate="1" data-gid="5jOO5m27qTjR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src blob:; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<title>Photos</title>
+<style>
+:root { --bg: #f6f3ed; --ink: #1f1b16; --mute: #756b60; --line: #e2dbcf; --gold: #b8862f; --ring: #b5842e; --cell: #e9e3d8; --edge: #cfc5b4;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif; color-scheme: light; }
+
+html.dark { color-scheme: dark; }
+html.f-elegant { --serif: "Gallery Serif", "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif; }
+html.f-script header h1 { font-family: "Gallery Script", var(--serif); font-size: clamp(40px, 6vw, 64px); line-height: 1.1; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-text-size-adjust: 100%; }
+body { min-height: 100vh; display: flex; flex-direction: column; }
+body.tray { padding-bottom: 58px; }
+html:has(body.tray) { scroll-padding-bottom: 76px; }
+header { padding: 36px 20px 20px; max-width: 1100px; margin: 0 auto; text-align: center; }
+#brand { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 18px; }
+#logo { display: block; max-height: 72px; max-width: min(320px, 70vw); object-fit: contain; }
+#studio { font-size: 12px; letter-spacing: .22em; text-transform: uppercase; color: var(--mute); }
+#studio.word { font: 400 24px/1.2 var(--serif); letter-spacing: .04em; text-transform: none; color: var(--ink); }
+.rule { width: 56px; height: 1px; background: var(--gold); margin: 0 auto 16px; border: 0; }
+header h1 { margin: 0 0 10px; font: 400 clamp(30px, 4.4vw, 46px)/1.15 var(--serif); letter-spacing: .01em; }
+#meta { margin: 0; color: var(--mute); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; text-wrap: balance; }
+#how { margin: 12px auto 0; }
+#how button { background: none; border: 0; padding: 0; font: inherit; font-size: 14px; color: var(--mute); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+#how button:hover { color: var(--ink); }
+#welcome { position: fixed; inset: 0; z-index: 20; background: rgba(20,16,12,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
+#welcome[hidden] { display: none; }
+#welcome .box { background: var(--bg); color: var(--ink); max-width: 440px; width: 100%; border-radius: 10px; padding: 26px 28px 22px; box-shadow: 0 12px 40px rgba(0,0,0,.25); font-size: 15px; line-height: 1.5; }
+#welcome h2 { margin: 0 0 10px; font: 400 26px/1.2 var(--serif); }
+#welcome p { margin: 0 0 10px; color: var(--ink); }
+#welcome ul { margin: 0 0 12px; padding-left: 20px; } #welcome li { margin: 6px 0; }
+#wgo { display: block; margin: 16px 0 0 auto; font: 600 15px/1 -apple-system, sans-serif; padding: 11px 26px; border: 0; border-radius: 20px; background: #e3aa48; color: #1a1308; cursor: pointer; }
+body.welcomeopen { overflow: hidden; }
+#ask { position: fixed; inset: 0; z-index: 20; background: rgba(20,16,12,.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+#ask[hidden] { display: none; }
+#ask .box { background: var(--bg); color: var(--ink); max-width: 360px; width: 100%; border-radius: 10px; padding: 22px 24px 18px; box-shadow: 0 12px 40px rgba(0,0,0,.25); font-size: 15px; line-height: 1.5; }
+#ask p { margin: 0 0 16px; } #ask .row { display: flex; justify-content: flex-end; gap: 10px; }
+#ask button { font: 600 14px/1 -apple-system, sans-serif; padding: 10px 20px; border-radius: 20px; cursor: pointer; border: 1px solid var(--edge); background: none; color: var(--ink); }
+#ask #askgo { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.cell .tag i[data-k] { cursor: pointer; }
+.nw { white-space: nowrap; }
+#grid img, #lb img { -webkit-user-drag: none; user-select: none; -webkit-touch-callout: none; }   
+
+header.two { display: grid; grid-template-columns: auto 1px minmax(0, 1fr); column-gap: 28px; align-items: center; max-width: 980px; text-align: left; }
+header.two #brand { grid-column: 1; grid-row: 1 / span 3; margin: 0; align-items: flex-end; }
+header.two .rule { grid-column: 2; grid-row: 1 / span 3; width: 1px; height: 100%; min-height: 90px; margin: 0; align-self: stretch; }
+header.two h1, header.two #meta, header.two #how, header.two #dlall { grid-column: 3; }
+#brand a { display: flex; flex-direction: column; align-items: inherit; gap: 12px; color: inherit; text-decoration: none; }
+#dlall { margin: 16px auto 0; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; } #dlall[hidden] { display: none; }
+header.two #dlall { margin: 14px 0 0; justify-content: flex-start; }
+#dlall button { font: 600 15px/1 -apple-system, sans-serif; padding: 11px 22px; border: 0; border-radius: 20px; background: #e3aa48; color: #1a1308; cursor: pointer; }
+#dlall button:disabled { opacity: .75; cursor: default; }
+#dlwait { margin: 10px auto 0; font-size: 13px; color: var(--mute); } #dlwait[hidden] { display: none; }
+header.two #dlwait { grid-column: 3; margin: 8px 0 0; }
+#lb #pickbar #dl { background: #e3aa48; border-color: #e3aa48; color: #1a1308; opacity: 1; }
+header.two #how { margin: 8px 0 0; }
+@media (max-width: 640px) { header.two { display: block; text-align: center; }
+  header.two #brand { align-items: center; margin-bottom: 18px; } header.two .rule { width: 56px; height: 1px; min-height: 0; margin: 0 auto 16px; }
+  header.two #how, header.two #dlall { margin: 14px auto 0; } header.two #dlall { justify-content: center; } }
+#filter { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 0 16px 18px; }
+#filter[hidden] { display: none; }
+#filter button { font: 600 15px/1 -apple-system, sans-serif; padding: 10px 18px; border: 1px solid var(--edge); border-radius: 20px; background: none; color: var(--ink); cursor: pointer; }
+#filter button.on { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+#filter button:disabled { opacity: .4; cursor: default; }
+.cell.out { display: none; }
+#grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; padding: 0 28px 64px;
+  max-width: 1600px; margin: 0 auto; width: 100%; flex: 1 0 auto; align-content: start; }
+@media (max-width: 520px) { #grid { grid-template-columns: repeat(2, 1fr); gap: 4px; padding: 0 4px 24px; } header { padding: 36px 14px 22px; } }
+.cell { position: relative; aspect-ratio: 1; background: var(--cell); overflow: hidden; cursor: zoom-in; border: 0; padding: 0; display: block; width: 100%; }
+.cell img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; transition: opacity .35s, transform .5s; }
+.cell:hover img.on { transform: scale(1.025); }
+.cell img.on { opacity: 1; }
+.cell:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+#msg { flex: 1 0 auto; display: grid; place-items: center; text-align: center; color: var(--mute); padding: 96px 24px; }
+#msg[hidden] { display: none; }
+#msg b { display: block; color: var(--ink); font: 400 28px/1.3 var(--serif); margin-bottom: 8px; }
+#msgact:empty { display: none; } #msgact { margin-top: 14px; } #msgact form[hidden] { display: none; }
+#msgact button { font: inherit; padding: 8px 16px; border: 0; border-radius: 18px; background: #e3aa48; color: #1a1308; cursor: pointer; }
+#msgact button.plain { background: none; color: var(--ink); text-decoration: underline; padding: 8px 10px; }
+#msgact input { font: inherit; padding: 8px 10px; border: 1px solid var(--edge); background: var(--bg); color: var(--ink); border-radius: 8px; margin-right: 8px; }
+footer { background: #141210; color: #b9ad9a; padding: 26px 20px 30px; text-align: center; font-size: 13px; margin-top: auto; }
+#contact { margin-bottom: 14px; color: #e9e1d2; } #contact a { color: #e9e1d2; text-decoration: none; border-bottom: 1px solid #4a4237; }
+#contact span + span::before { content: "\00b7"; margin: 0 10px; color: #6e6455; }
+#rights { margin: -6px 0 14px; font-size: 12px; color: #8f8474; }
+#la { display: inline-flex; align-items: center; gap: 10px; color: #b9ad9a; text-decoration: none; letter-spacing: .03em; }
+#la svg { width: 30px; height: 30px; } #la b { color: #f0dfb4; font-weight: 600; } #la:hover b { color: #f6dfa6; }
+#la small { display: block; font-size: 11px; color: #7f7464; letter-spacing: .08em; }
+#lb { position: fixed; inset: 0; background: #0b0a09; display: none; z-index: 10; touch-action: pan-y pinch-zoom; user-select: none; }
+#lb.open { display: flex; flex-direction: column; align-items: center; padding: 16px 72px 8px; }
+#lb img { display: block; flex: 1 1 0; min-height: 0; width: 100%; object-fit: contain; opacity: 0; transition: opacity .2s; }
+#lb img.on { opacity: 1; }
+#lb button { position: absolute; background: none; border: 0; color: var(--ink); opacity: .7; cursor: pointer; padding: 18px;
+  font: 300 44px/1 -apple-system, sans-serif; }
+#lb button:hover { opacity: 1; }
+#prev { left: 0; top: 50%; transform: translateY(-50%); }
+#next { right: 0; top: 50%; transform: translateY(-50%); }
+#close { right: 0; top: 0; font-size: 36px !important; }
+#count { flex: none; padding: 6px 0 2px; text-align: center; color: var(--mute); font-size: 13px; }
+@media (hover: none) { #prev, #next { display: none; } #lb.open { padding: 0 0 6px; } }
+.num { position: absolute; left: 7px; top: 6px; font-size: 11px; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.7); opacity: .85; }
+.tag { position: absolute; right: 8px; top: 7px; display: flex; gap: 5px; }
+.tag i { font-style: normal; font-size: 13px; font-weight: 700; padding: 3px 9px; border-radius: 11px; background: #e3aa48; color: #1a1308; }
+.tag i.heart { background: #d9667f; color: #fff; }
+.tag i.no { background: #3a3530; color: #f2ebe0; }
+.tag i[data-tip] { position: relative; cursor: default; }
+.tag i[data-tip]:hover::after { content: attr(data-tip); position: absolute; right: 0; top: calc(100% + 6px); z-index: 5;
+  width: max-content; max-width: 220px; padding: 6px 9px; border-radius: 6px; background: rgba(20,16,12,.92); color: #f2ebe0;
+  font-weight: 400; font-size: 12px; line-height: 1.4; white-space: normal; text-align: left; }
+#pickbar { flex: none; margin-top: 12px; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; align-items: center; z-index: 2; max-width: calc(100vw - 16px); }
+@media (max-width: 640px) { #note { order: -1; flex-basis: 100%; max-width: none !important; } }
+body.lbopen #tray { display: none; }
+#lb #pickbar button { position: static; font: 600 13px/1 -apple-system, sans-serif; padding: 8px 12px; border: 1px solid rgba(236,229,216,.45); border-radius: 18px; opacity: .85; }
+#lb #pickbar button.on { background: #e3aa48; border-color: #e3aa48; color: #1a1308; opacity: 1; }
+#lb #pickbar #pm.on { background: #d9667f; border-color: #d9667f; color: #fff; }
+#lb #pickbar #pv.on { background: #f2ebe0; border-color: #f2ebe0; color: #1a1308; }
+#bigtag { position: fixed; z-index: 3; gap: 6px; }
+#bigtag i { font-size: 15px; padding: 3px 10px; border-radius: 12px; }
+#lb #pickbar #done { border-color: transparent; text-decoration: underline; text-underline-offset: 3px; }
+#lb button { color: #ece5d8; }
+#count { color: #8f8678 !important; }
+#count.warn { color: #ece5d8 !important; font-size: 14px; }
+#lberr { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); max-width: 320px; text-align: center; color: #ece5d8; font-size: 15px; }
+#lberr[hidden] { display: none; }
+#lbload { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); padding: 8px 16px; border-radius: 18px;
+  background: rgba(11,10,9,.75); color: #ece5d8; font-size: 15px; pointer-events: none; }
+#lbload[hidden] { display: none; }
+#lb img.ph { filter: blur(6px); opacity: .7; }
+#lb #pickbar button:disabled, #note:disabled { opacity: .35; cursor: default; }
+#upd { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; gap: 12px; align-items: center;
+  max-width: calc(100vw - 20px); padding: 10px 14px; border-radius: 10px; background: rgba(20,18,16,.97); color: #ece5d8; font-size: 14px; }
+#upd[hidden] { display: none; }
+@media (max-width: 640px) { #upd { left: 8px; right: 8px; transform: none; max-width: none; flex-wrap: wrap; justify-content: center; text-align: center; } }
+#upd button, #lb #lberr button.reload { font: 600 14px/1 -apple-system, sans-serif; padding: 9px 18px; border: 0; border-radius: 18px; background: #e3aa48; color: #1a1308; cursor: pointer; }
+#lb #lberr button { position: static; font: 600 14px/1 -apple-system, sans-serif; padding: 9px 18px; margin-top: 12px; border: 1px solid rgba(236,229,216,.45); border-radius: 18px; }
+#note { width: 260px; max-width: 48vw; padding: 7px 10px; border-radius: 16px; border: 1px solid #26221e; background: #171513; color: #ece5d8; font-size: 13px; }
+
+@media (max-width: 640px), (max-height: 500px) {
+  #lb.open { padding: 0 0 max(6px, env(safe-area-inset-bottom)); }
+  #count { padding: 4px 0 0; font-size: 12px; }
+  #pickbar { margin-top: 6px; gap: 6px; padding: 0 8px; max-width: 100vw; }
+  #lb #pickbar button { padding: 7px 10px; font-size: 12.5px; }
+  #lb #close { padding: 10px 14px; }
+}
+@media (max-width: 640px) { #note { width: 100%; } }
+@media (max-height: 500px) { #pickbar { margin-top: 4px; } }
+#tray { position: fixed; left: 0; right: 0; bottom: 0; display: none; justify-content: center; gap: 14px; align-items: center; padding: 10px; background: rgba(20,18,16,.97); color: #ece5d8; font-size: 14px; z-index: 5; }
+#trayn { white-space: pre; } #trayn .short { display: none; } #trayn .saved::before { content: "  \0000b7  "; }
+@media (max-width: 640px) { #tray { gap: 10px; font-size: 13px; padding: 8px 10px; } #trayn { text-align: center; }
+  #trayn .long { display: none; } #trayn .short { display: inline; }
+  #trayn .saved { display: block; color: #b9ad9a; } #trayn .saved::before { content: none; } }
+#sent:empty { display: none; } #send { white-space: nowrap; }
+@media (max-width: 640px) { #tray { flex-wrap: wrap; row-gap: 4px; } #sent { flex-basis: 100%; text-align: center; color: #f0dfb4; }
+  body.tray.sentline { padding-bottom: 96px; } }
+#tray.on { display: flex; } #tray a { color: #1a1308; background: #e3aa48; padding: 8px 16px; border-radius: 18px; text-decoration: none; font-weight: 600; }
+</style>
+</head>
+<body>
+<header hidden><div id="brand"><img id="logo" alt="" hidden><div id="studio"></div></div><hr class="rule"><h1 id="title"></h1><p id="meta"></p><div id="how" hidden></div><div id="dlall" hidden><button id="dlallb" type="button">Download all</button></div><p id="dlwait" hidden>Keep this page open until the download finishes.</p></header>
+<nav id="filter" hidden aria-label="Show"></nav>
+<main id="grid"></main>
+<div id="msg" hidden><div><div id="msgsay" role="status" aria-live="polite" aria-atomic="true"></div><div id="msgerr" role="alert" aria-atomic="true"></div><div id="msgact"></div></div></div>
+<div id="tray"><span id="trayn"></span><a id="send" href="#" role="button">Send my picks</a><span id="sent" role="status" aria-live="polite"></span></div>
+<div id="live" class="sr" role="status" aria-live="polite" aria-atomic="true"></div>
+<div id="upd" role="status" hidden><span>These photos were just updated. Reload to see the new version.</span><button id="updgo" type="button">Reload</button></div>
+<div id="welcome" role="dialog" aria-modal="true" aria-labelledby="wtitle" hidden><div class="box">
+  <h2 id="wtitle">Picking your photos</h2>
+  <p>Open a photo, then press:</p>
+  <ul id="wlist"></ul>
+  <p>When you're done, press <b>Send my picks</b>.</p>
+  <button id="wgo" type="button">Start</button>
+</div></div>
+<div id="ask" role="dialog" aria-modal="true" aria-labelledby="asktext" hidden><div class="box">
+  <p id="asktext"></p>
+  <div class="row"><button id="askkeep" type="button">Keep</button><button id="askgo" type="button">Remove</button></div>
+</div></div>
+<div id="lb" role="dialog" aria-modal="true">
+  <img id="big" alt="">
+  <div id="lbload" role="status" aria-live="polite" hidden>Loading photo...</div>
+  <div id="lberr" role="alert" hidden><div id="lbsay">This photo can't load right now. Check your connection.</div><button id="lbagain" type="button">Try again</button></div>
+  <button id="prev" aria-label="Previous">&lsaquo;</button>
+  <button id="next" aria-label="Next">&rsaquo;</button>
+  <button id="close" aria-label="Close">&times;</button>
+  <div id="count"></div>
+  <div id="bigtag" class="tag" aria-hidden="true"></div>
+  <div id="pickbar"><button id="pr" type="button">Retouch</button><input id="note" placeholder="What should be fixed?" aria-label="What should be fixed in this photo?" maxlength="200" hidden><button id="pm" type="button">Suggest for portfolio</button><button id="pv" type="button">Please don't show</button><button id="dl" type="button" hidden>Download</button><button id="done" type="button">Done</button></div>
+</div>
+<script>
+"use strict";
+(() => {
+const $ = id => document.getElementById(id);
+const LOOK = "look:" + location.pathname;
+function look(T, built) {
+  if (!T || typeof T !== "object") return;
+  const r = document.documentElement, C = T.colors || {}, ok = h => /^#[0-9a-f]{6}$/i.test(h || "");
+  ["bg", "ink", "mute", "line", "cell", "edge", "ring"].forEach(k => { if (ok(C[k])) r.style.setProperty("--" + k, C[k]); });
+  const sum = h => [1, 3, 5].reduce((a, i) => a + parseInt(h.slice(i, i + 2), 16), 0);
+  if (ok(C.bg) && ok(C.ink)) r.classList.toggle("dark", sum(C.bg) < sum(C.ink));
+  if (!built) return;
+  if ((T.font === "elegant" || T.font === "script") && window.FontFace && document.fonts) try {   // the file sits beside the page
+    const ff = new FontFace(T.font === "script" ? "Gallery Script" : "Gallery Serif", "url(font.woff2)");
+    document.fonts.add(ff); ff.load().catch(() => {});
+    r.classList.add("f-" + T.font);
+  } catch (e) {}
+  try { localStorage.setItem(LOOK, JSON.stringify({ colors: C })); } catch (e) {}
+}
+try { look(JSON.parse(localStorage.getItem(LOOK) || "null"), false); } catch (e) {}
+
+const subtle = window.crypto && window.crypto.subtle;
+let ckey = null;
+const HP = new URLSearchParams(location.hash.slice(1));
+const k = HP.get("k") || "";
+const NEEDS_WORD = HP.get("c") === "1";   // the gallery is protected by a codeword the client chose
+let raw = (() => {
+  try {
+    const s = k.replace(/-/g, "+").replace(/_/g, "/");
+    const b = atob(s + "===".slice((s.length + 3) % 4));
+    return b.length === 32 ? Uint8Array.from(b, c => c.charCodeAt(0)) : null;
+  } catch (e) { return null; }
+})();
+const PREVIEW = location.pathname.startsWith("/gallery-preview/");
+
+async function open(buf, name) {
+  const data = new Uint8Array(buf);
+  if (subtle) {
+    if (!ckey) ckey = await subtle.importKey("raw", raw, "AES-GCM", false, ["decrypt"]);
+    return new Uint8Array(await subtle.decrypt({ name: "AES-GCM", iv: data.subarray(0, 12),
+      additionalData: new TextEncoder().encode("lumen-aureum-gallery:" + name) }, ckey, data.subarray(12)));
+  }
+  throw Object.assign(new Error("insecure"), { insecure: true });
+}
+async function fingerprint(lines) {
+  const text = lines.map(l => l.trim().replace(/\s+/g, " ")).filter(Boolean).join("\n");
+  const base = await subtle.importKey("raw", raw, "HKDF", false, ["deriveKey"]);
+  const hk = await subtle.deriveKey({ name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0),
+    info: new TextEncoder().encode("lumen-aureum picks fingerprint") }, base, { name: "HMAC", hash: "SHA-256", length: 256 }, false, ["sign"]);
+  const mac = new Uint8Array(await subtle.sign("HMAC", hk, new TextEncoder().encode(text))).slice(0, 10);
+  const A = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";             // no 0/O or 1/I to misread
+  let bits = 0, val = 0, out = "";
+  for (const b of mac) { val = (val << 8) | b; bits += 8; while (bits >= 5) { out += A[(val >>> (bits - 5)) & 31]; bits -= 5; } }
+  return out.match(/.{4}/g).join("-");
+}
+const GATE = document.documentElement.dataset.gate === "1";   // a PHP host: fetch through gate.php, which enforces expiry
+let proofFor = null, proofHex = "";
+async function keyProof() {                    // sha256(key), first 32 hex: what seen.php, picks.php and gate.php check
+  if (proofFor !== raw) { proofFor = raw;
+    proofHex = [...new Uint8Array(await subtle.digest("SHA-256", raw))].map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 32); }
+  return proofHex;
+}
+async function reach(u, opts) {
+  try { return await fetch(u, opts); }
+  catch (e) { if (e && e.name === "AbortError") throw e; throw Object.assign(new Error("network"), { network: true }); }
+}
+async function fetchBin(name, fresh, signal) { // the encrypted bytes of one file, as the host sends them
+  let r = await reach(GATE ? "gate.php?f=" + encodeURIComponent(name) : name, { credentials: PREVIEW ? "same-origin" : "omit",
+    headers: GATE && subtle ? { "X-Proof": await keyProof() } : {}, cache: fresh ? "no-store" : "default", signal });
+  if (GATE && !r.ok && r.status !== 404 && r.status !== 410 && r.status !== 403) r = null;   // the gate isn't running here (no PHP)
+  if (GATE && r && r.ok && (r.headers.get("content-type") || "").includes("php")) r = null;
+  if (!r) r = await reach(name, { credentials: PREVIEW ? "same-origin" : "omit", cache: fresh ? "no-store" : "default", signal });
+  if (!r.ok) throw Object.assign(new Error("http"), { status: r.status });
+  try { return await r.arrayBuffer(); }
+  catch (e) { if (e && e.name === "AbortError") throw e;
+    throw Object.assign(new Error("network"), { network: true }); }   // the connection dropped mid-file
+}
+async function get(name, signal) {
+  return open(await fetchBin(name, false, signal), name);
+}
+const b64u = u8 => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000));
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
+const form = (k, v) => new URLSearchParams([[k, v]]);
+const isClosed = e => e.status === 404 || e.status === 410;
+const isWrongKey = e => !e.network && !e.insecure && (!e.status || (GATE && e.status === 403));
+const blobs = new Map();
+async function url(name) {
+  if (!blobs.has(name)) blobs.set(name, get(name).then(b => URL.createObjectURL(new Blob([b], { type: "image/jpeg" })),
+    e => { blobs.delete(name); throw e; }));
+  return blobs.get(name);
+}
+function keepNear(names) {                     // release every big photo not in names
+  for (const [n, p] of blobs) if (!names.has(n)) { blobs.delete(n); p.then(u => URL.revokeObjectURL(u), () => {}); }
+}
+function say(head, line, error) {
+  const to = $(error ? "msgerr" : "msgsay"), other = $(error ? "msgsay" : "msgerr");
+  other.textContent = ""; to.textContent = "";
+  if (head) { const b = document.createElement("b"); b.textContent = head; to.append(b); }
+  if (line) { const d = document.createElement("div"); d.textContent = line; to.append(d); }
+  $("msgact").textContent = "";
+  $("msg").hidden = false;
+}
+const fail = (head, line) => say(head, line, true);
+
+async function wordKey(word) {
+  const w = word.normalize("NFKC").replace(/[\u200b-\u200d\u2060\ufeff\u00ad]/g, "")
+    .replace(/[\x00-\x1f\x7f-\x9f\s\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/g, " ").trim().toLowerCase();
+  const gid = new TextEncoder().encode(document.documentElement.dataset.gid || "");
+  const salt = new Uint8Array(raw.length + gid.length); salt.set(raw); salt.set(gid, raw.length);
+  const base = await subtle.importKey("raw", new TextEncoder().encode(w), "PBKDF2", false, ["deriveBits"]);
+  return new Uint8Array(await subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: 600000 }, base, 256));
+}
+const UNREACHABLE = ["Could not reach the gallery", "Check your connection and try again."];
+const OPENING = "Opening your photos...";
+function askWord(why, last) {                  // why: "" (first ask), "wrong" (the word didn't open it), "reach" (no connection)
+  return new Promise(resolve => {
+    const ask = "Enter the word you chose with your photographer.";
+    if (why === "wrong") fail("That word doesn't open this gallery", ask);
+    else if (why === "reach") fail(...UNREACHABLE);          // the word wasn't the problem: don't ask for it as if it were
+    else say("This gallery is protected by a word", ask);
+    const act = $("msgact");
+    const f = document.createElement("form"), i = document.createElement("input"), go = document.createElement("button");
+    i.type = "password"; i.autocomplete = "off"; i.setAttribute("aria-label", "Gallery word");
+    go.type = "submit"; go.textContent = "Open";
+    f.append(i, go);
+    const opening = () => say("", OPENING);
+    f.onsubmit = e => { e.preventDefault(); go.disabled = true; go.textContent = "Opening..."; opening(); resolve(i.value); };
+    if (why === "reach") {                     // retry with the word already typed; it can still be changed
+      const again = document.createElement("button"), other = document.createElement("button");
+      again.type = "button"; again.textContent = "Try again";
+      other.type = "button"; other.className = "plain"; other.textContent = "Use a different word";
+      i.value = last || ""; f.hidden = true;
+      again.onclick = () => { again.disabled = true; opening(); resolve(last || ""); };
+      other.onclick = () => { again.remove(); other.remove(); f.hidden = false; i.value = ""; i.focus(); };
+      act.append(again, other, f);
+      again.focus();
+    } else {
+      act.append(f);
+      i.focus();
+    }
+  });
+}
+
+async function main() {
+  if (!raw) { fail("This gallery is locked", "Open it from the code in your letter."); return; }
+  let mbuf = null, plain = null;
+  const manifest = async () => { if (!mbuf) mbuf = await fetchBin("manifest.bin"); return open(mbuf, "manifest.bin"); };
+  if (NEEDS_WORD) {
+    if (!subtle) { fail("This gallery must be opened over https", "Check the address starts with https://."); return; }
+    const linkKey = raw;
+    for (let why = "", word = ""; ; ) {
+      word = await askWord(why, word);
+      raw = linkKey; raw = await wordKey(word); ckey = null;
+      try { plain = await manifest(); break; }
+      catch (e) {
+        if (isClosed(e)) { fail("This gallery has closed"); return; }
+        why = isWrongKey(e) ? "wrong" : "reach";
+      }
+    }
+  }
+  let m, mText = "";
+  for (;;) {
+    if (!plain) say("", OPENING);
+    try { mText = new TextDecoder().decode(plain || await manifest()); m = JSON.parse(mText); break; }
+    catch (e) {
+      if (e.insecure) fail("This gallery must be opened over https", "Check the address starts with https://.");
+      else if (isClosed(e)) fail("This gallery has closed");
+      else if (isWrongKey(e)) fail("This gallery is locked", "Open it from the code in your letter.");
+      else {                                   // the connection: offer the same link again, nothing to retype
+        fail(...UNREACHABLE);
+        const again = document.createElement("button");
+        again.type = "button"; again.textContent = "Try again";
+        $("msgact").append(again); again.focus();
+        await new Promise(r => { again.onclick = () => { again.disabled = true; r(); }; });
+        continue;
+      }
+      return;
+    }
+  }
+  $("msg").remove();
+  if (!location.pathname.startsWith("/gallery-preview/")) try {
+    const proof = [...new Uint8Array(await subtle.digest("SHA-256", raw))].map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
+    fetch("seen.php", { method: "POST", credentials: "omit", cache: "no-store", body: form("p", proof) }).catch(() => {});
+  } catch (e) {}
+  const B = m.brand || {};
+  look(B.theme, true);
+  document.title = m.title + (B.studio ? " \u00b7 " + B.studio : "");
+  $("title").textContent = m.title;
+  $("meta").textContent = "";                   // each part stays whole; lines break only between parts
+  [B.what, B.date, m.items.length + (m.items.length === 1 ? " photo" : " photos")].filter(Boolean).forEach((t, j) => {
+    const sp = document.createElement("span"); sp.className = "nw"; sp.textContent = t;
+    $("meta").append(...(j ? ["  \u00b7  ", sp] : [sp])); });
+  if (B.logo) try {
+    const bin = atob(B.logo);
+    $("logo").src = URL.createObjectURL(new Blob([Uint8Array.from(bin, c => c.charCodeAt(0))], { type: "image/png" }));
+    $("logo").alt = B.studio || ""; $("logo").hidden = false;
+  } catch (e) {}
+  $("studio").textContent = B.logo ? "" : (B.studio || "");     // a logo already carries the name
+  $("studio").classList.toggle("word", !B.logo);
+  document.querySelector("header").classList.toggle("two", !!(B.logo || B.studio));
+  const SITE = /^https:\/\/[^\s"'<>\\]+$/.test(B.site || "") ? B.site : "";
+  if (SITE && (B.logo || B.studio)) { const a = document.createElement("a"); a.href = SITE; a.rel = "noopener"; a.target = "_blank";
+    a.id = "site"; a.append($("logo"), $("studio")); $("brand").append(a); }
+  const ct = $("contact");
+  if (B.email) { const sp = document.createElement("span"), a = document.createElement("a");
+    a.href = "mailto:" + B.email; a.textContent = B.email; sp.append(a); ct.append(sp); }
+  if (B.phone) { const sp = document.createElement("span"); sp.textContent = B.phone; ct.append(sp); }
+  if (SITE) { const sp = document.createElement("span"), a = document.createElement("a");
+    a.href = SITE; a.rel = "noopener"; a.target = "_blank"; a.textContent = SITE.replace(/^https:\/\/(www\.)?/, "").replace(/\/$/, "");
+    sp.append(a); ct.append(sp); }
+  if (B.studio || B.photographer) { const sp = document.createElement("span"); sp.textContent = B.photographer && B.photographer !== B.studio ? B.photographer + ", " + (B.studio || "") : (B.studio || B.photographer); ct.prepend(sp); }
+  const owner = B.studio || B.photographer || "", yr = (String(B.date || "").match(/\b(\d{4})$/) || [])[1] || new Date().getFullYear();
+  const RIGHTS = !owner ? "" : B.owns === true ? "\u00a9 " + yr + " " + owner + ". All rights reserved." : "Photos by " + owner + ".";
+  if (RIGHTS) { $("rights").textContent = RIGHTS; $("rights").hidden = false; }
+  document.querySelector("header").hidden = false;
+  const grid = $("grid");
+  const DL = m.dl === 1 && Array.isArray(m.zips);           // a download gallery: the final photos, to keep (nothing to pick)
+  if (!DL) {
+    document.addEventListener("contextmenu", e => { if (e.target && e.target.tagName === "IMG") e.preventDefault(); });
+    document.addEventListener("dragstart", e => { if (e.target && e.target.tagName === "IMG") e.preventDefault(); });
+  }
+  let updP = null, stale = false;              // stale: the host has a newer build than this page
+  const updated = () => updP || (updP = fetchBin("manifest.bin", true).then(b => open(b, "manifest.bin"))
+    .then(b => new TextDecoder().decode(b) !== mText, () => false)
+    .then(yes => { if (yes) { stale = true; $("upd").hidden = false; } else updP = null; return yes; }));
+  $("updgo").onclick = () => location.reload();
+  if (!PREVIEW) {
+    const look = () => { if (!stale && document.visibilityState === "visible") updated(); };
+    document.addEventListener("visibilitychange", look);
+    window.addEventListener("focus", look);
+    setInterval(look, 3 * 60000);
+  }
+  const thumbs = [];                            // each grid photo's thumbnail, once it has loaded
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if (!e.isIntersecting) return;
+    io.unobserve(e.target);
+    const img = e.target.firstChild, i = +e.target.dataset.i;
+    get(m.items[i].t).then(b => {
+      const u = URL.createObjectURL(new Blob([b], { type: "image/jpeg" }));
+      img.onload = () => { img.classList.add("on"); thumbs[i] = u; };
+      img.src = u;
+    }).catch(err => { if (err && err.status === 404) updated(); });
+  }), { rootMargin: "600px 0px" });
+  m.items.forEach((it, i) => {
+    const c = document.createElement("button");
+    c.className = "cell"; c.dataset.i = i; c.setAttribute("aria-label", "Photo " + (i + 1));
+    const img = document.createElement("img"); img.alt = "";
+    const num = document.createElement("span"); num.className = "num"; num.textContent = i + 1;
+    const tag = document.createElement("span"); tag.className = "tag";
+    c.append(img, num, tag); grid.append(c); io.observe(c);
+    c.onclick = e => { const b = e.target.closest && e.target.closest(".cell .tag i[data-k]");   // a badge: take that pick off?
+      if (b) return askRemove(i, b.dataset.k); show(i); };
+  });
+
+  const P = DL ? {} : m.picks || {}, KEY = "picks:" + location.pathname;
+  const KEYS = (() => { const seen = {};
+    return m.items.map((it, i) => { const n = it.n ? "n:" + it.n : "#" + i; seen[n] = (seen[n] || 0) + 1;
+      return seen[n] > 1 ? n + "#" + seen[n] : n; }); })();
+  const pk = i => KEYS[i];
+  const canon = p => { const c = {}; if (p.r) { c.r = true; if (p.n) c.n = String(p.n).slice(0, 200); }   // one spelling per pick
+    if (p.m) c.m = true; if (p.v) c.v = true; return c; };
+  const sigOf = (pp, ks) => JSON.stringify(ks.filter(k => pp[k] && (pp[k].r || pp[k].m || pp[k].v)).map(k => [k, canon(pp[k])]));
+  const resig = s => { try { const o = {}; JSON.parse(s || "[]").forEach(([k, p]) => { if (p && typeof p === "object") o[k] = p; });
+    return s ? sigOf(o, KEYS) : ""; } catch (e) { return ""; } };
+  function fromList(list) {
+    const got = {}, byName = {};
+    KEYS.forEach((k, i) => { const n = m.items[i].n; if (n && !(("n:" + n) in byName)) byName["n:" + n] = k; });
+    list.forEach(p => {
+      if (!p || typeof p !== "object") return;
+      const k = KEYS.includes(p.k) ? p.k : byName["n:" + (p.name || "")] || (Number.isInteger(p.i) && !p.name ? KEYS[p.i] : null);
+      if (!k || !(p.r || p.m || p.v)) return;
+      const q = {}; if (p.r) { q.r = true; if (p.note) q.n = String(p.note).slice(0, 200); } if (p.m) q.m = true; if (p.v) q.v = true;
+      got[k] = q; });
+    return got;
+  }
+  const DRAFTS = GATE && !!P.post && !PREVIEW && !!subtle;
+  let hostOk = false, pending = false, timer = null;
+  let picks = {}, sentSig = "", changed = "";   // changed: when the picks on this device last changed (ISO time)
+  let legacySig = "";                           // picks carried over from a page before 1.1, which kept no record of sending
+  let sendNote = "";                            // a problem sending, shown until the picks change
+  const announce = t => { $("live").textContent = ""; setTimeout(() => { $("live").textContent = t; }, 50); };
+  if (DL) try {                                 // a download gallery: picks made on the proofs at this address are over
+    [KEY, KEY + ":sent", KEY + ":legacy", KEY + ":welcomed"].forEach(k => localStorage.removeItem(k));
+  } catch (e) {}
+  if (!DL) try {
+    const st = JSON.parse(localStorage.getItem(KEY) || "{}") || {};
+    sentSig = localStorage.getItem(KEY + ":sent") || "";
+    legacySig = localStorage.getItem(KEY + ":legacy") || "";
+    if (st.v === 2) { picks = st.picks && typeof st.picks === "object" ? st.picks : {}; changed = typeof st.at === "string" ? st.at : "";
+      sentSig = resig(sentSig); legacySig = resig(legacySig); }
+    else if (Object.keys(st).length) {       // kept by place, by an older page: moved over only if every place is still here
+      const ix = Object.keys(st);
+      if (ix.every(i => /^\d+$/.test(i) && +i < m.items.length)) {
+        ix.forEach(i => { picks[pk(+i)] = st[i]; });
+        const was = {}; try { JSON.parse(sentSig || "[]").forEach(([i, p]) => { if (+i < m.items.length) was[pk(+i)] = p; }); } catch (e) {}
+        sentSig = sentSig ? sigOf(was, KEYS) : "";
+      } else sentSig = "";
+      if (!sentSig) legacySig = sigOf(picks, KEYS);   // sent or not, that page never said: see quietLegacy
+      localStorage.setItem(KEY, JSON.stringify({ v: 2, picks })); localStorage.setItem(KEY + ":sent", sentSig);
+      localStorage.setItem(KEY + ":legacy", legacySig);
+    }
+  } catch (e) {}
+  Object.keys(picks).forEach(k => { if (!KEYS.includes(k) || !picks[k] || typeof picks[k] !== "object") delete picks[k]; });   // gone in a rebuild
+  const nR = () => Object.values(picks).filter(p => p.r).length, nM = () => Object.values(picks).filter(p => p.m).length,
+        nV = () => Object.values(picks).filter(p => p.v).length;
+  const keep = () => { try { localStorage.setItem(KEY, JSON.stringify({ v: 2, picks, at: changed })); } catch (e) {} };
+  const save = () => { changed = new Date().toISOString(); keep(); sendNote = ""; if (DRAFTS) hostOk = false; paint(); later(); };
+  const sig = () => sigOf(picks, KEYS);
+  const quietLegacy = () => !P.post && !!legacySig && sig() === legacySig;
+  const isSent = () => sig() !== "[]" && sig() === sentSig;
+  const unsent = () => sig() !== "[]" && !isSent() && !quietLegacy();
+  const setSent = s => { sentSig = s; try { localStorage.setItem(KEY + ":sent", sentSig); } catch (e) {} };
+  const markSent = () => { setSent(sig()); paint(); };
+  window.addEventListener("beforeunload", e => { if (unsent()) { e.preventDefault(); e.returnValue = ""; } });
+  function marks(tag, p) {                      // the same badges on a grid photo and on the big photo
+    const mark = (t, cls) => { const i = document.createElement("i"); i.textContent = t; if (cls) i.className = cls; return i; };
+    const tip = (el, t) => { el.dataset.tip = t; el.setAttribute("aria-label", t); return el; };   // hover says what it means
+    tag.textContent = "";
+    const k = (el, x) => { el.dataset.k = x; return el; };
+    if (p.r) tag.append(k(tip(mark("R"), p.n ? "Retouch: " + p.n : "Retouch (no note yet)"), "r"));
+    if (p.m) tag.append(k(tip(mark("♥", "heart"), "Suggested for portfolio"), "m"));
+    if (p.v) tag.append(k(tip(mark("⊘", "no"), "Please don't show"), "v"));
+  }
+  function named(i, p) {                        // a grid photo's name says its picks, so a screen reader hears them
+    return ["Photo " + (i + 1)].concat(p.r ? ["Retouch" + (p.n ? ": " + p.n : "")] : [], p.m ? ["Suggested for portfolio"] : [],
+      p.v ? ["Please don't show"] : []).join(", ");
+  }
+  function modal(box, first, onClose) {
+    const was = behind().concat([lb]).filter(el => !el.inert);
+    was.forEach(el => el.inert = true);
+    const esc = e => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); done(); } };
+    function done() { document.removeEventListener("keydown", esc, true); was.forEach(el => el.inert = false); box.hidden = true; onClose(); }
+    document.addEventListener("keydown", esc, true);
+    box.hidden = false; first.focus();
+    return done;
+  }
+  function askRemove(i, k, after) {             // a badge (or Retouch with a note) was pressed: confirm, then take that pick off
+    const A = $("ask"), back = document.activeElement, n = i + 1;
+    $("asktext").textContent = k === "r" ? "Remove Retouch from photo " + n + "?" + ((picks[pk(i)] || {}).n ? " Your note goes too." : "")
+      : k === "m" ? "Remove photo " + n + " from your portfolio suggestions?" : "Remove Please don't show from photo " + n + "?";
+    const close = modal(A, $("askkeep"), () => { if (back && back.focus) back.focus(); });
+    $("askkeep").onclick = close;
+    $("askgo").onclick = () => { const p = picks[pk(i)] || {}; delete p[k]; if (k === "r") delete p.n;
+      if (!p.r && !p.m && !p.v) delete picks[pk(i)]; close(); save(); if (after) after(); };
+    A.onclick = e => { if (e.target === A) close(); };
+    A.onkeydown = e => { if (e.key === "Tab") { e.preventDefault();            // Keep and Remove only
+      (document.activeElement === $("askkeep") ? $("askgo") : $("askkeep")).focus(); } };
+  }
+  let show_ = "all";                            // quick filter above the grid: all, or one kind of pick
+  const KINDS = [["all", "All"], ["r", "Retouch"], ["m", "Suggested"], ["v", "Don't show"]];
+  function filterBar() {
+    const f = $("filter"); if (!(P.retouch || P.market)) return;
+    const had = f.contains && f.contains(document.activeElement) ? document.activeElement.dataset.k : null;
+    const n = { all: m.items.length, r: nR(), m: nM(), v: nV() };
+    if (show_ !== "all" && !n[show_]) show_ = "all";       // the last one in a view was taken off: back to all
+    f.hidden = !(n.r + n.m + n.v); f.textContent = "";
+    KINDS.filter(([k]) => k === "all" || k === "r" ? (k === "all" || P.retouch) : P.market).forEach(([k, label]) => {
+      const b = document.createElement("button"); b.type = "button"; b.textContent = label + " (" + n[k] + ")";
+      b.classList.toggle("on", show_ === k); b.setAttribute("aria-pressed", show_ === k); b.disabled = !n[k]; b.dataset.k = k;
+      b.onclick = () => { show_ = k; paint(); }; f.append(b);
+      if (had === k) b.focus(); });
+    document.querySelectorAll(".cell").forEach(c => { const p = picks[pk(+c.dataset.i)] || {};
+      c.classList.toggle("out", show_ !== "all" && !p[show_]); });
+  }
+  function paint() {
+    document.querySelectorAll(".cell").forEach(c => { const p = picks[pk(+c.dataset.i)] || {};
+      marks(c.querySelector(".tag"), p); c.setAttribute("aria-label", named(+c.dataset.i, p)); });
+    filterBar();
+    const r = nR(), mk = nM(), vt = nV();
+    $("tray").classList.toggle("on", !!(P.email || P.post) && (r + mk + vt) > 0);
+    document.body.classList.toggle("tray", $("tray").classList.contains("on"));
+    const span = (cls, t) => { const s = document.createElement("span"); s.className = cls; s.textContent = t; return s; };
+    const short = ["Retouch " + r + "/" + (P.retouch || 0)].concat(mk ? ["Suggested " + mk] : [], vt ? ["Don't show " + vt] : []);
+    $("trayn").textContent = "";
+    $("trayn").append(span("long", "Retouch " + r + "/" + (P.retouch || 0) + "  \u00b7  Suggested " + mk + "  \u00b7  Don't show " + vt),
+                      span("short", short.join("  \u00b7  ")));
+    const state = typeof unsent !== "function" ? "" : unsent() ? (hostOk ? "Saved" : "Saved on this device") + "  \u00b7  Not sent yet"
+      : quietLegacy() ? "Saved on this device" : "";
+    if (state) $("trayn").append(span("saved", state));
+    if (state && state !== painted && painted !== null) announce(state.replace("  \u00b7  ", ". "));
+    painted = state;
+    const lines = [];
+    m.items.forEach((it, i) => { const p = picks[pk(i)]; if (!p) return;
+      const which = (it.n ? it.n + " (photo " + (+i + 1) + ")" : "photo " + (+i + 1));
+      if (p.r) lines.push("Retouch " + which + (p.n ? ": " + p.n : ""));
+      if (p.m) lines.push("Suggested for your portfolio: " + which);
+      if (p.v) lines.push("Please don't show: " + which); });
+    const mail = fp => "mailto:" + (P.email || "") + "?subject=" + encodeURIComponent("My photo picks (" + (P.ref || "") + ")") +
+      "&body=" + encodeURIComponent(lines.join("\n") + "\n" + (fp ? "\nFingerprint: " + fp + "\n" : ""));
+    $("send").href = mail("");
+    fingerprint(lines).then(fp => { $("send").href = mail(fp); }).catch(() => {});
+    const note = sendNote || (isSent() ? "Sent. Thank you! You can change them and send again." : "");
+    if ($("sent").textContent !== note) $("sent").textContent = note;
+    document.body.classList.toggle("sentline", !!note);
+  }
+  let painted = null;
+  const listOf = () => m.items.map((it, i) => [i, it, picks[pk(i)]]).filter(([, , p]) => p).map(([i, it, p]) => ({ i, name: it.n || "",
+    k: pk(i), r: !!p.r, note: p.n || "", m: !!p.m, v: !!p.v })).filter(p => p.r || p.m || p.v);
+  async function sealPicks(name, at) {
+    const ek = await subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt"]);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv,
+      additionalData: new TextEncoder().encode("lumen-aureum-gallery:" + name) }, ek,
+      new TextEncoder().encode(JSON.stringify({ v: 1, at, picks: listOf() }))));
+    const body = new Uint8Array(4 + 12 + ct.length);
+    body.set(new TextEncoder().encode("LAK1")); body.set(iv, 4); body.set(ct, 16);
+    return body;
+  }
+  async function pushDraft(leaving) {
+    pending = false;
+    try {
+      const body = await sealPicks("draft.bin", changed || new Date().toISOString());
+      if (body.length > 262144) throw new Error("too big");
+      if (stale) return;                                  // the gallery was replaced: nothing goes to the new one
+      const r = await fetch("picks.php?kind=draft", { method: "POST", credentials: "omit", cache: "no-store", body: form("d", b64u(body)),
+        headers: { "X-Proof": await keyProof() }, keepalive: !!leaving && body.length < 60000 });
+      hostOk = r.ok;
+    } catch (e) { hostOk = false; }
+    if (!leaving) paint();
+  }
+  function later() { if (!DRAFTS) return; pending = true; clearTimeout(timer); timer = setTimeout(() => pushDraft(false), 1500); }
+  const flush = () => { if (pending) { clearTimeout(timer); pushDraft(true); } };
+  if (DRAFTS) {
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flush(); });
+  }
+  async function verifySent() {
+    if (!DRAFTS) return;
+    let host = null;
+    try {
+      const r = await fetch("gate.php?f=picks.bin", { credentials: "omit", cache: "no-store", headers: { "X-Proof": await keyProof() } });
+      if (r.status === 404) host = "";                                       // nothing sent from any device
+      else if (!r.ok || (r.headers.get("content-type") || "").includes("php")) return;
+      else {
+        const b = new Uint8Array(await r.arrayBuffer());
+        let d = null;
+        try { if (b.length >= 32 && String.fromCharCode(...b.subarray(0, 4)) === "LAK1")
+          d = JSON.parse(new TextDecoder().decode(await open(b.subarray(4), "picks.bin"))); } catch (e) {}
+        host = d && Array.isArray(d.picks) ? sigOf(fromList(d.picks), KEYS) : "";   // unreadable: not what the app gets either
+      }
+    } catch (e) { return; }
+    if (host !== sentSig) { setSent(host); paint(); }
+  }
+  async function pullDraft() {
+    let d = null;
+    try {
+      const r = await fetch("gate.php?f=draft.bin", { credentials: "omit", cache: "no-store", headers: { "X-Proof": await keyProof() } });
+      if (r.status === 404) { if (sig() !== "[]") later(); return; }   // none yet: this device's picks go up
+      if (!r.ok) return;
+      const b = new Uint8Array(await r.arrayBuffer());
+      if (b.length < 32 || String.fromCharCode(...b.subarray(0, 4)) !== "LAK1") return;
+      d = JSON.parse(new TextDecoder().decode(await open(b.subarray(4), "draft.bin")));
+    } catch (e) { return; }
+    const at = d && typeof d.at === "string" && !isNaN(Date.parse(d.at)) ? d.at : "";
+    if (!at || !Array.isArray(d.picks)) return;
+    if (Date.parse(at) > Date.now() + 5 * 60000) { if (sig() !== "[]") later(); return; }   // from the future: not trusted
+    if (changed && Date.parse(changed) > Date.parse(at)) { later(); return; }     // this device is newer: it goes up
+    picks = fromList(d.picks); changed = at; keep(); hostOk = true;                // its "sent", if any, is never read
+    if (cur >= 0) bar();
+    paint();
+  }
+  $("send").onclick = async e => {
+    const notNow = () => { sendNote = "These photos were just updated. Reload the page before you send."; paint(); };
+    if (stale) { e.preventDefault(); notNow(); return; }
+    if (!P.post || PREVIEW) { if (!PREVIEW) markSent(); return; }   // the mailto link does its job (counted as sent)
+    e.preventDefault();
+    if (await updated()) { notNow(); return; }       // a newer build (the download gallery, say): its picks are not these
+    try {
+      const body = await sealPicks("picks.bin", new Date().toISOString());
+      if (body.length > 262144) {                                      // the same limit picks.php and the app use
+        sendNote = "That is too many picks to send at once. Please send fewer, or tell your photographer."; paint(); return; }
+      const proof = [...new Uint8Array(await subtle.digest("SHA-256", raw))].map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
+      const r = await fetch("picks.php", { method: "POST", credentials: "omit", cache: "no-store", body: form("d", b64u(body)),
+        headers: { "X-Proof": proof } });
+      if (r.status === 410) { sendNote = "This gallery has closed, so picks can't be sent now. Please tell your photographer."; paint(); return; }
+      if (!r.ok) throw new Error("http " + r.status);
+      sendNote = ""; markSent();                                     // Sent shows until the picks change
+      if (DRAFTS) { clearTimeout(timer); pushDraft(false); verifySent(); }   // the draft follows; picks.bin is read back
+    } catch (err) {
+      if (P.email) location.href = $("send").href;    // the script isn't there: the email draft instead
+      else { sendNote = "Couldn't send. Please tell your photographer."; paint(); }
+    }
+  };
+  $("send").onkeydown = e => { if (e.key === " ") { e.preventDefault(); $("send").click(); } };   // a button: Space presses it
+  if (DL) {                                     // Download on the big photo; Download all builds nothing here: the zip
+    ["pr", "pm", "pv", "note"].forEach(id => { $(id).hidden = true; });   // was made at home, sealed in parts
+    $("dl").hidden = false;
+    downloads();
+  } else if (!P.email && !P.post) $("pickbar").style.display = "none";
+  if (!P.market) { $("pm").hidden = true; $("pv").hidden = true; }      // the client declined portfolio use: nothing to suggest
+  if ((P.retouch || P.market) && (P.email || P.post)) {   // a welcome box says how to pick; "How to pick" opens it again
+    const W = $("welcome"), wl = $("wlist"), seenKey = KEY + ":welcomed";
+    const bold = t => { const b = document.createElement("b"); b.textContent = t; return b; };
+    const li = (...xs) => { const l = document.createElement("li"); l.append(...xs); wl.append(l); };
+    wl.textContent = "";
+    if (P.retouch) li(bold("Retouch"), " for the ones you want edited, up to " + P.retouch + ". Add a note on what to fix.");
+    if (P.market) { li(bold("Suggest for portfolio"), " for your favorites to show in the portfolio. Up to " + P.market + " are used.");
+                    li(bold("Please don't show"), " for ones you don't want shown anywhere."); }
+    li("Your picks show as small badges on the photos. To take one off, tap its badge, or open the photo and press the button again.");
+    let back = null;
+    const openW = () => { back = document.activeElement; W.hidden = false; document.body.classList.add("welcomeopen"); $("wgo").focus(); };
+    const closeW = () => { W.hidden = true; document.body.classList.remove("welcomeopen");
+      try { localStorage.setItem(seenKey, "1"); } catch (e) {}
+      if (!back || back === document.body || !back.focus) back = document.querySelector(".cell");   // the first visit: the first photo
+      if (back && back.focus) back.focus(); };
+    $("wgo").onclick = closeW;
+    W.onclick = e => { if (e.target === W) closeW(); };
+    W.onkeydown = e => { if (e.key === "Escape") closeW(); if (e.key === "Tab") { e.preventDefault(); $("wgo").focus(); } };
+    const how = $("how"); how.hidden = false; how.textContent = "";
+    const hb = document.createElement("button"); hb.type = "button"; hb.textContent = "How to pick"; hb.onclick = openW; how.append(hb);
+    let seen = false; try { seen = !!localStorage.getItem(seenKey); } catch (e) {}
+    if (!seen && !PREVIEW) openW();
+  }
+  paint();
+  if (DRAFTS) pullDraft().then(verifySent);
+  $("pr").onclick = e => { e.stopPropagation(); const p = picks[pk(cur)] = picks[pk(cur)] || {};
+    if (p.r && p.n) { askRemove(cur, "r", bar); return; }
+    if (!p.r && nR() >= (P.retouch || 0)) { const t = "You've picked " + (P.retouch || 0) + " to retouch already. Remove one to pick this one.";
+      $("count").textContent = t; $("count").classList.add("warn"); announce(t); return; }
+    p.r = !p.r; if (!p.r) delete p.n; save(); bar(); };
+  $("pm").onclick = e => { e.stopPropagation(); const p = picks[pk(cur)] = picks[pk(cur)] || {};
+    p.m = !p.m; if (p.m) delete p.v; save(); bar(); };
+  $("pv").onclick = e => { e.stopPropagation(); const p = picks[pk(cur)] = picks[pk(cur)] || {};
+    p.v = !p.v; if (p.v) delete p.m; save(); bar(); };
+  $("note").onclick = e => e.stopPropagation();
+  $("note").oninput = () => { (picks[pk(cur)] = picks[pk(cur)] || {}).n = $("note").value.slice(0, 200); save(); bar(); };
+  $("note").onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); hide(); } };
+  $("done").onclick = e => { e.stopPropagation(); hide(); };
+  function bar() { const p = picks[pk(cur)] || {};
+    $("pr").classList.toggle("on", !!p.r); $("pm").classList.toggle("on", !!p.m); $("pv").classList.toggle("on", !!p.v);
+    $("pr").setAttribute("aria-pressed", !!p.r); $("pm").setAttribute("aria-pressed", !!p.m); $("pv").setAttribute("aria-pressed", !!p.v);
+    $("note").hidden = !p.r; if (document.activeElement !== $("note")) $("note").value = p.n || "";
+    marks($("bigtag"), p); placeTag();                                    // picks save as they are made; Done goes back to the grid
+    $("count").classList.remove("warn");
+    if (cur >= 0) $("count").textContent = (cur + 1) + " / " + m.items.length + (RIGHTS ? "  \u00b7  " + RIGHTS.replace(" All rights reserved.", "").replace(/\.$/, "") : ""); }
+  const lb = $("lb"), big = $("big");
+  function drawn() {                            // where the photo itself is drawn inside its box (object-fit: contain)
+    const r = big.getBoundingClientRect(), nw = big.naturalWidth, nh = big.naturalHeight;
+    if (!nw || !nh || !r.width) return r;
+    const k = Math.min(r.width / nw, r.height / nh), w = nw * k, h = nh * k;
+    return { left: r.left + (r.width - w) / 2, top: r.top + (r.height - h) / 2, right: r.left + (r.width + w) / 2, bottom: r.top + (r.height + h) / 2, width: w }; }
+  function placeTag() {                         // top right corner of the big photo, wherever it sits
+    const r = drawn(), t = $("bigtag");
+    t.hidden = !r.width; t.style.top = (r.top + 10) + "px"; t.style.right = (window.innerWidth - r.right + 10) + "px"; }
+  big.addEventListener("click", e => { const r = drawn();      // a click beside the photo closes, as before
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) hide(); });
+  window.addEventListener("resize", () => { if (lb.classList.contains("open")) placeTag(); });
+  let cur = -1;
+  let opener = null;
+  const behind = () => ["grid", "msg", "tray"].map($).concat([document.querySelector("header"), document.querySelector("footer")]).filter(Boolean);
+  function step(d) {                            // next or previous photo within the quick filter
+    const n = m.items.length;
+    for (let k = 1; k <= n; k++) { const j = ((cur + d * k) % n + n) % n, p = picks[pk(j)] || {};
+      if (show_ === "all" || p[show_]) return show(j); } }
+  async function show(i) {
+    const n = m.items.length;
+    if (!lb.classList.contains("open")) {                 // focus moves into the photo view; what's behind is inert
+      opener = document.activeElement;
+      behind().forEach(el => el.inert = true);
+      document.body.classList.add("lbopen");
+      setTimeout(() => $("close").focus(), 0);
+    }
+    cur = (i + n) % n;
+    lb.classList.add("open");
+    document.body.style.overflow = "hidden";
+    $("count").textContent = (cur + 1) + " / " + n; bar();
+    lb.setAttribute("aria-label", "Photo " + (cur + 1) + " of " + n);
+    const want = cur, th = thumbs[cur];
+    big.onload = big.onerror = null;
+    $("lberr").hidden = true; picking(false);
+    if (DL && !$("dl").disabled) $("dl").textContent = "Download";
+    prefetchFull(cur);
+    if (th) { big.src = th; big.classList.add("on", "ph"); } else { big.removeAttribute("src"); big.classList.remove("on", "ph"); }
+    $("lbload").hidden = false;
+    const near = new Set([-2, -1, 0, 1, 2].map(d => m.items[((cur + d) % n + n) % n].f));
+    keepNear(near);
+    let u = null, err = null;
+    try { u = await url(m.items[cur].f); } catch (e) { err = e; }
+    if (want !== cur) return;
+    if (!u) { lbFail(err); return; }
+    const arrived = () => {
+      if (want !== cur || big.getAttribute("src") !== u) return;
+      big.classList.remove("ph"); big.classList.add("on"); $("lbload").hidden = true; picking(true); placeTag();
+      [cur + 1, cur - 1].forEach(j => url(m.items[(j + n) % n].f).catch(() => {}));   // the neighbors, now the photo is here
+    };
+    big.onload = arrived;
+    big.onerror = () => { if (want === cur) lbFail({}); };
+    big.src = u;
+  }
+  function picking(on) {                        // the pick buttons and the note, for the photo on screen
+    ["pr", "pm", "pv", "note"].forEach(id => { $(id).disabled = !on; });
+  }
+  const savedUrls = [];
+  function saveFile(blob, name) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = name; savedUrls.push(a.href);
+    document.body.append(a); a.click(); a.remove();
+  }
+  if (DL) window.addEventListener("pagehide", () => savedUrls.forEach(u => URL.revokeObjectURL(u)));
+  let canShareFiles = false;
+  try {
+    const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    canShareFiles = IOS && !!(navigator.canShare && navigator.canShare({ files: [new File([""], "x.jpg", { type: "image/jpeg" })] }));
+  } catch (e) {}
+  const fullFiles = new Map();                  // the photo on screen only: a phone never holds more than one
+  const fullName = i => m.items[i].on || m.items[i].n || "photo-" + (i + 1) + ".jpg";
+  function fullFile(i) {
+    if (!fullFiles.has(i)) {
+      fullFiles.clear();
+      fullFiles.set(i, get(m.items[i].o || m.items[i].f).then(b => new File([b], fullName(i), { type: "image/jpeg" }),
+        e => { fullFiles.delete(i); throw e; }));
+    }
+    return fullFiles.get(i);
+  }
+  function prefetchFull(i) { if (DL && canShareFiles) fullFile(i).catch(() => {}); }
+  function downloads() {
+    const zs = m.zips.filter(z => z && Array.isArray(z.parts));
+    zs.forEach((z, j) => zipButton(z, zs.length > 1 ? [j + 1, zs.length] : null, j));
+    $("dlall").hidden = !zs.length;
+    document.addEventListener("keydown", e => { if (e.key === "Escape" && cur < 0) running.forEach(c => c.abort()); });
+    window.addEventListener("pagehide", () => running.forEach(c => c.abort()));
+    singleDownload();
+  }
+  const running = new Set();                    // the AbortController of each Download all in progress
+  const PHONE = !!(window.matchMedia && matchMedia("(pointer: coarse)").matches);
+  const waitLine = () => { $("dlwait").hidden = !(PHONE && running.size); };
+  function timeLeft(bytes, total, t0) {         // once the speed is known: "about 4 min left"
+    const secs = (performance.now() - t0) / 1000;
+    if (secs < 3 || !bytes) return "";
+    const left = (total - bytes) / (bytes / secs);
+    return left < 60 ? "less than a minute left" : "about " + Math.round(left / 60) + " min left";
+  }
+  function zipButton(Z, part, j) {             // one zip: its own button, progress, Cancel, and Try again
+    const b = j ? $("dlallb").cloneNode(false) : $("dlallb"), parts = Z.parts, total = +Z.size || 0;
+    if (j) { b.id = ""; $("dlall").append(b); }
+    const mb = total >= 1e9 ? (total / 1e9).toFixed(1) + " GB" : Math.max(1, Math.round(total / 1e6)) + " MB";
+    const label = (part ? "Download all, part " + part[0] + " of " + part[1] : "Download all") + " (" + mb + ")";
+    const zipName = String(Z.name || "").replace(/[\\/:*?"<>|\x00-\x1f\x7f]+/g, "").trim() || "Photos.zip";
+    b.textContent = label;
+    let ctl = null;
+    b.onclick = async () => {
+      if (ctl) { ctl.abort(); return; }          // pressed while it runs: Cancel
+      if (b.disabled) return;
+      b.disabled = true;
+      if (stale || await updated()) { b.disabled = false; return; }   // never a zip of an older build: the notice says reload
+      const me = ctl = new AbortController();
+      running.add(me); waitLine();
+      b.disabled = false;
+      const got = new Array(parts.length), t0 = performance.now();
+      let next = 0, bytes = 0;
+      const show = () => {
+        const pct = Math.min(99, Math.floor(100 * bytes / Math.max(1, total))) + "%", left = timeLeft(bytes, total, t0);
+        b.textContent = (part ? "Part " + part[0] + " of " + part[1] + ": " : "Downloading ") + pct
+          + (left ? " \u00b7 " + left : "") + " \u00b7 Cancel";
+      };
+      show();
+      const worker = async () => {
+        while (next < parts.length && !me.signal.aborted) {
+          const i = next++, d = await get(parts[i], me.signal);
+          got[i] = new Blob([d]); bytes += d.length; show();
+        }
+      };
+      try {
+        await Promise.all([0, 1, 2, 3].map(worker));
+        if (me.signal.aborted) throw Object.assign(new Error("stopped"), { name: "AbortError" });
+        saveFile(new Blob(got, { type: "application/zip" }), zipName);
+        b.textContent = label;
+      } catch (e) {
+        next = parts.length;
+        b.textContent = me.signal.aborted ? label : "Try again";      // stopped: back to the start, nothing kept
+        if (!me.signal.aborted && e && e.status === 404) updated();   // rebuilt meanwhile: the notice offers a reload
+        me.abort();
+      }
+      got.fill(undefined);
+      ctl = null; running.delete(me); waitLine();
+    };
+  }
+  function singleDownload() {
+    $("dl").onclick = async e => {
+      e.stopPropagation();
+      const d = $("dl"), i = cur;
+      if (!m.items[i] || d.disabled) return;
+      if (stale) { $("upd").hidden = false; return; }
+      d.disabled = true; d.textContent = "Downloading";
+      try {
+        if (!canShareFiles && await updated()) { d.textContent = "Download"; d.disabled = false; return; }
+        const f = await fullFile(i);
+        if (canShareFiles) {
+          try { await navigator.share({ files: [f] }); }
+          catch (err) { if (err.name !== "AbortError") saveFile(f, fullName(i)); }   // closed the sheet: nothing more
+        } else saveFile(f, fullName(i));
+        if (!canShareFiles) fullFiles.delete(i);
+        d.textContent = "Download";
+      } catch (err) { d.textContent = "Try again"; if (err && err.status === 404) updated(); }
+      d.disabled = false;
+    };
+  }
+  async function lbFail(e) {                    // the big photo didn't come: say why, as far as the page can tell
+    const want = cur;
+    big.removeAttribute("src"); big.classList.remove("on", "ph"); $("lbload").hidden = true;
+    const again = $("lbagain");
+    let text = "This photo can't load right now.", label = "Try again", reload = false;
+    if (e && e.network) text += " Check your connection.";
+    else if (e && e.status === 410) { text = "This gallery has closed."; label = ""; }
+    else if (e && e.status === 404 && await updated()) { text = "These photos were just updated. Reload to see the new version.";
+      label = "Reload"; reload = true; }
+    if (want !== cur) return;
+    $("lbsay").textContent = text;
+    again.textContent = label; again.hidden = !label; again.classList.toggle("reload", reload); again.dataset.reload = reload ? "1" : "";
+    $("lberr").hidden = false;
+  }
+  function hide() { const cell = document.querySelector('.cell[data-i="' + cur + '"]') || opener;   // back to the photo last seen
+    lb.classList.remove("open"); document.body.style.overflow = ""; big.onload = big.onerror = null; big.removeAttribute("src");
+    big.classList.remove("on", "ph"); $("lbload").hidden = true; cur = -1;
+    behind().forEach(el => el.inert = false); document.body.classList.remove("lbopen");
+    if (cell && cell.focus) cell.focus(); opener = null; }
+  $("prev").onclick = e => { e.stopPropagation(); step(-1); };
+  $("next").onclick = e => { e.stopPropagation(); step(1); };
+  $("close").onclick = e => { e.stopPropagation(); hide(); };
+  $("lbagain").onclick = e => { e.stopPropagation(); if ($("lbagain").dataset.reload === "1") location.reload(); else if (cur >= 0) show(cur); };
+  lb.onclick = e => { if (e.target === lb) hide(); };
+  document.addEventListener("keydown", e => {
+    if (cur < 0 || !$("ask").hidden) return;                       // the ask box has its own keys
+    if (e.target.closest && e.target.closest("input, textarea") && e.key !== "Escape") return;   // typing a note
+    if (e.key === "ArrowLeft") step(-1);
+    else if (e.key === "ArrowRight") step(1);
+    else if (e.key === "Escape") hide();
+  });
+  let sx = null, sy = null, multi = false;
+  const zoomed = () => !!(window.visualViewport && window.visualViewport.scale > 1.01);
+  lb.addEventListener("touchstart", e => {
+    if (e.touches.length > 1) { multi = true; sx = null; return; }
+    if (!multi) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; } }, { passive: true });
+  lb.addEventListener("touchend", e => {
+    if (!e.touches || !e.touches.length) { if (multi) { multi = false; sx = null; return; } }
+    if (sx === null || zoomed()) { sx = null; return; }
+    const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+    sx = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) step(dx < 0 ? 1 : -1);
+    else if (dy > 90 && Math.abs(dy) > Math.abs(dx)) hide();
+  }, { passive: true });
+}
+main();
+})();
+</script>
+<footer><div id="contact"></div><div id="rights" hidden></div><a id="la" href="https://lumenaureum.org" target="_blank" rel="noopener noreferrer"><svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><defs><linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6dfa6"/><stop offset=".55" stop-color="#e9b45c"/><stop offset="1" stop-color="#d0864e"/></linearGradient>
+<linearGradient id="rose" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e3b3c0" stop-opacity=".2"/><stop offset=".5" stop-color="#ecd3da"/><stop offset="1" stop-color="#e3b3c0" stop-opacity=".2"/></linearGradient></defs><path d="M10.00,62.00 A40.00,40.00 0 0 1 90.00,62.00 Z M44.00,61.00 L46.40,46.00 A7.00,7.00 0 1 1 53.60,46.00 L56.00,61.00 Z" fill="url(#gold)" fill-rule="evenodd"/><rect x="6.00" y="67.00" width="88.00" height="6.00" rx="3.00" fill="url(#rose)"/><rect x="20.00" y="79.00" width="60.00" height="5.00" rx="2.50" fill="url(#rose)" opacity="0.55"/></svg><span>Gallery by <b>Lumen Aureum</b><small>lumenaureum.org</small></span></a></footer>
+</body>
+</html>
+

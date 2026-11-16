@@ -22,6 +22,10 @@
 {% if clock_paused %}<section class="clash" role="alert" style="margin:10px 0;padding:10px 14px;font-size:14px">
   <b>Automatic deletions are paused.</b> The date moved from {{ nice(clock_paused[0]) }} to {{ nice(clock_paused[1]) }} since the last check, which can mean the clock is wrong. Nothing is sealed or deleted on its own until you confirm today's date.
   <form method="post" action="{{ url_for('clock_confirm') }}" class="inline" style="margin-left:8px"><button class="primary" data-confirm="Today is {{ today.strftime('%A, %B %-d, %Y') }}. Is that right?">Today's date is right</button></form></section>{% endif %}
+{% if master_due %}<section class="finish also" id="master-key-check" style="margin:10px 0;padding:10px 14px;font-size:14px"><div class="row" style="gap:10px;flex-wrap:wrap">
+  <span class="grow"><b>Check you still have your master key.</b> It is the only way back in if your password is lost, so make sure you can still find it.</span>
+  <a class="btn primary" href="{{ url_for('master_key_check') }}">Check it</a>
+  <form method="post" action="{{ url_for('master_key_later') }}" class="inline"><button class="quiet" title="Ask again in a week">Not now</button></form></div></section>{% endif %}
 {% if unconfirmed %}<section class="clash" role="alert" id="unconfirmed" style="margin:10px 0;padding:10px 14px;font-size:14px">
   <b>{{ unconfirmed|length }} client{{ '' if unconfirmed|length == 1 else 's' }} you may have deleted {{ 'is' if unconfirmed|length == 1 else 'are' }} back:</b>
   {% for r_ in unconfirmed %}{{ r_.name }}{{ ', ' if not loop.last }}{% endfor %}.

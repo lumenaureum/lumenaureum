@@ -203,9 +203,21 @@ def register(app, connect, audit):
     def vault_check():
 
         from flask import session as _s
+        import auth as _auth
         secret = (request.form.get("secret") or "").strip()
-        if not secret.startswith("AGE-SECRET-KEY-1") or len(secret) > 200:
+        th_ = app.config.get("key_throttle")
+        ip_ = request.remote_addr or ""
+        if th_ is not None and th_.ip_blocked(ip_):
+            _s["vault_result"] = [("", False, f"Too many wrong keys from here. Try again {th_.wait_text(ip_)}.")]
+        elif not secret.startswith("AGE-SECRET-KEY-1") or len(secret) > 200:
             _s["vault_result"] = [("", False, "Paste the whole master key (it starts AGE-SECRET-KEY-1).")]
+        elif not _auth.master_key_opens(secret):
+            if th_ is not None:
+                th_.fail(ip_, "backup check")
+            if th_ is not None and th_.ip_blocked(ip_):
+                _s["vault_result"] = [("", False, f"Too many wrong keys from here. Try again {th_.wait_text(ip_)}.")]
+            else:
+                _s["vault_result"] = [("", False, "That isn't the master key this install uses.")]
         else:
             _s["vault_result"] = check_backup(connect, secret)
             audit("Checked the newest backup opens")

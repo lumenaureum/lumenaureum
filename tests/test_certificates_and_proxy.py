@@ -56,7 +56,7 @@ def test_trusted_proxy_with_real_address_passes(netsec):
                              "HTTP_X_FORWARDED_PROTO": "https", "wsgi.url_scheme": "http"})
     assert status.startswith("200")
     assert seen["REMOTE_ADDR"] == "192.168.1.7"
-    assert seen["lumen.peer"] == "10.0.0.5"
+    assert seen["lumenaureum.peer"] == "10.0.0.5"
     assert seen["wsgi.url_scheme"] == "https"
 
 def _load(path):

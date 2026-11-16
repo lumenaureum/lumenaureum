@@ -33,8 +33,14 @@ repeat for each record:
   ciphertext                             the record's plaintext encrypted, followed by the 16-byte GCM tag
 ```
 
-A photo is at least 1 byte and at most 4 GiB. An interrupted upload is resumed from the last complete record: any
-bytes after it are cut off before writing continues, so a partial file is always a valid prefix of records.
+A photo is at least 1 byte and at most 4 GiB. A record's length field is at most 1 MiB + 16 (a full record and its
+tag) and more than 16; a reader refuses any other value before reading the record.
+
+An interrupted upload is resumed from the last complete record, but only when the file on disk is exactly as long as
+its record in the database says. If it is longer or shorter (a database restored from a backup made part way through
+the upload, or a record written but not yet recorded when the app stopped), the upload starts over from the first
+byte under a fresh random key: a counter nonce must never encrypt a second, possibly different, record under the same
+key. Writing then continues at the recorded end, so a partial file is always a valid prefix of records.
 
 ## Where the key lives
 
@@ -44,7 +50,8 @@ bytes after it are cut off before writing continues, so a partial file is always
   paper, opens it. This is what lets photos be recovered even from a database restored to a point before they were
   uploaded, or with no database at all.
 
-A data-key rotation gives every photo a fresh key, rewrites its file and its `.key` record, so an old copy of the
+A data-key rotation gives every photo a fresh key (a finished photo whose file is missing here is fetched back from
+its mirror copy first), rewrites its file and its `.key` record, so an old copy of the
 database opens none of them.
 
 ## Recovering photos without the app

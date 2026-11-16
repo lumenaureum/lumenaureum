@@ -32,7 +32,7 @@ back to it in Settings.
 ### 1. Owner account and master key
 The **setup code** comes first. It shows you are the person who installed the app, and it stops working once setup is
 done. It is in the file `SETUP-CODE.txt` in your `data` folder, which only the app's user can read: use
-`sudo cat data/SETUP-CODE.txt`, or find it in the container log with `docker compose logs lumen`. Then your name,
+`sudo cat data/SETUP-CODE.txt`, or find it in the container log with `docker compose logs lumenaureum`. Then your name,
 email, password, and two-factor (an authenticator app), then your **master key**, shown once: save it in a password
 manager and print it. You also get recovery codes to print.
 The first person to finish this step owns the install; the setup page closes to everyone else.
@@ -44,6 +44,10 @@ lost, and it is the only way to open a backup.
 
 **Decide carefully: the master key is unrecoverable.** It is never stored by the app. Lose it and the password, and
 no one (you included) can open your data or any backup. Keep two copies in different places.
+
+A week after setup, and every 90 days after that, Today asks you to check you still have it: paste it into the page
+it links to (also under Settings, Security) and the app tells you whether it is the master key this install uses.
+The key is checked in memory and forgotten; only the date of the check is kept. "Not now" asks again in a week.
 
 ### 2. Your business
 - Your name, the business name that appears on contracts and invoices, and a brand name if it is different.
@@ -107,11 +111,34 @@ Signed documents keep the wording they were signed with.
 The gallery host (web hosting over SFTP, an S3 bucket with a public web address, or a folder a web server on this
 machine serves) and its public web address. A test upload confirms it works. Then how long a gallery stays up after
 the client first opens it, and when a gallery nobody opens comes down. One extension can be given from the session
-page. A folder on this machine must be mounted into the container first: see
+page. In its last week (or the last quarter of a shorter window), a gallery on a host that runs PHP opens with a notice, on every
+visit, that it is about to sunset: the date it closes and your email (and Download all, for a download gallery). Once a gallery comes down, its link says the gallery has gone dark
+and gives your email, since you may still have the photos. That page stays a year, then goes too. To put a gallery back
+online, use the "..." beside it: for a number of days, or (a download gallery on a host that runs PHP) for one download, after
+which it goes dark again. Only Download all counts as that download; saving single photos doesn't. The client's sent
+picks come back online with it. A fixed last day ends at midnight in your time zone (Business and time zone), on the
+host as in the app. The email is the
+one in Settings, so set it before galleries go online. A folder on this machine must be mounted into the container first: see
 [Folders outside the container](where-it-runs.md#folders-outside-the-container).
 
 **Decide carefully: the gallery address.** Each QR letter you mail contains it. If the address changes, links in
 letters already sent stop working. Use a domain you control and intend to keep.
+
+**If your gallery host goes away** (it closes, or you move): set up the new host in this step, then open **Move
+galleries** from Today. One button puts every gallery there, built from the copies on this computer, with its days,
+the client's picks and the same link. Point your gallery address at the new host and every link keeps working. If the
+address has to change, the same page lists the clients who need the new link. When the earlier host can still be
+reached, Move first takes the client's latest picks from it, and its copies stop taking picks (they say the gallery
+has moved and give your email). Until you take the old copies down from the same page, each check still looks there
+for picks sent anyway (an earlier host that can't be reached is tried once a day).
+
+Every earlier host is kept, each with what may still be online there, until its copies are down: changing hosts twice
+before moving keeps both. Turning galleries off in this step moves nothing and takes nothing down; turning them on
+again with the same host carries on where things were. Deleting a session or client takes its gallery down from every
+host that holds a copy; one that can't be reached then is listed on Move galleries (and on Today) and comes down at a
+later check, or with Take the old copies down. If an earlier host is gone for good (the account closed), use **This
+host is gone for good: forget it** there: History names any gallery that may still be online on it. Changing your
+time zone in Settings moves the closing instant of every gallery online at the next check.
 
 ### 9. Who can reach this (optional)
 By default, devices on your local network, over HTTPS, using an address or a name listed in `CRM_HOSTNAMES`. Every
@@ -148,8 +175,9 @@ disk encrypted.
 ## Paperwork: how clients sign
 Agreements and releases are signed outside the app. Print the document, or download the PDF and send it by email or
 text, then get the signed copy back. Open the document and press **Mark signed** once you have it. A wedding where both
-people sign has one agreement per signer, each with its own **Mark signed**. A signed document keeps the wording it was
-signed with.
+people sign has one agreement per signer, each with its own **Mark signed**. On Today, **Mark signed** signs the one
+document still waiting; when several people still have to sign, it opens the session's paperwork instead, so you tick
+off only the ones who signed. A signed document keeps the wording it was signed with.
 
 **Email it** on a document opens a draft in your mail app, addressed to the client. It doesn't attach anything:
 download the PDF and attach it before you send.
@@ -167,7 +195,10 @@ A gallery is one of two kinds, set by the proof mark in Settings, General, Clien
   gallery goes online as soon as it is built, without waiting for the balance, and the QR letter says the proofs are
   ready to pick from.
 - **Delivery gallery (no proof mark).** The finished photos, released on payment: while a balance is due, the
-  gallery waits. To put it online before payment anyway, press **Upload before payment**.
+  gallery waits. To put it online before payment anyway, press **Upload before payment**. A balance you won't collect
+  can be waived (**Waived** on its step): it is written off, the balance reads $0 and the gallery is released. If the
+  client pays it after all, record the payment as usual: the write-off is reversed by as much (marking the step Done
+  then leaves both as they are, each in its own year).
 
 - **Download gallery (delivery by Download link).** The final photos at full size, for the client to keep. Each photo
   has a Download button, and **Download all** saves every photo in one zip (several zips of about 500 MB each for a
@@ -187,6 +218,11 @@ themselves.
 Rebuilding a gallery that is already online updates it at the same link. The old photo files are removed from the
 host as soon as the new build is up. A page the client already has open notices the new build and asks them to
 reload.
+
+## Your studio page (optional)
+A small public website for your studio, posted to your gallery host in the folder above your galleries: a few photos
+you pick, an About page, how to reach you, and an inquiry form. Off until you switch it on in Settings, Studio page.
+See [studio-page.md](studio-page.md).
 
 ## Hard to change later, at a glance
 | Decision | Why it is sticky |

@@ -248,7 +248,14 @@ def destroy_session(con, sid, backends):
     if missing:
         raise IOError(f"archive copies on {', '.join(sorted(missing))} are not configured here; nothing was deleted")
     for oid, name, kind in rows:
-        by[kind].delete_verified(name)
+
         con.execute("UPDATE vault_objects SET deleted=? WHERE id=?", (now, oid))
+        con.commit()
+        try:
+            by[kind].delete_verified(name)
+        except BaseException:
+            con.execute("UPDATE vault_objects SET deleted=NULL WHERE id=?", (oid,))
+            con.commit()
+            raise
     keys.shred(con, sid)
     con.commit()

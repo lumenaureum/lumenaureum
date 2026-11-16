@@ -6,7 +6,7 @@ which can lead to harm including, but not limited to, exposure or loss of data, 
 
 A plugin is one Python file with a `register(ctx)` function. It can add pages, steps to a session's workflow,
 sections to the client screen, items on Today, search results, and more, without changing Lumen Aureum's own code.
-The plugins in this folder (galleries, letters, retention) are built the same way and are good examples.
+The plugins in this folder (galleries, letters, retention, the studio page) are built the same way and are good examples.
 
 ## Where your plugins live
 Keep your own plugins **outside** this code, in a folder of your own, so updates never touch them:
@@ -15,7 +15,7 @@ Keep your own plugins **outside** this code, in a folder of your own, so updates
 2. Mount it into the container and tell Lumen Aureum about it:
    ```yaml
    services:
-     lumen:
+     lumenaureum:
        volumes:
          - ./my-plugins:/plugins:ro
        environment:
@@ -31,10 +31,10 @@ day the agreement names is a promise to clients, so it always runs. Online galle
 
 If a plugin needs a Python package the image doesn't have, build your own image on top of this one:
 ```dockerfile
-FROM ghcr.io/lumenaureum/lumenaureum:1.2.0     # the version you run
+FROM ghcr.io/lumenaureum/lumenaureum:1.3.0     # the version you run
 USER root
 RUN pip install some-package
-USER lumen
+USER lumenaureum
 ```
 
 ## A complete example
@@ -126,7 +126,13 @@ Append functions to these (`ctx.hooks.<name>.append(fn)`):
 - `guards` (a dict) - `ctx.hooks.guards.setdefault("gallery_upload", []).append(fn)` where
   `fn(proceed, **details) -> bool`: return True to hold the action (for an approval, say) and call `proceed()` when it
   may go ahead. `details` for a gallery upload: `sid`, `gallery_id`, `n_files`, and `update=True` when a rebuilt
-  gallery goes over the one already online (the copy online stays up meanwhile).
+  gallery goes over the one already online (the copy online stays up meanwhile). Moving every gallery to a new host
+  asks once: `move=True`, `n_galleries`, `n_files`, with `sid` and `gallery_id` None. The studio page's upload asks the
+  same guard: `site=True`, `n_files`, `site_url`, with `sid` and `gallery_id` None (taking the site down adds
+  `remove=True`), so a plugin that holds gallery uploads holds the website too. Taking the old copies down from an
+  earlier gallery host asks it too: `remove=True`, `earlier_host=True`, with `sid` and `gallery_id` None.
+- `settings_tabs` - `(label, endpoint, sub)`: a page of your plugin's own settings, listed under Plugins in Settings.
+  Add the endpoint to `ctx.app.jinja_env.globals["SETTINGS_ENDPOINTS"]` so it opens beside the Settings list.
 - `tax_region` (set it, don't append) - `dict(name=, areas=[(key, label)], area_of=fn(client_address) -> (area, warning),
   extra_pct=fn(area, local_pct) -> percent added to the base rate)`: sales tax that depends on where the client is.
   When it is set, Settings and setup offer a "regional" sales-tax choice.

@@ -38,7 +38,13 @@ This signs you in without the two-factor code: the master key outranks both, whi
 ## Unattended unlock (off by default)
 Some installs restart unattended (NAS updates). Set `CRM_UNLOCK_KEY_FILE` to a path on a **separate** volume and turn
 on Unattended unlock in Settings > Security: the app then unlocks itself at start from that file. The app refuses
-a key file on the same disk as its data. Anyone with both
+a key file inside the data folder, on the same filesystem or mount as the data, or (in a container) on the
+container's own filesystem rather than a mounted volume, and a memory-only filesystem (tmpfs, such as /tmp on many
+systems), which is emptied at every restart. The place is checked again at every start: a key file moved somewhere
+refused since it was turned on does not unlock the app, which starts locked and says why on the sign-in and Security
+pages and in the log. It can only tell filesystems apart, not disks: two
+partitions of one disk, or two folders of one NAS pool mounted separately, pass the check and protect nothing, so
+choosing a place on another device is up to you. Anyone with both
 that volume and the data folder can read everything, so keep the file where a thief would not also take it (an
 encrypted dataset that is locked when the machine is off, a USB key you keep elsewhere). This trades protection at
 rest for availability; leave it off unless you need it.
@@ -50,6 +56,10 @@ rest for availability; leave it off unless you need it.
   instead of uploading. Those files are ordinary files, readable by anyone who can open the share; uploading is the
   safer way.
 - **A reprint copy** opened from the vault is plain for the 7 days it exists, then removed.
+- **The studio page's builds.** Preview, and Upload, build the site as plain files in `data/site/` (pages, and photos
+  at web size with their copyright mark, as they appear online). The preview stays until the next upload, a take-down,
+  or the app locking or restarting; an upload's build stays only until it has gone up (or, while it waits for an
+  approval, until the app locks). Thumbnails on the Studio page are kept in memory only, and cleared on lock.
 - **PDFs** you open in the browser (quotes, agreements, letters) may be kept by the browser in its cache or
   Downloads. Delete downloads you don't need; on a laptop, use full-disk encryption.
 - **Memory.** While unlocked, the data key is in the app's memory. A swap or hibernation file can hold memory on disk;
@@ -60,6 +70,15 @@ Galleries on a web host that runs PHP expire by themselves: the gallery page fet
 small gate script that refuses once the window is over (or if its window file is missing). The host keeps only a hash
 of the key proof, never the proof or the key. Galleries on a plain S3 bucket are removed by the app, which needs to be
 unlocked to do it. The app also removes every gallery on its first check after the window ends, on any host.
+Outside the encrypted files, a gallery's host holds only its dates and your studio email: the gate gives the email to
+a visitor once the gallery has closed, and the page left at an expired gallery's link shows your studio name and email.
+The client's name and the photos are never on it.
+
+Deleting a session or client takes its gallery down from the host in use (the delete stops if that fails) and from any
+earlier gallery host that still holds a copy. A copy that can't be removed then (the host can't be reached) is kept in
+a list of gallery folders still to come down, tried again by the regular check (an unreachable host once a day) and by
+Take the old copies down; Today mentions it until it is down. While a delete runs, the session's gallery can't be put
+back online, uploaded or rebuilt, and the delete checks once more, just before the records go, that it is down.
 
 What a gallery link can and can't protect:
 - **The link is the key.** Anyone holding the full link (with what follows the `#`) can open the gallery, the same as
@@ -79,11 +98,11 @@ Each gallery folder holds a few small PHP files and two small text files beside 
 
 | File | What it does |
 |---|---|
-| `limits.txt` | The gallery's window: how many days after the first visit, and the date it closes if nobody opens it. The app writes it at upload and on every change. |
+| `limits.txt` | The gallery's window: how many days after the first visit, and the date it closes if nobody opens it (with the exact instant that day ends in your time zone, written again when the time zone changes). The app writes it at upload and on every change. After Move galleries, the copy left on the earlier host is marked moved (with your email, which earlier copies didn't carry), and a page built before 1.3 there is replaced with this version's, which reads the same files and tells the client the gallery moved. |
 | `seen-key.php` | The SHA-256 of the key proof (the proof is the first 32 hex characters of the SHA-256 of the gallery key). It starts with `<?php exit; ?>`, so fetching it shows nothing. |
 | `seen.php` | Records the first visit in `seen.txt`, once, and only for a visitor who sends the key proof. A stamp left empty is replaced. |
 | `gate.php` | Serves the encrypted photo files, `manifest.bin`, `draft.bin` and `picks.bin`, and only while the window is open. A missing or unreadable `limits.txt` counts as closed. On galleries built since 1.1 it also asks for the key proof for every file. `draft.bin` and `picks.bin` always need the proof. |
-| `picks.php` | Saves the client's picks (`picks.bin`) or the picks still being made (`draft.bin`). It takes only an encrypted body of the right shape, up to 256 KB, from a visitor who sends the key proof, and only while the window is open. |
+| `picks.php` | Saves the client's picks (`picks.bin`) or the picks still being made (`draft.bin`). It takes only an encrypted body of the right shape, up to 256 KB, from a visitor who sends the key proof, and only while the window is open. On a copy marked moved it saves nothing and answers with your email. |
 | `.htaccess` | Apache rules: refuse `seen.txt`, `seen-key.php`, `limits.txt`, `picks.bin` and `draft.bin` to everyone, and send every photo file and `manifest.bin` through `gate.php`. |
 
 How the gate answers:
@@ -91,7 +110,8 @@ How the gate answers:
 - A wrong key proof waits one second before the refusal, on purpose. It slows anyone guessing a codeword through the
   host. Each wrong guess holds one PHP worker for that second.
 - The gallery page reads `picks.bin` through the gate, with the proof, to check what was really sent. The app reads
-  it over the upload connection, not through the gate.
+  it over the upload connection, not through the gate. With `manifest.bin`, and only for a visitor who sent the right
+  proof, the gate says whether `draft.bin` and `picks.bin` are there, so the page asks only for the ones that are.
 
 **The key proof protection relies on Apache.** The `.htaccess` rules are what stop someone fetching the files by
 name, around the gate. Apache reads them; other web servers ignore them. On nginx with PHP-FPM, on LiteSpeed without
@@ -113,6 +133,29 @@ Adjust the paths if your galleries sit under a folder (for example `/g/`). Then 
 `photos.example.com`), not a folder on your main website. The gallery page keeps the client's picks, notes included,
 in the browser's storage for the gallery's address. Any script on the same address, such as a website plugin or an
 analytics script, could read them. The gallery key itself is never stored.
+
+## The studio page
+The studio page is public and unencrypted, like any website; see [Studio page](studio-page.md). What it guards:
+- **Client photos.** Only from sessions whose client allows portfolio use, never one on the client's Don't show list
+  (a retouched version of it included), and none from a session whose list has any entry that isn't exactly one of
+  the session's file names (two names in one entry, a range, a name with words after it). Permissions are checked
+  again when a held upload is approved, and the site built again without a photo its client stopped allowing. Each
+  photo is saved again from its pixels, so no camera data or location goes up.
+- **Its files on the host.** Only files it put there, and only while each still matches the SHA-256 recorded when it
+  went up. Anything edited there since is left. A client's photo its client no longer allows stays on the list while
+  it is on the host, edited or not: Today reminds (with the page switched off too), and Remove it anyway deletes it.
+- **Inquiries.** Sealed in the visitor's browser to the studio's key (ECDH P-256, HKDF-SHA256, AES-256-GCM); the host
+  keeps files it can't open. `inquiry.php` takes 5 an hour from one sender (an IPv4 address, or one IPv6 /56), needs
+  a small proof of work from the browser (`SHA-256(SHA-256(envelope) . w)` starting with 17 zero bits, about a second
+  on a phone), keeps the same envelope once, holds at most 10 from one sender and 200 in all, and when full drops the
+  newest of the sender with the most waiting rather than refusing everyone. Senders are kept only as an HMAC keyed
+  with a random value per install, written into `inquiry.php` (PHP source is never served). The app collects up to
+  200 per check with no daily cap, holds them in the encrypted database for you to Add or mark as Spam (none becomes a
+  client record by itself), and Today flags more than 10 in a day.
+- **The inquiries folder** is closed to the web by `inquiries/.htaccess`, which only Apache reads. On nginx or with
+  `AllowOverride None`, deny the folder in the server's own rules: the sealed files stay unreadable either way, but the
+  rate file (hashed addresses and times) would be open. Taking the site down collects what waits, then removes the
+  folder's own files and the folder.
 
 ## On the network
 - HTTPS only, always: a certificate the app makes on first start (its SHA-256 fingerprint is printed in the container
@@ -138,8 +181,9 @@ no access log (request lines can carry search terms).
 There is no undo: their galleries come down, their photos and archives are destroyed, and every record and
 history line about them is erased. Sealed daily backups still contain the record until they age out (the 30 most recent daily backups are kept, and the
 second location's copies on the same schedule). A small list of deletions, `deletions.json`, is kept outside the
-database: if an older backup is ever restored, those clients are deleted again at the next sign-in. The list holds
-only record numbers and creation times, no names.
+database: if an older backup is ever restored, those clients are deleted again at the next sign-in. Deleted sessions
+are on the same list, and are deleted again the same way (their History lines stay, as after any session delete). The
+list holds only record numbers and creation times, no names.
 
 Each entry in that list is signed with a key kept inside the encrypted database, so someone who can write to the data
 folder but has no key cannot add an entry and have a client deleted at the next sign-in. An entry whose signature does
@@ -172,7 +216,8 @@ Changing your password or turning off unattended unlock stops the old password o
 still unwrap the same data key. Only a rotation revokes that. So if a password, a keyring copy or an unlock key file
 may have leaked, stop the app and run `python -m vault.cli rotate`. Everything is
 re-encrypted under a new key, uploaded photos included (each gets a fresh key and is rewritten; their mirror
-copies are refreshed afterwards) - staged and checked first, swapped in last; an interrupted rotation is finished by
+copies are refreshed afterwards; a photo whose file here is missing is fetched back from its mirror copy first, and
+if one can't be fetched the rotation stops before anything is changed) - staged and checked first, swapped in last; an interrupted rotation is finished by
 running the command again, and the app will not start until it is. It refuses to run while the app is running. Unattended unlock is turned off by a rotation.
 Older backups keep their own keyring and still open with the master key.
 

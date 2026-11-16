@@ -47,7 +47,10 @@
 <style>
 @font-face { font-family: "Cormorant Garamond"; font-weight: 400; font-display: swap; src: url({{ url_for('gallery_font_file', name='cormorant-garamond') }}) format("woff2"); }
 @font-face { font-family: "Great Vibes"; font-weight: 400; font-display: swap; src: url({{ url_for('gallery_font_file', name='great-vibes') }}) format("woff2"); }
-#gallery-look { --g-classic: var(--serif); --g-elegant: "Cormorant Garamond", var(--serif); --g-script: "Great Vibes", var(--serif); }
+{% if own_font %}@font-face { font-family: "Studio Own"; font-weight: 400; font-display: swap; src: url({{ url_for('gallery_font_file', name='own') }}) format("woff2"); }
+{% if own_font.light %}@font-face { font-family: "Studio Own"; font-weight: 300; font-display: swap; src: url({{ url_for('gallery_font_file', name='own-light') }}) format("woff2"); }
+{% endif %}{% endif %}#gallery-look { --g-classic: var(--serif); --g-elegant: "Cormorant Garamond", var(--serif); --g-script: "Great Vibes", var(--serif); --g-own: "Studio Own", var(--serif); }
+#gallery-look .gl-fonts .f-own { font-family: var(--g-own); }
 #gallery-look .gl-fonts span { font-size: 17px; padding: 3px 14px; }
 #gallery-look .gl-fonts .f-classic { font-family: var(--g-classic); }
 #gallery-look .gl-fonts .f-elegant { font-family: var(--g-elegant); font-size: 19px; }
@@ -61,6 +64,7 @@
   padding: 22px 16px 18px; text-align: center; }
 #gl-prev.elegant { --t: var(--g-elegant); }
 #gl-prev.script { --t: var(--g-script); }
+#gl-prev.own { --t: var(--g-own); }
 #gl-prev .t { font: 400 34px/1.15 var(--t); margin: 0 0 8px; }
 #gl-logo-img { display: block; margin: 0 auto 12px; max-height: 48px; max-width: 200px; object-fit: contain; }
 #gl-logo-img[hidden] { display: none; }
@@ -76,8 +80,13 @@
   <h2>Client galleries</h2>
   <p class="mute" style="font-size:13px;margin:0">Choose how your online galleries look to clients. This applies to every gallery you build or rebuild from now on.</p>
   <div><label class="l" id="gl-font-l">Font</label>
-    <span class="seg gl-fonts" role="radiogroup" aria-labelledby="gl-font-l">{% for k_, l_ in (('classic', 'Classic'), ('elegant', 'Elegant'), ('script', 'Script')) %}<label><input type="radio" name="gallery_font" value="{{ k_ }}"{{ ' checked' if look.gallery_font == k_ }}><span class="f-{{ k_ }}">{{ l_ }}</span></label>{% endfor %}</span>
-    <div class="sub" style="font-size:12.5px;margin-top:4px">Script is used for the client's name only.</div></div>
+    <span class="seg gl-fonts" role="radiogroup" aria-labelledby="gl-font-l">{% for k_, l_ in (('classic', 'Classic'), ('elegant', 'Elegant'), ('script', 'Script')) + ((('own', own_font.name),) if own_font else ()) %}<label><input type="radio" name="gallery_font" value="{{ k_ }}"{{ ' checked' if look.gallery_font == k_ }}><span class="f-{{ k_ }}">{{ l_ }}</span></label>{% endfor %}</span>
+    <div class="sub" style="font-size:12.5px;margin-top:4px">Script is used for the client's name only.{% if own_font %} {{ own_font.name }} is your own font: used for all the text, in your galleries and on your studio page.{% endif %}</div>
+    <div class="row" style="gap:8px;flex-wrap:wrap;align-items:end;margin-top:8px"><span style="font-size:13px">{{ 'Change your own font' if own_font else 'Your own font' }}:</span>
+      <label style="font-size:12.5px">Regular <input type="file" name="regular" form="gl-font" accept=".woff2,.woff,.ttf,.otf" style="width:auto"></label>
+      <label style="font-size:12.5px">Light (optional) <input type="file" name="light" form="gl-font" accept=".woff2,.woff,.ttf,.otf" style="width:auto"></label>
+      <button class="quiet" form="gl-font">Upload</button>{% if own_font %}<button class="ghost" form="gl-font" name="remove" value="1">Remove</button>{% endif %}</div>
+    <div class="sub" style="font-size:12.5px;margin-top:4px">A font file (WOFF2, WOFF, TTF or OTF) whose license lets you put it on a website, such as one downloaded from Google Fonts. It goes up with each gallery and your studio page, so visitors' browsers never fetch it from anywhere else.</div></div>
   <div><label class="l" id="gl-bg-l">Background</label>
     {% set sw_ = (('#f6f3ed', 'Ivory'), ('#ffffff', 'White'), ('#262422', 'Charcoal'), ('#0d0c0b', 'Black')) %}
     {% set custom_ = look.gallery_bg not in sw_|map('first')|list %}
@@ -105,6 +114,7 @@
   <div><button class="primary">Save</button></div>
 </form>
 <form id="gl-logo" method="post" action="{{ url_for('logo_upload') }}" enctype="multipart/form-data" hidden><input type="hidden" name="which" value="dark"></form>
+<form id="gl-font" method="post" action="{{ url_for('brand_font_upload') }}" enctype="multipart/form-data" hidden></form>
 <script src="{{ url_for('static', filename='gallery_look.js', v=static_v('gallery_look.js')) }}"></script>
 {% elif tab == 'fees' %}
 <form method="post" class="card f" style="max-width:760px"><input type="hidden" name="fees_posted" value="1">

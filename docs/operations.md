@@ -26,13 +26,13 @@ Images are signed. To check one before running it:
 
 Those steps move only the restored files into your existing data folder. Everything else in it stays, including the
 `tls` folder that holds the app's HTTPS certificate, so your devices don't warn about a new certificate. Keep the data
-folder's own `deletions.json` and `doc-numbers.json` (step 6), so clients deleted since the upgrade stay deleted and
-numbers don't repeat. (A version from before 1.0 reads these as `deletions.enc` and `doc-numbers.enc`, so on those,
+folder's own `deletions.json` and `doc-numbers.json` and move the restored copies in beside them (step 6): they are
+merged at sign-in, so clients and sessions deleted since the upgrade stay deleted and numbers don't repeat. (A version from before 1.0 reads these as `deletions.enc` and `doc-numbers.enc`, so on those,
 check the clients list and the next invoice number.)
 
 Going back to an earlier version is always this restore: each version that changes the database updates it at the
 first sign-in (1.0.1 turned refunds recorded the 1.0.0 way into credits; 1.1 added the gallery draft fields; 1.1.1
-keeps a copy of each issued invoice and receipt; 1.2 marks the data as using download galleries), and an earlier
+keeps a copy of each issued invoice and receipt; 1.2 marks the data as using download galleries; 1.3 keeps each payment's sales tax and each statement charge as recorded), and an earlier
 version refuses the updated database. Anything
 entered after the upgrade is not in that backup: before rolling back, look through each client's History and the
 audit log for what changed since, and note it. A rollback cannot undo a leak: if you rolled back because of a security
@@ -58,38 +58,41 @@ as shown, in a terminal on the machine that runs Docker.
 | `crm.db` | Your data: clients, sessions, money, and settings | Into the data folder |
 | `keyring.json` | The key that opens `crm.db` | Into the data folder |
 | `storage.json` | Where backups go and how to sign in there | Into the data folder |
-| `deletions.json` | The clients you deleted, so they stay deleted | Step 6 decides |
-| `doc-numbers.json` | The highest invoice, receipt, session, and client numbers used, so none repeat | Step 6 decides |
+| `deletions.restored.json` | The backup's copy of `deletions.json`: the clients and sessions you deleted, so they stay deleted | Into the data folder (step 6) |
+| `doc-numbers.restored.json` | The backup's copy of `doc-numbers.json`: the highest invoice, receipt, session, and client numbers used, so none repeat | Into the data folder (step 6) |
 | `settings.json` | A copy of your settings, for Settings, Import settings | Leave it; `crm.db` already holds your settings |
 | `deletions.unverified.json` | Deletions that could not be confirmed. Never in a backup | Leave the data folder's own copy where it is |
 
-A backup made before you ever deleted a client has no `deletions.json`. That is expected: there was nothing to list.
+A backup made before you ever deleted a client has no `deletions.restored.json`. That is expected: there was nothing to list.
 Backups from before settings were included have only `crm.db` and `keyring.json`.
 
 **Everything (on this machine, or after a loss).** Run each command in the folder that holds your `compose.yaml`.
-1. **Find the backup's name.** `docker compose exec lumen python -m vault.cli backups`. It asks for your password
+1. **Find the backup's name.** `docker compose exec lumenaureum python -m vault.cli backups`. It asks for your password
    (or the master key), because the list is kept in the encrypted database. Each line shows the date, the kind, the
    size, and last the name, for example `db/3f9c1e7a5b2d4c6e8a0b1c2d3e4f5a6b.age`. Pick a line whose kind is `db`,
    `manual`, or `upgrade` (`faces` lines hold only face photos) and copy the whole name, `db/` included. Settings,
    Backups (the Vault page) shows the same dates and sizes, so you can match them up there. On a new
    machine there is no database to ask yet: start the app once (`docker compose up -d`) and use the newest file in
    the `db` folder of your vault.
-2. **Restore it.** `docker compose exec lumen python -m vault.cli restore db/3f9c...6b.age /data/restored`, with your
+2. **Restore it.** `docker compose exec lumenaureum python -m vault.cli restore db/3f9c...6b.age /data/restored`, with your
    backup's full name. It asks for your master key. On a new machine, add `--from /vault` (the vault folder as the
    app sees it). The files appear in a folder named `restored` inside your data folder.
 3. **Stop the app.** `docker compose stop`.
 4. **Move three files.** Move `crm.db`, `keyring.json`, and `storage.json` from `restored` into the data folder,
    replacing the ones there.
 5. **Leave `settings.json`** in `restored`. You need it only for a settings-only restore (below).
-6. **`deletions.json` and `doc-numbers.json`.**
-   - The data folder still has its own: keep those. They are newer than any backup.
-   - The data folder lost them: move the restored ones in.
-   - Restoring an older backup after a loss: restore the newest backup too, into another folder (for example
-     `/data/restored-newest`), and take these two files from it.
-   - Either way, leave `deletions.unverified.json` where it is, if the data folder has one.
+6. **`deletions.restored.json` and `doc-numbers.restored.json`.** Move them into the data folder too, and keep the
+   data folder's own `deletions.json` and `doc-numbers.json` if it still has them. At the next sign-in the two are
+   merged: every deletion in either list is kept (each is checked before it is applied), and every number carries on
+   from the higher of the two. The `.restored.json` files go once merged.
+   - Restoring an older backup after the data folder was lost: restore the newest backup too, into another folder
+     (for example `/data/restored-newest`), and move its two `.restored.json` files in instead: they are the newest lists.
+   - Leave `deletions.unverified.json` where it is, if the data folder has one.
+   - Going back to a version before 1.3, which doesn't merge: keep the data folder's own two files, or if it lost
+     them, move the restored ones in under the names `deletions.json` and `doc-numbers.json`.
 
-   With these, clients deleted after the backup was made are deleted again, and numbers carry on instead of
-   repeating.
+   With these, clients and sessions deleted after the backup was made are deleted again, and numbers carry on instead
+   of repeating.
 7. **Check the owner (only if you copied files some other way).** `restore` writes as the app's own user, so moving
    is enough. Otherwise give the files the same owner as the rest of the data folder (see it with
    `ls -ln <data folder>`; 568 on TrueNAS, 10001 with the example compose file), for example
@@ -118,7 +121,7 @@ above, then import the file you exported.
 Signs: sign-in attempts you didn't make (you are told at sign-in), devices you don't recognize, settings you didn't
 change (every change is in each client's History and in the audit log).
 1. **Contain.** Stop the container, or take the machine off the network.
-2. **Rotate the data key.** `docker compose run --rm lumen python -m vault.cli rotate` (the app stopped): everything is
+2. **Rotate the data key.** `docker compose run --rm lumenaureum python -m vault.cli rotate` (the app stopped): everything is
    re-encrypted under a new key; old copies of the keyring stop working.
 3. **New password and recovery codes; sign out everywhere** (Settings > Security). Re-add two-factor in your
    authenticator app if the phone or its backup may be exposed.

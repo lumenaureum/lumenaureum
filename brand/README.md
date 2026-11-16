@@ -6,6 +6,7 @@
 | `logo-horizontal-light-bg.svg` / `.png` | Main logo on light backgrounds |
 | `logo-stacked-dark-bg.svg` / `.png` | Square-ish spaces |
 | `mark.svg`, `png/mark-512.png` | The mark alone (golden light, with a keyhole: your photos, kept private) |
+| `mark-small.svg` | The mark for 32 px and smaller (the credit line): simplified and drawn on whole pixels |
 | `mark-mono-dark.svg`, `mark-mono-light.svg` | One color, for print, stamps and embossing |
 | `app-icon.svg`, `png/app-icon-512.png`, `-1024.png`, `favicon-32.png` | App and catalog icons |
 

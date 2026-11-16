@@ -22,8 +22,8 @@ BLOCK = """
 </form>{% endif %}
 {% if r and r.sealed_at and not r.purged_at %}<div class="row" style="font-size:13px"><span class="grow">Sealed {{ nice(r.sealed_at) }}</span>
   {% if r.unsealed_dir %}<span class="mute" data-tip="Removed after {{ reprint_days }} days">Reprint copy: {{ r.unsealed_dir }}</span>
-  {% else %}<details class="early" {{ 'open' if failed }}><summary>Open for a reprint</summary>{% if failed %}<div style="color:var(--crit);font-size:12.5px">That key did not open it.</div>{% endif %}<form method="post" action="{{ url_for('retention_unseal', sid=s.id) }}" class="row" style="margin-top:6px">
-    <input type="hidden" name="back" value="{{ back }}"><input type="password" name="master" placeholder="Master key" autocomplete="off" required class="grow" style="width:auto"><input name="only" placeholder="Only these files (blank: all)" style="width:200px">
+  {% else %}<details class="early" {{ 'open' if failed or slow }}><summary>Open for a reprint</summary>{% if slow %}<div style="color:var(--crit);font-size:12.5px">Too many wrong keys from here. Try again {{ slow }}.</div>{% elif failed %}<div style="color:var(--crit);font-size:12.5px">That key did not open it.</div>{% endif %}<form method="post" action="{{ url_for('retention_unseal', sid=s.id) }}" class="row" style="margin-top:6px;align-items:end">
+    <input type="hidden" name="back" value="{{ back }}"><span class="grow" style="display:grid;gap:2px"><label class="l" for="unseal-key-{{ s.id }}">Master key</label><input type="password" id="unseal-key-{{ s.id }}" name="master" placeholder="AGE-SECRET-KEY-1..." autocomplete="off" required style="width:auto"></span><span style="display:grid;gap:2px"><label class="l" for="unseal-only-{{ s.id }}">Only these files</label><input id="unseal-only-{{ s.id }}" name="only" placeholder="Blank: all" style="width:200px"></span>
     <button class="quiet">Open</button></form></details>{% endif %}</div>
 {% elif plain and master and not (r and r.purged_at) %}<div class="row" style="font-size:13px">{% if sdate %}<span class="grow" data-tip="RAWs and exports are encrypted and the plaintext removed">Seals {{ nice(sdate.isoformat()) }}</span>{% endif %}<form method="post" action="{{ url_for('retention_seal', sid=s.id) }}" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="quiet">Seal now</button></form></div>{% endif %}
 {% if r and r.purged_at %}<div class="sub" style="font-size:13px">RAWs and outtakes deleted {{ nice(r.purged_at) }}{% if r.early_note %} ({{ r.early_note }}){% endif %}</div>
@@ -185,14 +185,21 @@ def register(ctx):
         secret = request.form.get("master", "")
         dest = UNSEALED / _secrets.token_hex(8)
         only = [w_.strip() for w_ in (request.form.get("only") or "").split(",") if w_.strip()]
+        back = ctx.safe_back(request.form.get("back")) or url_for("home")
+        th_ = app.config.get("key_throttle")
+        ip_ = request.remote_addr or ""
+        if th_ is not None and th_.ip_blocked(ip_):
+            return redirect(back + ("&" if "?" in back else "?") + "unseal=slow")
         con = ctx.connect()
         try:
             if str(VS.keys.parse_secret(secret).to_public()) != VS.keys.master_pub(con):
                 raise ValueError("not this install's master key")
         except Exception:
             app.logger.warning("unseal %s refused", sid)
-            back = ctx.safe_back(request.form.get("back")) or url_for("home")
-            return redirect(back + ("&" if "?" in back else "?") + "unseal=failed")
+            if th_ is not None:
+                th_.fail(ip_, "reprint unseal")
+            slow = th_ is not None and th_.ip_blocked(ip_)
+            return redirect(back + ("&" if "?" in back else "?") + ("unseal=slow" if slow else "unseal=failed"))
         finally:
             con.close()
 
@@ -351,20 +358,29 @@ def register(ctx):
             con.close()
         if n_up:
             gone.append(f"{n_up} uploaded photo{'s' if n_up != 1 else ''}")
+        kept = []
         if r and r["raw_dir"] and _safe(r["raw_dir"], PHOTOS / "raw", 2):
-            shutil.rmtree(r["raw_dir"]); gone.append("RAWs")
+            if shared_with_others(s, [r["raw_dir"]]):
+                kept.append("RAWs")
+            else:
+                shutil.rmtree(r["raw_dir"]); gone.append("RAWs")
         g = q("SELECT source_dir FROM galleries WHERE session_id=?", (s["id"],), one=True) \
             if q("SELECT 1 FROM sqlite_master WHERE name='galleries'", one=True) else None
         if g and g["source_dir"] and _safe(g["source_dir"], PHOTOS / "export", 1):
-            shutil.rmtree(g["source_dir"]); gone.append("exports")
+            if shared_with_others(s, [g["source_dir"]]):
+                kept.append("exports")
+            else:
+                shutil.rmtree(g["source_dir"]); gone.append("exports")
         if s["gallery_id"] and _safe(GALLERIES / s["gallery_id"], GALLERIES, 1):
             shutil.rmtree(GALLERIES / s["gallery_id"]); gone.append("local gallery")
         x("""INSERT INTO retention (session_id, purged_at) VALUES (?,?)
              ON CONFLICT(session_id) DO UPDATE SET purged_at=excluded.purged_at""", (s["id"], date.today().isoformat()))
+        also = f"; kept the {' and '.join(kept)}: another session uses the same folder" if kept else ""
         if why:
-            ctx.audit(f"Photos deleted {why}: " + (", ".join(gone) if gone else "none were stored"), sid=s["id"], who="Lumen Aureum")
+            ctx.audit(f"Photos deleted {why}: " + (", ".join(gone) if gone else "none were stored") + also, sid=s["id"], who="Lumen Aureum")
         else:
-            ctx.audit(f"Deleted {ctx.C.days_words(keep_days(s, r))} after delivery: " + (", ".join(gone) or "nothing on disk"), sid=s["id"], who="Lumen Aureum")
+            ctx.audit(f"Deleted {ctx.C.days_words(keep_days(s, r))} after delivery: " + (", ".join(gone) or "nothing on disk") + also,
+                      sid=s["id"], who="Lumen Aureum")
 
     SEAL_NOTICE_DAYS = 3
     PURGE_NOTICE_DAYS = 7
@@ -443,6 +459,13 @@ def register(ctx):
     app.config["retention_pass"] = pass_once
     app.config["retention_purge_now"] = lambda sid: purge(q("SELECT * FROM sessions WHERE id=?", (sid,), one=True), row(sid), why="with the session")
 
+    def _slow_text():
+        th_ = app.config.get("key_throttle")
+        ip_ = request.remote_addr or ""
+        if request.args.get("unseal") == "slow" and th_ is not None and th_.ip_blocked(ip_):
+            return th_.wait_text(ip_)
+        return ""
+
     def block(s):
         if s["stage"] not in ("shot", "delivered", "closed"):
             return []
@@ -452,7 +475,7 @@ def register(ctx):
         html = render_template_string(BLOCK, s=s, r=r, dirs=raw_dirs(s) if not (r and r["sealed_at"]) else [], due=due, soon=soon,
                                       nice=ctx.nice, back=back_of(s), plain=bool(plain_folders(s, r) or uploads(s["id"])), master=has_master(),
                                       reprint_days=REPRINT_DAYS, sdate=seal_date(s), folders=FOLDERS,
-                                      failed=request.args.get("unseal") == "failed")
+                                      failed=request.args.get("unseal") == "failed", slow=_slow_text())
         return [("Photo storage", html)]
 
     ctx.hooks.stage_blocks.append(block)

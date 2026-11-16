@@ -7,7 +7,7 @@ import secrets
 import struct
 import time
 from collections import defaultdict, deque
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from flask import abort, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -107,6 +107,15 @@ class Throttle:
     def ip_blocked(self, ip):
         return len(self._trim(ip)) >= IP_FAILS_PER_HOUR or time.time() < self.until.get(ip, 0)
 
+    def wait_text(self, ip):
+
+        now, q = time.time(), self._trim(ip)
+        ends = [self.until.get(ip, 0)]
+        if len(q) >= IP_FAILS_PER_HOUR:
+            ends.append(q[len(q) - IP_FAILS_PER_HOUR] + 3600)
+        mins = max(1, -(-int(max(ends) - now) // 60))
+        return "in a minute" if mins == 1 else f"in {mins} minutes"
+
     def fail(self, ip, what="sign-in"):
         now = time.time()
         self._sweep()
@@ -126,6 +135,35 @@ class Throttle:
         items = list(self.log)
         self.log.clear()
         return items
+
+MASTER_CHECK_DAYS, MASTER_FIRST_CHECK_DAYS, MASTER_LATER_DAYS = 90, 7, 7
+
+def _day(v):
+    try:
+        return date.fromisoformat(str(v or "")[:10])
+    except ValueError:
+        return None
+
+def master_check_due(con, today):
+
+    if not datakey.exists():
+        return False
+    get = lambda k: (con.execute("SELECT value FROM settings WHERE key=?", (k,)).fetchone() or ("",))[0] or ""
+    later = _day(get("master_check_later"))
+    if later and later > today:
+        return False
+    last = _day(get("master_checked"))
+    if last:
+        return last + timedelta(days=MASTER_CHECK_DAYS) <= today
+    made = _day(con.execute("SELECT MIN(created) FROM users").fetchone()[0])
+    return not made or made + timedelta(days=MASTER_FIRST_CHECK_DAYS) <= today
+
+def master_key_opens(secret):
+
+    try:
+        return hmac.compare_digest(datakey.unwrap_master(secret or ""), datakey.dk() or b"")
+    except ValueError:
+        return False
 
 SCRYPT_SLOTS = __import__("threading").BoundedSemaphore(2)
 
@@ -148,6 +186,9 @@ def register(app, connect, allowed, audit, on_unlock):
                       PERMANENT_SESSION_LIFETIME=timedelta(days=30))
     th = Throttle()
     app.config["auth_throttle"] = th
+    kth = Throttle()
+    kth.log = th.log
+    app.config["key_throttle"] = kth
 
     def has_owner():
         return datakey.exists()
@@ -344,7 +385,7 @@ def register(app, connect, allowed, audit, on_unlock):
                     th.fail(ip, "password")
                     err = "bad"
         return render_template("auth_login.html", err=err, next=request.args.get("next", ""),
-                               locked=not datakey.is_unlocked())
+                               locked=not datakey.is_unlocked(), auto_refused=datakey.auto_refused())
 
     def _owner_email_ok(key, email):
         try:
@@ -470,6 +511,51 @@ def register(app, connect, allowed, audit, on_unlock):
                     return r
         return _no_store(app, render_template("auth_master_unlock.html", err=err, min_pw=MIN_PASSWORD))
 
+    def _put(con, k, v):
+        con.execute("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (k, v))
+
+    def _today():
+        return (app.config.get("today") or date.today)()
+
+    @app.route("/security/master-key", methods=["GET", "POST"], endpoint="master_key_check")
+    def master_key_check():
+
+        result = None
+        if request.method == "POST":
+            ip_ = request.remote_addr or ""
+            if kth.ip_blocked(ip_):
+                result = "slow"
+            elif master_key_opens(request.form.get("secret", "")):
+                con = connect()
+                try:
+                    _put(con, "master_checked", _today().isoformat())
+                    con.execute("DELETE FROM settings WHERE key='master_check_later'")
+                    con.commit()
+                finally:
+                    con.close()
+                audit("Checked the master key")
+                result = "ok"
+            else:
+                kth.fail(ip_, "master key check")
+                result = "slow" if kth.ip_blocked(ip_) else "wrong"
+        con = connect()
+        try:
+            last = (con.execute("SELECT value FROM settings WHERE key='master_checked'").fetchone() or ("",))[0]
+        finally:
+            con.close()
+        wait = kth.wait_text(request.remote_addr or "") if result == "slow" else ""
+        return _no_store(app, render_template("master_key_check.html", result=result, last=_day(last), wait=wait))
+
+    @app.post("/security/master-key/later", endpoint="master_key_later")
+    def master_key_later():
+        con = connect()
+        try:
+            _put(con, "master_check_later", (_today() + timedelta(days=MASTER_LATER_DAYS)).isoformat())
+            con.commit()
+        finally:
+            con.close()
+        return redirect(url_for("home"))
+
     @app.route("/security", methods=["GET", "POST"], endpoint="security")
     def security():
         msg = err = None
@@ -536,6 +622,7 @@ def register(app, connect, allowed, audit, on_unlock):
             con.close()
         return _no_store(app, render_template("auth_security.html", msg=msg, err=err, codes=codes, left=left,
                                               auto=datakey.auto_enabled(), auto_file=datakey.auto_file(),
+                                              auto_refused=datakey.auto_refused(),
                                               min_pw=MIN_PASSWORD))
 
 def _no_store(app, html):

@@ -10,7 +10,7 @@ SETTING_KEYS = ("business_name", "photographer_name", "studio_name", "business_e
                 "local_tax_pct", "gallery_base_url", "backup_time", "governing_law", "credit_off", "agreement_text", "release_text", "transfer_text", "license_text",
                 "home_base", "business_tax_id", "bank_details", "pay_details", "age_majority", "logo_png",
                 "logo_dark_png", "gallery_font", "gallery_bg", "proof_mark", "proof_mark_text", "proof_mark_strength",
-                "business_website")
+                "business_website", "brand_font_400", "brand_font_300", "brand_font_name")
 SECRET_FIELDS = ("secret_key", "password", "private_key")
 STORAGE_PARTS = ("primary", "secondary", "gallery_host")
 BACKEND_FIELDS = {"local": ("type", "path"), "sftp": ("type", "host", "user", "key_file", "root", "port", "known_hosts", "host_key"),
@@ -18,7 +18,147 @@ BACKEND_FIELDS = {"local": ("type", "path"), "sftp": ("type", "host", "user", "k
 FEE_UNITS = ("flat", "hour", "each", "mile", "person")
 MAX_TEXT = 2000
 
-GALLERY_FONTS = ("classic", "elegant", "script")
+GALLERY_FONTS = ("classic", "elegant", "script", "own")
+FONT_MAX = 2 * 1024 * 1024
+
+FONT_UNPACKED_MAX = 10 * 1024 * 1024
+FONT_GLYPHS_MAX = 65535
+
+FONT_TABLES = {"cmap", "head", "hhea", "hmtx", "maxp", "name", "OS/2", "post", "glyf", "loca", "CFF ", "CFF2", "VORG",
+               "GDEF", "GPOS", "GSUB", "kern", "gasp", "prep", "fpgm", "cvt ", "vhea", "vmtx", "fvar", "gvar", "avar",
+               "cvar", "HVAR", "VVAR", "MVAR", "STAT"}
+
+def _font_unpacked(data):
+
+    import struct
+    import zlib
+    limit = FONT_UNPACKED_MAX
+    if data[:4] == b"wOFF":
+        if len(data) < 44:
+            raise ValueError("not a font")
+        num, total = struct.unpack(">H2xI", data[12:20])
+        meta_off, meta_len, meta_orig = struct.unpack(">III", data[24:36])
+        if total > limit or meta_orig > limit or len(data) < 44 + 20 * num:
+            raise ValueError("too large unpacked")
+        size = 0
+        parts = [struct.unpack(">4xIII4x", data[44 + 20 * i:64 + 20 * i]) for i in range(num)]
+        if meta_len:
+            parts.append((meta_off, meta_len, meta_orig))
+        for off, comp, orig in parts:
+            size += orig
+            if size > limit:
+                raise ValueError("too large unpacked")
+            if comp < orig:
+                d = zlib.decompressobj()
+                try:
+                    got = len(d.decompress(data[off:off + comp], orig + 1))
+                except zlib.error:
+                    raise ValueError("not a font")
+                if got > orig:
+                    raise ValueError("too large unpacked")
+        return size
+    if data[:4] == b"wOF2":
+        import brotli
+        if len(data) < 48:
+            raise ValueError("not a font")
+        flavor, num, total, comp_total = data[4:8], *struct.unpack(">H2xII", data[12:24])
+        meta_off, meta_len, meta_orig = struct.unpack(">III", data[28:40])
+        if flavor == b"ttcf" or total > limit or meta_orig > limit:
+            raise ValueError("not a usable font")
+        pos, want = 48, 0
+
+        def base128():
+            nonlocal pos
+            v = 0
+            for _ in range(5):
+                if pos >= len(data):
+                    raise ValueError("not a font")
+                b = data[pos]
+                pos += 1
+                v = (v << 7) | (b & 0x7f)
+                if not b & 0x80:
+                    return v
+            raise ValueError("not a font")
+        for _ in range(num):
+            if pos >= len(data):
+                raise ValueError("not a font")
+            flags = data[pos]
+            pos += 1
+            known, version = flags & 0x3f, flags >> 6
+            if known == 63:
+                pos += 4
+            orig = base128()
+            transformed = version == 0 if known in (10, 11) else version != 0
+            want += base128() if transformed else orig
+            if want > limit:
+                raise ValueError("too large unpacked")
+
+        def unpack(blob, most):
+            d, n, i = brotli.Decompressor(), 0, 0
+            try:
+                while True:
+                    if d.can_accept_more_data():
+                        if i >= len(blob):
+                            break
+                        n += len(d.process(blob[i:i + 4096], output_buffer_limit=1 << 20))
+                        i += 4096
+                    else:
+                        n += len(d.process(b"", output_buffer_limit=1 << 20))
+                    if n > most:
+                        raise ValueError("too large unpacked")
+            except brotli.error:
+                raise ValueError("not a font")
+            return n
+        got = unpack(data[pos:pos + comp_total], want)
+        if meta_len:
+            got += unpack(data[meta_off:meta_off + meta_len], meta_orig)
+        return got
+    return len(data)
+
+def clean_font(data):
+
+    import io
+    if not data or len(data) > FONT_MAX or data[:4] not in (b"wOF2", b"wOFF", b"\x00\x01\x00\x00", b"true", b"OTTO"):
+        raise ValueError("not a font")
+    from fontTools.ttLib import TTFont
+    try:
+        if _font_unpacked(data) > FONT_UNPACKED_MAX:
+            raise ValueError("too large unpacked")
+        f = TTFont(io.BytesIO(data))
+        if "name" not in f or "cmap" not in f or "glyf" not in f and "CFF " not in f and "CFF2" not in f:
+            raise ValueError("not a usable font")
+        if f["maxp"].numGlyphs > FONT_GLYPHS_MAX or len(f.getGlyphOrder()) > FONT_GLYPHS_MAX:
+            raise ValueError("too many glyphs")
+        fam = f["name"].getDebugName(16) or f["name"].getDebugName(1) or ""
+        for tag in [t_ for t_ in f.keys() if t_ != "GlyphOrder" and t_ not in FONT_TABLES]:
+            del f[tag]
+        f.flavor = "woff2"
+        out = io.BytesIO()
+        f.save(out)
+    except ValueError:
+        raise
+    except Exception:
+        raise ValueError("not a usable font")
+    if len(out.getvalue()) > FONT_MAX:
+        raise ValueError("too large")
+    return out.getvalue(), re.sub(r"[^\w .'-]", "", fam).strip()[:60]
+
+def font_weights(data, default):
+
+    import io
+    try:
+        from fontTools.ttLib import TTFont
+        f = TTFont(io.BytesIO(data), lazy=True)
+        if "fvar" in f:
+            for ax in f["fvar"].axes:
+                if ax.axisTag == "wght":
+                    lo, hi = int(round(ax.minValue)), int(round(ax.maxValue))
+                    if 1 <= lo <= hi <= 1000:
+                        return f"{lo} {hi}"
+    except Exception:
+        pass
+    return str(default)
+
 GALLERY_BG = "#f6f3ed"
 PROOF_MARKS = ("", "tiled", "corner")
 PALETTES = {
@@ -65,7 +205,7 @@ def clean_look(font, bg, mark, text, strength):
     font = (font or "").strip().lower()
     bg = (bg or "").strip().lower()
     mark = (mark or "").strip().lower()
-    text = re.sub(r"[\x00-\x1f\x7f-\x9f\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]", "", str(text or ""))
+    text = re.sub(r"[\x00-\x1f\x7f-\x9f\u200b\u200e\u200f\u2028-\u202e\u2060-\u206f\ufeff]", "", str(text or ""))
     text = " ".join(text.split())[:20].strip()
     try:
         n = int(float(str(strength).strip()))
@@ -438,7 +578,8 @@ def parse(text, current_storage):
     raw = data.get("settings") or {}
     if not isinstance(raw, dict):
         raise ImportProblem("settings: not a list of settings")
-    settings = {k: _text(v, k, 20000 if k.endswith("_text") else 600000 if k in ("logo_png", "logo_dark_png") else MAX_TEXT)
+    settings = {k: _text(v, k, 20000 if k.endswith("_text") else 600000 if k in ("logo_png", "logo_dark_png")
+                     else 3000000 if k in ("brand_font_400", "brand_font_300") else MAX_TEXT)
                 for k, v in raw.items() if k in SETTING_KEYS}
     for k_ in ("sales_tax_pct", "local_tax_pct", "mileage_rate", "home_lat", "home_lon", "quote_term_days", "age_majority"):
         v_ = (settings.get(k_) or "").strip()
@@ -457,6 +598,18 @@ def parse(text, current_storage):
                 settings[lk_] = base64.b64encode(clean_logo(base64.b64decode(settings[lk_], validate=True))).decode()
             except (binascii.Error, ValueError):
                 raise ImportProblem(f"settings.{lk_}: not a PNG or JPEG picture this can use")
+    for fk_ in ("brand_font_400", "brand_font_300"):
+        if settings.get(fk_):
+            import base64
+            import binascii
+            try:
+                settings[fk_] = base64.b64encode(clean_font(base64.b64decode(settings[fk_], validate=True))[0]).decode()
+            except (binascii.Error, ValueError):
+                raise ImportProblem(f"settings.{fk_}: not a font file this can use")
+    if settings.get("brand_font_name"):
+        settings["brand_font_name"] = re.sub(r"[^\w .'-]", "", settings["brand_font_name"]).strip()[:60]
+    if settings.get("gallery_font") == "own" and not settings.get("brand_font_400"):
+        settings["gallery_font"] = "classic"
     look = clean_look(settings.get("gallery_font"), settings.get("gallery_bg"), settings.get("proof_mark"),
                       settings.get("proof_mark_text"), settings.get("proof_mark_strength"))
     settings.update({k: v for k, v in look.items() if k in settings})

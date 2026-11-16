@@ -61,11 +61,11 @@ class LocalBackend(Backend):
 
     MARKER = ".vault-root"
 
-    def __init__(self, root, read_only=False, public=False):
+    def __init__(self, root, read_only=False, public=False, marked=True):
 
         self.root = os.path.abspath(root)
         self.public = public
-        if read_only:
+        if read_only or not marked:
             if not os.path.isdir(self.root):
                 raise IOError(f"{self.root} is not a folder")
             return

@@ -59,7 +59,7 @@ def default_gateway():
 def health_probe(request):
 
     try:
-        peer = request.environ.get("lumen.peer", request.remote_addr)
+        peer = request.environ.get("lumenaureum.peer", request.remote_addr)
         return request.endpoint == "healthz" and ipaddress.ip_address(peer).is_loopback
     except (ValueError, TypeError):
         return False
@@ -87,7 +87,7 @@ class ProxyGate:
 
     def __call__(self, environ, start_response):
         peer = environ.get("REMOTE_ADDR", "")
-        environ["lumen.peer"] = peer
+        environ["lumenaureum.peer"] = peer
         fwd = environ.get("HTTP_X_FORWARDED_FOR")
         proto = environ.get("HTTP_X_FORWARDED_PROTO")
         try:

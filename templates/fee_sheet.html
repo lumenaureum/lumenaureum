@@ -10,7 +10,7 @@
   <div class="promise"><b>Every edited image is included.</b></div>
   {% for title, rows in groups %}<h2>{{ title }}</h2><table>{% for label, price in rows %}<tr><td>{{ label }}</td><td class="n">{{ price }}</td></tr>{% endfor %}</table>{% endfor %}
   <h2>Terms</h2>
-  <table>{% for head, txt in terms %}<tr><td style="width:170px"><b>{{ head }}</b></td><td>{{ txt }}</td></tr>{% endfor %}</table>
+  <table>{% for head, txt in terms %}<tr><td style="width:170px">{% set hp_ = head.split(': ', 1) %}<b>{{ hp_[0] }}</b>{% if hp_|length > 1 %}<br><span style="font-size:.88em;color:#555">{{ hp_[1] }}</span>{% endif %}</td><td>{{ txt }}</td></tr>{% endfor %}</table>
   <h2>What editing includes</h2>
   <div class="ed">{% for head, pts in editing %}<b>{{ head }}</b><ul>{% for p_ in pts %}<li>{{ p_ }}</li>{% endfor %}</ul>{% endfor %}</div>
   <p class="foot">Fee schedule #{{ sch.id }}. A written quote for your session lists the exact price, including any discount, and how long it is good for.</p>

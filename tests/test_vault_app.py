@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -92,7 +93,9 @@ print('left', host.list('gtest1/'), host.stat('gtest1/.htaccess'))
         assert "index on host True htaccess True" in out, out
         assert "seen before None" in out and "seen after 2026-11-11T12:00:00Z" in out, out
         assert "left [] None" in out, out
-        assert "limits ['days=5', 'unopened_until=2027-11-11', 'proof=1']" in out and "gate True" in out, out
+
+        assert re.search(r"limits \['days=5', 'unopened_until=2027-11-11', 'unopened_ts=\d+', 'warn_days=2', 'proof=1'\]", out), out
+        assert "gate True" in out, out
 
 def test_daily_backup_schedule(tmp_path):
     (tmp_path / "storage.json").write_text(json.dumps({"primary": {"type": "local", "path": str(tmp_path / "store")}}))

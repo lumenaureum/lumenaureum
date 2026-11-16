@@ -100,6 +100,7 @@ def test_auto_unlock_on_and_off(env, key_dir, monkeypatch):
     import datakey
     key_file = os.path.join(key_dir, "unlock.key")
     monkeypatch.setenv("CRM_UNLOCK_KEY_FILE", key_file)
+    monkeypatch.setattr(datakey, "_mount_fstype", lambda p: "ext4")
     r = post(c, current=TEST_PASSWORD, act="auto_on")
     assert b"Unattended unlock is on." in r.data, r.data
     assert datakey.auto_enabled()

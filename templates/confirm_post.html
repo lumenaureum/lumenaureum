@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}{{ question }} - Lumen Aureum{% endblock %}
+{% block body %}
+<section class="clash" role="alert" id="confirm" style="margin:10px 0;padding:12px 16px">
+  <h1 style="margin:0 0 6px;font-size:20px">{{ question }}</h1>
+  <p style="margin:0">{{ detail }}</p>
+  <form method="post" action="{{ action }}" class="row" style="margin-top:10px;gap:10px">
+    {% for k, v in fields %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    <input type="hidden" name="{{ confirm_name }}" value="1">
+    <button class="primary">{{ yes }}</button><a class="btn" href="{{ cancel }}">Cancel, change nothing</a></form>
+</section>
+{% endblock %}
+

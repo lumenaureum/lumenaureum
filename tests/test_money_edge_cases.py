@@ -37,9 +37,10 @@ def test_kept_deposit_tax_counted_once(env):
     con.commit(); con.close()
     A.apply_settings()
     with A.app.test_request_context():
+
         assert A.kept_deposit_tax(1) == 8.0
     page = c.get("/money?year=2026", environ_base=E).get_data(as_text=True)
-    assert "$92" in page and "$84.59" not in page
+    assert "$92" in page and "$84" not in page
 
 def test_no_deposit_step_done_once_quoted(env):
     A, c = env

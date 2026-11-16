@@ -117,7 +117,7 @@ def test_the_schema_moves_only_if_it_changed(upgraded):
     assert A.SCHEMA_VERSION >= V111_SCHEMA
     assert _q(A, "PRAGMA user_version")[0][0] == A.SCHEMA_VERSION
     assert taken == (["upgrade"] if A.SCHEMA_VERSION > V111_SCHEMA else [])
-    assert A.SCHEMA_VERSION == 6 and taken == ["upgrade"]
+    assert A.SCHEMA_VERSION == 7 and taken == ["upgrade"]
     cols = {t: [r[1] for r in _q(A, f"PRAGMA table_info({t})")] for t in ("bill_snapshots", "sessions", "galleries")}
     assert "html" in cols["bill_snapshots"] and "priced_on" in cols["sessions"]
     assert {"proof", "prune_due"} <= set(cols["galleries"])

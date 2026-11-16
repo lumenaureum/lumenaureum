@@ -1,9 +1,14 @@
 {% extends "base.html" %}
-{% block title %}This {{ what }} was deleted - Lumen Aureum{% endblock %}
+{% block title %}This {{ what }} {{ 'is being' if deleting else 'was' }} deleted - Lumen Aureum{% endblock %}
 {% block body %}
 <section class="clash" role="alert" id="gone" style="margin:10px 0;padding:12px 16px">
+  {% if deleting %}
+  <h1 style="margin:0 0 6px;font-size:20px">This {{ what }} is being deleted</h1>
+  <p style="margin:0">Its gallery comes down and its photos are destroyed first, then its records. The progress shows at the bottom of the page.</p>
+  {% else %}
   <h1 style="margin:0 0 6px;font-size:20px">This {{ what }} was deleted</h1>
   <p style="margin:0">This page was opened before the {{ what }} was deleted, so nothing you did here was saved, and nothing else was changed.</p>
+  {% endif %}
   <p style="margin:8px 0 0"><a href="{{ url_for('home') }}">Go to Today</a> &middot; <a href="{{ url_for('clients') }}">See your clients</a></p>
 </section>
 {% endblock %}

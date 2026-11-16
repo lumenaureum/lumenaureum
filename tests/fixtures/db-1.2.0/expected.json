@@ -1,0 +1,874 @@
+{
+ "agreements": {
+  "1": [
+   "needed",
+   null
+  ],
+  "10": [
+   "needed",
+   null
+  ],
+  "2": [
+   "needed",
+   null
+  ],
+  "3": [
+   "needed",
+   null
+  ],
+  "7": [
+   "signed",
+   "2026-11-15"
+  ],
+  "8": [
+   "signed",
+   "2026-11-15"
+  ],
+  "9": [
+   "signed",
+   "2026-11-15"
+  ]
+ },
+ "app_version": "1.2.0",
+ "bill_snapshots": {
+  "INV-2026-0001": {
+   "balance": 250.0,
+   "kind": "INV",
+   "paid": 100.0,
+   "payments": 1,
+   "session": 1,
+   "total": 350.0
+  },
+  "INV-2026-0002": {
+   "balance": 60.0,
+   "kind": "INV",
+   "paid": 0.0,
+   "payments": 0,
+   "session": 6,
+   "total": 60.0
+  },
+  "R-2026-0001": {
+   "balance": 0.0,
+   "kind": "R",
+   "paid": 310.0,
+   "payments": 3,
+   "session": 1,
+   "total": 350.0
+  }
+ },
+ "bills": {
+  "1": {
+   "invoice": {
+    "balance": 250.0,
+    "number": "INV-2026-0001",
+    "paid": 100.0,
+    "since": "This is the invoice as issued. It has since been paid in full.",
+    "total": 350.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "R-2026-0001",
+    "paid": 310.0,
+    "since": "",
+    "total": 350.0
+   }
+  },
+  "10": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 200.0,
+    "since": "",
+    "total": 200.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 200.0,
+    "since": "",
+    "total": 200.0
+   }
+  },
+  "2": {
+   "invoice": {
+    "balance": 175.0,
+    "number": "",
+    "paid": 75.0,
+    "since": "",
+    "total": 250.0
+   },
+   "receipt": {
+    "balance": 175.0,
+    "number": "",
+    "paid": 75.0,
+    "since": "",
+    "total": 250.0
+   }
+  },
+  "3": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 0.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 0.0
+   }
+  },
+  "5": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 60.0,
+    "since": "",
+    "total": 60.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 60.0,
+    "since": "",
+    "total": 60.0
+   }
+  },
+  "6": {
+   "invoice": {
+    "balance": 60.0,
+    "number": "INV-2026-0002",
+    "paid": 0.0,
+    "since": "",
+    "total": 60.0
+   },
+   "receipt": {
+    "balance": 60.0,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 60.0
+   }
+  },
+  "7": {
+   "invoice": {
+    "balance": 175.0,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 175.0
+   },
+   "receipt": {
+    "balance": 175.0,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 175.0
+   }
+  },
+  "8": {
+   "invoice": {
+    "balance": 200.0,
+    "number": "",
+    "paid": 100.0,
+    "since": "",
+    "total": 300.0
+   },
+   "receipt": {
+    "balance": 200.0,
+    "number": "",
+    "paid": 100.0,
+    "since": "",
+    "total": 300.0
+   }
+  },
+  "9": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 400.0,
+    "since": "",
+    "total": 400.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 400.0,
+    "since": "",
+    "total": 400.0
+   }
+  }
+ },
+ "booked_hint": {
+  "1": "",
+  "10": "",
+  "2": "deposit and agreement still open",
+  "3": "",
+  "5": "agreement still open",
+  "6": "agreement still open",
+  "7": "deposit still open",
+  "8": "",
+  "9": ""
+ },
+ "booked_hint_before_signing": "deposit and agreement still open",
+ "booked_on": {
+  "10": "2026-11-15",
+  "2": "2026-11-15",
+  "7": "2026-11-15",
+  "8": "2026-11-15",
+  "9": "2026-11-15"
+ },
+ "clients": {
+  "1": "Lane",
+  "2": "Ortiz",
+  "3": "Bell",
+  "4": "Chen",
+  "5": "Price",
+  "6": "Kim",
+  "7": "Reyes",
+  "8": "Diaz"
+ },
+ "deleted": {
+  "client": 9,
+  "quote": 2,
+  "quoted_session": 4,
+  "session": 11
+ },
+ "deletions": [
+  {
+   "at": "2026-11-15 10:31:00",
+   "created": "2026-11-15 15:31:00",
+   "id": 9,
+   "mac": "c7940da025377e5c9dddf1ddf079fc89a4b95e68d5082b9be23516e3aa6f3200"
+  }
+ ],
+ "delivered": {
+  "10": {
+   "expires": null,
+   "files_delivered": false,
+   "first_visit": null,
+   "sd_shipped": null,
+   "stage": "shot"
+  },
+  "9": {
+   "expires": "2026-12-14",
+   "files_delivered": true,
+   "first_visit": "2026-11-13",
+   "sd_shipped": "2026-11-14",
+   "stage": "shot"
+  }
+ },
+ "delivery_history": {
+  "10": "Delivery changed from USB drive to Download link",
+  "9": "Delivery changed from USB drive to Download link"
+ },
+ "delivery_method": {
+  "1": null,
+  "10": "link",
+  "2": null,
+  "3": null,
+  "5": null,
+  "6": null,
+  "7": null,
+  "8": null,
+  "9": "link"
+ },
+ "deposit_due": {
+  "1": "2026-11-15",
+  "10": "2026-11-15",
+  "2": "2026-11-15",
+  "5": "2026-11-15",
+  "6": "2026-11-15",
+  "7": "2026-11-15",
+  "8": "2026-11-15",
+  "9": "2026-11-15"
+ },
+ "doc_numbers": {
+  "INV-2026-0001": {
+   "issued": "2026-11-15",
+   "kind": "INV",
+   "session": 1
+  },
+  "INV-2026-0002": {
+   "issued": "2026-11-15",
+   "kind": "INV",
+   "session": 6
+  },
+  "R-2026-0001": {
+   "issued": "2026-11-15",
+   "kind": "R",
+   "session": 1
+  }
+ },
+ "download_galleries": {
+  "10": {
+   "built_files": [
+    ".download",
+    ".htaccess",
+    ".online",
+    ".online-was",
+    "0ac40a5ee8db00d4f10d87e5.bin",
+    "1a630f4479695a7c2a7a23b1.bin",
+    "3cb59bbfbd85c62b3efeabb5.bin",
+    "54cc947f7683ad3441315220.bin",
+    "5adc350aef041750b582c67d.bin",
+    "5ba0b099edacc45c5dc2201d.bin",
+    "871e37cc3d0188769db51791.bin",
+    "8a4c53b7a650bd8103a75097.bin",
+    "8ba9985c124816f86f1fea46.bin",
+    "9d40aee8a126c6d484bcae00.bin",
+    "9de234f93ad78ef1b157c6eb.bin",
+    "9f54d0c0b4e9fdb5a5dc611a.bin",
+    "b4a4b99c31553d9348cee8eb.bin",
+    "b609591c1336088fa3720048.bin",
+    "b79ef1519b4b96e69a5ea508.bin",
+    "f64a364ff3597c7142be2bb9.bin",
+    "f810c1ea05bfaf368f52ce74.bin",
+    "font.woff2",
+    "gate.php",
+    "index.html",
+    "manifest.bin",
+    "picks.php",
+    "seen-key.php",
+    "seen.php"
+   ],
+   "dl": 1,
+   "gallery_id": "qcSxfzT4RL6i",
+   "host_files": [
+    ".htaccess",
+    "0ac40a5ee8db00d4f10d87e5.bin",
+    "1a630f4479695a7c2a7a23b1.bin",
+    "3cb59bbfbd85c62b3efeabb5.bin",
+    "54cc947f7683ad3441315220.bin",
+    "5adc350aef041750b582c67d.bin",
+    "5ba0b099edacc45c5dc2201d.bin",
+    "871e37cc3d0188769db51791.bin",
+    "8a4c53b7a650bd8103a75097.bin",
+    "8ba9985c124816f86f1fea46.bin",
+    "9d40aee8a126c6d484bcae00.bin",
+    "9de234f93ad78ef1b157c6eb.bin",
+    "9f54d0c0b4e9fdb5a5dc611a.bin",
+    "b4a4b99c31553d9348cee8eb.bin",
+    "b609591c1336088fa3720048.bin",
+    "b79ef1519b4b96e69a5ea508.bin",
+    "f64a364ff3597c7142be2bb9.bin",
+    "f810c1ea05bfaf368f52ce74.bin",
+    "font.woff2",
+    "gate.php",
+    "index.html",
+    "limits.txt",
+    "manifest.bin",
+    "picks.php",
+    "seen-key.php",
+    "seen.php"
+   ],
+   "is_download": true,
+   "items": [
+    {
+     "n": "diaz1.jpg",
+     "o": "f810c1ea05bfaf368f52ce74.bin",
+     "on": "diaz1.jpg",
+     "os": 19038
+    },
+    {
+     "n": "diaz2.jpg",
+     "o": "9d40aee8a126c6d484bcae00.bin",
+     "on": "diaz2.jpg",
+     "os": 18994
+    },
+    {
+     "n": "diaz3.jpg",
+     "o": "b609591c1336088fa3720048.bin",
+     "on": "diaz3.jpg",
+     "os": 19015
+    },
+    {
+     "n": "diaz4.jpg",
+     "o": "5adc350aef041750b582c67d.bin",
+     "on": "diaz4.jpg",
+     "os": 18985
+    }
+   ],
+   "manifest_sha256": "a042b8a7515babebc0b40564df2f0afa0dddfa1f1b05f3afdc1959ad1d38cfdb",
+   "online_download": true,
+   "site": "https://studio.example.com",
+   "title": "Diaz",
+   "zips": [
+    {
+     "name": "Diaz.zip",
+     "parts": [
+      "0ac40a5ee8db00d4f10d87e5.bin",
+      "f64a364ff3597c7142be2bb9.bin",
+      "871e37cc3d0188769db51791.bin",
+      "b4a4b99c31553d9348cee8eb.bin",
+      "b79ef1519b4b96e69a5ea508.bin"
+     ],
+     "size": 76430
+    }
+   ]
+  },
+  "9": {
+   "built_files": [
+    ".download",
+    ".htaccess",
+    ".online",
+    ".online-was",
+    "169b8bec23dfb948eb3f35ec.bin",
+    "3f908fec53f521509bd5e1d0.bin",
+    "57e8ef17ecc1c55a980a53d7.bin",
+    "603ee5c6dd85b62f97199c85.bin",
+    "645b7d1ba2ed9bcfb5b88e2b.bin",
+    "8baf0b6cd60e1eaa67a2ad58.bin",
+    "8c04124b01282f7839a95d75.bin",
+    "97aa28964c2b0e4fc4a7958f.bin",
+    "9b4fb47104d12a1045c904b3.bin",
+    "b34ceb965001593bdc4f1707.bin",
+    "c214fafd2fa0d5f0b28fedb1.bin",
+    "d12367a33f116969ff4edf02.bin",
+    "e1a1929be0e36d6e521905c1.bin",
+    "font.woff2",
+    "gate.php",
+    "index.html",
+    "manifest.bin",
+    "picks.php",
+    "seen-key.php",
+    "seen.php"
+   ],
+   "dl": 1,
+   "gallery_id": "s9XEKNTIGGn4",
+   "host_files": [
+    ".htaccess",
+    "169b8bec23dfb948eb3f35ec.bin",
+    "3f908fec53f521509bd5e1d0.bin",
+    "57e8ef17ecc1c55a980a53d7.bin",
+    "603ee5c6dd85b62f97199c85.bin",
+    "645b7d1ba2ed9bcfb5b88e2b.bin",
+    "8baf0b6cd60e1eaa67a2ad58.bin",
+    "8c04124b01282f7839a95d75.bin",
+    "97aa28964c2b0e4fc4a7958f.bin",
+    "9b4fb47104d12a1045c904b3.bin",
+    "b34ceb965001593bdc4f1707.bin",
+    "c214fafd2fa0d5f0b28fedb1.bin",
+    "d12367a33f116969ff4edf02.bin",
+    "e1a1929be0e36d6e521905c1.bin",
+    "font.woff2",
+    "gate.php",
+    "index.html",
+    "limits.txt",
+    "manifest.bin",
+    "picks.php",
+    "seen-key.php",
+    "seen.php",
+    "seen.txt"
+   ],
+   "is_download": true,
+   "items": [
+    {
+     "n": "final-1.jpg",
+     "o": "c214fafd2fa0d5f0b28fedb1.bin",
+     "on": "final-1.jpg",
+     "os": 19001
+    },
+    {
+     "n": "final-2.jpg",
+     "o": "169b8bec23dfb948eb3f35ec.bin",
+     "on": "final-2.jpg",
+     "os": 19029
+    },
+    {
+     "n": "final-3.jpg",
+     "o": "b34ceb965001593bdc4f1707.bin",
+     "on": "final-3.jpg",
+     "os": 19000
+    }
+   ],
+   "manifest_sha256": "793b59d7a0337f029c0e1add8b15b2256da0b11a32f3f20000157ad30ea330d3",
+   "online_download": true,
+   "site": "https://studio.example.com",
+   "title": "Reyes autumn portraits",
+   "zips": [
+    {
+     "name": "Reyes autumn portraits.zip",
+     "parts": [
+      "8c04124b01282f7839a95d75.bin",
+      "e1a1929be0e36d6e521905c1.bin",
+      "9b4fb47104d12a1045c904b3.bin",
+      "97aa28964c2b0e4fc4a7958f.bin"
+     ],
+     "size": 57346
+    }
+   ]
+  }
+ },
+ "event": {
+  "families": [
+   "Bell",
+   "Chen"
+  ],
+  "id": 1
+ },
+ "finals": {
+  "9": "final-1.jpg,final-2.jpg,final-3.jpg"
+ },
+ "finances": {
+  "by_month": {
+   "2026-02": 100.0,
+   "2026-03": 250.0,
+   "2026-04": -40.0,
+   "2026-05": 135.0,
+   "2026-07": 100.0,
+   "2026-08": 150.0,
+   "2026-09": 250.0,
+   "2026-10": 200.0
+  },
+  "outstanding": {
+   "8": 200.0
+  },
+  "received": {
+   "event": 60.0,
+   "family": 1085.0
+  },
+  "refunds": -40.0,
+  "tax_due": 0.0,
+  "total": 1145.0,
+  "upcoming": {
+   "2": 175.0,
+   "6": 60.0,
+   "7": 175.0
+  }
+ },
+ "galleries": {
+  "1": {
+   "built_at": "2026-11-15",
+   "n_files": 4,
+   "proof": 1,
+   "prune_due": null,
+   "upload_state": "up"
+  },
+  "10": {
+   "built_at": "2026-11-15",
+   "n_files": 4,
+   "proof": 0,
+   "prune_due": null,
+   "upload_state": "up"
+  },
+  "8": {
+   "built_at": "2026-11-15",
+   "n_files": 2,
+   "proof": 1,
+   "prune_due": null,
+   "upload_state": "up"
+  },
+  "9": {
+   "built_at": "2026-11-15",
+   "n_files": 3,
+   "proof": 0,
+   "prune_due": null,
+   "upload_state": "up"
+  }
+ },
+ "gallery": {
+  "built_at": "2026-11-15",
+  "codeword": "amber harbor willow",
+  "cw_fixed": "word",
+  "draft_at": "2026-11-15T08:30-05:00",
+  "draft_n": 3,
+  "ekey": "XRMXR-yDp44vQrMcf1NiCQfzi85kPIUEEPJ7vFdRBVY",
+  "favorites": "",
+  "first_visit": "2026-11-14",
+  "gallery_id": "5jOO5m27qTjR",
+  "has_codeword_key": true,
+  "key": "6XcRdOPhJxdYhaAQPfvG8m8th0_MIzeCUdubnExQHjU",
+  "limits_days": 30,
+  "link_asks_for_word": true,
+  "n_files": 4,
+  "picks_hash": "169537069fe89b85e502a9478a3dd2a316f9db0ea0be8fe8522bf15ec2591abe",
+  "removed_at": null,
+  "retouch_picks": "img1.jpg: soften the light",
+  "session": 1,
+  "session_built": "2026-11-15",
+  "still_picking": [
+   "Client is still picking (3 photos marked)"
+  ],
+  "upload_state": "up",
+  "uploaded_at": "2026-11-15",
+  "veto": ""
+ },
+ "gallery_base_url": "https://photos.example.com/g/",
+ "gallery_brand": {
+  "1": {
+   "client": "Lane family",
+   "site": "https://studio.example.com"
+  },
+  "10": {
+   "client": "Diaz",
+   "site": "https://studio.example.com"
+  },
+  "8": {
+   "client": "Kim family",
+   "site": "https://studio.example.com"
+  },
+  "9": {
+   "client": "Reyes autumn portraits",
+   "site": "https://studio.example.com"
+  }
+ },
+ "gallery_host": {
+  "type": "local"
+ },
+ "id_marks": {
+  "events": 1,
+  "households": 9,
+  "sessions": 11,
+  "tasks": 99
+ },
+ "invoice_sent": {
+  "1": "INV-2026-0001"
+ },
+ "issued_text": {
+  "INV-2026-0001": "Invoice Invoice INV-2026-0001 Date November 15, 2026 Terms Due on delivery Bill to Avery Lane Session Family session, March 14, 2026 Services Family session (1 hr) $300 Extra prints $50 Total $350 Payments February 20, 2026 - deposit, check $100 Balance due $250 How to pay Cash or check. Due on delivery: your photos are released on payment. INV-2026-0001. Questions about this invoice? Just reply or call.",
+  "INV-2026-0002": "Invoice Invoice INV-2026-0002 Date November 15, 2026 Terms Due on delivery Bill to Lee Chen Session Spring Recital, May 16, 2026 Services Spring Recital - family session $60 Total $60 Payments None yet Balance due $60 How to pay Cash or check. Due on delivery: your photos are released on payment. INV-2026-0002. Questions about this invoice? Just reply or call.",
+  "R-2026-0001": "Receipt Receipt R-2026-0001 Date April 2, 2026 Received from Avery Lane Session Family session, March 14, 2026 Services Family session (1 hr) $300 Extra prints $50 Total $350 Payments February 20, 2026 - deposit, check $100 March 20, 2026 - balance, card $250 April 2, 2026 - refund, card -$40 Total paid $310 Thank you. With this payment, the copyright in your delivered photos is yours. R-2026-0001. Questions about this receipt? Just reply or call."
+ },
+ "license_types": [
+  "headshot"
+ ],
+ "licensed": {
+  "1": false,
+  "10": false,
+  "2": false,
+  "3": false,
+  "5": false,
+  "6": false,
+  "7": true,
+  "8": false,
+  "9": false
+ },
+ "link_clause": "The link stays open for 30 days after you first open it; ask once and I'll extend it.",
+ "logos": {
+  "logo_dark_png": "90b63bd9cc27bcfe9aeef4730dc0a7619186d9d9f6757e6445438d77c1d729fb",
+  "logo_png": "a07057a76eca8ffd61adbf4910fa9b93dd97e8de0925b09efaba11da451bab98"
+ },
+ "made_with": "1.2.0 (e37c6e6)",
+ "no_picks": [
+  10
+ ],
+ "number_marks": {
+  "E": 1,
+  "H": 9,
+  "INV-2026-": 2,
+  "Q": 5,
+  "R-2026-": 1,
+  "S": 11,
+  "T": 99
+ },
+ "password": "test password 123",
+ "payments": {
+  "1": {
+   "amount": 100.0,
+   "kind": "deposit",
+   "received": "2026-02-20",
+   "session": 1
+  },
+  "2": {
+   "amount": 250.0,
+   "kind": "balance",
+   "received": "2026-03-20",
+   "session": 1
+  },
+  "3": {
+   "amount": -40.0,
+   "kind": "refund",
+   "received": "2026-04-02",
+   "session": 1
+  },
+  "4": {
+   "amount": 75.0,
+   "kind": "deposit",
+   "received": "2026-05-01",
+   "session": 2
+  },
+  "5": {
+   "amount": 60.0,
+   "kind": "balance",
+   "received": "2026-05-16",
+   "session": 5
+  },
+  "6": {
+   "amount": 100.0,
+   "kind": "deposit",
+   "received": "2026-07-01",
+   "session": 8
+  },
+  "7": {
+   "amount": 150.0,
+   "kind": "deposit",
+   "received": "2026-08-15",
+   "session": 9
+  },
+  "8": {
+   "amount": 250.0,
+   "kind": "balance",
+   "received": "2026-09-25",
+   "session": 9
+  },
+  "9": {
+   "amount": 200.0,
+   "kind": "balance",
+   "received": "2026-10-03",
+   "session": 10
+  }
+ },
+ "picks": {
+  "10": {
+   "favorites": "",
+   "retouch_picks": "",
+   "veto": ""
+  },
+  "9": {
+   "favorites": "reyes3.jpg",
+   "retouch_picks": "reyes1.jpg: warmer\nreyes3.jpg",
+   "veto": ""
+  }
+ },
+ "priced_on": {
+  "1": "2026-11-15",
+  "10": "2026-11-15",
+  "2": "2026-11-15",
+  "3": null,
+  "5": "2026-11-15",
+  "6": "2026-11-15",
+  "7": "2026-11-15",
+  "8": "2026-11-15",
+  "9": "2026-11-15"
+ },
+ "proof_owed": {
+  "8": 200.0
+ },
+ "quote_versions": {
+  "1": 2,
+  "3": 7,
+  "4": 8,
+  "5": 9
+ },
+ "refund_credits": {
+  "3": {
+   "amount": 40.0,
+   "session": 1
+  }
+ },
+ "schema_version": 6,
+ "sessions": {
+  "1": {
+   "due": 0.0,
+   "paid": 310.0,
+   "quoted": 350.0,
+   "refund_credit": 40.0,
+   "stage": "delivered"
+  },
+  "10": {
+   "due": 0.0,
+   "paid": 200.0,
+   "quoted": 200.0,
+   "refund_credit": 0.0,
+   "stage": "shot"
+  },
+  "2": {
+   "due": 175.0,
+   "paid": 75.0,
+   "quoted": 250.0,
+   "refund_credit": 0.0,
+   "stage": "booked"
+  },
+  "3": {
+   "due": 0.0,
+   "paid": 0.0,
+   "quoted": 0.0,
+   "refund_credit": 0.0,
+   "stage": "inquiry"
+  },
+  "5": {
+   "due": 0.0,
+   "paid": 60.0,
+   "quoted": 60.0,
+   "refund_credit": 0.0,
+   "stage": "booked"
+  },
+  "6": {
+   "due": 60.0,
+   "paid": 0.0,
+   "quoted": 60.0,
+   "refund_credit": 0.0,
+   "stage": "booked"
+  },
+  "7": {
+   "due": 175.0,
+   "paid": 0.0,
+   "quoted": 175.0,
+   "refund_credit": 0.0,
+   "stage": "booked"
+  },
+  "8": {
+   "due": 200.0,
+   "paid": 100.0,
+   "quoted": 300.0,
+   "refund_credit": 0.0,
+   "stage": "shot"
+  },
+  "9": {
+   "due": 0.0,
+   "paid": 400.0,
+   "quoted": 400.0,
+   "refund_credit": 0.0,
+   "stage": "shot"
+  }
+ },
+ "sessions_by_name": {
+  "bell": 5,
+  "chen": 6,
+  "diaz": 10,
+  "kim": 8,
+  "lane": 1,
+  "ortiz": 2,
+  "ortiz_inquiry": 3,
+  "price": 7,
+  "reyes": 9
+ },
+ "settings": {
+  "gallery_bg": "#262422",
+  "gallery_font": "elegant",
+  "proof_mark": "tiled",
+  "proof_mark_strength": "35",
+  "proof_mark_text": "SAMPLE",
+  "timezone": "America/New_York"
+ },
+ "side_keys": [
+  "deletions"
+ ],
+ "signed_delivery": {
+  "1": null,
+  "10": null,
+  "2": null,
+  "3": null,
+  "5": null,
+  "6": null,
+  "7": null,
+  "8": null,
+  "9": null
+ },
+ "snapshot_html": {
+  "INV-2026-0001": "7e46dbc598336de50f39a162e8e32ed442c03637f63cc0789d94fcfedc35d620",
+  "INV-2026-0002": "0765ec4addbd9bb245064a0cc8a2b364bccb3eddd0bef3592ff6e6ccd378cb43",
+  "R-2026-0001": "2ed4b3c8c8cf7bfa142f3f7459c1e6eacc5f84f767c731f55d3288c1c2d8f0a2"
+ },
+ "storage_keys": [
+  "gallery_host",
+  "primary"
+ ],
+ "website": "https://studio.example.com",
+ "year": "2026",
+ "zip_part": 16384
+}

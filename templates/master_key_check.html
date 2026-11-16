@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Check your master key - Lumen Aureum{% endblock %}
+{% block body %}
+<h1>Check your master key</h1>
+<div class="card f" style="max-width:760px;margin-top:16px">
+  <p class="mute">Your master key opens everything if your password is lost. Find it where you keep it (on paper or in
+    your password manager) and paste it here. It is checked and then forgotten: it is never saved.</p>
+  {% if result == 'ok' %}<p role="status" style="color:var(--gold)"><b>That's your master key. Keep it where it is.</b></p>
+  {% elif result == 'wrong' %}<p role="alert" style="color:var(--crit)">That isn't the master key this install uses. Check for a typo or a missing line, or look for another copy.</p>
+  {% elif result == 'slow' %}<p role="alert" style="color:var(--crit)">Too many wrong keys from here. Try again {{ wait or 'later' }}. Signing in is not affected.</p>{% endif %}
+  {% if result != 'ok' %}<form method="post" class="f" autocomplete="off">
+    <input type="password" name="secret" placeholder="AGE-SECRET-KEY-1..." aria-label="Master key" autocomplete="off" spellcheck="false" required autofocus>
+    <button class="primary">Check</button></form>{% endif %}
+  <p class="mute" style="margin-top:12px">{% if last %}Last checked {{ nice(last.isoformat()) }}.{% else %}Not checked yet.{% endif %} You'll be asked again every 90 days.</p>
+  <p><a href="{{ url_for('security') }}">Back to Security</a></p>
+</div>
+{% endblock %}
+

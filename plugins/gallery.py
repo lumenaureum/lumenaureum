@@ -7,6 +7,7 @@ import re
 import secrets
 import shutil
 import threading
+import time
 from datetime import date, timedelta
 from pathlib import Path
 from typing import NamedTuple
@@ -21,8 +22,8 @@ def _script_hashes(html):
     blocks = re.findall(r"<script>(.*?)</script>", html, re.S)
     return "".join(f" 'sha256-{base64.b64encode(hashlib.sha256(b.encode()).digest()).decode()}'" for b in blocks)
 
-_MARK = re.sub(r"<svg ", '<svg aria-hidden="true" focusable="false" ', (Path(__file__).resolve().parent.parent / "brand" / "mark.svg").read_text().strip(), count=1) \
-    if (Path(__file__).resolve().parent.parent / "brand" / "mark.svg").is_file() else ""
+_MARK = re.sub(r"<svg ", '<svg aria-hidden="true" focusable="false" ', (Path(__file__).resolve().parent.parent / "brand" / "mark-small.svg").read_text().strip(), count=1) \
+    if (Path(__file__).resolve().parent.parent / "brand" / "mark-small.svg").is_file() else ""
 CREDIT_HTML = ('<a id="la" href="https://lumenaureum.org" target="_blank" rel="noopener noreferrer">' + _MARK +
                '<span>Gallery by <b>Lumen Aureum</b><small>lumenaureum.org</small></span></a>')
 VIEWER_SCRIPT_HASHES = _script_hashes((ASSETS / "viewer.html").read_text())
@@ -106,7 +107,11 @@ BLOCK = """
     <form method="post" action="{{ url_for('gallery_sync_now') }}" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="quiet">Check now</button></form>
   {% elif us == 'awaiting' %}<span class="grow">Waiting for approval</span>
   {% elif us == 'uploading' %}<span class="grow">Uploading</span>
-  {% elif us == 'removed' %}<span class="grow">Removed from the web {{ nice(g.removed_at) }}</span>
+  {% elif us == 'removed' %}<span class="grow"{% if g.dark_at %} data-tip="Its link now says the gallery has gone dark and gives your email, for a year"{% endif %}>Removed from the web {{ nice(g.removed_at) }}</span>
+    {% if can_restore %}<details class="closemenu"><summary title="More" aria-label="More actions for this gallery">&hellip;</summary><div class="cm-pop">
+      <div class="cm-head">Put back online</div>
+      {% for n_ in ([7, 14, usual] | unique | sort) %}<form method="post" action="{{ url_for('gallery_back_online', sid=s.id) }}" data-confirm="Put this gallery back online for {{ n_ }} days? The client's link works again until then, and the last days show the sunset notice."><input type="hidden" name="days" value="{{ n_ }}"><button class="cm-act">For {{ n_ }} days</button></form>{% endfor %}
+      {% if can_once %}<form method="post" action="{{ url_for('gallery_back_online', sid=s.id) }}" data-confirm="Put this gallery back online for one download? The client's link works until Download all has finished, then it goes dark (or after {{ once_days }} days if it isn't used)."><input type="hidden" name="mode" value="once"><button class="cm-act">For one download</button></form>{% endif %}</div></details>{% endif %}
   {% elif not has_host %}<span class="grow mute">Previews work here; putting it online needs a web host.</span>
     <a class="go" href="{{ url_for('setup_step', step='galleries') }}">Set up galleries &rsaquo;</a>
   {% elif owed and not proof %}<span class="grow">{{ money(owed) }} still due. Your terms release the gallery on payment.</span>
@@ -114,6 +119,10 @@ BLOCK = """
   {% else %}<span class="grow">{% if us == 'declined' %}Upload declined{% elif us == 'expired' %}Tap expired{% elif us == 'error' and not (g.upload_error or '').startswith('balance') %}<span style="color:var(--red)">Upload failed: {{ g.upload_error }}</span>{% elif owed and proof %}These proofs carry your mark, so they can go online before payment{% else %}Ready to upload{% endif %}</span>
     <form method="post" action="{{ url_for('upload_gallery_req', sid=s.id) }}" class="inline"><button class="primary">Upload</button></form>{% endif %}
   </div>
+  {% if moved_off %}<div class="row" style="font-size:14px"><span class="grow" style="color:var(--amber, #b07a12)">This gallery is still on your earlier gallery host.</span>
+    <a class="go" href="{{ url_for('galleries_move') }}">Move galleries &rsaquo;</a></div>{% endif %}
+  {% if new_link %}<div class="row" style="font-size:14px"><span class="grow" style="color:var(--amber, #b07a12)">The gallery address changed. Send the client the new link (Copy link or Email link above).</span>
+    <form method="post" action="{{ url_for('gallery_link_sent', sid=s.id) }}" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="quiet">Sent</button></form></div>{% endif %}
   {% if us == 'up' and updating %}{% if not (job and job.state == 'running') %}<div class="row" style="font-size:14px"><span class="grow" role="status"><span id="gal-up-what">Updating the copy online{% if updating.total %}: file {{ updating.done }} of {{ updating.total }}{% endif %}</span>. The client's link keeps working meanwhile.</span></div>
   <span hidden data-poll="{{ url_for('gallery_status', sid=s.id) }}" data-label="gal-up-what"></span>{% endif %}
   {% elif us == 'up' and stale and dl != dl_online %}<div class="row" style="font-size:14px">{% if owed and not proof %}<span class="grow">{{ money(owed) }} still due. Your terms release the download gallery on payment.</span>
@@ -122,11 +131,12 @@ BLOCK = """
     <form method="post" action="{{ url_for('upload_gallery_req', sid=s.id) }}" class="inline"><button class="primary">Upload</button></form>{% endif %}</div>
   {% elif us == 'up' and stale %}<div class="row" style="font-size:14px"><span class="grow" style="color:var(--amber, #b07a12)">The copy online is older than this build{% if g.upload_error %}. The upload didn't finish: {{ g.upload_error }}{% endif %}</span>
     <form method="post" action="{{ url_for('upload_gallery_req', sid=s.id) }}" class="inline"><button class="primary">Upload the new build</button></form></div>{% endif %}
-  {% if expires %}
+  {% if us == 'removed' %}{# down already: no planned deletion to show #}
+  {% elif expires %}
   <div class="row" style="font-size:14px">
     <span class="grow" {% if exp_status %}style="color:var(--{{ exp_status }})"{% endif %}
-      data-tip="Opened {{ nice(opened) }}, plus {{ days }} days{{ ' and the extension' if s.extension_used }}">Planned deletion {{ nice(expires.isoformat()) }}</span>
-    {% if s.extension_used %}<span class="mute" style="font-size:12px">extended</span>{% endif %}
+      data-tip="{{ 'Put back online' if g.restored_at and us != 'removed' else 'Opened' }} {{ nice(opened) }}, plus {{ days }} days{{ ' and the extension' if s.extension_used and not g.restored_at }}">{% if once_on %}One download, then dark. At the latest {{ nice(expires.isoformat()) }}{% else %}Planned deletion {{ nice(expires.isoformat()) }}{% endif %}</span>
+    {% if s.extension_used and not g.restored_at %}<span class="mute" style="font-size:12px">extended</span>{% endif %}
   </div>
   {% else %}
   <div class="sub" style="font-size:14px" data-tip="Deleted {{ days }} days after the first visit, {{ days * 2 }} with the one extension; unopened, a year after upload">Not opened</div>
@@ -329,6 +339,9 @@ class Built(NamedTuple):
 
 THEME_FONTS = {"elegant": "cormorant-garamond.woff2", "script": "great-vibes.woff2"}
 THEME_FONT_FILE = "font.woff2"
+THEME_FONT_LIGHT = "font-light.woff2"
+
+OWN_FONT = lambda: (None, None)
 
 ZIP_PART = 8 * 1024 * 1024
 ZIP_SPLIT = 500 * 1024 * 1024
@@ -447,6 +460,13 @@ def build(gid, src, key, progress=lambda done, total: None, picks=None, credit="
         plain_zip.unlink(missing_ok=True)
     brand = dict(brand or {})
     font = THEME_FONTS.get(((brand.get("theme") or {}).get("font")) or "")
+    own = OWN_FONT() if ((brand.get("theme") or {}).get("font")) == "own" else (None, None)
+    if (brand.get("theme") or {}).get("font") == "own":
+        brand["theme"] = dict(brand["theme"], font="own" if own[0] else "classic", light=bool(own[0] and own[1]))
+        if own[0]:
+            import settings_io
+            brand["theme"].update(wr=settings_io.font_weights(own[0], 400),
+                                  **({"wl": settings_io.font_weights(own[1], 300)} if own[1] else {}))
     manifest = dict(v=1, title=brand.pop("client", "") or "Your photos", items=items, picks=picks or {}, brand=brand)
     if download:
         base = re.sub(r'[\\/:*?"<>|\x00-\x1f\x7f]+', "", manifest["title"]).strip() or "Photos"
@@ -454,13 +474,7 @@ def build(gid, src, key, progress=lambda done, total: None, picks=None, credit="
             z["name"] = base + (f"-part-{j + 1}-of-{len(zips)}" if len(zips) > 1 else "") + ".zip"
         manifest.update(dl=1, zips=zips)
     (tmp / "manifest.bin").write_bytes(seal(aes, json.dumps(manifest, separators=(",", ":")).encode(), "manifest.bin"))
-    page = (ASSETS / "viewer.html").read_text()
-    page = page.replace('<html lang="en">', f'<html lang="en" data-gid="{gid}">', 1)
-    if (picks or {}).get("post"):
-        page = page.replace('<html lang="en"', '<html lang="en" data-gate="1"', 1)
-    if credit:
-        page = page.replace("<span hidden data-credit></span>", CREDIT_HTML)
-    (tmp / "index.html").write_text(page)
+    (tmp / "index.html").write_text(viewer_page(gid, gate=bool((picks or {}).get("post")), credit=bool(credit)))
     shutil.copyfile(ASSETS / "seen.php", tmp / "seen.php")
     shutil.copyfile(ASSETS / "picks.php", tmp / "picks.php")
     shutil.copyfile(ASSETS / "gate.php", tmp / "gate.php")
@@ -471,6 +485,10 @@ def build(gid, src, key, progress=lambda done, total: None, picks=None, credit="
     shutil.copyfile(ASSETS / "htaccess", tmp / ".htaccess")
     if font:
         shutil.copyfile(ASSETS / "fonts" / font, tmp / THEME_FONT_FILE)
+    if own[0]:
+        (tmp / THEME_FONT_FILE).write_bytes(own[0])
+        if own[1]:
+            (tmp / THEME_FONT_LIGHT).write_bytes(own[1])
     if download:
         (tmp / DL_MARK).write_text("1\n")
     was = online_mode(gid)
@@ -483,6 +501,17 @@ def build(gid, src, key, progress=lambda done, total: None, picks=None, credit="
     tmp.rename(final)
     shutil.rmtree(old, ignore_errors=True)
     return Built(final, len(items), skipped)
+
+def viewer_page(gid, gate, credit):
+
+    page = (ASSETS / "viewer.html").read_text()
+    page = page.replace('<html lang="en">', f'<html lang="en" data-gid="{gid}">', 1)
+    if gate:
+        page = page.replace('<html lang="en"', '<html lang="en" data-gate="1"', 1)
+    page = page.replace("<span hidden data-la-logo></span>", LA_LOGO, 1)
+    if credit:
+        page = page.replace("<span hidden data-credit></span>", CREDIT_HTML)
+    return page
 
 def is_download(gid):
 
@@ -528,12 +557,78 @@ def gallery_host():
 MIME = {".html": "text/html; charset=utf-8", ".php": "application/x-httpd-php", ".bin": "application/octet-stream",
         ".txt": "text/plain", ".key": "text/plain", ".htaccess": "text/plain", ".woff2": "font/woff2"}
 
-def put_limits(gid, days, unopened_until, host=None):
+SUNSET_DAYS = 7
+
+def sunset_days(days):
+
+    return min(SUNSET_DAYS, max(1, -(-int(days) // 4)))
+
+EMAIL_OK = re.compile(r"[^\s\"'<>\\=;&?#%]{1,64}@[^\s\"'<>\\=;&?#%@]+\.[^\s\"'<>\\=;&?#%@]+")
+CONTACT = lambda: ""
+
+def contact_email():
+    try:
+        e = (CONTACT() or "").strip()
+    except Exception:
+        return ""
+    return e if len(e) <= 254 and EMAIL_OK.fullmatch(e) else ""
+
+ONCE_DAYS = 7
+ONCE_GRACE_MIN = 60
+
+def zip_pieces(gid, key):
+
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    if not GID_OK.match(gid or ""):
+        return []
+    try:
+        blob = (OUT_ROOT / gid / "manifest.bin").read_bytes()
+        m = json.loads(AESGCM(key_bytes(key)).decrypt(blob[:12], blob[12:], b"lumen-aureum-gallery:manifest.bin"))
+    except Exception:
+        return []
+    names = [p for z in (m.get("zips") or []) if isinstance(z, dict) for p in (z.get("parts") or [])]
+    return [n for n in names if isinstance(n, str) and re.fullmatch(r"[0-9a-f]{24}\.bin", n)]
+
+def gate_built(gid):
+
+    try:
+        return 'data-gate="1"' in (OUT_ROOT / gid / "index.html").read_text()[:400]
+    except OSError:
+        return False
+
+def done_at(gid):
+
+    import io
+    host = gallery_host()
+    if host.stat(f"{gid}/done.txt") is None:
+        return None
+    buf = io.BytesIO()
+    host.get_stream(f"{gid}/done.txt", buf)
+    t = buf.getvalue().decode().strip()
+    return int(t) if t.isdigit() else None
+
+def day_close(day):
+
+    from datetime import datetime, time as _t
+    d = date.fromisoformat(str(day)[:10])
+    return int(datetime.combine(d + timedelta(days=1), _t.min).astimezone().timestamp()) - 1
+
+def put_limits(gid, days, unopened_until, host=None, until=None, once=None):
 
     import io
     if not GID_OK.match(gid):
         raise ValueError("bad gallery id")
-    body = f"days={int(days)}\nunopened_until={unopened_until}\n"
+    unopened_until = date.fromisoformat(str(unopened_until)[:10]).isoformat()
+    body = (f"days={int(days)}\nunopened_until={unopened_until}\nunopened_ts={day_close(unopened_until)}\n"
+            f"warn_days={sunset_days(days)}\n")
+    if until:
+        until = date.fromisoformat(str(until)[:10]).isoformat()
+        body += f"until={until}\nuntil_ts={day_close(until)}\n"
+    once = [n for n in (once or []) if re.fullmatch(r"[0-9a-f]{24}\.bin", n)]
+    if once:
+        body += f"once={','.join(once)}\n"
+    if contact_email():
+        body += f'contact="{contact_email()}"\n'
     try:
         if "async function keyProof" in (OUT_ROOT / gid / "index.html").read_text():
             body += "proof=1\n"
@@ -552,7 +647,7 @@ def cache_for(name):
         return CACHE_FOREVER
     return CACHE_FRESH
 
-def upload_gallery(gid, days=None, unopened_until=None, progress=lambda done, total: None):
+def upload_gallery(gid, days=None, unopened_until=None, progress=lambda done, total: None, until=None, once=None):
 
     if not GID_OK.match(gid):
         raise ValueError("bad gallery id")
@@ -561,13 +656,17 @@ def upload_gallery(gid, days=None, unopened_until=None, progress=lambda done, to
                    key=lambda p: (p.name == "index.html", p.name == "manifest.bin"))
     with host.session():
         if days is not None:
-            put_limits(gid, days, unopened_until, host=host)
+            put_limits(gid, days, unopened_until, host=host, until=until, once=once)
         progress(0, len(files))
         for i, p in enumerate(files):
-            with open(p, "rb") as f:
+
+            src = ASSETS / HOST_SCRIPTS[p.name] if p.name in HOST_SCRIPTS else p
+            with open(src, "rb") as f:
                 host.put_stream(f"{gid}/{p.name}", f, content_type=MIME.get(p.suffix or p.name), cache_control=cache_for(p.name))
             progress(i + 1, len(files))
     return len(files) + (1 if days is not None else 0)
+
+HOST_SCRIPTS = {"gate.php": "gate.php", "picks.php": "picks.php", "seen.php": "seen.php", ".htaccess": "htaccess"}
 
 ONLINE_MARK = ".online"
 
@@ -579,7 +678,7 @@ def online_is_current(gid):
 
     return (OUT_ROOT / gid / ONLINE_MARK).is_file()
 
-HOST_KEEPS = {"limits.txt", "seen.txt", "picks.bin", "draft.bin", ".htaccess"}
+HOST_KEEPS = {"limits.txt", "seen.txt", "picks.bin", "draft.bin", ".htaccess", "once.txt", "done.txt"}
 
 def prune_host(gid):
 
@@ -594,7 +693,7 @@ def prune_host(gid):
             base = n.rsplit("/", 1)[-1]
             if base in have or base in HOST_KEEPS:
                 continue
-            if re.fullmatch(r"[0-9a-f]{24}\.bin", base) or base == THEME_FONT_FILE:
+            if re.fullmatch(r"[0-9a-f]{24}\.bin", base) or base in (THEME_FONT_FILE, THEME_FONT_LIGHT):
                 try:
                     host.delete(n)
                     gone += 1
@@ -616,7 +715,7 @@ def seen_at(gid):
 PICKS_AAD = b"lumen-aureum-gallery:picks.bin"
 DRAFT_AAD = b"lumen-aureum-gallery:draft.bin"
 
-def picks_blob(gid, name="picks.bin"):
+def picks_blob(gid, name="picks.bin", key=None):
 
     import io
     host = gallery_host()
@@ -624,7 +723,306 @@ def picks_blob(gid, name="picks.bin"):
         return None
     buf = io.BytesIO()
     host.get_stream(f"{gid}/{name}", buf)
+    keep_host_copy(gid, name, buf.getvalue(), key)
     return buf.getvalue()
+
+KEPT_ROOT = OUT_ROOT.parent / (OUT_ROOT.name + "-kept")
+
+def keep_host_copy(gid, name, blob, key=None):
+
+    if not (GID_OK.match(gid or "") and name in ("picks.bin", "draft.bin") and blob and len(blob) <= PICKS_MAX):
+        return
+    try:
+        d = KEPT_ROOT / gid
+        d.mkdir(parents=True, exist_ok=True)
+        p = d / name
+        if key is not None and p.is_file():
+            had = p.read_bytes()
+            if had != blob and newest(key, name, blob, had) is had:
+                return
+        if not p.is_file() or p.read_bytes() != blob:
+            tmp = d / (name + ".tmp")
+            tmp.write_bytes(blob)
+            os.replace(tmp, p)
+    except OSError:
+        pass
+
+def newest(key, name, *blobs):
+
+    best, t_best = None, None
+    for b in blobs:
+        if not b or len(b) > PICKS_MAX:
+            continue
+        t = sealed_at(b, key, name)
+        if t is not None and (t_best is None or t > t_best):
+            best, t_best = b, t
+    if best is not None:
+        return best
+    return next((b for b in blobs if b and len(b) <= PICKS_MAX), None)
+
+def kept_copy(gid, name):
+    try:
+        return (KEPT_ROOT / gid / name).read_bytes() if GID_OK.match(gid or "") else None
+    except OSError:
+        return None
+
+def earlier_host_cfgs(cfg=None):
+
+    if cfg is None:
+        from vault import web as VW
+        cfg = VW.config()
+    cur = cfg.get("gallery_host")
+    out = []
+    for h in list(cfg.get("gallery_hosts_prev") or []) + [cfg.get("gallery_host_prev")]:
+        if not isinstance(h, dict) or not h.get("type"):
+            continue
+        if cur and host_identity(h) == host_identity(cur):
+            continue
+        if any(host_identity(h) == host_identity(o) for o in out):
+            continue
+        out.append(h)
+    return out
+
+def _put_earlier(cfg, hosts):
+    cfg.pop("gallery_host_prev", None)
+    if hosts:
+        cfg["gallery_hosts_prev"] = hosts
+    else:
+        cfg.pop("gallery_hosts_prev", None)
+
+def setup_host(cfg, new):
+
+    was = cfg.get("gallery_host") or cfg.get("gallery_host_off")
+    cfg.pop("gallery_host", None)
+    hosts = earlier_host_cfgs(cfg)
+    if was and host_identity(was) != host_identity(new):
+        hosts = [h for h in hosts if host_identity(h) != host_identity(was)] + [was]
+    _put_earlier(cfg, [h for h in hosts if host_identity(h) != host_identity(new)])
+    cfg["gallery_host"] = new
+    cfg.pop("gallery_host_off", None)
+
+def setup_off(cfg):
+
+    if cfg.get("gallery_host"):
+        cfg["gallery_host_off"] = cfg.pop("gallery_host")
+    _put_earlier(cfg, earlier_host_cfgs(cfg))
+
+def host_cfg_for(fp, cfg=None):
+
+    if not fp:
+        return None
+    if cfg is None:
+        from vault import web as VW
+        cfg = VW.config()
+    for h in [cfg.get("gallery_host"), cfg.get("gallery_host_off")] + earlier_host_cfgs(cfg):
+        if h and fingerprint_of(h) == fp:
+            return h
+    return None
+
+def host_label(cfg):
+
+    cfg = dict(cfg or {})
+    t = cfg.get("type")
+    if t == "sftp":
+        port = str(cfg.get("port") or 22)
+        return str(cfg.get("host") or "an SFTP server").strip() + ("" if port == "22" else f":{port}")
+    if t == "s3":
+        ep = re.sub(r"^https?://", "", str(cfg.get("endpoint") or "").strip()).rstrip("/")
+        return f"the bucket {str(cfg.get('bucket') or '').strip()}" + (f" at {ep}" if ep else "")
+    if t == "local":
+        return "a folder on this computer (" + (os.path.basename(str(cfg.get("path") or "").rstrip("/")) or "/") + ")"
+    return t or "a gallery host"
+
+UNREACHABLE_RETRY = 24 * 3600
+_UNREACHABLE = {}
+
+def may_try(fp):
+    t = _UNREACHABLE.get(fp)
+    return not t or time.time() - t >= UNREACHABLE_RETRY
+
+def _host_failed(fp):
+    _UNREACHABLE[fp] = time.time()
+
+def _host_reached(fp):
+    _UNREACHABLE.pop(fp, None)
+
+def open_host(cfg):
+    from vault import backends as VB
+    return VB.from_config(dict(cfg, public=True))
+
+def retime_limits(gid, host):
+
+    raw = _read(host, f"{gid}/limits.txt")
+    if raw is None:
+        return False
+    lines, changed = raw.decode("utf-8", "replace").split("\n"), False
+    dates = dict(l_.split("=", 1) for l_ in lines if "=" in l_)
+    for i, l_ in enumerate(lines):
+        k = l_.split("=", 1)[0]
+        day = dates.get({"unopened_ts": "unopened_until", "until_ts": "until"}.get(k, ""))
+        if day:
+            try:
+                want = f"{k}={day_close(day.strip())}"
+            except ValueError:
+                continue
+            if l_ != want:
+                lines[i], changed = want, True
+    if changed:
+        host.put_stream(f"{gid}/limits.txt", io.BytesIO("\n".join(lines).encode()), content_type="text/plain")
+    return changed
+
+def _read(host, path):
+    import io as _io
+    if host.stat(path) is None:
+        return None
+    buf = _io.BytesIO()
+    host.get_stream(path, buf)
+    return buf.getvalue()
+
+def sealed_at(blob, key, name):
+
+    from datetime import datetime as _dt, timezone as _tz
+    try:
+        at = str(_open_sealed(blob, key, PICKS_AAD if name == "picks.bin" else DRAFT_AAD).get("at") or "")
+    except Exception:
+        return None
+    try:
+        d = _dt.fromisoformat(at.replace("Z", "+00:00"))
+        return (d if d.tzinfo else d.replace(tzinfo=_tz.utc)).timestamp()
+    except (ValueError, OverflowError, OSError):
+        return 0.0
+
+def same_folder(old, new, gid):
+
+    probe = f"{gid}/.la-probe-{secrets.token_hex(6)}"
+    new.put_stream(probe, io.BytesIO(b"1"), content_type="text/plain")
+    try:
+        return old.stat(probe) is not None
+    finally:
+        try:
+            new.delete(probe)
+        except Exception:
+            pass
+
+def refresh_old_page(old, gid):
+
+    try:
+        page = _read(old, f"{gid}/index.html")
+        if not page:
+            return False
+        text = page.decode("utf-8", "replace")
+        if _script_hashes(text) == VIEWER_SCRIPT_HASHES:
+            return False
+        head = text[:400]
+        if 'data-gate="1"' not in head or f'data-gid="{gid}"' not in head:
+            return False
+        for name in ("gate.php", "seen.php"):
+            with open(ASSETS / name, "rb") as f_:
+                old.put_stream(f"{gid}/{name}", f_, content_type=MIME[".php"], cache_control=CACHE_FRESH)
+        old.put_stream(f"{gid}/index.html", io.BytesIO(viewer_page(gid, gate=True, credit='id="la"' in text).encode()),
+                       content_type=MIME[".html"], cache_control=CACHE_FRESH)
+        return True
+    except Exception:
+        return False
+
+def hand_over(old, new, gid, key):
+
+    if same_folder(old, new, gid):
+        return []
+    lim = _read(old, f"{gid}/limits.txt")
+    if lim is not None and b"moved=" not in lim:
+        with open(ASSETS / "picks.php", "rb") as f_:
+            old.put_stream(f"{gid}/picks.php", f_, content_type=MIME[".php"], cache_control=CACHE_FRESH)
+        add = b"\nmoved=1\n"
+        if b"contact=" not in lim and contact_email():
+            add += f'contact="{contact_email()}"\n'.encode()
+        old.put_stream(f"{gid}/limits.txt", io.BytesIO(lim.rstrip(b"\n") + add), content_type="text/plain")
+        refresh_old_page(old, gid)
+    got = []
+    for name in ("picks.bin", "draft.bin"):
+        theirs = _read(old, f"{gid}/{name}")
+        if not theirs or len(theirs) > PICKS_MAX:
+            continue
+        t_old = sealed_at(theirs, key, name)
+        if t_old is None:
+            continue
+        ours = _read(new, f"{gid}/{name}")
+        if ours == theirs:
+            continue
+        t_new = sealed_at(ours, key, name) if ours else None
+        if t_new is None or t_old > t_new:
+            new.put_stream(f"{gid}/{name}", io.BytesIO(theirs), content_type="application/octet-stream")
+            keep_host_copy(gid, name, theirs, key)
+            got.append(name)
+    return got
+
+def host_identity(cfg):
+
+    import posixpath
+    cfg = dict(cfg or {})
+    t = cfg.get("type")
+    if not t:
+        return None
+    def _dir(p_):
+        p_ = posixpath.normpath(str(p_ or ".").strip() or ".")
+        return "/" if p_ == "//" else p_
+    if t == "local":
+        p_ = str(cfg.get("path") or "").strip()
+        return ("local", os.path.realpath(os.path.expanduser(p_)) if p_ else "")
+    if t == "sftp":
+        try:
+            port = int(cfg.get("port") or 22)
+        except (TypeError, ValueError):
+            port = 22
+        return ("sftp", str(cfg.get("host") or "").strip().lower().rstrip("."), port, str(cfg.get("user") or "").strip(),
+                _dir(cfg.get("root")))
+    if t == "s3":
+        ep = re.sub(r"^https?://", "", str(cfg.get("endpoint") or "").strip().lower()).rstrip("/")
+        if not ep or re.fullmatch(r"s3([.-][a-z0-9-]+)?\.amazonaws\.com", ep):
+            ep = "aws"
+        return ("s3", ep, str(cfg.get("bucket") or "").strip().lower(), str(cfg.get("prefix") or "").strip().strip("/"))
+    return (t,) + tuple(sorted((k, json.dumps(v, sort_keys=True)) for k, v in cfg.items()
+                               if k not in ("secret_key", "password", "private_key", "known_hosts", "host_key", "user",
+                                            "access_key", "key_file", "public")))
+
+def fingerprint_of(cfg):
+    import hashlib
+    ident = host_identity(cfg)
+    return hashlib.sha256(json.dumps(ident).encode()).hexdigest()[:16] if ident else ""
+
+def legacy_fingerprint_of(cfg):
+
+    import hashlib
+    cfg = dict(cfg or {})
+    if not cfg:
+        return ""
+    for k in ("secret_key", "password", "private_key", "known_hosts", "host_key"):
+        cfg.pop(k, None)
+    return hashlib.sha256(json.dumps(cfg, sort_keys=True).encode()).hexdigest()[:16]
+
+def host_fingerprint():
+
+    from vault import web as VW
+    return fingerprint_of(VW.config().get("gallery_host"))
+
+def same_place(cur_cfg, old_cfg):
+
+    import io
+    import secrets as _s
+    from vault import backends as VB
+    if host_identity(cur_cfg) == host_identity(old_cfg):
+        return True
+    cur = VB.from_config(dict(cur_cfg, public=True))
+    old = VB.from_config(dict(old_cfg, public=True))
+    name = f".la-probe-{_s.token_hex(8)}.txt"
+    cur.put_stream(name, io.BytesIO(b"lumen-aureum probe"), content_type="text/plain")
+    try:
+        return old.stat(name) is not None
+    finally:
+        try:
+            cur.delete(name)
+        except Exception:
+            pass
 
 FP_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
@@ -715,11 +1113,11 @@ def _shape(data):
             out["veto"].append(name)
     return out
 
-def delete_gallery(gid):
+def delete_gallery(gid, host=None):
 
     if not GID_OK.match(gid):
         raise ValueError("bad gallery id")
-    host = gallery_host()
+    host = host or gallery_host()
     with host.session():
         names = host.list(f"{gid}/") + [f"{gid}/.htaccess"]
         for n in names:
@@ -729,13 +1127,89 @@ def delete_gallery(gid):
         host.remove_dir(f"{gid}/")
     return len(names)
 
+def remove_from(gid, host):
+
+    if not GID_OK.match(gid):
+        raise ValueError("bad gallery id")
+    with host.session():
+        names = host.list(f"{gid}/")
+        if not names and host.stat(f"{gid}/.htaccess") is None:
+            return 0
+        delete_gallery(gid, host=host)
+    return len(names)
+
+LA_LOGO = (Path(__file__).resolve().parent / "gallery_assets" / "la-logo.svg").read_text().strip()
+DARK_KEEP_DAYS = 365
+
+def dark_page(studio="", email=""):
+
+    import html as _h
+    email = email if email and len(email) <= 254 and EMAIL_OK.fullmatch(email) else ""
+    who = f"Your photographer, {_h.escape(studio)}, may still be able to help" if studio else "Your photographer may still be able to help"
+    reach = (f"<p>{who}:</p><p><a href=\"mailto:{_h.escape(email)}\">{_h.escape(email)}</a></p>" if email else f"<p>{who}.</p>")
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow"><meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>This gallery has gone dark</title>
+<style>
+:root {{ color-scheme: dark; }}
+body {{ margin: 0; min-height: 100vh; display: grid; place-items: center; background: #12100e; color: #efe3cc;
+  font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-align: center; padding: 24px 16px; box-sizing: border-box; }}
+main {{ max-width: 460px; }}
+.mark svg {{ display: block; width: min(220px, 60vw); height: auto; margin: 0 auto 28px; }}
+h1 {{ font: 400 30px/1.25 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; margin: 0 0 12px; }}
+p {{ margin: 0 0 6px; color: #a99c86; }} a {{ color: #e9b45c; overflow-wrap: anywhere; }}
+</style></head>
+<body><main><div class="mark">{LA_LOGO}</div><h1>This gallery has gone dark.</h1>{reach}</main></body></html>
+""".encode()
+
+def go_dark(gid, studio="", email=""):
+
+    n = delete_gallery(gid)
+    return n, put_dark(gid, studio, email)
+
+def put_dark(gid, studio="", email="", host=None):
+
+    try:
+        (host or gallery_host()).put_stream(f"{gid}/index.html", io.BytesIO(dark_page(studio, email)),
+                                            content_type=MIME[".html"], cache_control=CACHE_FRESH)
+        return True
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("gallery dark page %s", gid)
+        return False
+
+def clear_dark(gid):
+
+    if not GID_OK.match(gid):
+        raise ValueError("bad gallery id")
+    host = gallery_host()
+    with host.session():
+        for n in host.list(f"{gid}/"):
+            host.delete(n)
+        host.remove_dir(f"{gid}/")
+
+class _Stranded(Exception):
+    pass
+
 def register(ctx):
+    global CONTACT
     app, q, x = ctx.app, ctx.q, ctx.x
+
+    def _contact():
+        with app.app_context():
+            r_ = q("SELECT value FROM settings WHERE key='business_email'", one=True)
+            return (r_["value"] if r_ and r_["value"] else "").strip()
+    CONTACT = _contact
     from flask import render_template_string
     ctx.migrate("""CREATE TABLE IF NOT EXISTS galleries (
         session_id INTEGER PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
         source_dir TEXT DEFAULT '', built_at TEXT, n_files INTEGER DEFAULT 0, out_dir TEXT DEFAULT '',
         key TEXT NOT NULL);""")
+
+    ctx.migrate("""CREATE TABLE IF NOT EXISTS gallery_leftovers (
+        gallery_id TEXT NOT NULL, host_fp TEXT NOT NULL, added TEXT, PRIMARY KEY (gallery_id, host_fp));""")
     @ctx.on_unlock
     def _migrate_cols():
         _con = ctx.connect()
@@ -744,6 +1218,20 @@ def register(ctx):
             ctx.add_column(_con, "galleries", "picks_hash", "TEXT DEFAULT ''")
         if "limits_days" not in _gcols:
             ctx.add_column(_con, "galleries", "limits_days", "INTEGER")
+        if "limits_contact" not in _gcols:
+            ctx.add_column(_con, "galleries", "limits_contact", "TEXT")
+        if "dark_at" not in _gcols:
+            ctx.add_column(_con, "galleries", "dark_at", "TEXT")
+        if "restored_at" not in _gcols:
+            ctx.add_column(_con, "galleries", "restored_at", "TEXT")
+            ctx.add_column(_con, "galleries", "restore_days", "INTEGER")
+            ctx.add_column(_con, "galleries", "restore_once", "TEXT")
+        stamp_hosts = "host_fp" not in _gcols
+        if stamp_hosts:
+            ctx.add_column(_con, "galleries", "host_fp", "TEXT")
+            ctx.add_column(_con, "galleries", "link_base", "TEXT")
+        if "moved_from" not in _gcols:
+            ctx.add_column(_con, "galleries", "moved_from", "TEXT")
         if "ekey" not in _gcols:
             ctx.add_column(_con, "galleries", "ekey", "TEXT DEFAULT ''")
         if "draft_n" not in _gcols:
@@ -761,6 +1249,23 @@ def register(ctx):
         for col, decl in (("upload_state", "TEXT DEFAULT ''"), ("uploaded_at", "TEXT"), ("removed_at", "TEXT"), ("upload_error", "TEXT DEFAULT ''")):
             if col not in gcols:
                 ctx.add_column(_con, "galleries", col, decl)
+        if stamp_hosts:
+            try:
+                fp_ = host_fingerprint()
+            except Exception:
+                fp_ = ""
+            b_ = _con.execute("SELECT value FROM settings WHERE key='gallery_base_url'").fetchone()
+            _con.execute("UPDATE galleries SET host_fp=?, link_base=? WHERE upload_state IN ('up', 'removed')",
+                         (fp_ or None, (b_[0] if b_ and b_[0] else None)))
+        else:
+            try:
+                from vault import web as _VW
+                _hc = _VW.config()
+                for _h in [_hc.get("gallery_host"), _hc.get("gallery_host_off")] + earlier_host_cfgs(_hc):
+                    if _h and legacy_fingerprint_of(_h) != fingerprint_of(_h):
+                        _con.execute("UPDATE galleries SET host_fp=? WHERE host_fp=?", (fingerprint_of(_h), legacy_fingerprint_of(_h)))
+            except Exception:
+                pass
 
         done_ = _con.execute("SELECT value FROM settings WHERE key='gallery_online_marks'").fetchone()
         for r_ in [] if done_ else _con.execute("""SELECT s.gallery_id, g.uploaded_at FROM galleries g JOIN sessions s ON s.id=g.session_id
@@ -773,6 +1278,10 @@ def register(ctx):
             except OSError:
                 pass
         _con.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('gallery_online_marks', '1')")
+
+        _con.execute("""UPDATE galleries SET upload_state=CASE WHEN uploaded_at IS NOT NULL AND removed_at IS NULL THEN 'up' ELSE 'error' END,
+                        upload_error='the upload stopped when the app restarted: press Upload again'
+                        WHERE upload_state IN ('uploading', 'awaiting')""")
         _con.commit(); _con.close()
 
     def has_gallery_step(s):
@@ -835,6 +1344,21 @@ def register(ctx):
 
     def session(sid):
         return q("SELECT * FROM sessions WHERE id=?", (sid,), one=True) or abort(404)
+
+    def being_deleted(s):
+
+        import jobs as _jobs
+        if _jobs.running(f"session-delete:{s['id']}") or _jobs.running(f"client-delete:{s['household_id']}"):
+            return True
+        h_ = q("SELECT demo FROM households WHERE id=?", (s["household_id"],), one=True)
+        return bool(h_ and h_["demo"] and _jobs.running("demo-delete"))
+
+    def refuse_deleting(s, back):
+        from flask import g as _g
+        _g.refused = True
+        JOBS[s["id"]] = dict(state="error", done=0, total=0,
+                             error="This session is being deleted, so its gallery stays down.")
+        return redirect(back)
 
     def gallery_brand(s):
 
@@ -915,6 +1439,8 @@ def register(ctx):
     def build_gallery(sid):
         s = session(sid)
         back = url_for("client_stage", hid=s["household_id"]) + f"?s={sid}#gallery"
+        if being_deleted(s):
+            return refuse_deleting(s, back)
         gid, g = ensure(s)
         if request.form.get("from") in ("uploads", "finals") or not FOLDERS:
             finals = uploaded(sid, "final")
@@ -964,6 +1490,10 @@ def register(ctx):
         look = settings_io.clean_look(*(setting_(k_) for k_ in ("gallery_font", "gallery_bg", "proof_mark",
                                                                  "proof_mark_text", "proof_mark_strength")))
         brand["theme"] = dict(font=look["gallery_font"], colors=settings_io.palette(look["gallery_bg"]))
+        global OWN_FONT
+        import base64 as _b64
+        own_ = tuple(_b64.b64decode(v_) if v_ else None for v_ in (setting_("brand_font_400"), setting_("brand_font_300")))
+        OWN_FONT = lambda: own_
 
         brand["logo"] = settings_io.gallery_logo(look["gallery_bg"], brand.get("logo") or "", setting_("logo_dark_png"))
         mark = None
@@ -1027,7 +1557,12 @@ def register(ctx):
         threading.Thread(target=run, name=f"gallery-{sid}", daemon=True).start()
         return redirect(back)
 
-    app.config.setdefault("quiet_endpoints", set()).update({"picks_paste", "gallery_no_picks"})
+    app.config.setdefault("quiet_endpoints", set()).update({"picks_paste", "gallery_no_picks", "gallery_link_sent"})
+    app.config.setdefault("ep_words", {}).update({
+        "galleries_move_go": "Started putting galleries on the new gallery host",
+        "galleries_clear_old": "Started taking the old copies down from the earlier gallery host",
+        "galleries_forget_host": "Forgot an earlier gallery host, gone for good",
+        "gallery_back_online": "Put the gallery back online"})
 
     @app.post("/session/<int:sid>/gallery/no-picks", endpoint="gallery_no_picks")
     def gallery_no_picks(sid):
@@ -1083,7 +1618,7 @@ def register(ctx):
             built = OUT_ROOT / gid / "index.html"
             if built.is_file() and _script_hashes(built.read_text(errors="replace")) != VIEWER_SCRIPT_HASHES:
 
-                return ("<!doctype html><meta charset=utf-8><title>Rebuild to preview</title>"
+                return ("<!doctype html><html lang=en><meta charset=utf-8><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Rebuild to preview</title>"
                         "<p style='font:16px system-ui;margin:2em'>This gallery was built by an older version. "
                         "Rebuild it to preview it here. (The copy on the web is not affected.)</p>"), 200
         r = send_from_directory(OUT_ROOT / gid, p)
@@ -1096,6 +1631,12 @@ def register(ctx):
     def do_upload(sid, gid, replace=False):
 
         with app.app_context():
+            s_ = q("SELECT id, household_id FROM sessions WHERE id=?", (sid,), one=True)
+            if not s_ or being_deleted(s_):
+                return
+            was = q("SELECT removed_at FROM galleries WHERE session_id=?", (sid,), one=True)
+            back_up = bool(was and was["removed_at"])
+
             x("UPDATE galleries SET upload_state='uploading', upload_error='' WHERE session_id=?", (sid,))
         try:
             if replace:
@@ -1105,13 +1646,36 @@ def register(ctx):
             with app.app_context():
                 ext = (q("SELECT extension_used FROM sessions WHERE id=?", (sid,), one=True) or {"extension_used": 0})["extension_used"]
                 days_ = gdays(sid)
+            with app.app_context():
+                link_base_now = base_url()
+            until_ = once_ = None
+            if back_up:
+                with app.app_context():
+                    rp = q("SELECT restore_days, restore_once FROM galleries WHERE session_id=?", (sid,), one=True)
+                once_ = [n for n in ((rp["restore_once"] if rp else "") or "").split(",") if n]
+                until_ = (date.today() + timedelta(days=(rp["restore_days"] if rp and rp["restore_days"] else days_ * (2 if ext else 1)))).isoformat()
             k = upload_gallery(gid, days_ * (2 if ext else 1),
-                               (date.today() + timedelta(days=ctx.C.GALLERY_UNOPENED_DAYS)).isoformat())
+                               (date.today() + timedelta(days=ctx.C.GALLERY_UNOPENED_DAYS)).isoformat(), until=until_, once=once_)
+            if back_up and not is_download(gid):
+
+                host_ = gallery_host()
+                for name in ("picks.bin", "draft.bin"):
+                    blob = kept_copy(gid, name)
+                    if blob:
+                        host_.put_stream(f"{gid}/{name}", io.BytesIO(blob), content_type="application/octet-stream")
             con_ = ctx.connect()
             try:
-                n_ = con_.execute("""UPDATE galleries SET upload_state='up', uploaded_at=?, removed_at=NULL,
+                n_ = con_.execute("""UPDATE galleries SET upload_state='up', uploaded_at=?, removed_at=NULL, dark_at=NULL, limits_contact=?,
+                                     host_fp=?, link_base=?,
+                                     moved_from=CASE WHEN host_fp IS NOT NULL AND host_fp != ? THEN host_fp ELSE moved_from END,
+                                     restored_at=CASE WHEN ? THEN ? ELSE NULL END,
+                                     restore_days=CASE WHEN ? THEN restore_days ELSE NULL END,
+                                     restore_once=CASE WHEN ? THEN restore_once ELSE NULL END,
                                      cw_fixed=COALESCE(cw_fixed, CASE WHEN ekey != '' AND ekey != key THEN 'word' ELSE 'none' END)
-                                     WHERE session_id=? AND upload_state='uploading'""", (date.today().isoformat(), sid)).rowcount
+                                     WHERE session_id=? AND upload_state='uploading'""", (date.today().isoformat(), contact_email(),
+                                                                         host_fingerprint(), link_base_now, host_fingerprint(),
+                                                                         1 if back_up else 0, date.today().isoformat(),
+                                                                         1 if back_up else 0, 1 if back_up else 0, sid)).rowcount
                 con_.commit()
             finally:
                 con_.close()
@@ -1121,11 +1685,29 @@ def register(ctx):
             mark_online(gid)
             with app.app_context():
                 ctx.audit(("Download gallery" if is_download(gid) else "Gallery") + f" uploaded ({k} files)"
-                          + (", in place of the one that was online" if replace else ""), sid=sid, who="Lumen Aureum")
+                          + (", in place of the one that was online" if replace else "")
+                          + ((f", put back online for one download (until {ctx.nice(until_)} if it isn't used)" if once_ else
+                              f", put back online until {ctx.nice(until_)}") if back_up else ""), sid=sid, who="Lumen Aureum")
         except Exception as e:
             app.logger.exception("gallery upload")
-            with app.app_context():
-                x("UPDATE galleries SET upload_state='error', upload_error=? WHERE session_id=?", (str(e)[:200], sid))
+
+            con_ = ctx.connect()
+            try:
+                n_ = con_.execute("UPDATE galleries SET upload_state='error', upload_error=? WHERE session_id=? AND upload_state='uploading'",
+                                  (str(e)[:200], sid)).rowcount
+                con_.commit()
+            finally:
+                con_.close()
+            if n_ != 1:
+                try:
+                    remove_from(gid, gallery_host())
+                except Exception:
+                    app.logger.exception("gallery upload %s: taken down meanwhile, and the host failed", gid)
+                    with app.app_context():
+                        try:
+                            add_leftover(gid, host_fingerprint())
+                        except Exception:
+                            app.logger.exception("gallery leftover %s", gid)
 
     def do_update(sid, gid, job=None):
 
@@ -1149,6 +1731,15 @@ def register(ctx):
                 delete_gallery(gid)
                 return
             mark_online(gid)
+            with app.app_context():
+                once_ = once_rebuilt(sid, gid)
+            if once_ is not None:
+
+                host_ = gallery_host()
+                with app.app_context():
+                    window_changed(sid, strict=True)
+                if host_.stat(f"{gid}/once.txt") is not None:
+                    host_.delete(f"{gid}/once.txt")
             try:
                 gone_, bad_ = prune_host(gid)
             except Exception:
@@ -1173,6 +1764,8 @@ def register(ctx):
         s = session(sid)
         g = gal(sid)
         back = url_for("client_stage", hid=s["household_id"]) + f"?s={sid}#gallery"
+        if being_deleted(s):
+            return refuse_deleting(s, back)
         if not g or not g["built_at"] or g["upload_state"] in ("awaiting", "uploading"):
             return redirect(back)
         replace = False
@@ -1222,18 +1815,539 @@ def register(ctx):
         threading.Thread(target=do_upload, args=(sid, gid, replace), name=f"gal-up-{sid}", daemon=True).start()
         return redirect(back)
 
+    def restored_until(r, days):
+
+        if not r["restored_at"]:
+            return None
+        n = r["restore_days"] if "restore_days" in r.keys() and r["restore_days"] else days
+        return (date.fromisoformat(r["restored_at"][:10]) + timedelta(days=n)).isoformat()
+
+    def restored_once(r):
+        return [n for n in ((r["restore_once"] if "restore_once" in r.keys() else "") or "").split(",") if n] if r["restored_at"] else []
+
+    @app.post("/session/<int:sid>/gallery/back-online", endpoint="gallery_back_online")
+    def gallery_back_online(sid):
+
+        s = session(sid)
+        g = gal(sid)
+        back = url_for("client_stage", hid=s["household_id"]) + f"?s={sid}#gallery"
+        if being_deleted(s):
+            return refuse_deleting(s, back)
+        gid = s["gallery_id"] or ""
+        if not (g and g["upload_state"] == "removed" and g["removed_at"] and GID_OK.match(gid)
+                and (OUT_ROOT / gid / "manifest.bin").is_file()):
+            return redirect(back)
+        if request.form.get("mode") == "once":
+            pieces = zip_pieces(gid, g["ekey"] or g["key"]) if gate_built(gid) else []
+            if not pieces:
+                return redirect(back)
+            x("UPDATE galleries SET restore_days=?, restore_once=? WHERE session_id=?", (ONCE_DAYS, ",".join(pieces), sid))
+        else:
+            try:
+                n = int(request.form.get("days") or 0)
+            except ValueError:
+                n = 0
+            if not 1 <= n <= 365:
+                return redirect(back)
+            x("UPDATE galleries SET restore_days=?, restore_once=NULL WHERE session_id=?", (n, sid))
+        return upload_gallery_req(sid)
+
+    def move_rows():
+
+        fp = host_fingerprint() if has_host() else ""
+        if not fp:
+            return []
+        return q("""SELECT g.*, s.gallery_id, s.first_visit, s.sd_shipped, s.extension_used, s.id AS sid, s.household_id,
+                           h.name AS client FROM galleries g JOIN sessions s ON s.id=g.session_id
+                    JOIN households h ON h.id=s.household_id
+                    WHERE g.host_fp IS NOT NULL AND g.host_fp != ? AND
+                          (g.upload_state='up' OR (g.upload_state IN ('removed', 'error') AND g.dark_at IS NOT NULL)
+                           OR (g.upload_state='error' AND g.removed_at IS NULL AND g.uploaded_at IS NOT NULL))
+                    ORDER BY h.name""", (fp,))
+
+    def new_link_rows():
+
+        if not has_host():
+            return []
+        return [r for r in q("""SELECT g.*, s.gallery_id, s.id AS sid, s.household_id, h.name AS client
+                                FROM galleries g JOIN sessions s ON s.id=g.session_id JOIN households h ON h.id=s.household_id
+                                WHERE g.upload_state='up' AND g.removed_at IS NULL AND g.link_base IS NOT NULL
+                                ORDER BY h.name""") if r["link_base"] != base_url()]
+
+    def leftover_rows(fp=None):
+        return q("SELECT gallery_id, host_fp, added FROM gallery_leftovers" + (" WHERE host_fp=?" if fp else "")
+                 + " ORDER BY added, gallery_id", (fp,) if fp else ())
+
+    def add_leftover(gid, fp):
+        x("INSERT OR IGNORE INTO gallery_leftovers (gallery_id, host_fp, added) VALUES (?,?,?)",
+          (gid, fp, date.today().isoformat()))
+
+    def drop_leftover(gid, fp):
+        x("DELETE FROM gallery_leftovers WHERE gallery_id=? AND host_fp=?", (gid, fp))
+
+    def move_today():
+        out = []
+        n = len(move_rows())
+        if n:
+            out.append(dict(text=f"{n} galler{'y is' if n == 1 else 'ies are'} still on your earlier gallery host. "
+                                 f"Put {'it' if n == 1 else 'them'} on the new one", link=url_for("galleries_move")))
+        k = len(new_link_rows())
+        if k:
+            out.append(dict(text=f"The gallery address changed: {k} client{' needs' if k == 1 else 's need'} the new link",
+                            link=url_for("galleries_move") + "#links"))
+        m = len(leftover_rows())
+        if m:
+            out.append(dict(text=f"{m} galler{'y of a deleted session still has' if m == 1 else 'ies of deleted sessions still have'}"
+                                 " to come down from a gallery host", link=url_for("galleries_move") + "#earlier"))
+        return out
+
+    ctx.hooks.today.append(move_today)
+
+    def possibly_online(fp):
+
+        rows = q("""SELECT s.id AS sid, s.gallery_id, h.name AS client, g.host_fp, g.moved_from, g.upload_state, g.dark_at
+                    FROM galleries g JOIN sessions s ON s.id=g.session_id JOIN households h ON h.id=s.household_id
+                    WHERE (g.host_fp=? AND (g.upload_state IN ('up', 'removed', 'error'))) OR g.moved_from=? ORDER BY h.name""", (fp, fp))
+        out = []
+        for r in rows:
+            what = ("not moved yet" if r["host_fp"] == fp and r["upload_state"] == "up" else
+                    "not moved yet; its last upload failed" if r["host_fp"] == fp and r["upload_state"] == "error"
+                    and not r["dark_at"] else
+                    "its dark page" if r["host_fp"] == fp and r["dark_at"] else
+                    "its copy there could not be removed" if r["host_fp"] == fp else "the old copy")
+            out.append(dict(sid=r["sid"], text=f"{r['client']} ({what}, folder {r['gallery_id']})"))
+        out += [dict(sid=None, text=f"a deleted session's gallery (folder {r['gallery_id']})") for r in leftover_rows(fp)]
+        return out
+
+    def earlier_view():
+
+        from vault import web as VW
+        cfg = VW.config()
+        waiting = move_rows()
+        out = []
+        for h in earlier_host_cfgs(cfg):
+            fp = fingerprint_of(h)
+            n_wait = sum(1 for r in waiting if r["host_fp"] == fp)
+            out.append(dict(fp=fp, label=host_label(h), waiting=n_wait, things=possibly_online(fp),
+                            can_clear=bool(cfg.get("gallery_host")) and not n_wait, unreachable=not may_try(fp)))
+        return out
+
+    MOVE_PAGE = """{% extends "base.html" %}{% block title %}Move galleries - Lumen Aureum{% endblock %}{% block body %}
+<h1>Move galleries</h1>
+<p class="mute" style="max-width:720px">Every gallery is built on this computer and its key is in your data, so the
+galleries can go up on another host with the same links. If the gallery address stays the same (your own domain, now
+pointing at the new host), every link and every QR letter keeps working. A new address means new links.</p>
+{% if not on %}<p class="notice" style="max-width:820px">Galleries are turned off in Setup, so nothing is moved or taken
+down now. Turn them on again (Setup, Galleries) to carry on: with the same host, everything is where it was.</p>{% endif %}
+<section class="card" style="max-width:820px;margin-top:14px">
+<h3>On the earlier host</h3>
+{% if rows %}<ul>{% for r in rows %}<li>{{ r.client }}: {{ 'online' if r.upload_state == 'up' else 'gone dark' if r.removed_at else 'online, but its last upload failed: press Upload on its session' }}{% if r.upload_state == 'up' and not built(r.gallery_id) %} <span style="color:var(--red)">(no build here: press Rebuild on the session first)</span>{% endif %}</li>{% endfor %}</ul>
+<form method="post" action="{{ url_for('galleries_move_go') }}" data-confirm="Put {{ rows|length }} galler{{ 'y' if rows|length == 1 else 'ies' }} on the new gallery host, with their days, picks and links as they are?"><button class="primary">Put {{ rows|length }} galler{{ 'y' if rows|length == 1 else 'ies' }} on the new host</button></form>
+{% elif on %}<p class="mute">Nothing: every gallery is on the gallery host set up now.</p>{% else %}<p class="mute">Nothing moves while galleries are off.</p>{% endif %}
+</section>
+{% if on %}<section class="card" id="links" style="max-width:820px;margin-top:14px">
+<h3>Clients who need the new link</h3>
+{% if links %}<p class="mute">The gallery address is now {{ base }}. These clients have a link at the earlier address.</p>
+{% for r in links %}<div class="row" style="gap:8px;flex-wrap:wrap;margin:6px 0"><span class="grow">{{ r.client }}</span>
+  <span hidden id="nl-{{ r.sid }}">{{ link(r.sid) }}</span><button type="button" class="quiet" data-copy="#nl-{{ r.sid }}">Copy link</button>
+  <a class="go" href="{{ url_for('client_stage', hid=r.household_id) }}?s={{ r.sid }}#gallery">Open</a>
+  <form method="post" action="{{ url_for('gallery_link_sent', sid=r.sid) }}" class="inline"><button class="quiet">Sent</button></form></div>{% endfor %}
+{% else %}<p class="mute">Nobody: every client's link has today's address.</p>{% endif %}
+</section>{% endif %}
+{% if earlier %}<section class="card" id="earlier" style="max-width:820px;margin-top:14px"><h3>Earlier gallery hosts</h3>
+{% for h in earlier %}<div style="margin:10px 0 16px"><h4 style="margin:0 0 4px">{{ h.label }}</h4>
+{% if h.things %}<p class="mute" style="margin:0 0 4px">May still be online there:</p><ul style="margin-top:0">{% for i in h.things %}<li>{{ i.text }}</li>{% endfor %}</ul>
+{% else %}<p class="mute" style="margin:0 0 4px">Nothing is listed as still on it; its folders for your galleries come down with the old copies.</p>{% endif %}
+{% if h.unreachable %}<p class="mute" style="margin:0 0 4px">It couldn't be reached at the last try; the regular check tries it again once a day.</p>{% endif %}
+<div class="row" style="gap:8px;flex-wrap:wrap">
+{% if h.can_clear %}<form method="post" action="{{ url_for('galleries_clear_old') }}" class="inline" data-confirm="Remove every gallery from {{ h.label }}? The host in use keeps its copies."><input type="hidden" name="host" value="{{ h.fp }}"><button class="quiet">Take the old copies down</button></form>
+{% elif on and h.waiting %}<span class="mute">Move its galleries first; then its old copies can come down.</span>{% endif %}
+<form method="post" action="{{ url_for('galleries_forget_host') }}" class="inline" data-confirm="Forget {{ h.label }}? Do this only if that host is gone for good: nothing more is taken down from it or read from it, and{% if h.things %} {{ h.things|length }} galler{{ 'y' if h.things|length == 1 else 'ies' }} listed here may stay online there until the host itself is gone. History names them{% else %} nothing is listed as still on it{% endif %}."><input type="hidden" name="host" value="{{ h.fp }}"><button class="quiet">This host is gone for good: forget it</button></form>
+</div></div>{% endfor %}</section>{% endif %}
+{% endblock %}"""
+
+    @app.get("/galleries/move", endpoint="galleries_move")
+    def galleries_move():
+        on = has_host()
+        return render_template_string(MOVE_PAGE, rows=move_rows(), links=new_link_rows(), base=base_url() if on else "",
+                                      link=gallery_link, earlier=earlier_view(), on=on,
+                                      built=lambda gid: bool(GID_OK.match(gid or "") and (OUT_ROOT / gid / "manifest.bin").is_file()))
+
+    def earlier_backends():
+
+        cache = {}
+        fp_now = host_fingerprint()
+
+        def get(fp):
+            if fp not in cache:
+                cfg_ = host_cfg_for(fp) if fp and fp != fp_now else None
+                try:
+                    cache[fp] = open_host(cfg_) if cfg_ else None
+                except Exception:
+                    cache[fp] = False
+            return cache[fp]
+        return get, cache
+
+    def move_work(job):
+
+        import io as _io
+        if not has_host():
+            return "Galleries are turned off in Setup, so nothing was moved."
+        fp, host = host_fingerprint(), gallery_host()
+        rows = move_rows()
+        old_for, olds = earlier_backends()
+        job["total"] = len(rows)
+        moved, dark, missing, failed = 0, 0, [], []
+        for i, r in enumerate(rows):
+            gid = r["gallery_id"]
+            try:
+                if r["upload_state"] == "error" and not r["removed_at"]:
+                    failed.append(r["client"])
+                elif r["upload_state"] == "removed" or r["removed_at"]:
+                    b_ = gallery_brand(session(r["sid"]))
+                    put_dark(gid, b_["studio"], contact_email(), host=host)
+                    x("UPDATE galleries SET host_fp=?, moved_from=? WHERE session_id=?", (fp, r["host_fp"], r["sid"]))
+                    dark += 1
+                elif not (GID_OK.match(gid or "") and (OUT_ROOT / gid / "manifest.bin").is_file()):
+                    missing.append(r["client"])
+                else:
+                    old = old_for(r["host_fp"])
+                    days_ = gdays(r["sid"]) * (2 if r["extension_used"] else 1)
+                    first = r["sd_shipped"] if online_download(gid) else r["first_visit"]
+                    up = date.fromisoformat((r["uploaded_at"] or date.today().isoformat())[:10])
+                    until = restored_until(r, days_) or (
+                        (date.fromisoformat(first[:10]) + timedelta(days=days_)).isoformat() if first else None)
+
+                    left_here = b"moved=" in (_read(host, f"{gid}/limits.txt") or b"")
+                    if left_here:
+                        for name in ("once.txt", "done.txt"):
+                            host.delete(f"{gid}/{name}")
+                    upload_gallery(gid, days_, (up + timedelta(days=ctx.C.GALLERY_UNOPENED_DAYS)).isoformat(),
+                                   until=until, once=restored_once(r))
+                    if left_here:
+                        try:
+                            prune_host(gid)
+                        except Exception:
+                            app.logger.exception("gallery move: the copy left here %s", gid)
+                    key_ = r["ekey"] or r["key"]
+                    for name in ("picks.bin", "draft.bin"):
+
+                        here = _read(host, f"{gid}/{name}")
+                        best = newest(key_, name, here, earlier_copy(old, gid, name), kept_copy(gid, name))
+                        if best and best != here:
+                            host.put_stream(f"{gid}/{name}", _io.BytesIO(best), content_type="application/octet-stream")
+                        if best:
+                            keep_host_copy(gid, name, best, key_)
+
+                    got = []
+                    if old:
+                        try:
+                            if restored_once(r):
+                                for name in ("once.txt", "done.txt"):
+                                    blob = _read(old, f"{gid}/{name}")
+                                    if blob and len(blob) <= 65536 and host.stat(f"{gid}/{name}") is None:
+                                        host.put_stream(f"{gid}/{name}", _io.BytesIO(blob), content_type="text/plain")
+                            got = hand_over(old, host, gid, r["ekey"] or r["key"])
+                            _host_reached(r["host_fp"])
+                        except Exception:
+                            app.logger.exception("gallery move: the earlier host %s", gid)
+                            olds[r["host_fp"]] = False
+                    x("UPDATE galleries SET host_fp=?, limits_days=?, limits_contact=?, moved_from=? WHERE session_id=?",
+                      (fp, days_, contact_email(), r["host_fp"], r["sid"]))
+                    ctx.audit("Gallery moved to the new gallery host"
+                              + ("; the client's latest picks came over from the earlier host" if got else ""),
+                              sid=r["sid"], who="Lumen Aureum")
+                    moved += 1
+            except Exception as e:
+                app.logger.exception("gallery move %s", gid)
+                missing.append(f"{r['client']} ({str(e)[:80]})")
+            job["done"] = i + 1
+        msg = f"Moved {moved} galler{'y' if moved == 1 else 'ies'}" + (f" and {dark} dark page{'' if dark == 1 else 's'}" if dark else "") + "."
+        if missing:
+            msg += " Not moved: " + ", ".join(missing[:8]) + (" and more" if len(missing) > 8 else "") + \
+                   ". Rebuild those on their sessions, then move again."
+        if failed:
+            msg += " Still on the earlier host after a failed upload: " + ", ".join(failed[:8]) + \
+                   (" and more" if len(failed) > 8 else "") + ". Press Upload on those sessions."
+        ctx.audit(msg, who="Lumen Aureum")
+        return msg
+
+    def start_move():
+        import jobs as _jobs
+        _jobs.start(app, "gallery-move", "Putting galleries on the new gallery host", move_work, link=url_for("galleries_move"))
+
+    @app.post("/galleries/move", endpoint="galleries_move_go")
+    def galleries_move_go():
+        rows = move_rows()
+        if rows:
+
+            if not ctx.hooks.guard("gallery_upload", lambda: start_move(), sid=None, gallery_id=None, move=True,
+                                   n_galleries=len(rows), n_files=sum(int(r["n_files"] or 0) for r in rows)):
+                start_move()
+        return redirect(url_for("galleries_move"))
+
+    def earlier_copy(old, gid, name):
+
+        if not old:
+            return None
+        try:
+            if old.stat(f"{gid}/{name}") is None:
+                return None
+            buf = io.BytesIO()
+            old.get_stream(f"{gid}/{name}", buf)
+            blob = buf.getvalue()
+            if not blob or len(blob) > PICKS_MAX:
+                return None
+            return blob
+        except Exception:
+            return None
+
+    def take_down_earlier(gid, fp):
+
+        prev = host_cfg_for(fp)
+        if not prev or fp == host_fingerprint():
+            return 0, "that host is no longer set up here"
+        if not may_try(fp):
+            return 0, f"{host_label(prev)} couldn't be reached at an earlier try"
+        try:
+            n = remove_from(gid, open_host(prev))
+            _host_reached(fp)
+            return n, ""
+        except Exception:
+            app.logger.exception("gallery %s on the earlier host", gid)
+            _host_failed(fp)
+            return 0, f"{host_label(prev)} can't be reached"
+
+    def tidy_earlier():
+
+        from vault import web as VW
+        cfg = VW.config()
+        before = (cfg.get("gallery_hosts_prev"), cfg.get("gallery_host_prev"))
+        _put_earlier(cfg, earlier_host_cfgs(cfg))
+        if (cfg.get("gallery_hosts_prev"), cfg.get("gallery_host_prev")) != before:
+            VW.write_config(cfg)
+
+    def forget_host(fp):
+
+        from vault import web as VW
+        cfg = VW.config()
+        _put_earlier(cfg, [h for h in earlier_host_cfgs(cfg) if fingerprint_of(h) != fp])
+        VW.write_config(cfg)
+        x("DELETE FROM gallery_leftovers WHERE host_fp=?", (fp,))
+        x("UPDATE galleries SET moved_from=NULL WHERE moved_from=?", (fp,))
+        _host_reached(fp)
+
+    def clearable(fp=None):
+
+        if not has_host():
+            return []
+        waiting = {r["host_fp"] for r in move_rows()}
+        return [fingerprint_of(h) for h in earlier_host_cfgs()
+                if fingerprint_of(h) not in waiting and (fp is None or fingerprint_of(h) == fp)]
+
+    def clear_old_work(job, fps):
+        from vault import web as VW
+        msgs = []
+        for fp_ in fps:
+            cfg = VW.config()
+            cur = cfg.get("gallery_host")
+            prev = next((h for h in earlier_host_cfgs(cfg) if fingerprint_of(h) == fp_), None)
+            if prev is None:
+                continue
+            if not cur:
+                msgs.append("Galleries are turned off in Setup, so nothing was taken down.")
+                break
+            if fp_ in {r["host_fp"] for r in move_rows()}:
+                msgs.append(f"{host_label(prev)} still has galleries to move, so nothing was taken down from it.")
+                continue
+            label = host_label(prev)
+            try:
+                same = same_place(cur, prev)
+            except Exception:
+                app.logger.exception("gallery: the earlier host %s", label)
+                _host_failed(fp_)
+                msgs.append(f"Couldn't check that {label} is a different place from the host in use, so nothing was "
+                            "removed from it. If that host is gone for good, forget it.")
+                continue
+            if same:
+                forget_host(fp_)
+                ctx.audit(f"The earlier gallery host {label} is the one in use now; nothing was taken down from it",
+                          who="Lumen Aureum")
+                msgs.append(f"{label} and the host in use are the same place, so nothing was removed.")
+                continue
+            try:
+                old = open_host(prev)
+                gids = [r["gallery_id"] for r in q("SELECT gallery_id FROM sessions WHERE gallery_id IS NOT NULL AND gallery_id != ''")]
+                gids = list(dict.fromkeys(g_ for g_ in gids + [r["gallery_id"] for r in leftover_rows(fp_)] if GID_OK.match(g_ or "")))
+                job["total"] = job.get("total", 0) + len(gids)
+                n = 0
+                with old.session():
+                    for gid in gids:
+                        names = old.list(f"{gid}/")
+                        for name in names + [f"{gid}/.htaccess"]:
+                            try:
+                                old.delete(name)
+                            except Exception:
+                                pass
+                        if names:
+                            try:
+                                old.remove_dir(f"{gid}/")
+                            except Exception:
+                                pass
+                            n += 1
+                        job["done"] = job.get("done", 0) + 1
+            except Exception:
+                app.logger.exception("gallery: the earlier host %s", label)
+                _host_failed(fp_)
+                msgs.append(f"{label} can't be reached. Nothing was removed from it.")
+                continue
+            forget_host(fp_)
+            ctx.audit(f"Removed {n} galler{'y' if n == 1 else 'ies'} from the earlier gallery host {label}", who="Lumen Aureum")
+            msgs.append(f"Removed {n} galler{'y' if n == 1 else 'ies'} from {label}.")
+        return " ".join(msgs) or "Nothing to take down."
+
+    def start_clear_old(fps):
+        import jobs as _jobs
+        _jobs.start(app, "gallery-clear-old", "Removing galleries from the earlier host", lambda job: clear_old_work(job, fps),
+                    link=url_for("galleries_move"))
+
+    @app.post("/galleries/clear-old", endpoint="galleries_clear_old")
+    def galleries_clear_old():
+        tidy_earlier()
+        fps = clearable(request.form.get("host") or None)
+        if not fps:
+            from flask import g as _g
+            _g.refused = True
+            return redirect(url_for("galleries_move"))
+
+        if not ctx.hooks.guard("gallery_upload", lambda: start_clear_old(fps), sid=None, gallery_id=None, remove=True,
+                               earlier_host=True):
+            start_clear_old(fps)
+        return redirect(url_for("galleries_move"))
+
+    @app.post("/galleries/forget-host", endpoint="galleries_forget_host")
+    def galleries_forget_host():
+
+        fp = request.form.get("host", "")
+        prev = next((h for h in earlier_host_cfgs() if fingerprint_of(h) == fp), None)
+        if prev is None:
+            from flask import g as _g
+            _g.refused = True
+            return redirect(url_for("galleries_move"))
+        from flask import g as _g
+        label, items = host_label(prev), possibly_online(fp)
+        for i in items:
+            if i["sid"]:
+                ctx.audit(f"The earlier gallery host {label} was forgotten as gone for good; this gallery may still be "
+                          f"online there: {i['text']}", sid=i["sid"], who="Lumen Aureum")
+        gone = [i["text"] for i in items if not i["sid"]]
+        forget_host(fp)
+        _g.audit_note = (f"{label}; " + (f"{len(items)} galler{'y' if len(items) == 1 else 'ies'} may still be online there"
+                                        + (": " + ", ".join(gone) if gone else "") if items else "nothing was listed as still on it"))
+        return redirect(url_for("galleries_move"))
+
+    @app.post("/session/<int:sid>/gallery/link-sent", endpoint="gallery_link_sent")
+    def gallery_link_sent(sid):
+        x("UPDATE galleries SET link_base=? WHERE session_id=?", (base_url(), sid))
+        ctx.audit("The new gallery link was sent", sid=sid)
+        return redirect(ctx.safe_back(request.form.get("back")) or url_for("galleries_move") + "#links")
+
     PICKS_ON = lambda r: True
+
+    def check_moved():
+
+        rows = q("""SELECT g.session_id AS sid, g.key, g.ekey, g.moved_from, s.gallery_id FROM galleries g
+                    JOIN sessions s ON s.id=g.session_id
+                    WHERE g.moved_from IS NOT NULL AND g.upload_state='up' AND g.removed_at IS NULL""")
+        if not rows or not has_host():
+            return
+        fp_now = host_fingerprint()
+        by = {}
+        for r in rows:
+            by.setdefault(r["moved_from"], []).append(r)
+        new = gallery_host()
+        for fp, rs in by.items():
+            if fp == fp_now:
+                continue
+            prev = next((h for h in earlier_host_cfgs() if fingerprint_of(h) == fp), None)
+            if prev is None:
+                x("UPDATE galleries SET moved_from=NULL WHERE moved_from=?", (fp,))
+                continue
+            if not may_try(fp):
+                continue
+            try:
+                old = open_host(prev)
+                with old.session(), new.session():
+                    for r in rs:
+                        if not GID_OK.match(r["gallery_id"] or ""):
+                            continue
+                        if hand_over(old, new, r["gallery_id"], r["ekey"] or r["key"]):
+                            ctx.audit("Picks the client sent to the gallery's earlier host came over", sid=r["sid"], who="Lumen Aureum")
+                _host_reached(fp)
+            except Exception:
+                _host_failed(fp)
+                app.logger.warning("gallery: the earlier host can't be reached now; tried again in a day")
+
+    def clear_leftovers():
+
+        rows = leftover_rows()
+        if not rows:
+            return
+        fp_now = host_fingerprint()
+        by = {}
+        for r in rows:
+            by.setdefault(r["host_fp"], []).append(r["gallery_id"])
+        for fp, gids in by.items():
+            cfg_ = host_cfg_for(fp)
+            if cfg_ is None:
+                x("DELETE FROM gallery_leftovers WHERE host_fp=?", (fp,))
+                continue
+            if fp != fp_now and not may_try(fp):
+                continue
+            n = 0
+            try:
+                h_ = open_host(cfg_)
+                with h_.session():
+                    for gid in gids:
+                        live = q("""SELECT 1 FROM galleries g JOIN sessions s ON s.id=g.session_id
+                                    WHERE s.gallery_id=? AND g.upload_state IN ('up', 'uploading', 'awaiting')
+                                    AND g.removed_at IS NULL AND (? OR g.host_fp=?)""", (gid, 1 if fp == fp_now else 0, fp), one=True)
+                        if not live and GID_OK.match(gid or ""):
+                            delete_gallery(gid, host=h_)
+                            n += 1
+                        drop_leftover(gid, fp)
+                _host_reached(fp)
+            except Exception:
+                app.logger.warning("gallery: a deleted session's gallery is still on %s; tried again later", host_label(cfg_))
+                if fp != fp_now:
+                    _host_failed(fp)
+            if n:
+                ctx.audit(f"Removed {n} galler{'y' if n == 1 else 'ies'} of deleted sessions from the gallery host "
+                          f"{host_label(cfg_)}", who="Lumen Aureum")
 
     def sync_once():
 
         from datetime import datetime, timezone
+        check_moved()
+        try:
+            clear_leftovers()
+        except Exception:
+            app.logger.exception("gallery: galleries of deleted sessions")
+        retime_all()
         rows = q("""SELECT g.*, s.gallery_id, s.first_visit, s.sd_shipped, s.extension_used, s.id AS sid FROM galleries g
                     JOIN sessions s ON s.id=g.session_id WHERE g.upload_state='up' AND g.removed_at IS NULL""")
+        try:
+            fp_now = host_fingerprint()
+        except Exception:
+            fp_now = ""
         for r in rows:
             gid = r["gallery_id"]
             dl = online_download(gid)
             first = r["sd_shipped"] if dl else r["first_visit"]
+            stranded = bool(r["host_fp"]) and r["host_fp"] != fp_now
             try:
+                if stranded:
+                    raise _Stranded
                 if gid not in _HAS_LIMITS:
                     host = gallery_host()
                     if host.stat(f"{gid}/limits.txt") is None:
@@ -1246,10 +2360,13 @@ def register(ctx):
                             host.put_stream(f"{gid}/.htaccess", f_, content_type="text/plain")
                     _HAS_LIMITS.add(gid)
                 want_days = gdays(r["sid"]) * (2 if r["extension_used"] else 1)
-                if (r["limits_days"] or 0) != want_days:
+
+                if (r["limits_days"] or 0) != want_days or (r["limits_contact"] or "") != contact_email():
                     up = date.fromisoformat((r["uploaded_at"] or date.today().isoformat())[:10])
-                    put_limits(gid, want_days, (up + timedelta(days=ctx.C.GALLERY_UNOPENED_DAYS)).isoformat())
-                    x("UPDATE galleries SET limits_days=? WHERE session_id=?", (want_days, r["sid"]))
+                    put_limits(gid, want_days, (up + timedelta(days=ctx.C.GALLERY_UNOPENED_DAYS)).isoformat(),
+                               until=restored_until(r, want_days), once=restored_once(r))
+                    x("UPDATE galleries SET limits_days=?, limits_contact=? WHERE session_id=?",
+                      (want_days, contact_email(), r["sid"]))
                 if not first:
                     st = seen_at(gid)
                     if st:
@@ -1267,7 +2384,18 @@ def register(ctx):
                     if r["draft_n"] is not None:
                         x("UPDATE galleries SET draft_n=NULL, draft_at=NULL WHERE session_id=?", (r["sid"],))
                 elif PICKS_ON(r):
-                    blob = picks_blob(gid)
+                    key_ = r["ekey"] or r["key"]
+                    blob = picks_blob(gid, key=key_)
+                    kept_ = kept_copy(gid, "picks.bin") if blob else None
+                    if kept_ and kept_ != blob and newest(key_, "picks.bin", blob, kept_) is kept_:
+
+                        try:
+                            gallery_host().put_stream(f"{gid}/picks.bin", io.BytesIO(kept_), content_type="application/octet-stream")
+                            ctx.audit("The gallery host had older picks than the client's latest; their latest went back up",
+                                      sid=r["sid"], who="Lumen Aureum")
+                        except Exception:
+                            app.logger.exception("gallery %s: the client's latest picks back up", gid)
+                        blob = kept_
                     if blob:
                         import hashlib as _h
                         hh = _h.sha256(blob).hexdigest()
@@ -1285,24 +2413,50 @@ def register(ctx):
                                           sid=r["sid"], who="Lumen Aureum")
                                 ctx.advance(r["sid"])
                     draft_status(r, blob)
+            except _Stranded:
+                pass
             except Exception:
                 app.logger.exception("gallery sync %s", gid)
             try:
-                if first:
+                once_done = None
+                if restored_once(r):
+                    t_ = done_at(gid)
+                    if t_ and t_ <= time.time():
+                        once_done = True
+                if r["restored_at"]:
+                    gone = date.fromisoformat(restored_until(r, gdays(r["sid"]) * (2 if r["extension_used"] else 1)))
+                elif first:
                     gone = date.fromisoformat(first[:10]) + timedelta(days=gdays(r["sid"]) * (2 if r["extension_used"] else 1))
                 else:
                     gone = date.fromisoformat((r["uploaded_at"] or date.today().isoformat())[:10]) + timedelta(days=ctx.C.GALLERY_UNOPENED_DAYS)
-                if date.today() > gone and app.config["clock_ok"]():
-                    n = delete_gallery(gid)
-                    x("UPDATE galleries SET removed_at=?, upload_state='removed' WHERE session_id=?",
-                      (date.today().isoformat(), r["sid"]))
-                    ctx.audit(f"Gallery removed from the web ({n} files), " + (f"{gdays(r['sid'])} day window over" if first else "never opened in a year"),
+
+                if (once_done or time.time() > day_close(gone)) and app.config["clock_ok"]():
+                    b_ = gallery_brand(session(r["sid"]))
+                    fp_after, left_behind = fp_now, ""
+                    if stranded:
+                        n, dark = 0, put_dark(gid, b_["studio"], contact_email())
+                        n, left_behind = take_down_earlier(gid, r["host_fp"])
+                        if left_behind:
+                            fp_after = r["host_fp"]
+                    else:
+                        n, dark = go_dark(gid, b_["studio"], contact_email())
+                    x("UPDATE galleries SET removed_at=?, upload_state='removed', dark_at=?, host_fp=? WHERE session_id=?",
+                      (date.today().isoformat(), date.today().isoformat() if dark else None, fp_after or None, r["sid"]))
+                    if left_behind:
+                        ctx.audit("Its days are over, but its copy on the earlier gallery host could not be removed ("
+                                  + left_behind + "). Move galleries lists it; Take the old copies down removes it.",
+                                  sid=r["sid"], who="Lumen Aureum")
+                    ctx.audit(f"Gallery removed from the web ({n} files), "
+                              + ("the one-time download was made" if once_done else
+                                 "its days back online are over" if r["restored_at"] else
+                                 f"{gdays(r['sid'])} day window over" if first else "never opened in a year")
+                              + ("; its link now says the gallery has gone dark" if dark else ""),
                               sid=r["sid"], who="Lumen Aureum")
                     continue
             except Exception:
                 app.logger.exception("gallery expiry %s", gid)
             try:
-                due_ = r["prune_due"] if "prune_due" in r.keys() else None
+                due_ = r["prune_due"] if "prune_due" in r.keys() and not stranded else None
                 if due_ and due_ <= _now_iso():
                     if GID_OK.match(gid or "") and (OUT_ROOT / gid).is_dir() and online_is_current(gid):
                         gone_, bad_ = prune_host(gid)
@@ -1313,11 +2467,54 @@ def register(ctx):
                     x("UPDATE galleries SET prune_due=NULL WHERE session_id=?", (r["sid"],))
             except Exception:
                 app.logger.exception("gallery prune %s", gid)
+        if app.config["clock_ok"]():
+            clear_old_dark()
+
+    def tz_mark():
+
+        return f"{day_close('2026-01-15')},{day_close('2026-07-15')}"
+
+    def retime_all():
+
+        mark = tz_mark()
+        r_ = q("SELECT value FROM settings WHERE key='gallery_limits_tz'", one=True)
+        if r_ and r_["value"] == mark:
+            return
+        if r_ and has_host():
+            fp_now, host_ = host_fingerprint(), gallery_host()
+            failed = 0
+            for r in q("""SELECT s.gallery_id, g.host_fp FROM galleries g JOIN sessions s ON s.id=g.session_id
+                          WHERE g.upload_state='up' AND g.removed_at IS NULL"""):
+                if not GID_OK.match(r["gallery_id"] or "") or (r["host_fp"] and r["host_fp"] != fp_now):
+                    continue
+                try:
+                    retime_limits(r["gallery_id"], host_)
+                except Exception:
+                    app.logger.exception("gallery limits after a time zone change %s", r["gallery_id"])
+                    failed += 1
+            if failed:
+                return
+        elif r_:
+            return
+        x("INSERT INTO settings (key, value) VALUES ('gallery_limits_tz', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+          (mark,))
+
+    def clear_old_dark():
+
+        cut = (date.today() - timedelta(days=DARK_KEEP_DAYS)).isoformat()
+        for r in q("""SELECT g.session_id AS sid, s.gallery_id FROM galleries g JOIN sessions s ON s.id=g.session_id
+                      WHERE g.upload_state='removed' AND g.dark_at IS NOT NULL AND g.dark_at < ?""", (cut,)):
+            try:
+                if r["gallery_id"] and GID_OK.match(r["gallery_id"]):
+                    clear_dark(r["gallery_id"])
+                x("UPDATE galleries SET dark_at=NULL WHERE session_id=?", (r["sid"],))
+            except Exception:
+                app.logger.exception("gallery dark page %s", r["gallery_id"])
 
     def draft_status(r, sent):
 
         n = at = None
-        d = picks_blob(r["gallery_id"], "draft.bin")
+        d = picks_blob(r["gallery_id"], "draft.bin", r["ekey"] or r["key"])
         if d:
             try:
                 dp, n, at = open_draft(d, r["ekey"] or r["key"])
@@ -1361,12 +2558,54 @@ def register(ctx):
 
     def take_down(sid):
 
-        r = q("""SELECT s.gallery_id, g.upload_state FROM galleries g JOIN sessions s ON s.id=g.session_id
-                 WHERE g.session_id=? AND g.upload_state IN ('up', 'uploading', 'awaiting') AND g.removed_at IS NULL""", (sid,), one=True)
-        if r and r["gallery_id"]:
+        r = q("""SELECT s.gallery_id, g.upload_state, g.removed_at, g.uploaded_at, g.host_fp, g.moved_from, g.dark_at
+                 FROM galleries g JOIN sessions s ON s.id=g.session_id WHERE g.session_id=?""", (sid,), one=True)
+        if not r or not GID_OK.match(r["gallery_id"] or ""):
+            return
+        gid = r["gallery_id"]
+        live = r["upload_state"] in ("up", "uploading", "awaiting") and not r["removed_at"]
+        if not (live or r["upload_state"] or r["uploaded_at"] or r["host_fp"] or r["moved_from"]):
+            return
+        from vault import web as VW
+        hc = VW.config()
+        fp_now = fingerprint_of(hc.get("gallery_host"))
+        off = hc.get("gallery_host_off")
+        at = r["host_fp"] or (fingerprint_of(off) if off and not fp_now else fp_now)
+
+        on_cur = bool(fp_now) and (at == fp_now or r["upload_state"] in ("uploading", "awaiting"))
+        done_cur = False
+        if live:
 
             x("UPDATE galleries SET removed_at=?, upload_state='removed' WHERE session_id=?", (date.today().isoformat(), sid))
-            delete_gallery(r["gallery_id"])
+            if on_cur:
+                try:
+                    delete_gallery(gid)
+                except Exception:
+                    x("UPDATE galleries SET removed_at=NULL, upload_state=? WHERE session_id=?", (r["upload_state"], sid))
+                    raise
+                done_cur = True
+        if fp_now and not done_cur:
+            add_leftover(gid, fp_now)
+            try:
+                remove_from(gid, gallery_host())
+                drop_leftover(gid, fp_now)
+            except Exception:
+                app.logger.exception("gallery %s of a deleted session on the host in use", gid)
+        places = [fingerprint_of(off)] if off and not fp_now else []
+        places += [fingerprint_of(h) for h in earlier_host_cfgs(hc)]
+        for fp in dict.fromkeys(p_ for p_ in places if p_ and p_ != fp_now):
+            add_leftover(gid, fp)
+            n_, why = take_down_earlier(gid, fp)
+            if not why:
+                drop_leftover(gid, fp)
+
+    def gallery_online(sid):
+
+        r = q("SELECT 1 FROM galleries WHERE session_id=? AND upload_state IN ('up', 'uploading', 'awaiting') AND removed_at IS NULL",
+              (sid,), one=True)
+        return bool(r)
+
+    app.config["gallery_online"] = gallery_online
 
     app.config["gallery_take_down"] = take_down
 
@@ -1388,6 +2627,19 @@ def register(ctx):
         s_ = q("SELECT gallery_id FROM sessions WHERE id=?", (sid,), one=True)
         return bool(s_ and online_download(s_["gallery_id"]))
 
+    def restored_end(sid):
+
+        import sqlite3
+        try:
+            r = q("SELECT restored_at, restore_days, restore_once, upload_state, removed_at FROM galleries WHERE session_id=?",
+                  (sid,), one=True)
+        except sqlite3.OperationalError:
+            return None
+        if not (r and r["restored_at"] and r["upload_state"] != "removed" and not r["removed_at"]):
+            return None
+        return date.fromisoformat(restored_until(r, gdays(sid)))
+
+    app.config["gallery_restored_end"] = restored_end
     app.config["gallery_download"] = download_built
     app.config["gallery_download_online"] = download_online
     app.config["gallery_brand"] = gallery_brand
@@ -1396,18 +2648,31 @@ def register(ctx):
         r_ = q("SELECT type FROM sessions WHERE id=?", (sid,), one=True)
         return ctx.C.gallery_days(r_["type"] if r_ else None)
 
-    def window_changed(sid):
+    def window_changed(sid, strict=False):
 
-        r = q("""SELECT s.gallery_id, s.extension_used, g.uploaded_at FROM galleries g JOIN sessions s ON s.id=g.session_id
+        r = q("""SELECT s.gallery_id, s.extension_used, g.uploaded_at, g.restored_at, g.restore_days, g.restore_once
+                 FROM galleries g JOIN sessions s ON s.id=g.session_id
                  WHERE g.session_id=? AND g.upload_state='up' AND g.removed_at IS NULL""", (sid,), one=True)
         if not r or not r["gallery_id"]:
             return
         up = date.fromisoformat((r["uploaded_at"] or date.today().isoformat())[:10])
         try:
             put_limits(r["gallery_id"], gdays(sid) * (2 if r["extension_used"] else 1),
-                       (up + timedelta(days=ctx.C.GALLERY_UNOPENED_DAYS)).isoformat())
+                       (up + timedelta(days=ctx.C.GALLERY_UNOPENED_DAYS)).isoformat(),
+                       until=restored_until(r, gdays(sid) * (2 if r["extension_used"] else 1)), once=restored_once(r))
         except Exception:
+            if strict:
+                raise
             app.logger.exception("gallery limits update")
+
+    def once_rebuilt(sid, gid):
+
+        r = q("SELECT key, ekey, restored_at, restore_once FROM galleries WHERE session_id=?", (sid,), one=True)
+        if not r or not restored_once(r):
+            return None
+        pieces = zip_pieces(gid, r["ekey"] or r["key"])
+        x("UPDATE galleries SET restore_once=? WHERE session_id=?", (",".join(pieces) or None, sid))
+        return pieces
 
     ctx.hooks.on["gallery_window_changed"].append(window_changed)
 
@@ -1432,9 +2697,14 @@ def register(ctx):
         expires = exp_status = ext_date = None
         dl_online = online_download(gid)
         opened = s["sd_shipped"] if dl_online else s["first_visit"]
+        restored = bool(g and "restored_at" in g.keys() and g["restored_at"] and (g["upload_state"] or "") != "removed")
+        if restored:
+            opened = g["restored_at"]
+            days = g["restore_days"] or days
         if opened:
             first = date.fromisoformat(opened[:10])
-            expires = first + timedelta(days=days * (2 if s["extension_used"] else 1))
+
+            expires = first + timedelta(days=days * (2 if s["extension_used"] and not restored else 1))
             ext_date = first + timedelta(days=days * 2)
             left = (expires - date.today()).days
             exp_status = "red" if left < 0 else "amber" if left <= 1 else None
@@ -1448,6 +2718,17 @@ def register(ctx):
                                       n_fin=n_fin_, use_fin=build_from_finals(s, n_fin_),
                                       preview=preview, expires=expires, exp_status=exp_status, ext_date=ext_date,
                                       days=days, nice=ctx.nice, money=ctx.money, has_host=has_host(),
+                                      can_restore=bool(g and g["upload_state"] == "removed" and has_host() and GID_OK.match(gid)
+                                                       and not being_deleted(s)
+                                                       and (OUT_ROOT / gid / "manifest.bin").is_file()),
+                                      can_once=bool(g and g["upload_state"] == "removed" and gate_built(gid) and not being_deleted(s)
+                                                    and zip_pieces(gid, g["ekey"] or g["key"])),
+                                      once_on=bool(restored and g["restore_once"]), usual=ctx.C.gallery_days(s["type"]),
+                                      once_days=ONCE_DAYS,
+                                      moved_off=bool(g and g["upload_state"] in ("up", "removed") and g["host_fp"]
+                                                     and (g["upload_state"] == "up" or g["dark_at"]) and has_host()
+                                                     and g["host_fp"] != host_fingerprint()),
+                                      new_link=bool(g and g["upload_state"] == "up" and g["link_base"] and g["link_base"] != base_url()),
                                       owed=ctx.release_blocked(s["id"]), proof=proof_built(s["id"]),
                                       updating=UPDATING.get(s["id"]),
                                       cw_on=bool(ctx.C.POLICY[s["type"]].get("gallery_codeword")),

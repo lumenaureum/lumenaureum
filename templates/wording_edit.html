@@ -3,8 +3,8 @@
 {% block body %}
 <div class="row"><h1 class="grow">{{ label }} wording{% if stype %}: {{ stype.label }}{% endif %}</h1><a class="go" href="{{ url_for('settings_view') }}">Settings &rsaquo;</a></div>
 <p class="mute" style="margin:4px 0 0">{% if stype %}{{ 'Wording for ' ~ stype.label ~ ' only.' if own else 'Uses the general wording until you change it here.' }}{% else %}{{ 'Your own wording, for every session type without its own.' if own else 'The standard wording.' }}{% endif %} <b># </b>starts a heading; a blank line starts a paragraph; <b>[FIELDS]</b> are filled in.</p>
-<form method="get" class="row" style="gap:8px;margin:8px 0 0"><span class="mute">For</span>
-  <select name="type" data-autosubmit style="width:auto"><option value="">Every session type</option>{% for t in all_types %}<option value="{{ t.key }}"{{ ' selected' if stype and stype.key == t.key }}>{{ t.label }}{{ ' (own wording)' if t in typed }}</option>{% endfor %}</select><noscript><button>Show</button></noscript></form>
+<form method="get" class="row" style="gap:8px;margin:8px 0 0"><label class="mute" for="w-type">For</label>
+  <select id="w-type" name="type" data-autosubmit style="width:auto"><option value="">Every session type</option>{% for t in all_types %}<option value="{{ t.key }}"{{ ' selected' if stype and stype.key == t.key }}>{{ t.label }}{{ ' (own wording)' if t in typed }}</option>{% endfor %}</select><noscript><button>Show</button></noscript></form>
 <p class="draft-note" style="margin:10px 0 0;font-size:13px;border-left:3px solid var(--gold);padding:4px 10px">{{ DOC_DISCLAIMER }}</p>
 {% if saved %}<p class="ok-msg" style="color:var(--gold)">Saved.{% if not review_state(doc, stype.key if stype else None).reviewed %} Still a sample: saving is not a review.{% endif %}</p>{% endif %}
 {% set rs = review_state(doc, stype.key if stype else None) %}
@@ -13,7 +13,7 @@
 {% else %}<span class="grow"><b>This {{ label|lower }} prints as SAMPLE</b> until you review it here.{{ help("Saving does not count as a review. Read the wording, change what you need and save; then press Reviewed. Each document (agreement, release, copyright transfer, photo license, and each type's terms) is reviewed on its own.") }}</span><button class="primary">Reviewed - remove SAMPLE</button>{% endif %}</form>
 <div class="wording">
 <form method="post" class="f">
-  <textarea name="text" rows="28" maxlength="20000" spellcheck="true" style="font:14px/1.5 ui-monospace,Menlo,monospace">{{ text }}</textarea>
+  <label class="vh" for="w-text">{{ label }} wording</label><textarea id="w-text" name="text" rows="28" maxlength="20000" spellcheck="true" style="font:14px/1.5 ui-monospace,Menlo,monospace">{{ text }}</textarea>
   <div class="row" style="gap:8px"><button class="primary">Save</button>
     {% if stype and own %}<button name="reset" value="1" class="quiet" data-confirm="Go back to the general wording for {{ stype.label }}?">Use the general wording</button>{% endif %}</div>
 </form>

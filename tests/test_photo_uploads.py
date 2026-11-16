@@ -97,7 +97,7 @@ def test_upload_is_sealed_resumes_and_downloads_back(env):
 def test_tampered_or_truncated_files_do_not_open(env):
     A, c, sid, tmp = env
     data, _ = photo((1 << 20) + 10)
-    upload(c, sid, "a.jpg", data, kind="export")
+    upload(c, sid, "a.NEF", data, kind="raw")
     import photostore
     con = A.connect()
     row = con.execute("SELECT * FROM photo_files WHERE session_id=?", (sid,)).fetchone()
@@ -165,3 +165,11 @@ def test_photos_are_mirrored_once_fetched_back_and_unmirrored_on_delete(env):
     photostore.delete(con, row)
     assert photostore.mirror_pass(con, be) == (0, 0, 1) and not [n_ for n_ in be.list(photostore.MIRROR) if n_.endswith(".lap")]
     con.close()
+
+def test_upload_progress_is_announced_to_screen_readers():
+
+    from pathlib import Path
+    js = (Path(__file__).resolve().parent.parent / "static" / "photos.js").read_text()
+    assert "'progressbar'" in js and "aria-valuenow" in js
+    assert "setAttribute('role', k)" in js and "urgent ? 'alert' : 'status'" in js
+    assert "say(file.name + ': sealed')" in js and "fail(" in js

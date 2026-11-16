@@ -142,7 +142,7 @@ def php_host(env):
     d = host / GID
     (d / "limits.txt").write_text("days=30\nunopened_until=2099-01-01\nproof=1\n")
     s = socket.socket(); s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]; s.close()
-    p = subprocess.Popen([php, "-S", f"127.0.0.1:{port}", "-t", str(d)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    p = subprocess.Popen([php, "-d", "display_errors=1", "-d", "error_reporting=E_ALL", "-S", f"127.0.0.1:{port}", "-t", str(d)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     base = f"http://127.0.0.1:{port}/"
     for _ in range(100):
         try:
@@ -156,8 +156,11 @@ def php_host(env):
     p.terminate(); p.wait()
 
 def call(url, body=None, proof=None):
-    req = urllib.request.Request(url, data=body, method="POST" if body is not None else "GET",
-                                 headers={"X-Proof": proof} if proof else {})
+
+    h = {"X-Proof": proof} if proof else {}
+    if body is not None:
+        h["Content-Type"] = "application/octet-stream"
+    req = urllib.request.Request(url, data=body, method="POST" if body is not None else "GET", headers=h)
     try:
         with urllib.request.urlopen(req, timeout=10) as r:
             return r.status, r.read()

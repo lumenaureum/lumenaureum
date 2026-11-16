@@ -134,3 +134,23 @@ def test_delivery_dates_are_checked(env):
         con = A.connect()
         assert con.execute("SELECT sd_shipped FROM sessions WHERE id=1").fetchone()[0] == before, bad
         con.close()
+
+def test_a_folder_another_session_uses_is_kept_when_one_session_goes(env):
+    A, c, tmp, raw = env
+    con = A.connect()
+    shoot = con.execute("SELECT shoot_date FROM sessions WHERE id=1").fetchone()[0]
+    con.execute("INSERT INTO sessions (household_id, type, stage, shoot_date) VALUES (1, 'family', 'delivered', ?)", (shoot,))
+    con.execute("INSERT INTO sessions (household_id, type, stage, shoot_date) VALUES (1, 'family', 'delivered', ?)", (shoot,))
+    con.commit(); con.close()
+    for sid in (1, 2, 3):
+        c.post(f"/session/{sid}/raw", data={"raw_dir": str(raw) + "/"}, environ_base=E)
+    c.post("/session/1/delete", environ_base=E)
+    assert raw.exists() and (raw / "a.nef").exists()
+    c.post("/session/2/raw/early", data={"asked_on": "2026-01-02", "asked_by": "letter"}, environ_base=E)
+    assert raw.exists() and (raw / "a.nef").exists()
+    con = A.connect()
+    notes = [r_[0] for r_ in con.execute("SELECT action FROM audit WHERE action LIKE 'Photos deleted%' OR action LIKE 'Deleted%'")]
+    con.close()
+    assert any("another session uses the same folder" in n_ for n_ in notes)
+    c.post("/session/3/raw/early", data={"asked_on": "2026-01-02", "asked_by": "letter"}, environ_base=E)
+    assert not raw.exists()

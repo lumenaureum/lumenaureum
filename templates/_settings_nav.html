@@ -22,8 +22,10 @@
     {{ tab(url_for('vault_view'), 'Backups', ep_ == 'vault_view', 'back up now, list, restore check') }}
     {{ tab(url_for('setup_step', step='storage'), 'Where backups go', ep_ == 'setup_step' and va_.get('step') == 'storage', 'the vault and a second copy') }}
     {{ tab(url_for('setup_step', step='galleries'), 'Online galleries', ep_ == 'setup_step' and va_.get('step') == 'galleries') }}</div>
+  {% if hooks.settings_tabs %}<div class="sg"><b>Plugins</b>
+    {% for l_, e_, s_ in hooks.settings_tabs %}{{ tab(url_for(e_), l_, ep_ == e_, s_) }}{% endfor %}</div>{% endif %}
   <div class="sg"><b>Account</b>
-    {{ tab(url_for('security'), 'Security', ep_ == 'security') }}
+    {{ tab(url_for('security'), 'Security', ep_ in ('security', 'master_key_check')) }}
     {{ tab(url_for('setup_step', step='network'), 'Who can reach this', ep_ == 'setup_step' and va_.get('step') == 'network') }}
     {{ tab(url_for('settings_view', tab='file'), 'Settings file', ep_ == 'settings_view' and tab_ == 'file', 'export, import') }}
     {{ tab(url_for('settings_view', tab='system'), 'System', ep_ == 'settings_view' and tab_ == 'system', 'plugins, reset') }}

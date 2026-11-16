@@ -89,9 +89,9 @@ def main(argv):
         if settings_only:
             print("restored", os.path.join(argv[2], "settings.json"), "- import it in Settings (Import settings)")
         else:
-            print("restored to", argv[2], "(crm.db, keyring.json, and settings.json, storage.json, deletions.json and "
-                  "doc-numbers.json when the backup has them; the master key opens it, and so does the password that was "
-                  "current when the backup was made). See Restoring a backup in docs/operations.md for the next steps.")
+            print("restored to", argv[2], "(crm.db, keyring.json, and settings.json, storage.json, deletions.restored.json "
+                  "and doc-numbers.restored.json when the backup has them; the master key opens it, and so does the password "
+                  "that was current when the backup was made). See Restoring a backup in docs/operations.md for the next steps.")
         return 0
     if cmd in ("orphans", "open-orphan"):
         from . import backends as B, seal as S, web as W

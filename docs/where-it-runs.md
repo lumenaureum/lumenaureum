@@ -94,15 +94,15 @@ the name inside the container in setup. For example:
 ```
     volumes:
       - ./data:/data
-      - /path/to/another/disk/lumen-vault:/vault
+      - /path/to/another/disk/lumenaureum-vault:/vault
       - ./photos:/photos
-      - /mnt/usb-backup/lumen:/backup2       # a second backup copy: type /backup2 in setup, Backups
+      - /mnt/usb-backup/lumenaureum:/backup2       # a second backup copy: type /backup2 in setup, Backups
       - /srv/www/galleries:/galleries        # a folder a web server here serves: type /galleries in setup, Online galleries
 ```
 
 Then:
 1. Create the folder on the machine and give it the owner in the compose file's `user` line, for example
-   `sudo chown 10001:10001 /mnt/usb-backup/lumen`. For a gallery folder, the web server must also be able to write in
+   `sudo chown 10001:10001 /mnt/usb-backup/lumenaureum`. For a gallery folder, the web server must also be able to write in
    it: run the web server as that user, or give the folder a group the web server is in, with group write permission.
 2. Run `docker compose up -d`. The app restarts with the new folder, and you sign in again.
 3. In setup (or Settings), choose "A folder on this machine or a mounted share" for backups, or "A folder a web server
@@ -155,7 +155,7 @@ Set these under `environment:` in `compose.yaml`; leave out any you don't need.
 ## On a TrueNAS (Install via YAML)
 A TrueNAS app you install from the TrueNAS app catalog is coming soon. Until then, use these steps.
 
-TrueNAS's "Install via YAML" screen takes the compose file but has no `.env` file next to it, so `LUMEN_HOST_IP` is
+TrueNAS's "Install via YAML" screen takes the compose file but has no `.env` file next to it, so `LUMENAUREUM_HOST_IP` is
 never set and the app refuses to start. Write the address straight into the ports line:
 `- "192.168.1.10:8780:8780"` (your NAS's address on the network your computers use). Create datasets for the data,
 the vault and the photos, owned by the user in the compose file's `user` line (TrueNAS apps commonly run as 568:568).

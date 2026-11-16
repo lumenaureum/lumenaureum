@@ -618,14 +618,14 @@ def build_terms(stype=None):
                                   "I keep the copyright and you receive a license to use the photos."))
     else:
         out.append(("The photos", rights_text(types[0] if types else None)))
-    groups = {}
-    for t in types:
-        groups.setdefault((cancel_text(t), late_text(t)), []).append(t)
-    for (cancel, late), ts in groups.items():
-        pre = f"{label(ts)}: " if len(groups) > 1 else ""
-        out.append(("Cancellation", pre + cancel))
-        if late:
-            out.append(("Running late", pre + late))
+
+    for head, text_of in (("Cancellation", cancel_text), ("Running late", late_text)):
+        groups = {}
+        for t in types:
+            if text_of(t):
+                groups.setdefault(text_of(t), []).append(t)
+        for txt, ts in groups.items():
+            out.append((f"{head}: {label(ts)}" if len(groups) > 1 or len(ts) < len(types) else head, txt))
     if stype:
         days = delivery_days(stype)
         out.append(("Delivery", f"Your photos are ready within {days} days of the session, {delivery_text(stype)}."))

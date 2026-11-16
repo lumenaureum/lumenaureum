@@ -93,7 +93,12 @@ def test_vault_page_back_up_now_list_and_check(tmp_path, monkeypatch):
     assert "intact" in c.get("/vault", environ_base=E).get_data(as_text=True)
     c.post("/vault/check", data={"secret": "AGE-SECRET-KEY-1" + "Q" * 58}, environ_base=E)
     page = c.get("/vault", environ_base=E).get_data(as_text=True)
-    assert "intact" not in page and "Backups:" in page
+    assert "intact" not in page and "isn&#39;t the master key this install uses" in page
+    for _ in range(6):
+        c.post("/vault/check", data={"secret": "AGE-SECRET-KEY-1" + "Q" * 58}, environ_base=E)
+    c.post("/vault/check", data={"secret": secret}, environ_base=E)
+    page = c.get("/vault", environ_base=E).get_data(as_text=True)
+    assert "Too many wrong keys from here. Try again in 15 minutes." in page and "intact" not in page
 
 def test_back_up_now_never_pushes_out_a_nightly(tmp_path, monkeypatch):
     store = tmp_path / "store"; store.mkdir(); (store / ".vault-root").write_text("")

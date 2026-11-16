@@ -1,7 +1,7 @@
 {% set cur = wf.current %}
 {% if s.stage == 'lost' %}
 <div class="surface wf"><div class="wf-now"><div class="wf-head"><span class="pill red">Lost</span>
-  <form method="post" action="{{ url_for('session_stage', sid=s.id) }}" class="inline"><input type="hidden" name="stage" value="inquiry"><button class="ghost">Reopen as inquiry</button></form></div></div></div>
+  <span class="mute">Reopen at</span>{% for st_ in ('inquiry', 'quoted', 'booked') %}<form method="post" action="{{ url_for('session_stage', sid=s.id) }}" class="inline"><input type="hidden" name="stage" value="{{ st_ }}"><button class="ghost" aria-label="Reopen at {{ stage_label[st_] }}">{{ stage_label[st_] }}</button></form>{% endfor %}</div></div></div>
 {% elif cur %}
 <div class="surface wf">
   <div class="wf-now">

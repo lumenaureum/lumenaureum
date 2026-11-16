@@ -11,6 +11,7 @@ import datakey
 DB_PATH = Path(os.environ.get("CRM_DB", Path(__file__).resolve().parent / "data" / "crm.db"))
 PLAIN_HEADER = b"SQLite format 3\x00"
 Row = sqlite3.Row
+BUSY_TIMEOUT = 30
 
 _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _DECL = re.compile(r"[A-Z][A-Z ]*(?: DEFAULT (?:'[A-Za-z0-9_{}\[\]]*'|-?\d+(?:\.\d+)?|NULL|\(date\('now','localtime'\)\)))?"
@@ -56,7 +57,7 @@ def connect(path=None, key=None):
     key_hex = datakey.db_key_hex(key)
     path.parent.mkdir(parents=True, exist_ok=True)
     with _OPEN_CLOSE:
-        con = sqlite3.connect(str(path), factory=_Connection)
+        con = sqlite3.connect(str(path), factory=_Connection, timeout=BUSY_TIMEOUT)
         try:
             _key(con, key_hex)
             con.row_factory = sqlite3.Row

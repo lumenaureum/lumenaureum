@@ -97,7 +97,7 @@ def test_deletions_survive_a_rotation_then_a_restore_from_before_it(install, tmp
     assert new_key != old_key
     datakey.set_unlocked(new_key)
     with A.app.test_request_context():
-        A._delete_client_rows(hid, created, [])
+        A._delete_client_records(hid, created, [])
         A.db().commit()
     assert not _here(A, hid)
     _restore(A, snap)

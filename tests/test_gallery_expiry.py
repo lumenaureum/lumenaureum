@@ -60,6 +60,11 @@ def state(A):
 def days_ago(n):
     return (date.today() - timedelta(days=n)).isoformat()
 
+def gone_dark(host):
+
+    return (host / GID).is_dir() and [p.name for p in (host / GID).iterdir()] == ["index.html"] \
+        and "This gallery has gone dark." in (host / GID / "index.html").read_text()
+
 def test_gallery_stays_through_its_last_day(env):
     A, c, G, host = env
     go_live(A, G, days_ago(A.C.GALLERY_DAYS))
@@ -70,7 +75,7 @@ def test_gallery_is_removed_the_day_after_its_window(env):
     A, c, G, host = env
     go_live(A, G, days_ago(A.C.GALLERY_DAYS + 1))
     c.post("/gallery/sync", environ_base=E)
-    assert not (host / GID).exists()
+    assert gone_dark(host)
     st, removed, _ = state(A)
     assert st == "removed" and removed == date.today().isoformat()
 
@@ -83,7 +88,7 @@ def test_extension_doubles_the_window_before_removal(env):
     con.execute("UPDATE sessions SET first_visit=? WHERE id=1", (days_ago(2 * A.C.GALLERY_DAYS + 1),))
     con.commit(); con.close()
     c.post("/gallery/sync", environ_base=E)
-    assert not (host / GID).exists() and state(A)[0] == "removed"
+    assert gone_dark(host) and state(A)[0] == "removed"
 
 def test_unopened_gallery_comes_down_after_a_year(env):
     A, c, G, host = env
@@ -92,7 +97,7 @@ def test_unopened_gallery_comes_down_after_a_year(env):
     con.execute("UPDATE galleries SET uploaded_at=? WHERE session_id=1", (days_ago(A.C.GALLERY_UNOPENED_DAYS + 1),))
     con.commit(); con.close()
     c.post("/gallery/sync", environ_base=E)
-    assert not (host / GID).exists() and state(A)[0] == "removed"
+    assert gone_dark(host) and state(A)[0] == "removed"
 
 def test_extension_doubles_the_host_deadline(env):
     A, c, G, host = env

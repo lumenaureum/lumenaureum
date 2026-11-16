@@ -1,0 +1,14 @@
+Options -Indexes
+<FilesMatch "^(seen\.(txt|key)|seen-key\.php|limits\.txt|(picks|draft)\.bin.*)$">
+  Require all denied
+</FilesMatch>
+RewriteEngine On
+RewriteRule ^([0-9a-f]{24}\.bin|manifest\.bin)$ gate.php?f=$1 [L]
+<IfModule mod_headers.c>
+  Header set Referrer-Policy "no-referrer"
+  Header set X-Robots-Tag "noindex, nofollow"
+  Header set X-Content-Type-Options "nosniff"
+  <FilesMatch "^(index\.html|font\.woff2)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>

@@ -25,8 +25,9 @@ let focused = null;
 async function run({ fetchPlan, words = [], key, gid = "galX", wordMode = false, clicks = 5 }) {
   focused = null;
   const els = {};
+  const gone = new Set();
   const document = {
-    documentElement: { dataset: { gid } },
+    documentElement: { dataset: { gid }, classList: { add: c => gone.add(c), remove() {}, toggle() {}, contains: c => gone.has(c) }, style: { setProperty() {} } },
     getElementById: id => (els[id] = els[id] || el("div", id)),
     createElement: t => el(t),
     querySelector: () => el("x"), querySelectorAll: () => [], addEventListener() {}, body: el("body"), activeElement: null,
@@ -43,6 +44,7 @@ async function run({ fetchPlan, words = [], key, gid = "galX", wordMode = false,
     const form = act.find(c => c.tagName === "form");
     seen.push({ what, say: els.msgsay ? els.msgsay.textContent : "", err: els.msgerr ? els.msgerr.textContent : "",
       buttons: act.filter(c => c.tagName === "button").map(b => b.textContent),
+      dark: act.filter(c => c.className === "dark").map(c => c.textContent),
       form: !!form && !form.hidden, prefill: form ? form.children[0].value : null,
       focus: focused ? (focused.textContent || focused.tagName) : null });
   };
@@ -59,7 +61,11 @@ async function run({ fetchPlan, words = [], key, gid = "galX", wordMode = false,
   await new Promise(r => setTimeout(r, 4500));
   clearInterval(pump);
   snap("end");
-  return { fetches, title: els.title ? els.title.textContent : "", seen };
+  return { fetches, title: els.title ? els.title.textContent : "", seen,
+    sunset: els.sunset && !els.sunset.hidden ? [els.sstitle, els.sswhen, els.ssask].map(e => e ? e.textContent : "").join(" | ") : "",
+    darkClass: [...gone].join(","), darkmarkShown: !!(els.darkmark && !els.darkmark.hidden),
+    dlallLabel: els.dlallb ? els.dlallb.textContent : "",
+    sunsetHasDownloadAll: !!(els.ssdl && els.dlall && els.dlall.parent === els.ssdl && !els.dlall.hidden) };
 }
 
 async function seal(keyBytes, data, name) {
@@ -76,6 +82,9 @@ async function wordKey(raw, gid, w) {
 const ok = buf => async () => ({ ok: true, status: 200, headers: { get: () => "application/octet-stream" }, arrayBuffer: async () => buf.buffer.slice(0) });
 const netfail = async () => { throw new TypeError("Failed to fetch"); };
 const status = s => async () => ({ ok: false, status: s, headers: { get: () => "" } });
+const dark = contact => async () => ({ ok: false, status: 410, headers: { get: () => "application/json" }, json: async () => ({ contact }) });
+const okSunset = (buf, at) => async () => ({ ok: true, status: 200, arrayBuffer: async () => buf.buffer.slice(0),
+  headers: { get: h => h === "X-Sunset" ? at : "application/octet-stream" } });
 
 (async () => {
   const key = globalThis.crypto.getRandomValues(new Uint8Array(32));
@@ -86,6 +95,18 @@ const status = s => async () => ({ ok: false, status: s, headers: { get: () => "
   out.plain_ok = await run({ key, fetchPlan: [ok(good)] });
   out.plain_network_retry = await run({ key, fetchPlan: [netfail, ok(good)] });
   out.plain_closed = await run({ key, fetchPlan: [status(410)] });
+  out.dark_contact = await run({ key, fetchPlan: [dark("hello@studio.example")] });
+  out.dark_bad_contact = await run({ key, fetchPlan: [dark("x\"><img src=x>@a.b")] });
+  const branded = await seal(key, new TextEncoder().encode(JSON.stringify({ v: 1, title: "Lane", items: [], picks: {},
+    brand: { email: "hello@studio.example" } })), "manifest.bin");
+  out.sunset_soon = await run({ key, fetchPlan: [okSunset(branded, new Date(Date.now() + 3 * 86400000).toISOString())] });
+  out.sunset_none = await run({ key, fetchPlan: [ok(branded)] });
+  const okOnce = (buf, at) => async () => ({ ok: true, status: 200, arrayBuffer: async () => buf.buffer.slice(0),
+    headers: { get: h => h === "X-Once" ? at : h === "X-Sunset" ? "" : "application/octet-stream" } });
+  const dlman = await seal(key, new TextEncoder().encode(JSON.stringify({ v: 1, title: "Lane", items: [], picks: {}, dl: 1,
+    zips: [{ name: "Lane.zip", size: 5000000, parts: ["aaaaaaaaaaaaaaaaaaaaaaaa.bin"] }], brand: { email: "hello@studio.example" } })), "manifest.bin");
+  out.once_download = await run({ key, fetchPlan: [okOnce(dlman, new Date(Date.now() + 6 * 86400000).toISOString())] });
+  out.sunset_download = await run({ key, fetchPlan: [okSunset(dlman, new Date(Date.now() + 2 * 86400000).toISOString())] });
   out.word_wrong_then_right = await run({ key, wordMode: true, words: ["wrong one", "blue river stone"], fetchPlan: [ok(wgood)] });
   out.word_network_retry = await run({ key, wordMode: true, words: ["blue river stone"], fetchPlan: [netfail, ok(wgood)] });
   process.stdout.write(JSON.stringify(out));

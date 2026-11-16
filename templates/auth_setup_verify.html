@@ -7,7 +7,7 @@
   <details><summary class="help">On this phone, or can't scan? Type this key into the app</summary><div class="mono">{{ secret }}</div></details>
   <form method="post" class="f" style="width:100%">
     {% if err %}<div class="err">No match. Use the code showing now; check your phone's clock.</div>{% endif %}
-    <input name="code" placeholder="6-digit code" autocomplete="one-time-code" inputmode="numeric" required autofocus>
+    <div><label class="l" for="sv-code">Code from your authenticator app</label><input id="sv-code" name="code" placeholder="6-digit code" autocomplete="one-time-code" inputmode="numeric" required autofocus></div>
     <button class="primary">Next</button>
   </form>
 </div>{% endblock %}

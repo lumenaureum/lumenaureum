@@ -11,7 +11,7 @@
   {% if err == 'claim' %}<div class="err">Wrong setup code. A restart makes a new one.</div>{% endif %}
   {% if err == 'name' %}<div class="err">Enter your name and a valid email.</div>{% elif err == 'password' %}<div class="err">Passwords must match, {{ min_pw }}+ characters.</div>{% endif %}
   <label class="l" for="claim">Setup code</label>
-  <div class="help">In <b>SETUP-CODE.txt</b>, in your data folder (it belongs to the app's user: <code>sudo cat data/SETUP-CODE.txt</code>), or in the app's log: <code>docker compose logs lumen</code>.</div>
+  <div class="help">In <b>SETUP-CODE.txt</b>, in your data folder (it belongs to the app's user: <code>sudo cat data/SETUP-CODE.txt</code>), or in the app's log: <code>docker compose logs lumenaureum</code>.</div>
   <input id="claim" name="claim" placeholder="1A2B-3C4D-5E6F" autocomplete="off" required {{ '' if err in ('password', 'name') else 'autofocus' }} spellcheck="false" value="{{ (keep.claim or '') if err != 'claim' }}">
   <label class="l" for="name">Name</label>
   <input id="name" name="name" maxlength="200" required value="{{ keep.name or '' }}">

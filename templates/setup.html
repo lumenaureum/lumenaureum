@@ -15,7 +15,7 @@
 @media (max-width: 640px) { .stepper .lab { display: none; } .stepper li.cur .lab { display: block; } }
 .steps a { color: var(--mute); text-decoration: none; } .steps a.on { color: var(--gold); font-weight: 600; } .steps a.ok::before { content: "\2713  "; color: var(--ok, #8c8); }
 .auth label.l { display: block; font-size: 12px; color: var(--mute); margin: 8px 0 2px; } .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
-.choice { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; } .choice input { width: auto; margin: 3px 0 0; }
+.errgo { margin: -4px 0 12px; } .choice { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; } .choice input { width: auto; margin: 3px 0 0; }
 .hardtag { font-weight: 600; color: var(--gold); font-size: 11px; margin-left: 6px; text-transform: uppercase; letter-spacing: .04em; } .hint { font-size: 12px; color: var(--mute); margin: 2px 0 8px; } .hard { border-left: 3px solid var(--gold); padding: 4px 10px; font-size: 13px; margin: 10px 0; }
 .be { display: none; } .be.on { display: block; } .test { font-size: 12px; margin-left: 8px; } table.r td { padding: 4px 8px 4px 0; vertical-align: middle; } table.r input { width: 90px; margin: 0; }
 table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-align: right; margin-right: 4px; }
@@ -33,6 +33,9 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
   <input type="file" id="imp" name="file" accept=".json,application/json" class="vh" data-autosubmit></form>{% endif %}
 <form method="post" class="card f" id="f" data-test-url="{{ url_for('setup_test', which='W') }}">
 <button class="vh" tabindex="-1" aria-hidden="true" data-enter-default>Next</button>
+
+{% if err and err.startswith('ONE-DISK') %}<div class="errgo"><button name="one_disk_ok" value="1">Continue anyway: this computer has one disk for now</button></div>
+{% elif err and err.startswith('SAME-DISK') %}<div class="errgo"><button name="same_disk_ok" value="1">Keep it anyway: I know the second copy is on the same disk</button></div>{% endif %}
 
 {% if step == 'business' %}
   {% if not complete %}<div class="row" style="margin-bottom:8px"><label for="imp" class="btn quiet" style="cursor:pointer">Import a settings file</label></div>{% endif %}
@@ -76,8 +79,6 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
   {% endmacro %}
   {{ backend('primary_', primary, 'Backups (encrypted), on a different disk from the app', hard="Moving the vault later means copying every sealed file to the new place. On a NAS with one pool, a separate dataset is fine; then the second copy, in another place, is what protects you.") }}
   {{ backend('secondary_', secondary, 'Second copy, in another place', True) }}
-  {% if err and err.startswith('ONE-DISK') %}<label class="choice"><input type="checkbox" name="one_disk_ok" value="1"><span>Continue anyway: this computer has one disk for now</span></label>{% endif %}
-  {% if err and err.startswith('SAME-DISK') %}<label class="choice"><input type="checkbox" name="same_disk_ok" value="1"><span>Keep it anyway: I know the second copy is on the same disk</span></label>{% endif %}
   <div class="hint">Each location is tested when you continue: a small file is written, read back and removed. Nothing is saved unless it works.</div>
   <label class="l" for="f-backup_time">Daily backup at{{ help("The app makes an encrypted backup every day at this time, while it is running and unlocked.") }}</label><input type="time" id="f-backup_time" name="backup_time" value="{{ btime }}" style="width:auto">
 

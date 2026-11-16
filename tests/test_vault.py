@@ -21,7 +21,7 @@ def s3():
     with mock_aws():
         import boto3
         boto3.client("s3", region_name="us-east-1").create_bucket(Bucket="vault-test")
-        yield B.S3Backend("vault-test", "x", "y", region="us-east-1", prefix="lumen")
+        yield B.S3Backend("vault-test", "x", "y", region="us-east-1", prefix="lumenaureum")
 
 @pytest.fixture
 def con(tmp_path):

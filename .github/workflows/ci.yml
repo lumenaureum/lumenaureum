@@ -45,11 +45,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
       - name: Build (${{ matrix.arch }})
         run: |
-          docker build --build-arg LUMEN_BUILD=${GITHUB_SHA::7} -t lumen:ci .
-          test "$(docker image inspect --format '{{.Architecture}}' lumen:ci)" = "${{ matrix.arch }}"
+          docker build --build-arg LUMENAUREUM_BUILD=${GITHUB_SHA::7} -t lumenaureum:ci .
+          test "$(docker image inspect --format '{{.Architecture}}' lumenaureum:ci)" = "${{ matrix.arch }}"
       - name: Scan the image (${{ matrix.arch }})
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8   # v0.36.0
-        with: { image-ref: "lumen:ci", severity: "CRITICAL,HIGH", exit-code: "1", ignore-unfixed: true }
+        with: { image-ref: "lumenaureum:ci", severity: "CRITICAL,HIGH", exit-code: "1", ignore-unfixed: true }
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: image
@@ -70,17 +70,17 @@ jobs:
         run: |
           VERSION=${GITHUB_REF_NAME#v}
           test "$VERSION" = "$(cat VERSION)" || { echo "tag $VERSION does not match VERSION file"; exit 1; }
-          docker build --build-arg LUMEN_BUILD=${GITHUB_SHA::7} -t lumen:release .
-          test "$(docker image inspect --format '{{.Architecture}}' lumen:release)" = "${{ matrix.arch }}"
+          docker build --build-arg LUMENAUREUM_BUILD=${GITHUB_SHA::7} -t lumenaureum:release .
+          test "$(docker image inspect --format '{{.Architecture}}' lumenaureum:release)" = "${{ matrix.arch }}"
       - name: Scan the exact image that will be published (${{ matrix.arch }})
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8   # v0.36.0
-        with: { image-ref: "lumen:release", severity: "CRITICAL,HIGH", exit-code: "1", ignore-unfixed: true }
+        with: { image-ref: "lumenaureum:release", severity: "CRITICAL,HIGH", exit-code: "1", ignore-unfixed: true }
       - name: Push that image under its platform tag
         env:
           IMAGE: ghcr.io/lumenaureum/lumenaureum
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          docker tag lumen:release $IMAGE:$VERSION-${{ matrix.arch }}
+          docker tag lumenaureum:release $IMAGE:$VERSION-${{ matrix.arch }}
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
           docker push $IMAGE:$VERSION-${{ matrix.arch }}
           echo "Pushed $(docker inspect --format '{{index .RepoDigests 0}}' $IMAGE:$VERSION-${{ matrix.arch }})" >> "$GITHUB_STEP_SUMMARY"

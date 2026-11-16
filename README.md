@@ -21,7 +21,10 @@ laptop or a stolen drive exposes no client records.
 - **Quotes, agreements, invoices and receipts** from your own prices and terms, as PDFs. Price changes never alter a
   quote already sent.
 - **Scheduling**: a month calendar, sunset and golden hour for each session, and a check for clashes.
-- **Billing and finances**: deposits, payments, refunds, mileage, expenses, and sales tax counted when payments are received.
+- **Billing and finances**: deposits, payments, refunds, mileage, expenses, and sales tax counted when payments are
+  received; each payment keeps its tax, so a past year never changes.
+  Tips are their own kind of payment, never taxed (a tip given back lowers the tips only). A balance you waive is
+  written off. Finances exports a year for your accountant: payments, expenses, mileage, sales tax, write-offs and monthly totals as CSV files.
 - **Proofing and delivery galleries**, encrypted in the browser; the key is in the link printed on the letter you mail. Galleries
   come down after the window you set: by themselves on a web host that runs PHP with Apache rewrite rules, otherwise
   the next time the app is unlocked. A session type can ask for a codeword the client chooses, so the link alone
@@ -66,14 +69,14 @@ See [docs/where-it-runs.md](docs/where-it-runs.md).
 Coming soon: a TrueNAS app you install from the TrueNAS app catalog.
 
 ```
-mkdir lumen && cd lumen
+mkdir lumenaureum && cd lumenaureum
 curl -O https://raw.githubusercontent.com/lumenaureum/lumenaureum/main/compose.yaml
-echo "LUMEN_HOST_IP=192.168.1.10" > .env      # the address your computers reach this machine at
+echo "LUMENAUREUM_HOST_IP=192.168.1.10" > .env      # the address your computers reach this machine at
 # edit compose.yaml: point the /vault line at a folder on a different disk from ./data
-mkdir data photos /path/to/another/disk/lumen-vault
-sudo chown 10001:10001 data photos /path/to/another/disk/lumen-vault   # or set "user" in compose.yaml to their owner
+mkdir data photos /path/to/another/disk/lumenaureum-vault
+sudo chown 10001:10001 data photos /path/to/another/disk/lumenaureum-vault   # or set "user" in compose.yaml to their owner
 docker compose up -d
-docker compose logs lumen          # shows the certificate fingerprint and the setup code
+docker compose logs lumenaureum          # shows the certificate fingerprint and the setup code
 ```
 
 The app sees only the folders mounted under `volumes:` in compose.yaml. A second backup disk, or a folder a web server

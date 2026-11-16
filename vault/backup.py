@@ -160,11 +160,15 @@ def restore(name, master_secret, dest_dir, backend=None, settings_only=False, ex
                 raise ValueError("the restored database failed its integrity check")
         finally:
             con.close()
+        for f_ in ("deletions.json", "doc-numbers.json"):
+            src_ = os.path.join(dest_dir, f_)
+            if os.path.exists(src_):
+                os.replace(src_, os.path.join(dest_dir, f_[:-5] + ".restored.json"))
         if settings_only:
             if not os.path.exists(os.path.join(dest_dir, "settings.json")):
                 raise ValueError("this backup has no settings file (it was made before settings were included)")
-            for f_ in BUNDLE_FILES:
-                if f_ != "settings.json" and os.path.exists(os.path.join(dest_dir, f_)):
+            for f_ in os.listdir(dest_dir):
+                if f_ != "settings.json":
                     os.remove(os.path.join(dest_dir, f_))
         return dest_dir
     except BaseException:

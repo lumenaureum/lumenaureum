@@ -73,7 +73,7 @@ def test_company_billing_job_address_search_and_statement(tmp_path, monkeypatch)
     now = c.get(f"/client/1/statement?m={_d.today():%Y-%m}", environ_base=E).get_data(as_text=True)
     assert "4 Mill Road" in now and "INV-" in now and "Balance due" in now
     st = c.get("/client/1/statement?m=2027-03", environ_base=E).get_data(as_text=True)
-    assert "12 Orchard Lane" in st and "No invoices this month." in st
+    assert "12 Orchard Lane" in st and "Work done" in st
     cal = c.get("/calendar?m=2027-03", environ_base=E).get_data(as_text=True)
     assert "4 Mill Road" in cal
 

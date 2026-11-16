@@ -31,6 +31,10 @@
 
 <section class="sec" id="people"><h2 class="sec-h">People</h2>
   {% with clash_form='person' %}{% include "_edit_clash.html" %}{% endwith %}
+  {% if offer %}{% set who_ = offer.p.name.split()[0] if offer.p.name.split() else offer.p.name %}{% set one_ = offer.sessions|length == 1 %}
+  <div class="offer" role="group" aria-labelledby="offer-q"><span id="offer-q">{% if one_ %}{% set o_ = offer.sessions[0] %}Add {{ who_ }} to the {{ o_.what }} session{% if o_.when %} on {{ o_.when }}{% endif %} too?{% else %}Add {{ who_ }} to an open session too?{% endif %}</span>
+    {% for o in offer.sessions %}<form method="post" action="{{ url_for('session_subject_add', sid=o.id) }}" class="inline"><input type="hidden" name="person_id" value="{{ offer.p.id }}"><input type="hidden" name="back" value="{{ url_for('client_view', hid=h.id, added=offer.p.id) }}#people"><button class="primary">{% if one_ %}Add {{ who_ }}{% else %}{{ o.what }}{% if o.when %}, {{ o.when }}{% endif %}{% endif %}</button></form>{% endfor %}
+    <a class="btn quiet" href="{{ url_for('client_view', hid=h.id) }}#people">Not this time</a></div>{% endif %}
   <datalist id="rels">{% for r in RELATIONS %}<option value="{{ r }}">{% endfor %}</datalist>
   <table class="data"><thead><tr><th>Name</th><th>Who</th>{% if show_gender %}<th>Gender</th>{% endif %}<th>Age</th><th>Minor</th>{% if show_born %}<th>Born or due</th>{% endif %}{% if show_grad %}<th>Grad year</th>{% endif %}<th>Email</th><th>Phone</th><th><span class="vh">Actions</span></th></tr></thead><tbody>
   {% for p in people %}<tr>

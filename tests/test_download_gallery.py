@@ -256,7 +256,7 @@ def test_upload_sets_cache_control_per_file(env, monkeypatch):
     assert len(bins) > 9 and all(sent[n] == "public, max-age=31536000, immutable" for n in bins)
     assert sent["gate.php"] == sent[".htaccess"] == "no-cache"
     ht = (G.ASSETS / "htaccess").read_text()
-    assert 'FilesMatch "^(index\\.html|font\\.woff2)$"' in ht and 'Header set Cache-Control "no-cache"' in ht
+    assert 'FilesMatch "^(index\\.html|font(-light)?\\.woff2)$"' in ht and 'Header set Cache-Control "no-cache"' in ht
 
 def test_s3_keeps_the_cache_control_with_the_file():
     pytest.importorskip("moto")

@@ -14,6 +14,9 @@
 html.dark { color-scheme: dark; }
 html.f-elegant { --serif: "Gallery Serif", "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif; }
 html.f-script header h1 { font-family: "Gallery Script", var(--serif); font-size: clamp(40px, 6vw, 64px); line-height: 1.1; }
+html.f-own { --serif: "Gallery Own", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; }
+html.f-own, html.f-own body, html.f-own button, html.f-own input, html.f-own textarea { font-family: "Gallery Own", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+html.f-own.f-light body { font-weight: 300; }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--ink);
   font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-text-size-adjust: 100%; }
@@ -29,6 +32,24 @@ header { padding: 36px 20px 20px; max-width: 1100px; margin: 0 auto; text-align:
 header h1 { margin: 0 0 10px; font: 400 clamp(30px, 4.4vw, 46px)/1.15 var(--serif); letter-spacing: .01em; }
 #meta { margin: 0; color: var(--mute); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; text-wrap: balance; }
 #how { margin: 12px auto 0; }
+#sunset { position: fixed; inset: 0; z-index: 25; background: rgba(20,16,12,.6); display: flex; align-items: center; justify-content: center; padding: 16px; }
+#sunset[hidden] { display: none; }
+#sunset .box { background: var(--bg); color: var(--ink); max-width: 440px; width: 100%; border-radius: 10px; padding: 28px 28px 22px; box-shadow: 0 12px 40px rgba(0,0,0,.3); font-size: 15px; line-height: 1.5; text-align: center; border-top: 3px solid var(--gold); }
+#sunset h2 { margin: 0 0 10px; font: 400 26px/1.2 var(--serif); }
+#sunset p { margin: 0 0 10px; }
+#sunset a { color: inherit; overflow-wrap: anywhere; }
+#ssdl #dlall { margin: 16px 0 6px; justify-content: center; } #ssdl #dlall button { width: 100%; padding: 14px 22px; font-size: 16px; }
+#ssdl #dlwait { margin: 0 0 8px; }
+#ssgo { margin-top: 8px; font: 600 14px/1 -apple-system, sans-serif; padding: 10px 22px; border-radius: 20px; cursor: pointer; border: 1px solid var(--edge); background: none; color: var(--ink); }
+#ssgo.primary { background: #e3aa48; border-color: #e3aa48; color: #1a1308; padding: 12px 28px; font-size: 15px; }
+body.ssopen { overflow: hidden; }
+
+html.gonedark { --bg: #12100e; --ink: #efe3cc; --mute: #a99c86; color-scheme: dark; }
+html.gonedark header, html.gonedark footer, html.gonedark #filter, html.gonedark #grid { display: none !important; }
+html.gonedark #msg { min-height: 100vh; padding: 24px 16px; }
+#darkmark svg { display: block; width: min(220px, 60vw); height: auto; margin: 0 auto 28px; } #darkmark[hidden] { display: none; }
+html.gonedark #msg b { font-size: 30px; }
+#msgact .dark { margin-top: 6px; } #msgact .dark a { color: #e9b45c; overflow-wrap: anywhere; }
 #how button { background: none; border: 0; padding: 0; font: inherit; font-size: 14px; color: var(--mute); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 #how button:hover { color: var(--ink); }
 #welcome { position: fixed; inset: 0; z-index: 20; background: rgba(20,16,12,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
@@ -92,8 +113,8 @@ footer { background: #141210; color: #b9ad9a; padding: 26px 20px 30px; text-alig
 #contact span + span::before { content: "\00b7"; margin: 0 10px; color: #6e6455; }
 #rights { margin: -6px 0 14px; font-size: 12px; color: #8f8474; }
 #la { display: inline-flex; align-items: center; gap: 10px; color: #b9ad9a; text-decoration: none; letter-spacing: .03em; }
-#la svg { width: 30px; height: 30px; } #la b { color: #f0dfb4; font-weight: 600; } #la:hover b { color: #f6dfa6; }
-#la small { display: block; font-size: 11px; color: #7f7464; letter-spacing: .08em; }
+#la svg { width: 32px; height: 32px; } #la b { color: #f0dfb4; font-weight: 600; } #la:hover b { color: #f6dfa6; }
+#la small { display: block; font-size: 11px; color: #8f8472; letter-spacing: .08em; }
 #lb { position: fixed; inset: 0; background: #0b0a09; display: none; z-index: 10; touch-action: pan-y pinch-zoom; user-select: none; }
 #lb.open { display: flex; flex-direction: column; align-items: center; padding: 16px 72px 8px; }
 #lb img { display: block; flex: 1 1 0; min-height: 0; width: 100%; object-fit: contain; opacity: 0; transition: opacity .2s; }
@@ -160,6 +181,9 @@ body.lbopen #tray { display: none; }
 #sent:empty { display: none; } #send { white-space: nowrap; }
 @media (max-width: 640px) { #tray { flex-wrap: wrap; row-gap: 4px; } #sent { flex-basis: 100%; text-align: center; color: #f0dfb4; }
   body.tray.sentline { padding-bottom: 96px; } }
+
+header h1, #studio, #contact, #rights, #sunset .box, #welcome .box, #msg { overflow-wrap: anywhere; }
+#meta .nw { display: inline-block; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 #tray.on { display: flex; } #tray a { color: #1a1308; background: #e3aa48; padding: 8px 16px; border-radius: 18px; text-decoration: none; font-weight: 600; }
 </style>
 </head>
@@ -167,10 +191,17 @@ body.lbopen #tray { display: none; }
 <header hidden><div id="brand"><img id="logo" alt="" hidden><div id="studio"></div></div><hr class="rule"><h1 id="title"></h1><p id="meta"></p><div id="how" hidden></div><div id="dlall" hidden><button id="dlallb" type="button">Download all</button></div><p id="dlwait" hidden>Keep this page open until the download finishes.</p></header>
 <nav id="filter" hidden aria-label="Show"></nav>
 <main id="grid"></main>
-<div id="msg" hidden><div><div id="msgsay" role="status" aria-live="polite" aria-atomic="true"></div><div id="msgerr" role="alert" aria-atomic="true"></div><div id="msgact"></div></div></div>
+<div id="msg" hidden><div><div id="darkmark" hidden><span hidden data-la-logo></span></div><div id="msgsay" role="status" aria-live="polite" aria-atomic="true"></div><div id="msgerr" role="alert" aria-atomic="true"></div><div id="msgact"></div></div></div>
 <div id="tray"><span id="trayn"></span><a id="send" href="#" role="button">Send my picks</a><span id="sent" role="status" aria-live="polite"></span></div>
 <div id="live" class="sr" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="upd" role="status" hidden><span>These photos were just updated. Reload to see the new version.</span><button id="updgo" type="button">Reload</button></div>
+<div id="sunset" role="dialog" aria-modal="true" aria-labelledby="sstitle" hidden><div class="box">
+  <h2 id="sstitle">This gallery is about to sunset.</h2>
+  <p id="sswhen"></p>
+  <div id="ssdl"></div>
+  <p id="ssask"></p>
+  <button id="ssgo" type="button">See the photos</button>
+</div></div>
 <div id="welcome" role="dialog" aria-modal="true" aria-labelledby="wtitle" hidden><div class="box">
   <h2 id="wtitle">Picking your photos</h2>
   <p>Open a photo, then press:</p>
@@ -209,6 +240,14 @@ function look(T, built) {
     const ff = new FontFace(T.font === "script" ? "Gallery Script" : "Gallery Serif", "url(font.woff2)");
     document.fonts.add(ff); ff.load().catch(() => {});
     r.classList.add("f-" + T.font);
+  } catch (e) {}
+  if (T.font === "own" && window.FontFace && document.fonts) try {     // the studio's own font, beside the page
+    const W = (v, d) => /^\d{1,4} \d{1,4}$/.test(v || "") ? v : d;   // a variable font's weight range, from the manifest
+    const reg = new FontFace("Gallery Own", "url(font.woff2)", { weight: W(T.wr, "400") });
+    document.fonts.add(reg); reg.load().catch(() => {});
+    if (T.light) { const lt = new FontFace("Gallery Own", "url(font-light.woff2)", { weight: W(T.wl, "300") });
+      document.fonts.add(lt); lt.load().catch(() => {}); r.classList.add("f-light"); }
+    r.classList.add("f-own");
   } catch (e) {}
   try { localStorage.setItem(LOOK, JSON.stringify({ colors: C })); } catch (e) {}
 }
@@ -249,7 +288,16 @@ async function fingerprint(lines) {
   return out.match(/.{4}/g).join("-");
 }
 const GATE = document.documentElement.dataset.gate === "1";   // a PHP host: fetch through gate.php, which enforces expiry
-let proofFor = null, proofHex = "";
+let proofFor = null, proofHex = "", sunset = "", once = "", onceDone = false, darkContact = "";
+let saved = null;                               // what the gate says the host keeps of the client's (X-Saved), or null: unknown
+const EMAIL = /^[^\s"'<>\\=;&?#%]{1,64}@[^\s"'<>\\=;&?#%@]+\.[^\s"'<>\\=;&?#%@]+$/;
+function mailLink(e) { const a = document.createElement("a"); a.href = "mailto:" + e; a.textContent = e; return a; }
+function goneDark() {
+  document.documentElement.classList.add("gonedark");
+  fail("This gallery has gone dark.", "Your photographer may still be able to help.");
+  $("darkmark").hidden = false;
+  if (EMAIL.test(darkContact)) { const p = document.createElement("div"); p.className = "dark"; p.append(mailLink(darkContact)); $("msgact").append(p); }
+}
 async function keyProof() {                    // sha256(key), first 32 hex: what seen.php, picks.php and gate.php check
   if (proofFor !== raw) { proofFor = raw;
     proofHex = [...new Uint8Array(await subtle.digest("SHA-256", raw))].map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 32); }
@@ -265,7 +313,14 @@ async function fetchBin(name, fresh, signal) { // the encrypted bytes of one fil
   if (GATE && !r.ok && r.status !== 404 && r.status !== 410 && r.status !== 403) r = null;   // the gate isn't running here (no PHP)
   if (GATE && r && r.ok && (r.headers.get("content-type") || "").includes("php")) r = null;
   if (!r) r = await reach(name, { credentials: PREVIEW ? "same-origin" : "omit", cache: fresh ? "no-store" : "default", signal });
-  if (!r.ok) throw Object.assign(new Error("http"), { status: r.status });
+  if (!r.ok) {                                  // gone dark: the gate may name the photographer's email
+    if (r.status === 410) try { const j = await r.json(); if (j && typeof j.contact === "string") darkContact = j.contact; } catch (e) {}
+    throw Object.assign(new Error("http"), { status: r.status });
+  }
+  if (name === "manifest.bin") {               // the gate's word that it closes soon, or is open for one download
+    sunset = r.headers.get("X-Sunset") || ""; once = r.headers.get("X-Once") || ""; onceDone = r.headers.get("X-Once-Done") === "1";
+    const sv = r.headers.get("X-Saved");        // a gate from before 1.3 doesn't say: then the page asks for each file
+    if (/^(none|draft|picks|draft,picks)$/.test(sv || "")) saved = sv.split(","); }
   try { return await r.arrayBuffer(); }
   catch (e) { if (e && e.name === "AbortError") throw e;
     throw Object.assign(new Error("network"), { network: true }); }   // the connection dropped mid-file
@@ -348,7 +403,7 @@ async function main() {
       raw = linkKey; raw = await wordKey(word); ckey = null;
       try { plain = await manifest(); break; }
       catch (e) {
-        if (isClosed(e)) { fail("This gallery has closed"); return; }
+        if (isClosed(e)) { goneDark(); return; }
         why = isWrongKey(e) ? "wrong" : "reach";
       }
     }
@@ -359,7 +414,7 @@ async function main() {
     try { mText = new TextDecoder().decode(plain || await manifest()); m = JSON.parse(mText); break; }
     catch (e) {
       if (e.insecure) fail("This gallery must be opened over https", "Check the address starts with https://.");
-      else if (isClosed(e)) fail("This gallery has closed");
+      else if (isClosed(e)) goneDark();
       else if (isWrongKey(e)) fail("This gallery is locked", "Open it from the code in your letter.");
       else {                                   // the connection: offer the same link again, nothing to retype
         fail(...UNREACHABLE);
@@ -410,6 +465,10 @@ async function main() {
   document.querySelector("header").hidden = false;
   const grid = $("grid");
   const DL = m.dl === 1 && Array.isArray(m.zips);           // a download gallery: the final photos, to keep (nothing to pick)
+  const onceAt = once ? new Date(once) : null;
+  const onceOn = !!(onceAt && !isNaN(onceAt) && onceAt > new Date() && !PREVIEW);
+  const closes = onceOn ? onceAt : sunset ? new Date(sunset) : null;
+  const sunsetOn = onceOn || !!(closes && !isNaN(closes) && closes > new Date() && !PREVIEW);
   if (!DL) {
     document.addEventListener("contextmenu", e => { if (e.target && e.target.tagName === "IMG") e.preventDefault(); });
     document.addEventListener("dragstart", e => { if (e.target && e.target.tagName === "IMG") e.preventDefault(); });
@@ -469,7 +528,7 @@ async function main() {
     return got;
   }
   const DRAFTS = GATE && !!P.post && !PREVIEW && !!subtle;
-  let hostOk = false, pending = false, timer = null;
+  let hostOk = false, pending = false, timer = null, moved = false;   // moved: this copy refuses picks (picks.php 409)
   let picks = {}, sentSig = "", changed = "";   // changed: when the picks on this device last changed (ISO time)
   let legacySig = "";                           // picks carried over from a page before 1.1, which kept no record of sending
   let sendNote = "";                            // a problem sending, shown until the picks change
@@ -603,6 +662,7 @@ async function main() {
   }
   async function pushDraft(leaving) {
     pending = false;
+    if (moved) return;                                    // this copy moved: drafts saved here would never be read
     try {
       const body = await sealPicks("draft.bin", changed || new Date().toISOString());
       if (body.length > 262144) throw new Error("too big");
@@ -610,10 +670,12 @@ async function main() {
       const r = await fetch("picks.php?kind=draft", { method: "POST", credentials: "omit", cache: "no-store", body: form("d", b64u(body)),
         headers: { "X-Proof": await keyProof() }, keepalive: !!leaving && body.length < 60000 });
       hostOk = r.ok;
+      if (r.status === 409) moved = true;
+      if (r.ok && saved && !saved.includes("draft")) saved.push("draft");
     } catch (e) { hostOk = false; }
     if (!leaving) paint();
   }
-  function later() { if (!DRAFTS) return; pending = true; clearTimeout(timer); timer = setTimeout(() => pushDraft(false), 1500); }
+  function later() { if (!DRAFTS || moved) return; pending = true; clearTimeout(timer); timer = setTimeout(() => pushDraft(false), 1500); }
   const flush = () => { if (pending) { clearTimeout(timer); pushDraft(true); } };
   if (DRAFTS) {
     window.addEventListener("pagehide", flush);
@@ -622,7 +684,8 @@ async function main() {
   async function verifySent() {
     if (!DRAFTS) return;
     let host = null;
-    try {
+    if (saved && !saved.includes("picks")) host = "";                        // the gate said: nothing sent yet
+    else try {
       const r = await fetch("gate.php?f=picks.bin", { credentials: "omit", cache: "no-store", headers: { "X-Proof": await keyProof() } });
       if (r.status === 404) host = "";                                       // nothing sent from any device
       else if (!r.ok || (r.headers.get("content-type") || "").includes("php")) return;
@@ -638,6 +701,7 @@ async function main() {
   }
   async function pullDraft() {
     let d = null;
+    if (saved && !saved.includes("draft")) { if (sig() !== "[]") later(); return; }   // none yet (the gate said so)
     try {
       const r = await fetch("gate.php?f=draft.bin", { credentials: "omit", cache: "no-store", headers: { "X-Proof": await keyProof() } });
       if (r.status === 404) { if (sig() !== "[]") later(); return; }   // none yet: this device's picks go up
@@ -667,8 +731,16 @@ async function main() {
       const proof = [...new Uint8Array(await subtle.digest("SHA-256", raw))].map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
       const r = await fetch("picks.php", { method: "POST", credentials: "omit", cache: "no-store", body: form("d", b64u(body)),
         headers: { "X-Proof": proof } });
-      if (r.status === 410) { sendNote = "This gallery has closed, so picks can't be sent now. Please tell your photographer."; paint(); return; }
+      if (r.status === 410) { sendNote = "This gallery has gone dark, so picks can't be sent now. Please tell your photographer."; paint(); return; }
+      if (r.status === 409) {                  // moved to another host: picks sent to this copy would never be read
+        moved = true;
+        let c = ""; try { const j = await r.json(); if (j && EMAIL.test(j.contact || "")) c = j.contact; } catch (e2) {}
+        c = c || (EMAIL.test(B.email || "") ? B.email : "");
+        sendNote = "This gallery has moved to a new address, so picks can't be sent from this page. Please ask your photographer for the new link" +
+          (c ? ": " + c : ".");
+        paint(); return; }
       if (!r.ok) throw new Error("http " + r.status);
+      if (saved && !saved.includes("picks")) saved.push("picks");
       sendNote = ""; markSent();                                     // Sent shows until the picks change
       if (DRAFTS) { clearTimeout(timer); pushDraft(false); verifySent(); }   // the draft follows; picks.bin is read back
     } catch (err) {
@@ -706,6 +778,53 @@ async function main() {
     let seen = false; try { seen = !!localStorage.getItem(seenKey); } catch (e) {}
     if (!seen && !PREVIEW) openW();
   }
+  if (sunsetOn) {
+    const SS = $("sunset"), go = $("ssgo"), dlOn = DL && !$("dlall").hidden;
+    const when = closes.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }) +
+      " at " + closes.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    if (onceOn && onceDone) {                   // already made (on this device or another): it goes dark within the hour
+      $("sstitle").textContent = "This gallery's one download has been made.";
+      $("sswhen").textContent = "It goes dark on " + when + ". If the download didn't finish, press Download all again " +
+        "before then and keep this page open until it finishes.";
+    } else if (onceOn) {
+      $("sstitle").textContent = "This gallery is open for one download.";
+      $("sswhen").textContent = "Press Download all and keep this page open until it finishes. An hour later, the gallery " +
+        "goes dark (saving single photos doesn't count). If Download all isn't used, it closes on " + when + ".";
+    } else
+      $("sswhen").textContent = "It closes on " + when + "." + (dlOn ? " Download your photos before then." : "");
+    $("ssask").textContent = "";
+    if (EMAIL.test(B.email || "")) $("ssask").append("Questions? ", mailLink(B.email));
+    if (dlOn) $("ssdl").append($("dlall"), $("dlwait"));   // Download all moves into the notice while it is open
+    go.classList.toggle("primary", !dlOn);
+    let back = null;
+    const first = () => (dlOn ? $("dlallb") : go);
+    const behindSS = [document.querySelector("header"), document.querySelector("footer"), $("filter"), $("grid"), $("tray"),
+      $("welcome")].filter(el => el && !el.inert);
+    const keys = e => {
+      if (SS.hidden) return;
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeSS(); }
+      else if (e.key === "Tab") {               // focus stays in the notice while it is open
+        const f = [...SS.querySelectorAll("a, button")].filter(x => !x.hidden && !x.disabled);
+        const i = f.indexOf(document.activeElement);
+        e.preventDefault(); e.stopPropagation(); (f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length] || go).focus();
+      }
+    };
+    const stray = e => { if (!SS.hidden && !SS.contains(e.target)) first().focus(); };   // focus never leaves it
+    const closeSS = () => {
+      document.removeEventListener("keydown", keys, true); document.removeEventListener("focusin", stray);
+      behindSS.forEach(el => el.inert = false);
+      SS.hidden = true; document.body.classList.remove("ssopen");
+      if (dlOn) $("how").after($("dlall"), $("dlwait"));        // back under the title, still running if it was started
+      if (!$("welcome").hidden) $("wgo").focus();
+      else { if (!back || back === document.body || !back.focus) back = document.querySelector(".cell"); if (back && back.focus) back.focus(); }
+    };
+    go.onclick = closeSS;
+    SS.onclick = e => { if (e.target === SS) closeSS(); };
+    back = document.activeElement; SS.hidden = false; document.body.classList.add("ssopen");
+    behindSS.forEach(el => el.inert = true);
+    document.addEventListener("keydown", keys, true); document.addEventListener("focusin", stray);
+    first().focus();
+  }
   paint();
   if (DRAFTS) pullDraft().then(verifySent);
   $("pr").onclick = e => { e.stopPropagation(); const p = picks[pk(cur)] = picks[pk(cur)] || {};
@@ -719,7 +838,7 @@ async function main() {
     p.v = !p.v; if (p.v) delete p.m; save(); bar(); };
   $("note").onclick = e => e.stopPropagation();
   $("note").oninput = () => { (picks[pk(cur)] = picks[pk(cur)] || {}).n = $("note").value.slice(0, 200); save(); bar(); };
-  $("note").onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); hide(); } };
+  $("note").onkeydown = e => { if (e.key === "Enter") e.preventDefault(); };   // the note is saved as it is typed: Enter keeps the photo open
   $("done").onclick = e => { e.stopPropagation(); hide(); };
   function bar() { const p = picks[pk(cur)] || {};
     $("pr").classList.toggle("on", !!p.r); $("pm").classList.toggle("on", !!p.m); $("pv").classList.toggle("on", !!p.v);
@@ -832,15 +951,16 @@ async function main() {
     const label = (part ? "Download all, part " + part[0] + " of " + part[1] : "Download all") + " (" + mb + ")";
     const zipName = String(Z.name || "").replace(/[\\/:*?"<>|\x00-\x1f\x7f]+/g, "").trim() || "Photos.zip";
     b.textContent = label;
-    let ctl = null;
+    let ctl = null, busy = false;
     b.onclick = async () => {
       if (ctl) { ctl.abort(); return; }          // pressed while it runs: Cancel
-      if (b.disabled) return;
-      b.disabled = true;
-      if (stale || await updated()) { b.disabled = false; return; }   // never a zip of an older build: the notice says reload
+      if (busy) return;
+      busy = true; b.setAttribute("aria-busy", "true");
+      const newer = stale || await updated();
+      busy = false; b.removeAttribute("aria-busy");
+      if (newer) return;                         // never a zip of an older build: the notice says reload
       const me = ctl = new AbortController();
       running.add(me); waitLine();
-      b.disabled = false;
       const got = new Array(parts.length), t0 = performance.now();
       let next = 0, bytes = 0;
       const show = () => {
@@ -896,7 +1016,7 @@ async function main() {
     const again = $("lbagain");
     let text = "This photo can't load right now.", label = "Try again", reload = false;
     if (e && e.network) text += " Check your connection.";
-    else if (e && e.status === 410) { text = "This gallery has closed."; label = ""; }
+    else if (e && e.status === 410) { text = "This gallery has gone dark."; label = ""; }
     else if (e && e.status === 404 && await updated()) { text = "These photos were just updated. Reload to see the new version.";
       label = "Reload"; reload = true; }
     if (want !== cur) return;

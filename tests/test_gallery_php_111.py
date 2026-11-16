@@ -35,7 +35,7 @@ def host(tmp_path, monkeypatch):
     d = G.build(GID, src, key, picks=dict(retouch=2, market=2, post=True)).out_dir
     (d / "limits.txt").write_text("days=30\nunopened_until=2099-01-01\nproof=1\n")
     s = socket.socket(); s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]; s.close()
-    p = subprocess.Popen([php, "-S", f"127.0.0.1:{port}", "-t", str(d)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    p = subprocess.Popen([php, "-d", "display_errors=1", "-d", "error_reporting=E_ALL", "-S", f"127.0.0.1:{port}", "-t", str(d)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     for _ in range(100):
         try:
             socket.create_connection(("127.0.0.1", port), timeout=0.2).close()

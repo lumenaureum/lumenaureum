@@ -2,11 +2,50 @@
 
 New features, behavior changes, security fixes, and other fixes in each release.
 
+## 1.3.0 (2026-11-15)
+
+### Features
+
+- Galleries warn clients in their last week, then show a "gone dark" page with your email.
+- Put back online: reopen a closed gallery for a few days, or for one download.
+- Move galleries: change gallery hosts with one button. Links and picks carry over.
+- Studio page: a small public website in your galleries' look, with a private inquiry form.
+- Your own font for galleries and the studio page.
+- Finances: export a year for your accountant.
+- Tips, recorded apart from the price.
+- Today reminds you to check your master key.
+
+### Behavior changes
+
+- Past years and past statements never change, whatever you edit later.
+- A canceled or lost booking keeps its deposit; the rest is refund due.
+- Waived writes off the balance and releases delivery.
+- Prices stay editable after booking.
+- Gallery closing times follow your time zone.
+
+### Fixed
+
+- Deleting a session with its gallery online could lose photos.
+- Settings could fail with "database is locked".
+- A double click could record a payment twice.
+- Statements showed false credits.
+- Plus many smaller fixes.
+
+### Security
+
+- Many hardening fixes, including limits on wrong master keys.
+
+### Upgrading
+
+- 1.2 can't open your data once 1.3 has updated it. The update makes a backup first.
+- LUMEN_HOST_IP is now LUMENAUREUM_HOST_IP, and the compose service is lumenaureum. Your existing compose.yaml keeps
+  working.
+
 ## 1.2.0 (2026-11-15)
 
 ### Features
 
-- Runs on 64-bit ARM.
+- Runs on 64-bit ARM, such as a Raspberry Pi 4 or 5 or an ARM NAS, in addition to Intel and AMD.
 - Download galleries for sessions delivered by Download link: full-size photos, Download, and Download all.
 - Download all shows the time left and can be canceled. Large galleries download in parts.
 - Retouched finals: after proofs, the download gallery is built from them.

@@ -3,6 +3,10 @@ import sys
 
 import netsec
 
+def tls_args(cert, key):
+
+    return ["--certfile", str(cert), "--keyfile", str(key), "--config", "python:gunicorn_tls"]
+
 if __name__ == "__main__":
     problem = netsec.startup_problem()
     if problem:
@@ -22,5 +26,5 @@ if __name__ == "__main__":
             "--no-control-socket"]
     if netsec.tls_mode() == "on":
         cert, key = netsec.ensure_cert()
-        args += ["--certfile", str(cert), "--keyfile", str(key)]
+        args += tls_args(cert, key)
     os.execvp("gunicorn", args + ["app:app"])

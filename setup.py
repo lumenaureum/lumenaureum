@@ -28,6 +28,8 @@ OPEN_DURING_SETUP = {"static", "logout", "healthz", "setup_step", "setup_test", 
 PAYMENT_CHOICES = ["cash", "check", "card", "bank transfer", "payment app"]
 _ZIPS = None
 
+SECRET_KEYS = ("secret_key", "password", "private_key", "known_hosts", "host_key")
+
 def zip_latlon(z):
     global _ZIPS
     if _ZIPS is None:
@@ -180,10 +182,10 @@ def _test_backend(cfg, init_local, made):
                 B.LocalBackend.init_root(p)
                 made.append(os.path.join(p, B.LocalBackend.MARKER))
             elif not os.path.isdir(p):
-                if os.path.exists("/.dockerenv") or os.environ.get("LUMEN_BUILD"):
+                if os.path.exists("/.dockerenv") or os.environ.get("LUMENAUREUM_BUILD"):
                     return ("That folder doesn't exist inside the app's container. A folder on your machine must be mounted"
                             " into the container first: add a line under volumes: in compose.yaml (for example"
-                            " - /mnt/usb-backup/lumen:/backup2), restart the app, then type the path after the colon"
+                            " - /mnt/usb-backup/lumenaureum:/backup2), restart the app, then type the path after the colon"
                             " (/backup2). See docs/where-it-runs.md, Folders outside the container.")
                 return "That folder doesn't exist. Create it (and mount the share, if it is one) and try again."
         be = B.from_config(cfg)
@@ -223,7 +225,7 @@ def app_hooks():
     import sys
     return sys.modules["app"].hooks if "app" in sys.modules else sys.modules["__main__"].hooks
 
-def register(app, connect, apply_settings, audit, allow_nets):
+def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
     _DB["connect"] = connect
     def get(key, default=""):
         con = connect()
@@ -259,6 +261,8 @@ def register(app, connect, apply_settings, audit, allow_nets):
         r.update(kv)
         put(rules=json.dumps(r))
         apply_settings()
+        if after_rules:
+            after_rules()
 
     def done():
         try:
@@ -452,10 +456,12 @@ def register(app, connect, apply_settings, audit, allow_nets):
                 msg = test_backend(sec, init_local=f.get("secondary_init") == "1")
                 if msg:
                     return "Second location: " + msg
-                if (prim.get("type") == "local" and sec.get("type") == "local" and not f.get("same_disk_ok")
+                if f.get("same_disk_ok"):
+                    cfg["same_disk_ok"] = True
+                if (prim.get("type") == "local" and sec.get("type") == "local" and not cfg.get("same_disk_ok")
                         and same_disk(prim.get("path", ""), sec.get("path", ""))):
                     return ("SAME-DISK: The second copy is on the same disk as the first: one failed disk would take both. "
-                            "Pick a folder on another disk or an SFTP or S3 location, or tick Keep it anyway below.")
+                            "Pick a folder on another disk or an SFTP or S3 location, or press Keep it anyway.")
                 cfg["secondary"] = sec
             else:
                 cfg.pop("secondary", None)
@@ -464,7 +470,7 @@ def register(app, connect, apply_settings, audit, allow_nets):
             if backups_share_disk(cfg) and not cfg.get("one_disk_ok"):
                 return ("ONE-DISK: Your backups would be on the same disk as your data. They protect against mistakes, but"
                         " not against that disk failing. Pick a folder on another disk or dataset, add a second copy below"
-                        " (a USB drive or an online account), or tick Continue anyway and add one later.")
+                        " (a USB drive or an online account), or press Continue anyway and add one later.")
             write_storage(cfg)
             t = f.get("backup_time", "")
             if re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", t):
@@ -544,7 +550,7 @@ def register(app, connect, apply_settings, audit, allow_nets):
                 return "Days are whole numbers."
             cfg = VW.config()
             if f.get("gallery_type"):
-                gh = backend_from_form(f, "gallery_", cfg.get("gallery_host"))
+                gh = backend_from_form(f, "gallery_", cfg.get("gallery_host") or cfg.get("gallery_host_off"))
                 msg = test_backend(gh, init_local=f.get("gallery_init") == "1")
                 if msg:
                     return "Gallery host: " + msg
@@ -552,10 +558,13 @@ def register(app, connect, apply_settings, audit, allow_nets):
                 if not base.startswith("https://"):
                     return ("The web address of the gallery folder must start with https://. Clients' browsers open the"
                             " encrypted photos only over https, so the folder's web server needs a certificate.")
-                cfg["gallery_host"] = gh
+
+                from plugins.gallery import setup_host
+                setup_host(cfg, gh)
                 put(gallery_base_url=base.rstrip("/") + "/")
             else:
-                cfg.pop("gallery_host", None)
+                from plugins.gallery import setup_off
+                setup_off(cfg)
                 put(gallery_base_url="")
             write_storage(cfg)
             save_rules(**kv)

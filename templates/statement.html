@@ -14,9 +14,9 @@
   <table style="margin-top:14px">
     <tr><td><b>Balance on {{ v.start_long }}</b></td><td></td><td class="n"><b>{{ money(v.opening) }}</b></td></tr>
   </table>
-  <h2>Invoices</h2>
+  <h2>Invoices and charges</h2>
   <table>{% for r in v.invoices %}<tr><td>{{ r.date }} - {{ r.number }}<div style="font-size:12px;color:#666">{{ r.what }}{% if r.due_on %}; due {{ r.due_on }}{% endif %}</div></td><td class="n">{{ money(r.amount) }}</td></tr>
-    {% else %}<tr><td>No invoices this month.</td><td></td></tr>{% endfor %}</table>
+    {% else %}<tr><td>No invoices or charges this month.</td><td></td></tr>{% endfor %}</table>
   <h2>Payments</h2>
   <table>{% for r in v.payments %}<tr><td>{{ r.date }} - {{ r.kind }}{% if r.method %}, {{ r.method }}{% endif %}<div style="font-size:12px;color:#666">{{ r.what }}</div></td><td class="n">{{ money(r.amount) }}</td></tr>
     {% else %}<tr><td>No payments this month.</td><td></td></tr>{% endfor %}</table>

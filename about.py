@@ -66,6 +66,6 @@ def register(app):
         from flask import session
         import auth
         signed_in = bool(session.get("uid")) and auth.SESSIONS.get(session.get("sid")) == session.get("uid")
-        return render_template("about.html", version=version() if signed_in else "", build=os.environ.get("LUMEN_BUILD", "") if signed_in else "",
+        return render_template("about.html", version=version() if signed_in else "", build=os.environ.get("LUMENAUREUM_BUILD", "") if signed_in else "",
                                source=SOURCE, parts=components(), other=OTHER, signed_in=signed_in,
                                plugins=[p_ for p_ in __import__("app").PLUGINS_LOADED if not p_["built_in"]] if signed_in else [])

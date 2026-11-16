@@ -508,6 +508,229 @@ class More111(More110):
 def scenario_111(x, made_with):
     return scenario_101(x, made_with, more=More111())
 
+WEBSITE = "https://studio.example.com"
+
+def _noisy_jpeg(path, size, seed):
+
+    import random
+    from PIL import Image
+    rnd = random.Random(seed)
+    im = Image.new("RGB", size)
+    im.putdata([(rnd.randrange(256), rnd.randrange(256), rnd.randrange(256)) for _ in range(size[0] * size[1])])
+    im.save(path, "JPEG", quality=90)
+
+def doc_text_any(html):
+
+    import html as _h
+    import re
+    return " ".join(_h.unescape(re.sub(r"<[^>]+>", " ", html)).split())
+
+def _sealed(G, ekey, picks, aad, at):
+
+    import secrets as _s
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    iv = _s.token_bytes(12)
+    return b"LAK1" + iv + AESGCM(G.key_bytes(ekey)).encrypt(iv, json.dumps({"v": 1, "at": at, "picks": picks}).encode(), aad)
+
+class More120(More111):
+
+    ZIP_PART = 16 * 1024
+
+    def setup(self, x):
+        super().setup(x)
+
+        x.A.app.view_functions["build_gallery"].__globals__["ZIP_PART"] = self.ZIP_PART
+        x.post("/settings", business_website=WEBSITE)
+        assert x.one("SELECT value FROM settings WHERE key='business_website'")[0] == WEBSITE
+
+    def gallery(self, x, s_lane):
+
+        More110.gallery(self, x, s_lane)
+        src = Path(x.work, "photos", "export", "lane")
+        from PIL import Image
+        Image.new("RGB", (64, 48), "orange").save(src / "img4.jpg", "JPEG")
+        self._build(x, s_lane, source_dir=str(src))
+        g = x.one("SELECT proof, prune_due, n_files, upload_state, upload_error FROM galleries WHERE session_id=?", (s_lane,))
+        assert g[0] == 1 and g[1] is None and g[2] == 4 and g[3] == "up", tuple(g)
+
+    def _build(self, x, sid, **form):
+        x.post(f"/session/{sid}/gallery/build", **form)
+        _wait_threads(f"gallery-{sid}")
+        _wait_threads(f"gal-up-{sid}")
+        st = x.get(f"/session/{sid}/gallery/status").get_json()
+        assert st["state"] == "done", st
+
+    def _upload(self, x, sid):
+        x.post(f"/session/{sid}/gallery/upload")
+        _wait_threads(f"gal-up-{sid}")
+        g = x.one("SELECT upload_state, upload_error FROM galleries WHERE session_id=?", (sid,))
+        assert g[0] == "up", tuple(g)
+
+    def _send_photo(self, x, sid, name, data, kind):
+
+        st = x.c.get(f"/session/{sid}/photos/status?kind={kind}&size={len(data)}", headers={"X-File-Name": name},
+                     environ_base=x.E).get_json()
+        assert st.get("ok"), st
+        at = st["received"]
+        while at < len(data):
+            r = x.c.post(f"/session/{sid}/photos/upload?kind={kind}&size={len(data)}&offset={at}",
+                         data=data[at:at + st["piece"]], environ_base=x.E,
+                         headers={"X-File-Name": name, "Content-Type": "application/octet-stream"})
+            assert r.status_code == 200, r.get_data(as_text=True)
+            at = r.get_json()["received"]
+
+    def data(self, x):
+
+        super().data(x)
+        post, one, A = x.post, x.one, x.A
+        from plugins import gallery as G
+        from PIL import Image
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        stamp = lambda hours: (now - timedelta(hours=hours)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+        post("/contact/new", contact_name="Elena Reyes", household_name="Reyes", email="elena@example.com")
+        reyes = one("SELECT id FROM households WHERE name='Reyes'")[0]
+        post(f"/client/{reyes}/session", type="family", stage="inquiry", title="", shoot_date=f"{YEAR}-09-19")
+        s_reyes = one("SELECT MAX(id) FROM sessions")[0]
+        post(f"/session/{s_reyes}", title="Reyes autumn portraits", type="family", shoot_date=f"{YEAR}-09-19",
+             delivery_method="link")
+        assert tuple(one("SELECT stage, delivery_method FROM sessions WHERE id=?", (s_reyes,))) == ("inquiry", "link")
+        post(f"/session/{s_reyes}/money", what="line", label="Family session", amount="400")
+        post(f"/session/{s_reyes}/quote/send")
+        x.get(f"/session/{s_reyes}")
+        post(f"/session/{s_reyes}/quick", act="sign", kind="agreement")
+        x.get(f"/session/{s_reyes}/agreement")
+        post(f"/session/{s_reyes}/money", what="payment", kind="deposit", amount="150", method="card", received=f"{YEAR}-08-15")
+        post(f"/session/{s_reyes}/stage", stage="booked")
+        post(f"/session/{s_reyes}/stage", stage="shot")
+        post(f"/session/{s_reyes}/money", what="payment", kind="balance", amount="250", method="card", received=f"{YEAR}-09-25")
+        src = Path(x.work, "photos", "export", "reyes")
+        src.mkdir(parents=True)
+        for i, col in enumerate(("maroon", "teal", "gold"), 1):
+            Image.new("RGB", (64, 48), col).save(src / f"reyes{i}.jpg", "JPEG")
+        self._build(x, s_reyes, source_dir=str(src))
+        gid = one("SELECT gallery_id FROM sessions WHERE id=?", (s_reyes,))[0]
+        assert not G.is_download(gid) and one("SELECT proof FROM galleries WHERE session_id=?", (s_reyes,))[0] == 1
+        self._upload(x, s_reyes)
+        folder = Path(x.work, "host", gid)
+        ekey = one("SELECT ekey FROM galleries WHERE session_id=?", (s_reyes,))[0]
+        picks = [dict(i=0, name="reyes1.jpg", r=True, note="warmer", m=False, v=False),
+                 dict(i=2, name="reyes3.jpg", r=True, note="", m=True, v=False)]
+        (folder / "seen.txt").write_text(stamp(50)[:19] + "Z")
+        (folder / "picks.bin").write_bytes(_sealed(G, ekey, picks, G.PICKS_AAD, stamp(48)))
+        post("/gallery/sync")
+        assert one("SELECT retouch_picks FROM sessions WHERE id=?", (s_reyes,))[0], "the picks did not come in"
+        assert "Retouched finals" in x.get(f"/c/{reyes}?s={s_reyes}").get_data(as_text=True)
+        for i in (1, 2, 3):
+            p_ = Path(x.work, f"final-{i}.jpg")
+            _noisy_jpeg(p_, (160, 120), i)
+            self._send_photo(x, s_reyes, p_.name, p_.read_bytes(), "final")
+            p_.unlink()
+        self._build(x, s_reyes, **{"from": "finals"})
+        assert G.is_download(gid) and not G.online_download(gid)
+        self._upload(x, s_reyes)
+        assert G.online_download(gid) and not (folder / "seen.txt").exists()
+        (folder / "seen.txt").write_text(stamp(20)[:19] + "Z")
+        post("/gallery/sync")
+        assert one("SELECT sd_shipped FROM sessions WHERE id=?", (s_reyes,))[0], "Files delivered was not counted"
+
+        post("/contact/new", contact_name="Sam Diaz", household_name="Diaz", phone="555-0142")
+        diaz = one("SELECT id FROM households WHERE name='Diaz'")[0]
+        post(f"/client/{diaz}/session", type="family", stage="inquiry", title="", shoot_date=f"{YEAR}-10-03")
+        s_diaz = one("SELECT MAX(id) FROM sessions")[0]
+        post(f"/session/{s_diaz}/delivery", delivery_method="link")
+        assert one("SELECT delivery_method FROM sessions WHERE id=?", (s_diaz,))[0] == "link"
+        post(f"/session/{s_diaz}/money", what="line", label="Family session", amount="200")
+        post(f"/session/{s_diaz}/money", what="payment", kind="balance", amount="200", method="cash", received=f"{YEAR}-10-03")
+        post(f"/session/{s_diaz}/stage", stage="booked")
+        post(f"/session/{s_diaz}/stage", stage="shot")
+        src = Path(x.work, "photos", "export", "diaz")
+        src.mkdir(parents=True)
+        for i in (1, 2, 3, 4):
+            _noisy_jpeg(src / f"diaz{i}.jpg", (160, 120), 10 + i)
+        self._build(x, s_diaz, source_dir=str(src))
+        self._upload(x, s_diaz)
+        assert ">Deliver without picks</button>" in x.get(f"/c/{diaz}?s={s_diaz}").get_data(as_text=True)
+        post(f"/session/{s_diaz}/gallery/no-picks")
+        self._build(x, s_diaz, source_dir=str(src))
+        gid_d = one("SELECT gallery_id FROM sessions WHERE id=?", (s_diaz,))[0]
+        assert G.is_download(gid_d) and not G.online_download(gid_d)
+        self._upload(x, s_diaz)
+        assert G.online_download(gid_d)
+        self.s_reyes, self.s_diaz = s_reyes, s_diaz
+
+    def measure(self, x, expected):
+        out = super().measure(x, expected)
+        A, one, rows, in_request = x.A, x.one, x.rows, x.in_request
+        import hashlib
+        from plugins import gallery as G
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from vault import web as VW
+        sids = [r[0] for r in rows("SELECT id FROM sessions ORDER BY id")]
+        downloads = {}
+        for sid in (self.s_reyes, self.s_diaz):
+            gid = one("SELECT gallery_id FROM sessions WHERE id=?", (sid,))[0]
+            key, ekey = one("SELECT key, ekey FROM galleries WHERE session_id=?", (sid,))
+            host = Path(x.work, "host", gid)
+            blob = (host / "manifest.bin").read_bytes()
+            m = json.loads(AESGCM(G.key_bytes(ekey or key)).decrypt(blob[:12], blob[12:], b"lumen-aureum-gallery:manifest.bin"))
+            downloads[str(sid)] = dict(
+                gallery_id=gid, is_download=G.is_download(gid), online_download=G.online_download(gid),
+                dl=m.get("dl"), title=m.get("title"), site=(m.get("brand") or {}).get("site", m.get("site")),
+                items=[dict(n=it["n"], on=it["on"], o=it["o"], os=it["os"]) for it in m["items"]],
+                zips=[dict(name=z["name"], size=z["size"], parts=z["parts"]) for z in m["zips"]],
+                manifest_sha256=hashlib.sha256(blob).hexdigest(),
+                host_files=sorted(p.name for p in host.iterdir()),
+                built_files=sorted(p.name for p in Path(x.work, "galleries", gid).iterdir()))
+            assert downloads[str(sid)]["dl"] == 1 and len(downloads[str(sid)]["zips"][0]["parts"]) > 1, downloads[str(sid)]
+
+        def steps(sid):
+            return {st_["label"]: bool(st_["done"]) for stage in A.workflow(sid)["stages"] for st_ in stage["steps"]}
+        delivered = {}
+        for sid in (self.s_reyes, self.s_diaz):
+            sd, fv = one("SELECT sd_shipped, first_visit FROM sessions WHERE id=?", (sid,))
+            s_ = in_request(lambda: A.q("SELECT * FROM sessions WHERE id=?", (sid,), one=True))
+            exp = in_request(lambda: A.gallery_expires(A.q("SELECT * FROM sessions WHERE id=?", (sid,), one=True)))
+            delivered[str(sid)] = dict(sd_shipped=sd, first_visit=fv, files_delivered=in_request(lambda: steps(sid))["Files delivered"],
+                                       expires=exp.isoformat() if exp else None, stage=s_["stage"])
+        assert delivered[str(self.s_reyes)]["files_delivered"] and not delivered[str(self.s_diaz)]["sd_shipped"]
+        brands = {}
+        for (sid,) in rows("SELECT session_id FROM galleries ORDER BY session_id"):
+            b_ = in_request(lambda: A.app.config["gallery_brand"](A.q("SELECT * FROM sessions WHERE id=?", (sid,), one=True)))
+            brands[str(sid)] = dict(client=b_["client"], site=b_["site"])
+        finals = {str(r[0]): r[1] for r in rows(
+            "SELECT session_id, group_concat(name, ',') FROM (SELECT session_id, name FROM photo_files WHERE kind='final'"
+            " AND state='done' ORDER BY session_id, name) GROUP BY session_id")}
+        host_cfg = {k: v for k, v in (VW.config().get("gallery_host") or {}).items() if k != "path"}
+        import re
+        words = doc_text_any(x.get(f"/session/{self.s_reyes}/agreement").get_data(as_text=True))
+        link_clause = re.search(r"The link stays open for \d+ days[^.]*\.", words)
+        assert link_clause, "the agreement does not say how long the link stays open"
+        return dict(
+            out,
+            sessions_by_name=dict(out["sessions_by_name"], reyes=self.s_reyes, diaz=self.s_diaz),
+            delivery_method={str(r[0]): r[1] for r in rows("SELECT id, delivery_method FROM sessions ORDER BY id")},
+            delivery_history={str(r[0]): r[1] for r in rows(
+                "SELECT session_id, group_concat(action, ' | ') FROM (SELECT session_id, action FROM audit"
+                " WHERE action LIKE 'Delivery changed%' ORDER BY id) GROUP BY session_id")},
+            no_picks=[r[0] for r in rows("SELECT DISTINCT session_id FROM audit WHERE action=? ORDER BY session_id",
+                                         (G.NO_PICKS_ACTION,))],
+            download_galleries=downloads, delivered=delivered, gallery_brand=brands, finals=finals,
+            signed_delivery={str(sid): in_request(lambda: A.signed_delivery_differs(sid)) for sid in sids},
+            website=(one("SELECT value FROM settings WHERE key='business_website'") or [None])[0],
+            gallery_host=host_cfg, gallery_base_url=one("SELECT value FROM settings WHERE key='gallery_base_url'")[0],
+            link_clause=link_clause.group(0),
+            picks={str(r[0]): dict(retouch_picks=r[1], favorites=r[2], veto=r[3]) for r in rows(
+                "SELECT id, retouch_picks, favorites, veto FROM sessions WHERE id IN (?, ?) ORDER BY id",
+                (self.s_reyes, self.s_diaz))},
+            storage_keys=sorted(VW.config()),
+            zip_part=A.app.view_functions["build_gallery"].__globals__["ZIP_PART"],
+        )
+
+def scenario_120(x, made_with):
+    return scenario_101(x, made_with, more=More120())
+
 VERSIONS = {
     "1.0.0": dict(commit="a0966c9", scenario=scenario_100, files=("crm-before-delete.db",), env={}),
     "1.0.1": dict(commit="v1.0.1", scenario=scenario_101, files=(),
@@ -516,6 +739,9 @@ VERSIONS = {
                   env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
 
     "1.1.1": dict(commit="9e0e799", scenario=scenario_111, files=(),
+                  env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
+
+    "1.2.0": dict(commit="e37c6e6", scenario=scenario_120, files=(), dirs=("galleries", "host", "photos"),
                   env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
 }
 
@@ -546,7 +772,7 @@ def main(argv):
     made_with = f"{version} ({short})"
     code, made = args.get("--code"), None
     if not code:
-        made = code = tempfile.mkdtemp(prefix=f"lumen-{version.replace('.', '')}-")
+        made = code = tempfile.mkdtemp(prefix=f"lumenaureum-{version.replace('.', '')}-")
         os.rmdir(code)
         subprocess.run(["git", "-C", str(REPO), "worktree", "add", "--detach", code, short], check=True)
     try:
@@ -561,6 +787,11 @@ def main(argv):
             for name in ("crm.db", "expected.json") + spec["files"] + SIDE_FILES:
                 if os.path.exists(os.path.join(work, name)):
                     shutil.copy(os.path.join(work, name), out / name)
+                    print("wrote", out / name)
+            for name in spec.get("dirs", ()):
+                if os.path.isdir(os.path.join(work, name)):
+                    shutil.rmtree(out / name, ignore_errors=True)
+                    shutil.copytree(os.path.join(work, name), out / name)
                     print("wrote", out / name)
             for extra in sorted(os.listdir(work)):
                 print("  (in the data folder:", extra + ")")

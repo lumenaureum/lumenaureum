@@ -10,14 +10,18 @@
     locked until you sign in again. Your master key (on paper) opens it if your password is lost.</p>
   <h2>Change password</h2>
   <form method="post" class="f" autocomplete="off"><input type="hidden" name="act" value="password">
-    <input type="password" name="current" placeholder="Current password" autocomplete="current-password" required>
-    <input type="password" name="password" placeholder="New password ({{ min_pw }}+ characters)" autocomplete="new-password" minlength="{{ min_pw }}" required>
-    <input type="password" name="password2" placeholder="New password again" autocomplete="new-password" required>
+    <div><label class="l" for="pw-current">Current password</label><input type="password" id="pw-current" name="current" autocomplete="current-password" required></div>
+    <div><label class="l" for="pw-new">New password ({{ min_pw }}+ characters)</label><input type="password" id="pw-new" name="password" autocomplete="new-password" minlength="{{ min_pw }}" required></div>
+    <div><label class="l" for="pw-new2">New password again</label><input type="password" id="pw-new2" name="password2" autocomplete="new-password" required></div>
     <button class="primary">Change password</button></form>
 
+  <h2 style="margin-top:20px">Master key</h2>
+  <p class="mute">Kept on paper and in your password manager, never by the app. Check now and then that you can still find it.</p>
+  <p><a class="btn quiet" href="{{ url_for('master_key_check') }}">Check your master key</a></p>
+
   <h2 style="margin-top:20px">Signed-in devices</h2>
-  <form method="post" class="row" autocomplete="off"><input type="hidden" name="act" value="others">
-    <input type="password" name="current" placeholder="Current password" autocomplete="current-password" required style="width:240px">
+  <form method="post" class="row" autocomplete="off" style="align-items:end"><input type="hidden" name="act" value="others">
+    <div><label class="l" for="cur-others">Current password</label><input type="password" id="cur-others" name="current" autocomplete="current-password" required style="width:240px;margin:0"></div>
     <button class="quiet">Sign out every other device</button></form>
 
   <h2 style="margin-top:20px">Recovery codes</h2>
@@ -26,8 +30,8 @@
   <div class="codes" style="columns:2;font:600 15px/1.9 ui-monospace,Menlo,monospace">{% for c in codes %}<div>{{ c }}</div>{% endfor %}</div>
   {% else %}
   <p class="mute">{{ left }} unused. Each one stands in for your phone's code once. They never unlock the data on their own: your password is still needed.</p>
-  <form method="post" class="row" autocomplete="off"><input type="hidden" name="act" value="codes">
-    <input type="password" name="current" placeholder="Current password" autocomplete="current-password" required style="width:240px">
+  <form method="post" class="row" autocomplete="off" style="align-items:end"><input type="hidden" name="act" value="codes">
+    <div><label class="l" for="cur-codes">Current password</label><input type="password" id="cur-codes" name="current" autocomplete="current-password" required style="width:240px;margin:0"></div>
     <button class="quiet">Make new codes</button></form>
   {% endif %}
 
@@ -35,14 +39,15 @@
   <p class="mute">Off by default. When on, Lumen Aureum unlocks itself after a restart using a key file kept on a separate volume
     (CRM_UNLOCK_KEY_FILE). Anyone who has both that volume and the data can read everything, so keep the file somewhere a
     thief would not also take, such as an encrypted dataset that is locked when the machine is off.</p>
+  {% if auto_refused %}<p style="color:var(--crit)" role="status">{{ auto_refused }}</p>{% endif %}
   {% if auto %}
-  <form method="post" class="row" autocomplete="off"><input type="hidden" name="act" value="auto_off">
-    <input type="password" name="current" placeholder="Current password" autocomplete="current-password" required style="width:240px">
+  <form method="post" class="row" autocomplete="off" style="align-items:end"><input type="hidden" name="act" value="auto_off">
+    <div><label class="l" for="cur-auto_off">Current password</label><input type="password" id="cur-auto_off" name="current" autocomplete="current-password" required style="width:240px;margin:0"></div>
     <button class="quiet">Turn off</button></form>
   {% elif auto_file %}
   <p>Key file: <span class="mono">{{ auto_file }}</span></p>
-  <form method="post" class="row" autocomplete="off"><input type="hidden" name="act" value="auto_on">
-    <input type="password" name="current" placeholder="Current password" autocomplete="current-password" required style="width:240px">
+  <form method="post" class="row" autocomplete="off" style="align-items:end"><input type="hidden" name="act" value="auto_on">
+    <div><label class="l" for="cur-auto_on">Current password</label><input type="password" id="cur-auto_on" name="current" autocomplete="current-password" required style="width:240px;margin:0"></div>
     <button class="quiet">Turn on</button></form>
   {% else %}
   <p class="mute">Not available: CRM_UNLOCK_KEY_FILE is not set.</p>

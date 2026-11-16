@@ -37,6 +37,7 @@ ENTRIES = [
     ("Password, two-factor, recovery codes", "Security", "password two factor 2fa authenticator recovery codes sign in", "security", {}),
     ("Unattended unlock", "Security", "unlock key file restart unattended", "security", {}),
     ("Master key", "Security", "master key change recover", "security", {}),
+    ("Check your master key", "Security", "master key check test verify paper lost", "master_key_check", {}),
     ("Who can reach this", "Who can reach this", "network allow ip addresses lan", "setup_step", {"step": "network"}),
     ("Export or import settings", "Settings file", "export import settings file json move new machine", "settings_view", {"tab": "file"}),
     ("Reset database, plugins", "System", "reset wipe database plugins system", "settings_view", {"tab": "system"}),

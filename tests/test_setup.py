@@ -156,6 +156,9 @@ def test_backups_on_the_database_disk_are_refused_without_a_second_location(env,
     monkeypatch.setattr(setup, "same_disk", lambda a, b: str(second) not in (str(a), str(b)))
     r = post(c, "/setup/storage", primary_type="local", primary_path=str(vault), primary_init="1", backup_time="02:40")
     assert b"same disk as your data" in r.data and b"Continue anyway" in r.data
+    page = r.data.decode()
+    assert '<button name="one_disk_ok" value="1">' in page
+    assert page.index("data-enter-default") < page.index('name="one_disk_ok"')
     r = post(c, "/setup/storage", primary_type="local", primary_path=str(vault), primary_init="1", backup_time="02:40",
              one_disk_ok="1")
     assert r.status_code == 302
@@ -332,6 +335,8 @@ def test_second_copy_on_the_same_disk_is_a_warning_you_can_accept(env, monkeypat
     page = r.get_data(as_text=True)
     assert r.status_code == 200 and "same disk as the first" in page and "Keep it anyway" in page and str(b) in page
     r = post(c, "/setup/storage", same_disk_ok="1", **form)
+    assert r.status_code == 302
+    r = post(c, "/setup/storage", **form)
     assert r.status_code == 302
 
 def test_fresh_install_price_list_starts_at_one(env):

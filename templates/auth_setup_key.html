@@ -9,8 +9,8 @@
     <button type="button" class="quiet" data-print>Print</button></div>
   <p class="mute" style="margin:6px 0 0">Save it in a password manager and print a copy.</p>
   {% else %}<p class="mute">Already shown. Lost it? <a href="{{ url_for('setup_owner') }}">Start over</a>.</p>{% endif %}
-  <form method="post" class="row" style="margin-top:10px">
-    <input name="tail" placeholder="Its last 6 characters" autocomplete="off" required style="width:200px;margin:0">
+  <form method="post" class="row" style="margin-top:10px;align-items:end">
+    <div><label class="l" for="sk-tail">Type its last 6 characters</label><input id="sk-tail" name="tail" autocomplete="off" required style="width:200px;margin:0"></div>
     <button class="primary">Finish</button></form>
   {% if err %}<div class="err">That doesn't match the end of the key.</div>{% endif %}
 </div>{% endblock %}

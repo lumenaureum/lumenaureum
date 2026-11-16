@@ -60,8 +60,34 @@ def test_plain_link_unreachable_offers_try_again(viewer_runs):
     r = viewer_runs["plain_network_retry"]
     assert r["seen"][0]["err"].startswith("Could not reach the gallery") and r["seen"][0]["buttons"] == ["Try again"]
     assert r["title"] == "Lane"
-    assert viewer_runs["plain_closed"]["seen"][-1]["err"] == "This gallery has closed"
+    closed = viewer_runs["plain_closed"]["seen"][-1]
+    assert closed["err"] == "This gallery has gone dark.Your photographer may still be able to help." and closed["dark"] == []
     assert viewer_runs["plain_ok"]["title"] == "Lane" and viewer_runs["plain_ok"]["seen"][-1]["say"] == "Opening your photos..."
+
+def test_a_closed_gallery_has_gone_dark_and_names_the_photographers_email(viewer_runs):
+    r = viewer_runs["dark_contact"]
+    end = r["seen"][-1]
+    assert end["err"].startswith("This gallery has gone dark.") and end["dark"] == ["hello@studio.example"]
+    assert r["darkClass"] == "gonedark" and r["darkmarkShown"]
+    assert viewer_runs["dark_bad_contact"]["seen"][-1]["dark"] == []
+
+def test_every_visit_in_the_last_days_opens_the_sunset_notice(viewer_runs):
+    s = viewer_runs["sunset_soon"]["sunset"]
+    assert s.startswith(" | It closes on ") and s.endswith(" | Questions? hello@studio.example")
+    assert "Download" not in s and not viewer_runs["sunset_soon"]["sunsetHasDownloadAll"]
+    assert viewer_runs["sunset_none"]["sunset"] == "" and viewer_runs["sunset_none"]["title"] == "Lane"
+    assert viewer_runs["sunset_none"]["darkClass"] == ""
+
+def test_a_one_time_download_says_so_on_arrival_with_download_all(viewer_runs):
+    r = viewer_runs["once_download"]
+    assert r["sunset"].startswith("This gallery is open for one download. | Press Download all and keep this page open")
+    assert "If Download all isn't used, it closes on " in r["sunset"] and r["sunsetHasDownloadAll"]
+    assert "saving single photos doesn't count" in r["sunset"]
+
+def test_a_download_gallery_about_to_sunset_offers_download_all_in_the_notice(viewer_runs):
+    r = viewer_runs["sunset_download"]
+    assert "Download your photos before then." in r["sunset"]
+    assert r["sunsetHasDownloadAll"] and r["dlallLabel"] == "Download all (5 MB)"
 
 def _delivery(c, sid, word):
     return c.post(f"/session/{sid}/delivery", data={"gallery_codeword": word}, environ_base=E)

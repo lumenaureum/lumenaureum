@@ -18,7 +18,7 @@
     <div class="hn-type">{{ type_label[s.type] }}</div>
     <div class="hn-stage">{{ stage_label[s.stage] }} <span class="hn-days">{% if days_in == 0 %}since today{% elif days_in == 1 %}since yesterday{% else %}for {{ days_in }} days{% endif %}</span>{% set bh_ = booked_hint(s.id) %}{% if bh_ %} <span class="stage-hint">&middot; {{ bh_ }}</span>{% endif %}</div>
     {% if s.shoot_date %}<div class="hn-when">{% if s.shoot_date > today.isoformat() %}Shoot {{ nice(s.shoot_date) }}{% if s.date_tentative %} (tentative){% endif %}{% if s.start_time %}, {{ clock(s.start_time) }}{% endif %}
-      {% elif s.shoot_date == today.isoformat() and s.stage == 'booked' %}Shooting today{% if s.start_time %}, {{ clock(s.start_time) }}{% endif %}{% else %}Shot {{ nice(s.shoot_date) }}{% endif %}</div>
+      {% elif s.shoot_date == today.isoformat() and s.stage == 'booked' %}Shooting today{% if s.start_time %}, {{ clock(s.start_time) }}{% endif %}{% elif s.date_tentative and s.stage == 'booked' %}Date to confirm: {{ nice(s.shoot_date) }} was tentative{% else %}Shot {{ nice(s.shoot_date) }}{% endif %}{% if moved %} <span class="hn-days">&middot; Rescheduled {{ 'once' if moved == 1 else moved ~ ' times' }}</span>{% endif %}</div>
       {% if light_ and s.shoot_date >= today.isoformat() %}<div class="hn-light">{{ light_.text }}</div>{% endif %}{% endif %}
     {% if t.quoted %}<div class="hn-money"><span class="mbar"><span style="width:{{ [100, (t.paid / t.quoted * 100)|round]|min }}%"></span></span>{{ money(t.paid) }} of {{ money(t.quoted) }}</div>{% endif %}
   </div>
@@ -27,14 +27,14 @@
 {% set others = sess|rejectattr('id', 'equalto', s.id)|list %}{% if others %}<div class="also">Also {% for x in others %}<a class="go" href="{{ url_for('client_stage', hid=h.id, s=x.id) }}">{{ x.title or type_label[x.type] }}{% if x.shoot_date %}, {{ nice(x.shoot_date) }}{% endif %}, {{ stage_label[x.stage] }} &rsaquo;</a>{% endfor %}</div>{% endif %}
 
 <section class="journey" aria-label="Timeline, week by week{{ ' to the shoot' if j.shoot is not none else '' }}"><div class="j-cap">Timeline{{ ': week by week to the shoot' if j.shoot is not none else '' }}</div>
-  <div class="j-past">{% for e in j.past %}<div class="jm l{{ e.lane }} {{ 'lab' if e.show }}" style="left:{{ e.x }}%" data-tip="{{ nice(e.d) }}: {{ e.label }}{% if e.sub %} ({{ e.sub }}){% endif %}">{{ sym(e.sym, 'next', 22) }}</div>{% endfor %}</div>
+  <div class="j-past">{% for e in j.past %}<div class="jm l{{ e.lane }} {{ 'lab' if e.show }}" style="left:{{ e.x }}%" data-tip="{{ e.tip }}"{% if e.n > 1 %} data-tip-lines tabindex="0" role="button" aria-label="{{ e.tip }}"{% endif %}>{{ sym(e.sym, 'next', 22) }}{% if e.n > 1 %}<b class="jn" aria-hidden="true">{{ e.n }}</b>{% endif %}</div>{% endfor %}</div>
   <div class="j-axis">
     {% for b in j.bands %}<div class="band st-{{ b.stage }}" style="left:{{ b.a }}%;width:{{ b.w }}%" data-tip="{{ stage_label[b.stage] }}">{% if b.label %}<span>{{ stage_label[b.stage] }}</span>{% endif %}</div>{% endfor %}
     {% for tk in j.ticks %}<i class="tick" style="left:{{ tk.x }}%"><b>{{ tk.label }}</b></i>{% endfor %}
     {% if j.shoot is not none %}<div class="j-shoot" style="left:{{ j.shoot }}%" data-tip="Shoot {{ nice(j.shoot_d) }}">{% if j.shoot_label %}<span>Shoot</span>{% endif %}</div>{% endif %}
     <div class="j-today" style="left:{{ j.today }}%">{{ avatar(h.id, 34) }}<b>Today</b></div>
   </div>
-  <div class="j-future">{% for e in j.future %}<div class="jm fut l{{ e.lane }} {{ 'lab' if e.show }} s-{{ e.status }}" style="left:{{ e.x }}%" data-tip="{{ 'Problem: ' if e.status == 'late' else 'Warning: ' if e.status == 'soon' else '' }}{{ e.label }}, {{ 'was due ' if e.status == 'late' else 'due ' }}{{ nice(e.d) }}">{{ sym(e.sym, e.status, 24) }}</div>{% endfor %}</div>
+  <div class="j-future">{% for e in j.future %}<div class="jm fut l{{ e.lane }} {{ 'lab' if e.show }} s-{{ e.status }}" style="left:{{ e.x }}%" data-tip="{{ e.tip }}"{% if e.n > 1 %} data-tip-lines tabindex="0" role="button" aria-label="{{ e.tip }}"{% endif %}>{{ sym(e.sym, e.status, 24) }}{% if e.n > 1 %}<b class="jn" aria-hidden="true">{{ e.n }}</b>{% endif %}</div>{% endfor %}</div>
   <script src="{{ url_for('static', filename='stage.js', v=static_v('stage.js')) }}"></script>
 </section>
 
@@ -56,7 +56,8 @@
   </div>
   {% if s.stage == 'lost' %}<form method="post" action="{{ url_for('session_stage', sid=s.id) }}" class="row" style="margin:6px 0 10px">
       <input type="hidden" name="stage" value="lost"><input type="hidden" name="back" value="{{ back }}">{{ seg('lost_reason', C.LOST_REASONS, s.lost_reason, attrs='data-autosubmit', label='Why it was lost') }}
-      {% if s.lost_reason in ('Canceled', 'No-show') and t.paid > 0.005 %}<span class="mute">Deposit kept per the Terms{% if kept_tax %}; {{ money(kept_tax) }} sales tax on it to remit{% endif %}</span>{% endif %}</form>{% endif %}
+      {% if t.kept > 0.005 or t.refund_due > 0.005 %}<span class="mute">{% if t.kept > 0.005 %}You keep the deposit, {{ money(t.kept) }}, per the Terms, whatever the reason it was lost{% if kept_tax %}; it carries {{ money(kept_tax) }} sales tax, counted in the year it was paid{% endif %}.{% else %}No deposit to keep.{% endif %}
+        {% if t.refund_due > 0.005 %}<b>Refund due: {{ money(t.refund_due) }}</b>, paid beyond the deposit. Record it under Billing as a Refund once it goes back.{% endif %}</span>{% endif %}</form>{% endif %}
 
   <div class="now-grid">
     <div class="needs" id="needs" data-refresh>
@@ -90,7 +91,8 @@
           {% for p in panels %}{{ p }}{% endfor %}</div>
       {% endif %}
 
-      {% if photos %}<div class="ctx" id="photos" data-refresh><h3>Photos</h3>
+      {% if photos %}<div class="vh" id="photos-status" role="status"></div><div class="vh" id="photos-alert" role="alert"></div>
+      <div class="ctx" id="photos" data-refresh><h3>Photos</h3>
         <p class="mute" style="font-size:12.5px;margin:0 0 6px">Drop files here; each is encrypted as it arrives and never stored readable.{{ help("Upload your RAWs after the shoot and your edited JPEGs when they are ready; the gallery is built from the edited ones. Download a file to edit it again. A copy left on your own computer is yours to look after.") }}</p>
         {% for k, g_ in photos.items() %}
         <div class="dropzone" data-upload="{{ url_for('photos_upload', sid=s.id) }}" data-status="{{ url_for('photos_status', sid=s.id) }}" data-kind="{{ k }}">
@@ -128,13 +130,13 @@
 
       <div class="ctx" id="billing" data-inplace style="order:{{ 2 if s.stage in ('inquiry', 'quoted') else 9 }}">{% set fold_ = s.stage not in ('inquiry', 'quoted') %}
         {% if fold_ %}<details class="billfold"{{ ' open' if request.args.get('bill') }}><summary><h3>Billing</h3><span class="mute">{{ money(t.paid) }} of {{ money(t.quoted) }} paid{% if t.due > 0.005 %}, balance {{ money(t.due) }}{% endif %} &rsaquo;</span></summary>{% else %}<h3>Billing</h3>{% endif %}
-        {% set open_q = s.stage in ('inquiry','quoted') %}
+        {% set open_q = s.stage in ('inquiry','quoted') %}{% set edit_q = s.stage in ('inquiry','quoted','booked','shot','delivered') %}
         <table class="qtable">{% for l in lines %}<tr class="{{ 'qdisc' if l.kind in ('discount', 'tax') }}">
-          <td class="qq">{% if open_q and l.kind in ('fee', 'passthrough') and l.unit %}<form method="post" action="{{ url_for('line_qty', lid=l.id) }}" class="inline"><input type="hidden" name="back" value="{{ back }}"><input type="number" name="qty" step="0.5" min="0.5" value="{{ '%g' % (l.qty or 1) }}" data-autosubmit aria-label="Quantity"></form>{% if l.unit == 'mile' %}<div class="mute" style="font-size:11px" title="Travel is free within {{ C.TRAVEL_FREE_MILES }} miles: enter only the miles beyond that, each way counted">miles beyond {{ C.TRAVEL_FREE_MILES }}</div>{% endif %}{% elif l.kind not in ('discount', 'tax') %}<span class="mute">{{ '%g' % (l.qty or 1) }}</span>{% endif %}</td>
+          <td class="qq">{% if edit_q and l.kind in ('fee', 'passthrough', 'custom') and l.unit %}<form method="post" action="{{ url_for('line_qty', lid=l.id) }}" class="inline"><input type="hidden" name="back" value="{{ back }}"><input type="number" name="qty" step="0.5" min="0.5" value="{{ '%g' % (l.qty or 1) }}" data-autosubmit aria-label="Quantity"></form>{% if l.unit == 'mile' %}<div class="mute" style="font-size:11px" title="Travel is free within {{ C.TRAVEL_FREE_MILES }} miles: enter only the miles beyond that, each way counted">miles beyond {{ C.TRAVEL_FREE_MILES }}</div>{% endif %}{% elif l.kind not in ('discount', 'tax') %}<span class="mute">{{ '%g' % (l.qty or 1) }}</span>{% endif %}</td>
           <td>{{ l.label|replace(' x ' ~ ('%g' % (l.qty or 1)), '') }}</td><td class="n">{{ money(l.amount) }}</td>
-          <td>{% if l.kind not in ('discount', 'tax') and open_q %}<form method="post" action="{{ url_for('money_delete', what='line', rid=l.id) }}" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="xbtn" title="Remove this line" aria-label="Remove line {{ l.label }}">&times;</button></form>{% endif %}</td></tr>{% endfor %}
-          {% if open_q %}{% set mine_ = fee_sched['items']|selectattr('type', 'defined')|selectattr('type', 'equalto', s.type)|map(attribute='key')|list %}
-          <tr class="qnew"><td colspan="4"><form method="post" action="{{ url_for('quote_fee', sid=s.id) }}" class="qnewf"><input type="hidden" name="back" value="{{ back }}">
+          <td>{% if l.kind not in ('discount', 'tax') and edit_q %}<form method="post" action="{{ url_for('money_delete', what='line', rid=l.id) }}" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="xbtn" title="Remove this line" aria-label="Remove line {{ l.label }}">&times;</button></form>{% endif %}</td></tr>{% endfor %}
+          {% if edit_q %}{% set mine_ = fee_sched['items']|selectattr('type', 'defined')|selectattr('type', 'equalto', s.type)|map(attribute='key')|list %}
+          <tr class="qnew"><td colspan="4"><form method="post" action="{{ url_for('quote_fee', sid=s.id) }}" class="qnewf"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="once" value="{{ form_once() }}">
             <input type="number" step="0.5" min="0.5" name="qty" value="1" aria-label="Quantity" class="qq">
             <select name="fee_key" data-show-custom data-focus-after aria-label="Line to add">
               <option value="">{{ 'Add a line' if lines else 'Pick the first line' }}</option>
@@ -151,11 +153,12 @@
           {% if t.paid %}<div class="money-line"><span class="mbar big"><span style="width:{{ [100, (t.paid / t.quoted * 100)|round]|min if t.quoted else 100 }}%"></span></span>
             <b>{{ money(t.paid) }}</b> paid{% if t.due > 0.005 %}, balance {{ money(t.due) }}{% endif %}</div>{% endif %}
           {% if t.deposit_short > 0.005 and s.stage in ('quoted', 'booked') %}<div class="money-line">{% if t.paid > 0.005 %}Deposit <b>{{ money(t.deposit_short) }}</b> short of {{ money(t.deposit_req) }}{% else %}Deposit <b>{{ money(t.deposit_req) }}</b> due{% endif %}</div>{% endif %}
-        {% elif not open_q %}<div class="mute">No quote yet. <a href="{{ url_for('fee_sheet', type=s.type, sid=s.id) }}" target="_blank">Send the {{ C.SESSION_TYPES.get(s.type, '') }} price list &rsaquo;</a></div>{% endif %}
-        {% if open_q %}
+        {% elif not edit_q %}<div class="mute">No quote yet. <a href="{{ url_for('fee_sheet', type=s.type, sid=s.id) }}" target="_blank">Send the {{ C.SESSION_TYPES.get(s.type, '') }} price list &rsaquo;</a></div>{% endif %}
+        {% if edit_q %}
         <form method="post" action="{{ url_for('quote_discount', sid=s.id) }}" class="row qadd"><input type="hidden" name="back" value="{{ back }}">
           <span class="seg grow" role="radiogroup" aria-label="Discount reason">{% for k, lab, pct in C.DISCOUNTS %}<label><input type="radio" name="reason" value="{{ k }}" data-fill="pct" data-value="{{ pct }}"{{ ' checked' if (quote.discount_reason if quote else '') == k }}><span>{{ lab }}{% if pct %} ({{ pct }}%){% endif %}</span></label>{% endfor %}</span>
-          <input type="number" name="pct" min="0" max="100" step="1" value="{{ (quote.discount_pct|int) if quote else 0 }}" style="width:70px" title="Discount %"><span class="mute">%</span><button class="quiet">Apply</button></form>
+          <input type="number" name="pct" min="0" max="100" step="1" value="{{ (quote.discount_pct|int) if quote else 0 }}" style="width:70px" title="Discount %"><span class="mute">%</span><button class="quiet">Apply</button></form>{% if not open_q %}<div class="mute" style="font-size:12px">Changes after booking are noted in History. An invoice already issued stays as issued; the next one shows the new price.</div>{% endif %}
+        {% endif %}{% if open_q %}
         {% if C.TYPE_KIND.get(s.type) != 'property' %}<form method="post" action="{{ url_for('portfolio_set', sid=s.id) }}" class="row qadd"><input type="hidden" name="back" value="{{ back }}">
           <span class="mute" style="font-size:13px">Portfolio{{ help("Allowed: you may show up to " ~ C.MARKETING_PICKS ~ " photos (you choose; the client may suggest favorites and say no to any). Not allowed: nothing from this session is ever shown.") }}</span>
           {{ seg('set', [('allowed', 'Allowed' ~ (' (' ~ C.portfolio_discount_words(s.type) ~ ' off)' if C.portfolio_discount_words(s.type) else '')), ('declined', 'Not allowed')], 'declined' if s.portfolio_no else 'allowed', attrs='data-autosubmit', label='Portfolio') }}</form>{% endif %}

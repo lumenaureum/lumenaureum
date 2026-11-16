@@ -26,7 +26,7 @@ document.documentElement.style.scrollBehavior = 'smooth';
     if (top + h > innerHeight - 8) top = Math.max(8, y - pad - h);
     tip.style.left = left + 'px'; tip.style.top = top + 'px';
   };
-  const show = (el, x, y) => { cur = el; tip.textContent = el.dataset.tip; tip.style.display = 'block'; place(x, y); };
+  const show = (el, x, y) => { cur = el; tip.textContent = el.dataset.tip; tip.classList.toggle('lines', 'tipLines' in el.dataset); tip.style.display = 'block'; place(x, y); };
   const hide = () => { cur = null; tip.style.display = 'none'; };
   if (matchMedia('(hover: hover)').matches) {
     document.addEventListener('mouseover', e => { const t = e.target.closest('[data-tip]'); if (t && t.dataset.tip) show(t, e.clientX, e.clientY); else if (cur) hide(); });
@@ -38,6 +38,17 @@ document.documentElement.style.scrollBehavior = 'smooth';
       if (t && t !== cur && t.dataset.tip && !e.target.closest('a,button,input,label,select,textarea')) show(t, e.clientX, e.clientY); else hide();
     });
   }
+  const at = el => { const r = el.getBoundingClientRect(); show(el, r.left, r.bottom); };
+  const keyed = el => el && el.closest && el.closest('[data-tip][tabindex]');
+  document.addEventListener('focusin', e => { const t = keyed(e.target); if (t && t.dataset.tip && t.matches(':focus-visible')) at(t); });
+  document.addEventListener('focusout', e => { if (cur && keyed(e.target) === cur) hide(); });
+  document.addEventListener('keydown', e => {
+    const t = keyed(e.target);
+    if (e.key === 'Escape' && cur) { hide(); return; }
+    if (!t || t !== e.target || !t.dataset.tip || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    if (cur === t) hide(); else at(t);
+  });
 })();
 
 const _waits = new WeakMap();
