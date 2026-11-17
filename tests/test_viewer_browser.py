@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from helpers import fresh_modules, posted_envelope
 
 sync_api = pytest.importorskip("playwright.sync_api")
-GID = "galBrowse01"
+GID = "g-galBrowse01AAAAAAAAAAAA"
 BASE = f"https://gallery.test/g/{GID}/"
 
 @pytest.fixture(scope="module")
@@ -61,7 +61,7 @@ class Host:
         if name.startswith("gate.php?f="):
             name = name.split("=", 1)[1]
         if name.startswith("picks.php"):
-            self.files["draft.bin" if "kind=draft" in name else "picks.bin"] = posted_envelope(req.post_data_buffer)
+            self.files["draft.las" if "kind=draft" in name else "picks.las"] = posted_envelope(req.post_data_buffer)
             return route.fulfill(status=204, body=b"")
         if name == "seen.php":
             return route.fulfill(status=204, body=b"")
@@ -92,7 +92,7 @@ def pick_retouch(page, i, note=""):
     page.locator("#done").click()
 
 def test_sent_stays_and_the_other_device_knows(gallery, browser):
-    folder, key = gallery
+    folder, key = gallery[0], gallery[1]
     host = Host(folder)
     ctx, page = open_page(browser, host, key)
     pick_retouch(page, 0, "fix the glare")
@@ -119,7 +119,7 @@ def test_sent_stays_and_the_other_device_knows(gallery, browser):
     ctx.close(); ctx2.close()
 
 def test_retouch_with_a_note_asks_first_and_done_is_always_there(gallery, browser):
-    folder, key = gallery
+    folder, key = gallery[0], gallery[1]
     ctx, page = open_page(browser, Host(folder), key)
     page.locator(".cell").nth(2).click()
     assert page.locator("#done").is_visible()
@@ -141,7 +141,7 @@ def test_retouch_with_a_note_asks_first_and_done_is_always_there(gallery, browse
     ctx.close()
 
 def test_grid_names_badges_dialog_and_filters_by_keyboard(gallery, browser):
-    folder, key = gallery
+    folder, key = gallery[0], gallery[1]
     ctx, page = open_page(browser, Host(folder), key)
     pick_retouch(page, 2, "fix the glare")
     assert page.locator(".cell").nth(2).get_attribute("aria-label") == "Photo 3, Retouch: fix the glare"
@@ -163,7 +163,7 @@ def test_grid_names_badges_dialog_and_filters_by_keyboard(gallery, browser):
     ctx.close()
 
 def test_retouch_limit_is_said_and_the_welcome_box_hands_focus_to_the_first_photo(gallery, browser):
-    folder, key = gallery
+    folder, key = gallery[0], gallery[1]
     ctx, page = open_page(browser, Host(folder), key, welcomed=False)
     page.wait_for_selector("#welcome:not([hidden])")
     assert "take one off" in page.locator("#wlist").inner_text()
@@ -181,7 +181,7 @@ def test_retouch_limit_is_said_and_the_welcome_box_hands_focus_to_the_first_phot
     ctx.close()
 
 def test_pinch_never_changes_or_closes_the_photo(gallery, browser):
-    folder, key = gallery
+    folder, key = gallery[0], gallery[1]
     ctx, page = open_page(browser, Host(folder), key, phone=True)
     page.locator(".cell").nth(1).tap()
     page.wait_for_selector("#lb.open")
@@ -211,7 +211,7 @@ def test_pinch_never_changes_or_closes_the_photo(gallery, browser):
     ctx.close()
 
 def test_a_photo_that_cannot_load_says_so(gallery, browser):
-    folder, key = gallery
+    folder, key = gallery[0], gallery[1]
     host = Host(folder)
     ctx, page = open_page(browser, host, key)
     host.down = True
@@ -237,7 +237,7 @@ class Swapped(Host):
         return super().handle(route)
 
 def test_a_stale_proofs_page_never_claims_to_send_picks(gallery, browser):
-    folder, key = gallery
+    folder, key = gallery[0], gallery[1]
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     from plugins import gallery as G
     blob = G.seal(AESGCM(G.key_bytes(key)), b'{"v":1,"title":"Newer","items":[],"picks":{},"dl":1,"zips":[]}', "manifest.bin")
@@ -245,12 +245,12 @@ def test_a_stale_proofs_page_never_claims_to_send_picks(gallery, browser):
     ctx, page = open_page(browser, host, key)
     pick_retouch(page, 1, "brighter")
     host.swapped = True
-    host.files.pop("picks.bin", None)
+    host.files.pop("picks.las", None)
     page.locator("#send").click()
     page.wait_for_selector("#upd:not([hidden])")
     page.wait_for_function("document.querySelector('#sent').textContent.includes('updated')")
-    assert "Sent." not in page.locator("#sent").inner_text() and "picks.bin" not in host.files
+    assert "Sent." not in page.locator("#sent").inner_text() and "picks.las" not in host.files
     page.locator("#send").click()
     page.wait_for_timeout(300)
-    assert "picks.bin" not in host.files
+    assert "picks.las" not in host.files
     ctx.close()

@@ -112,7 +112,7 @@ def test_a_client_delete_that_fails_on_a_gallery_destroys_no_photos(env):
 
     def take_down(sid):
         if sid == s2:
-            raise OSError("gallery host unreachable")
+            raise OSError("web host unreachable")
         down.append(sid)
     old = dict(A.app.config)
     A.app.config["gallery_take_down"] = take_down

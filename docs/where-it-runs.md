@@ -5,7 +5,8 @@ Lumen Aureum is a small web app that you run yourself and open in a browser on y
 ## The machine
 It needs a machine that is **always on**: the daily backup, gallery checks and scheduled deletions run in the
 background. Suitable machines:
-- **A NAS that runs containers** (Docker), with an Intel, AMD or 64-bit ARM processor.
+- **A NAS that runs containers** (Docker), with an Intel, AMD or 64-bit ARM processor. On a TrueNAS, install it from
+  the app catalog: see [The easiest way](#the-easiest-way-the-truenas-app-catalog).
 - **A home server or mini PC** running Linux with Docker.
 - **A Raspberry Pi 4 or 5** with a 64-bit operating system (Raspberry Pi OS 64-bit, or another 64-bit Linux) and
   Docker (the 32-bit system does not work). Choose a model with at least 2 GB of memory, so 1 GB stays free for the
@@ -25,6 +26,23 @@ our tests the app used about 70 MB at rest and about 150 MB while sealing a 12 G
 takes the most: about 310 MB for 52 photos of 4,000 pixels, and up to about 470 MB for 200 photos of 24 megapixels.
 The app hands that memory back once the build ends. `docker stats` also counts the system's file cache, so it can read well above these figures.
 The database stays small (under a few megabytes for hundreds of sessions).
+
+## The easiest way: the TrueNAS app catalog
+On a TrueNAS, Lumen Aureum installs from the app catalog like any other app (community train). Anywhere else, use
+Docker Compose, below.
+
+1. **Make three folders for it first,** so your data stays even if the app is ever removed: in Datasets, add one for
+   its data, one for its backups (the vault: on another pool if you have one) and one for photos. Choose the **Apps**
+   preset for each; it gives the app's user permission to use them. Don't share the photos one.
+2. **Apps, Discover,** search for Lumen Aureum, **Install.**
+3. Under Storage, for Data, Vault and Photos choose **Host Path** and pick the folders you made. (Don't choose
+   ixVolume: TrueNAS deletes an ixVolume when the app is deleted.)
+4. Open the app at the address the Apps screen shows. Setup asks for a **setup code**: it is in the app's log
+   (Apps, lumenaureum, Logs).
+
+Updates arrive on the TrueNAS Apps screen after each release. The catalog's "Version" (1.0.1, say) is the package's
+number; the app's own version shows as App Version. Settings that compose.yaml would hold, such as `CRM_ALLOW_ONLY`,
+go in the app's Edit screen under Additional Environment Variables.
 
 ## A server in the cloud
 It runs on any machine that runs Docker, including a rented server. We recommend a computer you own, for one reason.
@@ -66,18 +84,74 @@ enforces its own expiry date, so it comes down on time even if the app is locked
 back to the app by themselves. A plain S3 bucket can't;
 there the app removes galleries, and a bucket lifecycle rule (delete after, say, 400 days) is a good outer limit.
 
+### Choosing a web host
+Galleries need a host's small scripts for everything but showing the photos, and those scripts are PHP only: there is
+no version for other script platforms. What each kind of host gives you:
+
+| | A web host that runs PHP 7.4 or later | A plain bucket or static host (no PHP) |
+|---|---|---|
+| Galleries close on their last day, even with Lumen Aureum off | yes | no: the app removes them when it next checks |
+| Clients' picks come back by themselves (sealed) | yes | no: the client sends them by email, with a fingerprint the app checks |
+| The studio page's inquiry form | yes | no: the Contact page shows your email |
+| Print ordering from download galleries ([Print orders](print-orders.md)) | yes | no: galleries say "For prints, email" with your address |
+
+Setup's Online galleries step checks the host you connect (that PHP runs there, its version, that it keeps a real
+gallery's files behind the gallery's gate, and whether a proxy or CDN sits in front of it) and shows which of these
+work. A host that hands out gallery files without asking for the key, or runs no PHP, can't take galleries with a
+codeword (someone with only the link could try codewords there as fast as their computer allows): Setup says so, and
+such a gallery is refused there with the reason. A proxy or CDN in front of the host is fine: the inquiry form and
+print orders then use limits for everyone instead of limits per visitor, so nobody is turned away because of someone
+else. The check runs again once a day; if something changes for the worse
+(PHP turned off, say), Today says so. On a host below PHP 7.4, galleries keep the scripts they have and Today names the
+host and its version.
+
+### The web host's certificate
+The app checks your web host the way a client's browser does: over its `https://` address. A host with a
+certificate from a public authority (what shared hosting, and Let's Encrypt, give you) needs nothing more.
+
+A web server on your home network often has a self-signed certificate, or one from your own authority. The app
+doesn't trust that by itself. After you save the Online galleries step, Setup shows the certificate it found: its
+SHA-256 fingerprint (and its key's), the names it was issued to, who issued it, and the date it is valid until.
+Check the fingerprint against the one your web server shows for its certificate, then press **Trust this
+certificate**. From then on the app accepts that certificate's key at that address (the host and port you typed), and
+no other: a renewal with the same key keeps working by itself. It works the same way as the server key of an SFTP
+host.
+
+The certificate must name the address you typed (an IP address or a name, in its subject alternative names, or in its
+common name when it has none). One made for another name isn't offered: Setup says which names it carries, and you
+make one on the web server that names the address. The app also never follows a redirect when it checks the host, so
+a check can't end up on another address.
+
+- **If the key changes** (you made a new certificate with a new key, or something sits between the app and the
+  host), or the certificate no longer names the address, the app stops
+  checking the host and never accepts the new one by itself. Today says "The web host's certificate changed. Check it
+  in Setup.", and Setup shows the certificate you confirmed and the new one, side by side. Trust the new one only if
+  you changed it yourself; **Keep the old one** leaves the checks stopped until the host shows the one you confirmed.
+  A host that moves to a publicly trusted certificate: confirm it once and the app goes back to public trust, so its
+  renewals never stop anything.
+- **If your confirmed certificate expires**, the app still accepts it (it is the one you confirmed), and Today notes
+  the date it expired. Clients' browsers may warn about it, so renew it on the web server (a renewal with a new key
+  asks you to confirm it in Setup).
+- **Until a certificate is trusted**, the host's checks wait: Today says "The web host's certificate isn't trusted.
+  Check it in Setup." and links there. Galleries already online stay as they are meanwhile.
+
+There is no setting that turns certificate checks off.
+
 On S3, each gallery file is uploaded with its own Cache-Control. The page and `manifest.bin` get `no-cache`, so a
 rebuilt gallery shows at once. The photo files get a year, since their names are never used twice. If a CDN sits in
 front of the bucket, set it to follow the origin's Cache-Control. A CDN that keeps the page or the manifest longer
 shows clients an old gallery after a rebuild, with photos that are no longer there.
 
-Give galleries an address of their own, such as `photos.example.com`, rather than a folder on your main website. The
-gallery page keeps the client's picks and notes in the browser's storage for that address, and any script on the same
-address (a website plugin, an analytics script) could read them.
+Galleries can sit in a folder of your main website or at an address of their own; either is safe. What the gallery
+page keeps in the client's browser (their picks and notes, the print cart) is sealed under the gallery's key, so no
+other script on the same address (a website plugin, an analytics script) can read it.
 
-On a PHP host, use Apache with `.htaccess` files allowed (most shared hosting is). The gallery's `.htaccess` rules keep
-its encrypted files behind the gate script; other web servers need the same rules added by hand. See
-[Security](security.md), "The PHP files on a gallery host".
+Any web server that runs PHP works: Apache, nginx, LiteSpeed. Nothing a client needs kept private depends on
+`.htaccess` files or on rules you add: each gallery's sealed files sit under names only its key gives, and the files
+that keep its state print nothing when fetched. A web server that ignores `.htaccess` hands a gallery's files to
+anyone who has its link and asks for them by name, so the gallery doesn't close on its last day by itself (the app
+takes it down at its next check) and can't have a codeword; Setup's check says when that is so. See
+[Security](security.md), "The PHP files on a web host".
 
 When you rebuild a gallery that is already online, the new files go up first, and the old photo files are removed as
 soon as the new page is up. A page a client already has open notices the new build and asks them to reload.
@@ -153,7 +227,7 @@ Set these under `environment:` in `compose.yaml`; leave out any you don't need.
 | `CRM_PLUGIN_DIRS`, `CRM_PLUGINS_OFF` | Plugin folders, and plugins to turn off (see `plugins/README.md`) |
 
 ## On a TrueNAS (Install via YAML)
-A TrueNAS app you install from the TrueNAS app catalog is coming soon. Until then, use these steps.
+To run the compose file yourself on a TrueNAS instead of installing from the catalog, use these steps.
 
 TrueNAS's "Install via YAML" screen takes the compose file but has no `.env` file next to it, so `LUMENAUREUM_HOST_IP` is
 never set and the app refuses to start. Write the address straight into the ports line:

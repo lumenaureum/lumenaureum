@@ -2,9 +2,9 @@
 {% macro doc_bar(pdf_url, back, send=None, review=None, before='') -%}
 <div class="bar">{{ before }}<a href="{{ pdf_url }}" download data-did-output>Download PDF</a><a href="#" data-print data-did-output>Print</a>
 {%- if send %}<span class="send">
-  {%- if send.to %}<a href="{{ send.mailto }}" data-did-output data-sends title="Opens a draft to {{ send.to }} in your mail app. Download the PDF and attach it before you send.">Email it</a>
+  {%- if send.to %}<a href="{{ send.mailto }}" data-did-output data-sends title="Opens a draft to {{ send.to }} in your mail app. It gives the document's key facts; save the PDF and attach it for their records, if you like.">Email it</a>
   {%- else %}<form method="post" action="{{ url_for('contact_email', sid=send.sid) }}" class="noemail"><input type="hidden" name="back" value="{{ send.back }}">No email on file: <input type="email" name="email" placeholder="add one" required maxlength="200"><button class="linkish">Save</button></form>{% endif %}
-  {%- if send.sms %}<a href="{{ send.sms }}" data-did-output data-sends title="Opens a text to {{ send.phone }}; attach the PDF from your phone">Text it</a>{% endif %}
+  {%- if send.sms %}<a href="{{ send.sms }}" data-did-output data-sends title="Opens a text to {{ send.phone }} with the document's key facts">Text it</a>{% endif %}
   {%- if send.task or send.mark_url %}<form method="post" action="{{ send.mark_url or url_for('task_toggle', tid=send.task) }}" class="marksent"><input type="hidden" name="back" value="{{ send.back }}"><input type="hidden" name="set" value="1">{% if send.mark_url %}<span>Not marked sent yet.</span> {% endif %}<span class="ask">Did you send it?</span> <button class="linkish">Mark sent</button></form>
   {%- elif send.sent %}<span class="sent">Sent {{ send.sent }}</span>{% endif %}</span>{% endif %}
 {%- if review %}<a class="review" href="{{ review }}" target="_blank">Review this wording</a>{% endif %}

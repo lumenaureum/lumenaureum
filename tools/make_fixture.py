@@ -328,7 +328,7 @@ class More110:
         post("/setup/galleries", gallery_type="local", gallery_path=str(host), gallery_init="1",
              gallery_base_url="https://photos.example.com/g/", gallery_days="30", unopened_days="365")
         from vault import web as VW
-        assert (VW.config().get("gallery_host") or {}).get("type") == "local", "the gallery host was not saved"
+        assert (VW.config().get("gallery_host") or {}).get("type") == "local", "the web host was not saved"
         r = x.c.post("/settings/logo", data={"logo": (__import__("io").BytesIO(_png("#8a5a6b")), "logo.png")},
                      environ_base=x.E, content_type="multipart/form-data")
         assert r.status_code in (302, 303)
@@ -750,6 +750,9 @@ class More130(More120):
     def gallery(self, x, s_lane):
 
         super().gallery(x, s_lane)
+        self._move(x, s_lane)
+
+    def _move(self, x, s_lane):
         post, one = x.post, x.one
         from plugins import gallery as G
         from vault import web as VW
@@ -995,6 +998,112 @@ def _jpeg(color, size=(400, 300)):
 def scenario_130(x, made_with):
     return scenario_101(x, made_with, more=More130())
 
+class More131(More130):
+
+    def gallery(self, x, s_lane):
+
+        More120.gallery(self, x, s_lane)
+        _, s_moss = self._client(x, "Moss", "Rowan Moss", "rowan@example.com", "Moss family", f"{YEAR}-06-20", 150)
+        x.post(f"/session/{s_moss}/stage", stage="booked")
+        self._pay(x, s_moss, "balance", self._due(x, s_moss), f"{YEAR}-06-20")
+        x.post(f"/session/{s_moss}/stage", stage="shot")
+        from PIL import Image
+        src = Path(x.work, "photos", "export", "moss")
+        src.mkdir(parents=True)
+        for i, col in enumerate(("olive", "navy"), 1):
+            Image.new("RGB", (64, 48), col).save(src / f"moss{i}.jpg", "JPEG")
+        self._build(x, s_moss, source_dir=str(src))
+        self._upload(x, s_moss)
+        gid = x.one("SELECT gallery_id FROM sessions WHERE id=?", (s_moss,))[0]
+        assert (Path(x.work, self.EARLIER, gid) / "manifest.bin").exists()
+        self._move(x, s_lane)
+        assert (Path(x.work, self.HOST, gid) / "manifest.bin").exists()
+        assert (Path(x.work, self.EARLIER, gid) / "manifest.bin").exists()
+        self.s_moss = s_moss
+
+    def data(self, x):
+        super().data(x)
+        post, one, A = x.post, x.one, x.A
+        from plugins import gallery as G
+        from vault import web as VW
+        from datetime import datetime, timedelta, timezone
+        P = A.app.view_functions["build_gallery"].__globals__
+
+        grant = [tuple(r) for r in x.rows("SELECT amount, label FROM charges WHERE session_id=?", (self.s130["grant"],))]
+        assert grant == [(100.0, "Canceled, deposit kept")], grant
+
+        s_moss = self.s_moss
+        gid = one("SELECT gallery_id FROM sessions WHERE id=?", (s_moss,))[0]
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        (Path(x.work, self.HOST, gid) / "seen.txt").write_text((now - timedelta(days=45)).strftime("%Y-%m-%dT%H:%M:%SZ"))
+        post("/gallery/sync")
+        post("/gallery/sync")
+        g = one("SELECT upload_state, dark_at, moved_from FROM galleries WHERE session_id=?", (s_moss,))
+        assert g[0] == "removed" and g[1] and g[2] is None, tuple(g)
+        assert [p.name for p in Path(x.work, self.HOST, gid).iterdir()] == ["index.html"]
+        old = Path(x.work, self.EARLIER, gid)
+        assert not old.exists() or not any(old.iterdir()), sorted(p.name for p in old.iterdir())
+        assert not one("SELECT 1 FROM gallery_leftovers WHERE gallery_id=?", (gid,))
+
+        _, s_nash = self._client(x, "Nash", "Ellis Nash", "nash@example.com", "Nash family", f"{YEAR}-10-24", 150)
+        post(f"/session/{s_nash}/stage", stage="booked")
+        self._pay(x, s_nash, "balance", self._due(x, s_nash), f"{YEAR}-10-24")
+        post(f"/session/{s_nash}/stage", stage="shot")
+        from PIL import Image
+        src = Path(x.work, "photos", "export", "nash")
+        src.mkdir(parents=True)
+        for i, col in enumerate(("sienna", "steelblue"), 1):
+            Image.new("RGB", (64, 48), col).save(src / f"nash{i}.jpg", "JPEG")
+        self._build(x, s_nash, source_dir=str(src))
+        real = P["upload_gallery"]
+
+        def partway(*a, **k):
+            real(*a, **k)
+            raise IOError("the host dropped the connection")
+        P["upload_gallery"] = partway
+        try:
+            post(f"/session/{s_nash}/gallery/upload")
+            _wait_threads(f"gal-up-{s_nash}")
+        finally:
+            P["upload_gallery"] = real
+        g = one("SELECT upload_state, uploaded_at, host_fp FROM galleries WHERE session_id=?", (s_nash,))
+        assert g[0] == "error" and g[1] is None and g[2] == G.fingerprint_of(VW.config()["gallery_host"]), tuple(g)
+        gid_n = one("SELECT gallery_id FROM sessions WHERE id=?", (s_nash,))[0]
+        assert (Path(x.work, self.HOST, gid_n) / "manifest.bin").exists()
+
+        root = Path(x.work, self.EARLIER, ".vault-root")
+        root.rename(root.with_name(".vault-root-off"))
+        try:
+            post("/gallery/sync")
+        finally:
+            root.with_name(".vault-root-off").rename(root)
+        fp_old = G.fingerprint_of(G.earlier_host_cfgs(VW.config())[0])
+        rows_ = [tuple(r) for r in x.rows("SELECT key FROM settings WHERE key LIKE 'gallery_unreachable:%'")]
+        assert rows_ == [(P["UNREACHABLE_KEY"] + fp_old,)], rows_
+        assert P["_UNREACHABLE"] == {}
+        assert not x.in_request(lambda: P["may_try"](fp_old))
+
+        page = x.get("/security").get_data(as_text=True)
+        import datakey
+        self.pw_work = datakey.password_work()
+        assert self.pw_work and f"scrypt work factor {self.pw_work}" in page, self.pw_work
+        self.s131 = dict(moss=s_moss, nash=s_nash)
+
+    def measure(self, x, expected):
+        out = super().measure(x, expected)
+        rows, one = x.rows, x.one
+        return dict(
+            out,
+            sessions_by_name=dict(out["sessions_by_name"], **self.s131),
+            unreachable={r[0]: r[1] for r in rows("SELECT key, value FROM settings WHERE key LIKE 'gallery_unreachable:%'")},
+            upload_errors={str(r[0]): r[1] for r in rows(
+                "SELECT session_id, upload_error FROM galleries WHERE upload_state='error' ORDER BY session_id")},
+            password_work=self.pw_work,
+        )
+
+def scenario_131(x, made_with):
+    return scenario_101(x, made_with, more=More131())
+
 VERSIONS = {
     "1.0.0": dict(commit="a0966c9", scenario=scenario_100, files=("crm-before-delete.db",), env={}),
     "1.0.1": dict(commit="v1.0.1", scenario=scenario_101, files=(),
@@ -1009,6 +1118,9 @@ VERSIONS = {
                   env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
 
     "1.3.0": dict(commit="58a774b", scenario=scenario_130, files=(), dirs=("galleries", "galleries-kept", "host", "web", "photos"),
+                  env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
+
+    "1.3.1": dict(commit="40adae6", scenario=scenario_131, files=(), dirs=("galleries", "galleries-kept", "host", "web", "photos"),
                   env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
 }
 

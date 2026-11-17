@@ -11,4 +11,4 @@ def test_every_released_version_has_a_fixture():
     assert not missing, (
         f"No database fixture for released version(s) {', '.join(missing)}. Before releasing, save one made by that "
         "version's own code (tools/make_fixture.py --version <v>: add the version's scenario there; see "
-        "tests/fixtures/db-1.3.0/README.md), and add an upgrade test like tests/test_upgrade_from_130.py.")
+        "tests/fixtures/db-1.3.1/README.md), and add an upgrade test like tests/test_upgrade_from_131.py.")

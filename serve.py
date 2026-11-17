@@ -2,6 +2,7 @@ import os
 import sys
 
 import netsec
+import nodump
 
 def tls_args(cert, key):
 
@@ -27,4 +28,5 @@ if __name__ == "__main__":
     if netsec.tls_mode() == "on":
         cert, key = netsec.ensure_cert()
         args += tls_args(cert, key)
+    nodump.harden()
     os.execvp("gunicorn", args + ["app:app"])

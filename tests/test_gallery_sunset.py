@@ -12,6 +12,7 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from helpers import gallery_key, host_names, host_bytes, host_has, host_text, host_write
 from test_gallery_expiry import E, GID, env, go_live, days_ago
 from test_gallery_php_111 import host as php_host
 
@@ -42,11 +43,11 @@ def test_the_host_deadline_carries_the_warning_and_the_photographers_email(env):
     settings(A, business_email="hello@studio.example")
     go_live(A, G, days_ago(1))
     c.post("/gallery/sync", environ_base=E)
-    lim = (host / GID / "limits.txt").read_text()
+    lim = host_text(host / GID, "limits.txt")
     assert "warn_days=7\n" in lim and 'contact="hello@studio.example"\n' in lim
     settings(A, business_email='bad"address@x.y')
     c.post("/gallery/sync", environ_base=E)
-    lim = (host / GID / "limits.txt").read_text()
+    lim = host_text(host / GID, "limits.txt")
     assert "contact" not in lim and "warn_days=7\n" in lim
 
 def test_an_email_changed_in_settings_reaches_the_host(env):
@@ -54,7 +55,7 @@ def test_an_email_changed_in_settings_reaches_the_host(env):
     go_live(A, G, days_ago(1))
     settings(A, business_email="new@studio.example")
     c.post("/gallery/sync", environ_base=E)
-    assert 'contact="new@studio.example"' in (host / GID / "limits.txt").read_text()
+    assert 'contact="new@studio.example"' in host_text(host / GID, "limits.txt")
     assert one(A, "SELECT limits_contact FROM galleries WHERE session_id=1")[0] == "new@studio.example"
 
 def test_an_expired_gallery_goes_dark_with_the_studio_and_its_email_only(env):
@@ -101,13 +102,13 @@ def get(url, proof=None):
 
 def test_gate_says_when_it_sunsets_only_in_the_last_days_and_only_to_the_key_holder(php_host):
     base, d, proof, G, key = php_host
-    (d / "limits.txt").write_text("days=30\nunopened_until=2099-01-01\nproof=1\nwarn_days=7\n")
+    host_write(d, "limits.txt", "days=30\nunopened_until=2099-01-01\nproof=1\nwarn_days=7\n")
     opened = datetime.now(timezone.utc) - timedelta(days=10)
-    (d / "seen.txt").write_text(opened.strftime("%Y-%m-%dT%H:%M:%SZ"))
+    host_write(d, "seen.txt", opened.strftime("%Y-%m-%dT%H:%M:%SZ"))
     code, h, _ = get(base + "gate.php?f=manifest.bin", proof)
     assert code == 200 and "X-Sunset" not in h
     opened = datetime.now(timezone.utc) - timedelta(days=25)
-    (d / "seen.txt").write_text(opened.strftime("%Y-%m-%dT%H:%M:%SZ"))
+    host_write(d, "seen.txt", opened.strftime("%Y-%m-%dT%H:%M:%SZ"))
     code, h, _ = get(base + "gate.php?f=manifest.bin", proof)
     assert code == 200 and h["X-Sunset"] == (opened + timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
     code, h, _ = get(base + "gate.php?f=manifest.bin")
@@ -115,11 +116,11 @@ def test_gate_says_when_it_sunsets_only_in_the_last_days_and_only_to_the_key_hol
 
 def test_gate_names_the_photographers_email_once_the_gallery_has_gone_dark(php_host):
     base, d, proof, G, key = php_host
-    (d / "seen.txt").write_text("2026-01-01T12:00:00Z")
-    (d / "limits.txt").write_text('days=30\nunopened_until=2099-01-01\nproof=1\ncontact="hello@studio.example"\n')
+    host_write(d, "seen.txt", "2026-01-01T12:00:00Z")
+    host_write(d, "limits.txt", 'days=30\nunopened_until=2099-01-01\nproof=1\ncontact="hello@studio.example"\n')
     code, h, body = get(base + "gate.php?f=manifest.bin")
     assert code == 410 and json.loads(body) == {"contact": "hello@studio.example"}
-    (d / "limits.txt").write_text("days=30\nunopened_until=2099-01-01\nproof=1\n")
+    host_write(d, "limits.txt", "days=30\nunopened_until=2099-01-01\nproof=1\n")
     code, h, body = get(base + "gate.php?f=manifest.bin")
     assert code == 410 and body == b""
 
@@ -140,8 +141,8 @@ def test_a_gallery_that_went_dark_can_be_put_back_online_for_its_days_from_today
         time.sleep(0.05)
     until = (date.today() + timedelta(days=A.C.GALLERY_DAYS)).isoformat()
     assert tuple(r) == ("up", date.today().isoformat(), None, None)
-    assert "manifest.bin" in {p.name for p in (host / GID).iterdir()}
-    assert f"until={until}\n" in (host / GID / "limits.txt").read_text()
+    assert "manifest.bin" in host_names(host / GID, gallery_key(A))
+    assert f"until={until}\n" in host_text(host / GID, "limits.txt")
     assert "<title>This gallery has gone dark</title>" not in (host / GID / "index.html").read_text()
     c.post("/gallery/sync", environ_base=E)
     assert one(A, "SELECT upload_state FROM galleries WHERE session_id=1")[0] == "up"
@@ -161,12 +162,12 @@ def test_only_a_gallery_that_came_down_can_be_put_back(env):
 
 def test_gate_keeps_a_fixed_last_day_for_a_gallery_put_back(php_host):
     base, d, proof, G, key = php_host
-    (d / "seen.txt").write_text("2026-01-01T12:00:00Z")
+    host_write(d, "seen.txt", "2026-01-01T12:00:00Z")
     soon = (datetime.now(timezone.utc) + timedelta(days=3)).date().isoformat()
-    (d / "limits.txt").write_text(f"days=30\nunopened_until=2099-01-01\nproof=1\nwarn_days=7\nuntil={soon}\n")
+    host_write(d, "limits.txt", f"days=30\nunopened_until=2099-01-01\nproof=1\nwarn_days=7\nuntil={soon}\n")
     code, h, _ = get(base + "gate.php?f=manifest.bin", proof)
     assert code == 200 and h["X-Sunset"] == soon + "T23:59:59Z"
-    (d / "limits.txt").write_text("days=30\nunopened_until=2099-01-01\nproof=1\nuntil=2026-01-02\n")
+    host_write(d, "limits.txt", "days=30\nunopened_until=2099-01-01\nproof=1\nuntil=2026-01-02\n")
     assert get(base + "gate.php?f=manifest.bin", proof)[0] == 410
 
 def wait_up(A):
@@ -183,7 +184,7 @@ def test_put_back_for_seven_days(env):
     c.post("/session/1/gallery/back-online", data={"days": "7"}, environ_base=E)
     assert wait_up(A) == "up"
     until = (date.today() + timedelta(days=7)).isoformat()
-    lim = (host / GID / "limits.txt").read_text()
+    lim = host_text(host / GID, "limits.txt")
     assert f"until={until}\n" in lim and "once=" not in lim
     con = A.connect()
     con.execute("UPDATE galleries SET restored_at=? WHERE session_id=1", (days_ago(8),))
@@ -206,15 +207,15 @@ def test_a_one_time_download_goes_dark_once_it_has_been_made(env, tmp_path):
     assert "For one download" in c.get("/c/1?s=1", environ_base=E).get_data(as_text=True)
     c.post("/session/1/gallery/back-online", data={"mode": "once"}, environ_base=E)
     assert wait_up(A) == "up"
-    lim = (host / GID / "limits.txt").read_text()
+    lim = host_text(host / GID, "limits.txt")
     assert f"once={','.join(pieces)}\n" in lim
     assert f"until={(date.today() + timedelta(days=G2.ONCE_DAYS)).isoformat()}\n" in lim
     c.post("/gallery/sync", environ_base=E)
     assert one(A, "SELECT upload_state FROM galleries WHERE session_id=1")[0] == "up"
-    (host / GID / "done.txt").write_text(str(int(time.time()) + 3000))
+    host_write(host / GID, "done.txt", str(int(time.time()) + 3000))
     c.post("/gallery/sync", environ_base=E)
     assert one(A, "SELECT upload_state FROM galleries WHERE session_id=1")[0] == "up"
-    (host / GID / "done.txt").write_text(str(int(time.time()) - 5))
+    host_write(host / GID, "done.txt", str(int(time.time()) - 5))
     c.post("/gallery/sync", environ_base=E)
     assert one(A, "SELECT upload_state FROM galleries WHERE session_id=1")[0] == "removed"
     assert [p.name for p in (host / GID).iterdir()] == ["index.html"]
@@ -223,16 +224,16 @@ def test_a_one_time_download_goes_dark_once_it_has_been_made(env, tmp_path):
 def test_gate_closes_a_one_time_download_an_hour_after_its_last_piece(php_host):
     base, d, proof, G, key = php_host
     names = sorted(p.name for p in d.iterdir() if re.fullmatch(r"[0-9a-f]{24}\.bin", p.name))[:2]
-    (d / "limits.txt").write_text(f"days=30\nunopened_until=2099-01-01\nproof=1\nonce={','.join(names)}\n")
+    host_write(d, "limits.txt", f"days=30\nunopened_until=2099-01-01\nproof=1\nonce={','.join(names)}\n")
     code, h, _ = get(base + "gate.php?f=manifest.bin", proof)
     assert code == 200 and "X-Once" in h
     assert get(base + "gate.php?f=" + names[0], proof)[0] == 200
-    assert not (d / "done.txt").exists()
+    assert not host_has(d, "done.txt")
     assert get(base + "gate.php?f=" + names[1], proof)[0] == 200
-    left = int((d / "done.txt").read_text()) - time.time()
+    left = int(host_text(d, "done.txt")) - time.time()
     assert 3500 < left <= 3600
     assert get(base + "gate.php?f=manifest.bin", proof)[0] == 200
-    (d / "done.txt").write_text(str(int(time.time()) - 1))
+    host_write(d, "done.txt", str(int(time.time()) - 1))
     assert get(base + "gate.php?f=manifest.bin", proof)[0] == 410
 
 def stamp(A, G, base=None):
@@ -261,8 +262,8 @@ def test_galleries_move_whole_to_a_new_host(env, tmp_path):
     go_live(A, G, days_ago(3))
     stamp(A, G, "https://photos.example/g/")
     key = one(A, "SELECT key FROM galleries WHERE session_id=1")[0]
-    picks = sealed(G, key, G.PICKS_AAD)
-    (host / GID / "picks.bin").write_bytes(picks)
+    picks = sealed(G, key, "picks", GID)
+    (host / GID / "picks.las").write_bytes(picks)
     c.post("/gallery/sync", environ_base=E)
     assert one(A, "SELECT host_fp FROM galleries WHERE session_id=1")[0]
 
@@ -270,18 +271,18 @@ def test_galleries_move_whole_to_a_new_host(env, tmp_path):
     c.post("/gallery/sync", environ_base=E)
     assert not (new / GID).exists()
     today = c.get("/", environ_base=E).get_data(as_text=True)
-    assert "1 gallery is still on your earlier gallery host" in today
-    assert "still on your earlier gallery host" in c.get("/c/1?s=1", environ_base=E).get_data(as_text=True)
+    assert "1 gallery is still on your earlier web host" in today
+    assert "still on your earlier web host" in c.get("/c/1?s=1", environ_base=E).get_data(as_text=True)
     page = c.get("/galleries/move", environ_base=E).get_data(as_text=True)
     assert "Lane: online" in page and "Put 1 gallery on the new host" in page
 
     c.post("/galleries/move", environ_base=E)
-    names = {p.name for p in (new / GID).iterdir()}
-    assert {"index.html", "manifest.bin", "limits.txt", "picks.bin", "gate.php"} <= names
-    assert (new / GID / "picks.bin").read_bytes() == picks
+    names = host_names(new / GID, gallery_key(A))
+    assert {"index.html", "manifest.bin", "limits.txt", "picks.las", "gate.php"} <= names
+    assert host_bytes(new / GID, "picks.las") == picks
     until = (date.today() - timedelta(days=3) + timedelta(days=A.C.GALLERY_DAYS)).isoformat()
-    assert f"until={until}\n" in (new / GID / "limits.txt").read_text()
-    assert "still on your earlier gallery host" not in c.get("/", environ_base=E).get_data(as_text=True)
+    assert f"until={until}\n" in host_text(new / GID, "limits.txt")
+    assert "still on your earlier web host" not in c.get("/", environ_base=E).get_data(as_text=True)
 
     today = c.get("/", environ_base=E).get_data(as_text=True)
     assert "The gallery address changed: 1 client needs the new link" in today
@@ -291,7 +292,7 @@ def test_galleries_move_whole_to_a_new_host(env, tmp_path):
     assert "needs the new link" not in c.get("/", environ_base=E).get_data(as_text=True)
 
     c.post("/galleries/clear-old", environ_base=E)
-    assert not (host / GID).exists() and (new / GID / "manifest.bin").exists()
+    assert not (host / GID).exists() and host_has(new / GID, "manifest.bin", gallery_key(A))
     from vault import web as VW
     assert "gallery_host_prev" not in VW.config()
 
@@ -307,7 +308,7 @@ def test_a_gallery_that_expires_on_a_dead_host_goes_dark_on_the_new_one(env, tmp
     assert one(A, "SELECT upload_state FROM galleries WHERE session_id=1")[0] == "removed"
     assert [p.name for p in (new / GID).iterdir()] == ["index.html"]
     assert not (host / GID).exists()
-    assert "earlier gallery host" not in c.get("/", environ_base=E).get_data(as_text=True)
+    assert "earlier web host" not in c.get("/", environ_base=E).get_data(as_text=True)
 
 def test_an_expired_gallery_on_an_earlier_host_that_cant_be_reached_stays_listed(env, tmp_path):
     A, c, G, host = env
@@ -321,8 +322,8 @@ def test_an_expired_gallery_on_an_earlier_host_that_cant_be_reached_stays_listed
     c.post("/gallery/sync", environ_base=E)
     assert one(A, "SELECT upload_state FROM galleries WHERE session_id=1")[0] == "removed"
     assert [p.name for p in (new / GID).iterdir()] == ["index.html"]
-    assert (host / GID / "manifest.bin").exists()
-    assert "earlier gallery host" in c.get("/", environ_base=E).get_data(as_text=True)
+    assert host_has(host / GID, "manifest.bin", gallery_key(A))
+    assert "earlier web host" in c.get("/", environ_base=E).get_data(as_text=True)
     assert any("could not be removed" in a for (a,) in one_all(A, "SELECT action FROM audit WHERE session_id=1"))
 
 def test_the_earlier_host_is_never_cleared_before_the_move(env, tmp_path):
@@ -331,4 +332,4 @@ def test_the_earlier_host_is_never_cleared_before_the_move(env, tmp_path):
     stamp(A, G)
     switch_host(A, tmp_path, base="https://photos.example/g/")
     c.post("/galleries/clear-old", environ_base=E)
-    assert (host / GID / "manifest.bin").exists()
+    assert host_has(host / GID, "manifest.bin", gallery_key(A))

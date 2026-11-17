@@ -6,11 +6,13 @@ from datetime import date, datetime, timedelta, timezone
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from helpers import host_has, host_names, host_text, host_write
 from test_gallery_lifecycle_e2e import DESK, E, _expire, _open, _php, browser, site
 
 def _files(folder, gid):
+
     p = folder / gid
-    return sorted(x.name for x in p.iterdir()) if p.is_dir() else []
+    return sorted(host_names(p) | {x.name for x in p.iterdir() if x.is_dir()}) if p.is_dir() else []
 
 def _setup_host(site, folder):
 
@@ -81,7 +83,7 @@ def test_a_session_being_deleted_is_not_put_back_online(site, monkeypatch):
         time.sleep(0.1)
     time.sleep(1)
     assert not site.q("SELECT id FROM sessions WHERE id=?", (sid,))
-    assert not (site.host / gid / "manifest.bin").exists()
+    assert not host_has(site.host / gid, "manifest.bin")
 
 def test_take_the_old_copies_down_is_not_offered_while_galleries_are_off(site):
 
@@ -152,9 +154,9 @@ def test_the_download_gallery_after_a_restored_proofing_gallery_has_its_own_days
         if site.q("SELECT 1 FROM audit WHERE session_id=? AND action LIKE '%in place of the one that was online%'", (sid,)):
             break
         time.sleep(0.05)
-    lim = (site.host / gid / "limits.txt").read_text().split("\n")
+    lim = host_text(site.host / gid, "limits.txt").split("\n")
     assert not [l_ for l_ in lim if l_.startswith(("until=", "until_ts="))]
-    (site.host / gid / "seen.txt").write_text(datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+    host_write(site.host / gid, "seen.txt", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
     site.sync()
     site.q("UPDATE galleries SET restored_at=? WHERE session_id=?", ((date.today() - timedelta(days=8)).isoformat(), sid))
     site.sync()
@@ -172,9 +174,9 @@ def test_a_one_download_already_made_stays_made_after_a_move(site, browser):
     with page.expect_download():
         page.locator("#dlallb").click()
     ctx.close()
-    assert (site.host / gid / "done.txt").exists()
+    assert host_has(site.host / gid, "done.txt")
     new = _new_folder(site, "host2")
     _setup_host(site, new)
     site.c.post("/galleries/move", environ_base=E)
-    assert (new / gid / "manifest.bin").exists()
-    assert (new / gid / "done.txt").exists()
+    assert host_has(new / gid, "manifest.bin")
+    assert host_has(new / gid, "done.txt")

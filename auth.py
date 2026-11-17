@@ -498,6 +498,7 @@ def register(app, connect, allowed, audit, on_unlock):
                 if key:
                     netsec.forget_recovery_code()
                     datakey.rewrap_password(pw, key)
+                    datakey.drop_all_pending()
                     for u_ in list(set(SESSIONS.values())):
                         end_sessions(u_)
                     if not datakey.is_unlocked():
@@ -589,6 +590,7 @@ def register(app, connect, allowed, audit, on_unlock):
                     err = f"New passwords must match and be at least {MIN_PASSWORD} characters."
                 else:
                     datakey.rewrap_password(pw)
+                    datakey.drop_all_pending()
                     end_sessions(session["uid"], keep=session.get("sid"))
                     audit("Changed the password (other devices signed out)")
                     msg = "Password changed. Other devices are signed out."
@@ -600,9 +602,11 @@ def register(app, connect, allowed, audit, on_unlock):
                     con.commit()
                 finally:
                     con.close()
+                datakey.drop_all_pending()
                 end_sessions(session["uid"], keep=session.get("sid"))
                 audit("Made new recovery codes (the old ones no longer work; other devices signed out)")
             elif act == "others":
+                datakey.drop_all_pending()
                 end_sessions(session["uid"], keep=session.get("sid"))
                 audit("Signed out every other device")
                 msg = "Every other device is signed out."

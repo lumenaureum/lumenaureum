@@ -7,7 +7,7 @@ from urllib.parse import urljoin
 import pytest
 
 from test_studio_page import E, env, session_photo, setting, switch_on, wait
-from test_studio_site_release import WORK, php_site, upload
+from test_studio_site_release import FIXED_KEY, WORK, php_site, upload
 from test_studio_inquiries import GOOD, put_inquiry
 
 NAMES = ["IMG_0042.jpg", "IMG_0043.jpg", "IMG_0044.jpg", "IMG_0042-Edit.jpg"]
@@ -126,7 +126,7 @@ def test_the_review_link_on_today_leads_to_the_list(env):
 def test_one_ipv6_subscriber_cannot_fill_the_folder(php_site, env):
     site, post = php_site
     A, c, S, tmp, web = env
-    _, pub = S.new_inquiry_key()
+    _, pub = FIXED_KEY
 
     def d():
         blob = S.seal_inquiry(pub, GOOD)
@@ -172,29 +172,29 @@ def test_a_full_folder_makes_room_from_the_busiest_sender(php_site):
     from plugins import studio_page as S
     site, post = php_site
     inq = site / "inquiries"
-    _, pub = S.new_inquiry_key()
+    _, pub = FIXED_KEY
     blob = S.seal_inquiry(pub, GOOD)
     for g in range(20):
         for i in range(10):
-            p = inq / f"{g:016x}-{g:08x}{i:024x}.bin"
+            p = inq / f"{g:016x}-{g:08x}{i:024x}.las"
             p.write_bytes(blob)
             os.utime(p, (1_000_000 + i, 1_000_000 + i))
     assert post(_blob(S, pub)[1], addr="198.51.100.20") == 204
-    left = sorted(p.name for p in inq.glob("*.bin"))
-    assert len(left) == 200 and sum(1 for n in left if n.endswith(f"{9:024x}.bin")) == 19
+    left = sorted(p.name for p in inq.glob("*.las"))
+    assert len(left) == 200 and sum(1 for n in left if n.endswith(f"{9:024x}.las")) == 19
 
     grp = hmac.new(("cd" * 16).encode(), ipaddress.ip_address("198.51.100.30").packed, hashlib.sha256).hexdigest()[:16]
-    for p in list(inq.glob("*.bin"))[:10]:
+    for p in list(inq.glob("*.las"))[:10]:
         p.unlink()
     for i in range(10):
-        (inq / f"{grp}-{i:032x}.bin").write_bytes(blob)
+        (inq / f"{grp}-{i:032x}.las").write_bytes(blob)
     assert post(_blob(S, pub)[1], addr="198.51.100.30") == 429
     assert post(_blob(S, pub)[1], addr="198.51.100.31") == 204
 
 def test_ipv4_is_still_five_an_hour_from_one_address(php_site):
     from plugins import studio_page as S
     site, post = php_site
-    _, pub = S.new_inquiry_key()
+    _, pub = FIXED_KEY
     codes = [post(_blob(S, pub)[1], addr="203.0.113.9") for _ in range(7)]
     assert codes == [204] * 5 + [429] * 2
     assert post(_blob(S, pub)[1], addr="203.0.113.10") == 204
@@ -204,9 +204,9 @@ def test_the_app_collects_files_named_by_sender(env):
     switch_on(c)
     upload(c, S)
     pub = S.inquiry_public(setting(A, "site_inquiry_key"))
-    put_inquiry(web, S.seal_inquiry(pub, GOOD), name="0123456789abcdef-" + "ab" * 16 + ".bin")
+    put_inquiry(web, S.seal_inquiry(pub, GOOD), name="0123456789abcdef-" + "ab" * 16 + ".las")
     assert A.app.config["studio_page_collect"]()["added"] == 1
-    assert not list((web / "inquiries").glob("*.bin"))
+    assert not list((web / "inquiries").glob("*.las"))
 
 def _declined_and_edited(A, c, S, web):
     switch_on(c)

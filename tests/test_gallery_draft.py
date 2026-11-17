@@ -1,7 +1,6 @@
 import json
 import os
 import re
-import shutil
 import socket
 import subprocess
 import sys
@@ -13,13 +12,16 @@ from datetime import date
 
 import pytest
 
+from helpers_tools import need_tool
+from helpers import hosted, host_bytes, host_has, host_write
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from helpers import fresh_modules, signed_in_client
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
-GID = "galDraft01"
+GID = "g-galDraft01AAAAAAAAAAAAA"
 VIEWER = os.path.join(ROOT, "plugins", "gallery_assets", "viewer.html")
 
 @pytest.fixture
@@ -60,12 +62,10 @@ def env(tmp_path, monkeypatch):
     con.commit(); con.close()
     return A, c, G, host, key
 
-def sealed(G, key, picks, aad, at="2026-11-14T15:00:00.000Z"):
+def sealed(G, key, picks, purpose, at="2026-11-14T15:00:00.000Z"):
 
-    import secrets as _s
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    iv = _s.token_bytes(12)
-    return b"LAK1" + iv + AESGCM(G.key_bytes(key)).encrypt(iv, json.dumps({"v": 1, "at": at, "picks": picks}).encode(), aad)
+    from helpers import seal_picks
+    return seal_picks(key, GID, picks, purpose, at)
 
 DRAFT = [{"i": 0, "name": "a.jpg", "r": True, "note": "soften", "m": False, "v": False},
          {"i": 1, "name": "b.jpg", "r": False, "note": "", "m": True, "v": False}]
@@ -80,7 +80,7 @@ def test_draft_shows_still_picking_until_matching_picks_arrive(env):
     A, c, G, host, key = env
     c.post("/gallery/sync", environ_base=E)
     assert status(A) == (None, None)
-    (host / GID / "draft.bin").write_bytes(sealed(G, key, DRAFT, G.DRAFT_AAD))
+    (host / GID / "draft.las").write_bytes(sealed(G, key, DRAFT, "draft"))
     c.post("/gallery/sync", environ_base=E)
     n, at = status(A)
     assert n == 2 and at
@@ -89,11 +89,11 @@ def test_draft_shows_still_picking_until_matching_picks_arrive(env):
     assert "Client is still picking (2 photos marked)" in page
     assert "Client is still picking (2 photos marked)" in c.get("/", environ_base=E).get_data(as_text=True)
 
-    (host / GID / "picks.bin").write_bytes(sealed(G, key, DRAFT[:1], G.PICKS_AAD))
+    (host / GID / "picks.las").write_bytes(sealed(G, key, DRAFT[:1], "picks"))
     c.post("/gallery/sync", environ_base=E)
     assert status(A)[0] == 2
 
-    (host / GID / "picks.bin").write_bytes(sealed(G, key, DRAFT, G.PICKS_AAD))
+    (host / GID / "picks.las").write_bytes(sealed(G, key, DRAFT, "picks"))
     c.post("/gallery/sync", environ_base=E)
     assert status(A) == (None, None)
     assert "Client is still picking" not in c.get("/c/1?s=1", environ_base=E).get_data(as_text=True)
@@ -107,7 +107,7 @@ def test_still_picking_shows_once_at_any_stage(env, stage):
     con = A.connect()
     con.execute("UPDATE sessions SET stage=? WHERE id=1", (stage,))
     con.commit(); con.close()
-    (host / GID / "draft.bin").write_bytes(sealed(G, key, DRAFT[:1], G.DRAFT_AAD))
+    (host / GID / "draft.las").write_bytes(sealed(G, key, DRAFT[:1], "draft"))
     c.post("/gallery/sync", environ_base=E)
     for url in ("/c/1?s=1", "/"):
         page = c.get(url, environ_base=E).get_data(as_text=True)
@@ -117,30 +117,28 @@ def test_still_picking_shows_once_at_any_stage(env, stage):
 def test_a_draft_is_not_taken_for_picks_or_the_other_way(env):
     A, c, G, host, key = env
 
-    (host / GID / "picks.bin").write_bytes(sealed(G, key, DRAFT, G.DRAFT_AAD))
-    (host / GID / "draft.bin").write_bytes(sealed(G, G.new_key(), DRAFT, G.DRAFT_AAD))
+    (host / GID / "picks.las").write_bytes(sealed(G, key, DRAFT, "draft"))
+    (host / GID / "draft.las").write_bytes(sealed(G, G.new_key(), DRAFT, "draft"))
     c.post("/gallery/sync", environ_base=E)
     assert status(A) == (None, None)
     con = A.connect()
     assert con.execute("SELECT retouch_picks FROM sessions WHERE id=1").fetchone()[0] in ("", None)
     con.close()
     with pytest.raises(Exception):
-        G.open_draft(sealed(G, key, DRAFT, G.PICKS_AAD), key)
+        G.open_draft(sealed(G, key, DRAFT, "picks"), key, GID)
 
 def test_draft_goes_with_the_gallery(env):
     A, c, G, host, key = env
-    (host / GID / "draft.bin").write_bytes(sealed(G, key, DRAFT, G.DRAFT_AAD))
+    (host / GID / "draft.las").write_bytes(sealed(G, key, DRAFT, "draft"))
     G.delete_gallery(GID)
     assert not (host / GID).exists()
 
 @pytest.fixture
 def php_host(env):
-    php = shutil.which("php")
-    if not php:
-        pytest.skip("php is not installed")
+    php = need_tool("php")
     A, c, G, host, key = env
     d = host / GID
-    (d / "limits.txt").write_text("days=30\nunopened_until=2099-01-01\nproof=1\n")
+    host_write(d, "limits.txt", "days=30\nunopened_until=2099-01-01\nproof=1\n")
     s = socket.socket(); s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]; s.close()
     p = subprocess.Popen([php, "-d", "display_errors=1", "-d", "error_reporting=E_ALL", "-S", f"127.0.0.1:{port}", "-t", str(d)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     base = f"http://127.0.0.1:{port}/"
@@ -157,9 +155,11 @@ def php_host(env):
 
 def call(url, body=None, proof=None):
 
+    from helpers import form_d
     h = {"X-Proof": proof} if proof else {}
     if body is not None:
-        h["Content-Type"] = "application/octet-stream"
+        h["Content-Type"] = "application/x-www-form-urlencoded"
+        body = form_d(body)
     req = urllib.request.Request(url, data=body, method="POST" if body is not None else "GET", headers=h)
     try:
         with urllib.request.urlopen(req, timeout=10) as r:
@@ -169,34 +169,37 @@ def call(url, body=None, proof=None):
 
 def test_picks_php_writes_a_draft_only_with_the_proof_and_the_envelope(php_host):
     base, d, proof, G, key = php_host
-    good = sealed(G, key, DRAFT, G.DRAFT_AAD)
+    good = sealed(G, key, DRAFT, "draft")
     assert call(base + "picks.php?kind=draft", good)[0] == 403
     assert call(base + "picks.php?kind=draft", good, "0" * 32)[0] == 403
-    assert call(base + "picks.php?kind=draft", b"LAK1" + b"hello there, plain words " * 4, proof)[0] == 400
+    from helpers import las_text
+    assert call(base + "picks.php?kind=draft", las_text(GID, "draft"), proof)[0] == 400
+    assert call(base + "picks.php?kind=draft", sealed(G, key, DRAFT, "picks"), proof)[0] == 400
+    assert call(base + "picks.php?kind=draft", sealed(G, key, DRAFT, "draft")[:41], proof)[0] == 400
     assert call(base + "picks.php?kind=other", good, proof)[0] == 400
-    assert not (d / "draft.bin").exists()
+    assert not host_has(d, "draft.las")
     assert call(base + "picks.php?kind=draft", good, proof)[0] == 204
-    assert (d / "draft.bin").read_bytes() == good and not (d / "picks.bin").exists()
+    assert host_bytes(d, "draft.las") == good and not host_has(d, "picks.las")
 
-    assert call(base + "gate.php?f=draft.bin")[0] == 403
-    assert call(base + "gate.php?f=draft.bin", proof=proof) == (200, good)
+    assert call(base + "gate.php?f=draft.las")[0] == 403
+    assert call(base + "gate.php?f=draft.las", proof=proof) == (200, good)
 
-    sent = sealed(G, key, DRAFT, G.PICKS_AAD)
+    sent = sealed(G, key, DRAFT, "picks")
     assert call(base + "picks.php", sent, proof)[0] == 204
-    assert (d / "picks.bin").read_bytes() == sent and (d / "draft.bin").read_bytes() == good
+    assert host_bytes(d, "picks.las") == sent and host_bytes(d, "draft.las") == good
 
     try:
-        assert call(base + "picks.php?kind=draft", b"LAK1" + os.urandom(262144), proof)[0] == 413
+        assert call(base + "picks.php?kind=draft", b"LAS1" + os.urandom(262144), proof)[0] == 413
     except (ConnectionError, http.client.RemoteDisconnected, urllib.error.URLError):
         pass
-    assert (d / "draft.bin").read_bytes() == good
+    assert host_bytes(d, "draft.las") == good
 
 def test_picks_and_the_visit_stamp_arrive_as_forms(php_host):
 
     import base64
     from urllib.parse import urlencode
     base, d, proof, G, key = php_host
-    good = sealed(G, key, DRAFT, G.DRAFT_AAD)
+    good = sealed(G, key, DRAFT, "draft")
 
     def form(url, fields, proof_=None):
         req = urllib.request.Request(url, data=urlencode(fields).encode(), method="POST",
@@ -209,24 +212,32 @@ def test_picks_and_the_visit_stamp_arrive_as_forms(php_host):
             return e.code
     d64 = base64.urlsafe_b64encode(good).decode().rstrip("=")
     assert form(base + "picks.php?kind=draft", {"d": d64}) == 403
-    assert form(base + "picks.php?kind=draft", {"d": base64.urlsafe_b64encode(b"LAK1" + b"plain words here " * 6).decode()},
+    from helpers import las_text
+    assert form(base + "picks.php?kind=draft", {"d": base64.urlsafe_b64encode(las_text(GID, "draft")).decode().rstrip("=")},
                 proof) == 400
-    assert form(base + "picks.php?kind=draft", {"d": "not base64!"}, proof) == 413
+    assert form(base + "picks.php?kind=draft", {"d": "not base64!"}, proof) == 400
+    assert form(base + "picks.php?kind=draft", {"d": d64 + "=="}, proof) == 400
+    req = urllib.request.Request(base + "picks.php?kind=draft", data=good, method="POST",
+                                 headers={"Content-Type": "application/octet-stream", "X-Proof": proof})
+    try:
+        urllib.request.urlopen(req, timeout=10)
+        raw_status = 204
+    except urllib.error.HTTPError as e:
+        raw_status = e.code
+    assert raw_status == 400 and not host_has(d, "draft.las")
     assert form(base + "picks.php?kind=draft", {"d": d64}, proof) == 204
-    assert (d / "draft.bin").read_bytes() == good
-    (d / "seen.txt").unlink(missing_ok=True)
-    assert form(base + "seen.php", {"p": "0" * 32}) == 204 and not (d / "seen.txt").exists()
-    assert form(base + "seen.php", {"p": proof}) == 204 and (d / "seen.txt").exists()
+    assert host_bytes(d, "draft.las") == good
+    hosted(d, "seen.txt").unlink(missing_ok=True)
+    assert form(base + "seen.php", {"p": "0" * 32}) == 204 and not host_has(d, "seen.txt")
+    assert form(base + "seen.php", {"p": proof}) == 204 and host_has(d, "seen.txt")
 
 def test_gate_says_missing_draft_plainly(php_host):
     base, d, proof, G, key = php_host
-    assert call(base + "gate.php?f=draft.bin", proof=proof)[0] == 404
+    assert call(base + "gate.php?f=draft.las", proof=proof)[0] == 404
 
 @pytest.fixture(scope="module")
 def runs():
-    node = shutil.which("node")
-    if not node:
-        pytest.skip("node is not installed")
+    node = need_tool("node")
     out = subprocess.run([node, os.path.join(ROOT, "tests", "viewer_draft_harness.js"), VIEWER], capture_output=True,
                          text=True, timeout=120, check=True).stdout
     return json.loads(out)

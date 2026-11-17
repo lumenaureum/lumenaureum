@@ -8,6 +8,7 @@
     {{ tab(url_for('setup_step', step='shoot'), 'What you shoot', ep_ == 'setup_step' and va_.get('step') == 'shoot') }}
     {{ tab(url_for('setup_step', step='money'), 'Payments and terms', ep_ == 'setup_step' and va_.get('step') == 'money') }}
     {{ tab(url_for('settings_view', tab='fees'), 'Prices', ep_ == 'settings_view' and tab_ == 'fees') }}
+    {% if 'prints_settings' in SETTINGS_ENDPOINTS and plugin_on('prints') %}{{ tab(url_for('prints_settings'), 'Print prices', ep_ == 'prints_settings', 'prints from download galleries') }}{% endif %}
     {{ tab(url_for('setup_step', step='tax'), 'Sales tax', ep_ == 'setup_step' and va_.get('step') == 'tax') }}</div>
   <div class="sg"><b>Documents</b>
     {{ tab(url_for('settings_view', tab='documents'), 'Review status', ep_ == 'settings_view' and tab_ == 'documents', 'what still prints SAMPLE') }}
@@ -28,6 +29,7 @@
     {{ tab(url_for('security'), 'Security', ep_ in ('security', 'master_key_check')) }}
     {{ tab(url_for('setup_step', step='network'), 'Who can reach this', ep_ == 'setup_step' and va_.get('step') == 'network') }}
     {{ tab(url_for('settings_view', tab='file'), 'Settings file', ep_ == 'settings_view' and tab_ == 'file', 'export, import') }}
+    {{ tab(url_for('plugins_settings'), 'Plugins', ep_ == 'plugins_settings', 'turn parts on or off, like print orders') }}
     {{ tab(url_for('settings_view', tab='system'), 'System', ep_ == 'settings_view' and tab_ == 'system', 'plugins, reset') }}
     {{ tab(url_for('about'), 'About', ep_ == 'about') }}</div>
 </nav>

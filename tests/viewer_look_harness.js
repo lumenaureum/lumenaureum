@@ -1,5 +1,6 @@
 "use strict";
 const fs = require("fs");
+const LSO = require("./ls_open.js");
 const html = fs.readFileSync(process.argv[2], "utf8");
 const cases = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
 const src = html.match(/<script>([\s\S]*?)<\/script>/)[1];
@@ -39,7 +40,7 @@ async function run({ manifest, store = {} }) {
     fonts: { add() {} },
   };
   const mem = new Map(Object.entries(store));
-  const localStorage = { getItem: k => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)) };
+  const localStorage = { getItem: k => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)), removeItem: k => mem.delete(k) };
   const fetch = async () => ({ ok: true, status: 200, headers: { get: () => "application/octet-stream" }, arrayBuffer: async () => blob.buffer.slice(0) });
   class FontFace { constructor(fam, url) { this.fam = fam; this.url = url; FontFace.made.push([fam, url]); } load() { return Promise.resolve(this); } }
   FontFace.made = [];
@@ -52,7 +53,7 @@ async function run({ manifest, store = {} }) {
   const body = decodeURIComponent((els.send ? els.send.href : "").split("&body=")[1] || "");
   return { vars: root.style.props, classes: [...root.classList.list], fonts: FontFace.made,
            lines: body.split("\n").filter(l => l && !l.startsWith("Fingerprint")),
-           saved: Object.fromEntries(mem), title: els.title ? els.title.textContent : "",
+           saved: await LSO.open(mem, key, LSO.names("/g/x/", "galX")), stored: Object.fromEntries(mem), title: els.title ? els.title.textContent : "",
            rights: els.rights && !els.rights.hidden ? els.rights.textContent : "" };
 }
 

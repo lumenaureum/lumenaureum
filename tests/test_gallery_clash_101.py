@@ -1,11 +1,12 @@
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 
 import pytest
+
+from helpers_tools import need_tool
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -30,9 +31,7 @@ def test_viewer_script_hash_is_computed_from_the_file():
 
 @pytest.fixture(scope="module")
 def viewer_runs():
-    node = shutil.which("node")
-    if not node:
-        pytest.skip("node is not installed")
+    node = need_tool("node")
     out = subprocess.run([node, os.path.join(ROOT, "tests", "viewer_harness.js"), VIEWER], capture_output=True,
                          text=True, timeout=120, check=True).stdout
     return json.loads(out)

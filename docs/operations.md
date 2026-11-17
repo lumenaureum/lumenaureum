@@ -12,8 +12,46 @@ can't be made, nothing is changed and sign-in says why. The change runs all at o
 Today shows a one-time note with the new version number, and says when a backup was made before it. An older
 version never opens a database a newer one has changed: it says so and points here.
 
+### Galleries online get each new version's page
+Whenever a new version changes the gallery page or the host's small scripts, the app gives every gallery online the
+new ones, one at a time, by itself (the photos are never touched). Before replacing anything on a host it checks the
+host runs PHP 7.4 or later, keeps the gallery's current page and scripts as a way back, and puts the scripts up before
+the page. It then proves the new scripts are the ones running, reads the new page back at its public address, and,
+for the first gallery on each host, opens it the way a client would. If that check fails, that gallery goes back to its
+previous page and scripts, the others on that host wait, and Today says why. A gallery whose client is picking right
+now waits until they have been quiet for 6 hours (at most a week); its session says so, with **Do it now**. If a client
+says "Send" failed in that moment, ask them to reload the page: their choices are still on their device.
+
+### The 1.4 update
+1.4 gives every gallery a new address and seals the client's picks and drafts, and studio page inquiries, in one new
+format. Each gallery's folder on your web host gets a new name, its link ID (`g-` and 23 random characters). At the
+first sign-in after the update, a job (shown in the jobs panel, and on Today until it is done: "Updating galleries: 12
+of 15 done") moves everything over:
+- A gallery not online (never uploaded, taken down, gone dark) just takes its new ID here. A gone-dark gallery's page
+  stays at its old address and comes down with it.
+- Each gallery online gets a new folder beside its old one, on the same host: this version's page and scripts, its
+  photos and Download all pieces as they are online, its days, first-visit stamp, codeword and one-time download. The
+  app then opens it the way a client would; only if that works does the gallery take its new address. Its old folder
+  then stops taking anything, gets a small page that sends the browser on to the new folder (the key in the client's
+  link comes along), and what the client sent there (picks, a draft, a print order) is read and carried over before
+  anything else in that folder is removed. Nothing a client sent is lost or announced twice. The link your client
+  already has keeps working for the gallery's whole life; the old folder comes down when the gallery does.
+- Copies a move left on an earlier web host are read the same way, once; anything newer there comes over.
+- The studio page's form gets its 1.4 script; inquiries that were waiting are collected first, as usual.
+
+A gallery whose host can't be reached stays exactly as it was (the 1.3 page keeps working at its address, and the
+client's picks wait on the host, read at every check) and is tried again at each check; Today names the host. If that
+host is gone for good, say so on Move galleries. A host running PHP below 7.4 keeps its galleries on 1.3's page and
+scripts at their old addresses; Today names it and its version. A gallery whose client is picking right now waits until
+they are done (its session says so, with Do it now). Going back to 1.3.1 after 1.4 has run is refused, as for every
+update; restore the upgrade backup instead.
+
 Images are signed. To check one before running it:
 `cosign verify ghcr.io/lumenaureum/lumenaureum:<version> --certificate-identity-regexp 'https://github.com/lumenaureum/lumenaureum/' --certificate-oidc-issuer https://token.actions.githubusercontent.com`
+
+From 1.4.0, each image also carries two signed records made by the release build: how it was built (this repository, its release workflow and the exact commit) and a list of everything inside it (an SPDX software bill of materials). To check both with the GitHub command-line tool:
+`gh attestation verify oci://ghcr.io/lumenaureum/lumenaureum:<version> --owner lumenaureum`
+(add `--predicate-type https://spdx.dev/Document/v2.3` to check the list of contents).
 
 ## Rolling back
 1. Set the previous tag in `compose.yaml` and run `docker compose up -d`.
@@ -70,7 +108,7 @@ Backups from before settings were included have only `crm.db` and `keyring.json`
 1. **Find the backup's name.** `docker compose exec lumenaureum python -m vault.cli backups`. It asks for your password
    (or the master key), because the list is kept in the encrypted database. Each line shows the date, the kind, the
    size, and last the name, for example `db/3f9c1e7a5b2d4c6e8a0b1c2d3e4f5a6b.age`. Pick a line whose kind is `db`,
-   `manual`, or `upgrade` (`faces` lines hold only face photos) and copy the whole name, `db/` included. Settings,
+   `manual`, or `upgrade` (`faces` lines hold only face photos: the optional picture on a client's page) and copy the whole name, `db/` included. Settings,
    Backups (the Vault page) shows the same dates and sizes, so you can match them up there. On a new
    machine there is no database to ask yet: start the app once (`docker compose up -d`) and use the newest file in
    the `db` folder of your vault.
@@ -149,6 +187,8 @@ These are examples only, not legal advice. Adapt them for your business and the 
 > I keep your original photo files for one year after delivery, then delete them; you can ask me to delete them
 > sooner, in writing. I keep your client record for [N] years for my business records, then delete it. You can ask me
 > what I hold about you, ask me to correct it, or ask me to delete it. I do not sell or share your information.
+> [If provided to me, I may keep a photo of you on your client record so I recognize you when we meet. It stays
+> encrypted on my own equipment and is never shown anywhere else.]
 > Contact: [your details].
 
 ## Who can do what

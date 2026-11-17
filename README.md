@@ -26,11 +26,22 @@ laptop or a stolen drive exposes no client records.
   Tips are their own kind of payment, never taxed (a tip given back lowers the tips only). A balance you waive is
   written off. Finances exports a year for your accountant: payments, expenses, mileage, sales tax, write-offs and monthly totals as CSV files.
 - **Proofing and delivery galleries**, encrypted in the browser; the key is in the link printed on the letter you mail. Galleries
-  come down after the window you set: by themselves on a web host that runs PHP with Apache rewrite rules, otherwise
-  the next time the app is unlocked. A session type can ask for a codeword the client chooses, so the link alone
+  come down after the window you set: by themselves on a web host that runs PHP and keeps gallery files behind the
+  gallery's gate (Setup checks), otherwise the next time the app is unlocked. A session type can ask for a codeword the client chooses, so the link alone
   doesn't open the gallery. What a link can and can't protect is in [docs/security.md](docs/security.md).
 - **Photos**: drop RAWs and edited JPEGs onto the session page; they are encrypted as they arrive, galleries are
   built from them, and after delivery they are sealed into the vault and deleted when their time is up.
+
+## What it connects to, and what it leaves to you
+Lumen Aureum keeps your studio on your own machine, but it isn't cut off:
+- **Backups** go to a folder, another machine over SFTP, or S3-compatible storage.
+- **Galleries and your studio page** upload to your web host over SFTP, to an S3-compatible bucket, or to a folder a
+  web server serves. Clients' picks, inquiries and print orders come back from there.
+- **Plugins** add features you can switch on or off. Print orders are the first.
+
+Some things it leaves to you on purpose, for now: it records payments rather than taking cards, and it doesn't send
+email or sync with an outside calendar or accounting program. Documents are PDFs you send from your own email, and
+Finances exports a year as CSV files for your accountant.
 
 ## What you shoot
 Setup asks what you shoot: portraits, seniors, families, weddings, sports, newborns, engagements, headshots, pets,
@@ -66,7 +77,11 @@ Lumen Aureum runs in a container on an always-on machine: a NAS or home server w
 64-bit processor (Intel or AMD, or 64-bit ARM such as a Raspberry Pi 4 or 5 or an ARM NAS) and about 1 GB of memory.
 See [docs/where-it-runs.md](docs/where-it-runs.md).
 
-Coming soon: a TrueNAS app you install from the TrueNAS app catalog.
+**On a TrueNAS:** install it from the app catalog (Apps, Discover, Lumen Aureum). Make three datasets for it first,
+so your data stays if the app is ever removed: see
+[The easiest way: the TrueNAS app catalog](docs/where-it-runs.md#the-easiest-way-the-truenas-app-catalog).
+
+**Anywhere else, with Docker Compose:**
 
 ```
 mkdir lumenaureum && cd lumenaureum

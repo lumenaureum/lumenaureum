@@ -11,6 +11,7 @@ from datetime import date, datetime, timedelta, timezone
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from helpers import host_bytes, host_has, host_text, host_write
 from test_gallery_lifecycle_e2e import (DESK, E, PHONE, _expect, _expire, _open, _php, browser, site)
 
 def _keys(site, sid):
@@ -19,12 +20,9 @@ def _keys(site, sid):
 
 def _sealed(site, sid, name, at, photo="img2.jpg"):
 
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    from plugins import gallery as G
-    iv = secrets.token_bytes(12)
-    body = json.dumps({"v": 1, "at": at, "picks": [{"i": 1, "name": photo, "k": "n:" + photo, "r": True}]}).encode()
-    aad = G.PICKS_AAD if name == "picks.bin" else G.DRAFT_AAD
-    return b"LAK1" + iv + AESGCM(G.key_bytes(_keys(site, sid))).encrypt(iv, body, aad)
+    from helpers import seal_picks
+    return seal_picks(_keys(site, sid), site.gid(sid), [{"i": 1, "name": photo, "k": "n:" + photo, "r": True}],
+                      "picks" if name == "picks.las" else "draft", at)
 
 def _proof(site, sid):
     from plugins import gallery as G
@@ -32,7 +30,7 @@ def _proof(site, sid):
 
 def _post_picks(url, blob, proof):
     import base64
-    d = base64.urlsafe_b64encode(blob).decode()
+    d = base64.urlsafe_b64encode(blob).decode().rstrip("=")
     req = urllib.request.Request(url, data=("d=" + d).encode(), method="POST",
                                  headers={"X-Proof": proof, "Content-Type": "application/x-www-form-urlencoded"})
     try:
@@ -56,20 +54,20 @@ def _now(minus_min=0):
 def test_picks_sent_to_the_old_host_after_the_last_check_come_with_the_move(site):
     sid = site.gallery("Lane")
     gid = site.gid(sid)
-    (site.host / gid / "picks.bin").write_bytes(_sealed(site, sid, "picks.bin", _now(60), "img1.jpg"))
+    (site.host / gid / "picks.las").write_bytes(_sealed(site, sid, "picks.las", _now(60), "img1.jpg"))
     site.sync()
-    newer = _sealed(site, sid, "picks.bin", _now(1), "img3.jpg")
-    (site.host / gid / "picks.bin").write_bytes(newer)
+    newer = _sealed(site, sid, "picks.las", _now(1), "img3.jpg")
+    (site.host / gid / "picks.las").write_bytes(newer)
     new = _new_host(site)
     php2, base2 = _php(new)
     try:
         site.settings(gallery_base_url=base2)
         today = site.c.get("/", environ_base=E).get_data(as_text=True)
-        assert "1 gallery is still on your earlier gallery host. Put it on the new one" in today
+        assert "1 gallery is still on your earlier web host. Put it on the new one" in today
         site.c.post("/galleries/move", environ_base=E)
-        assert (new / gid / "picks.bin").read_bytes() == newer
-        assert "moved=1\n" in (site.host / gid / "limits.txt").read_text()
-        assert "moved=" not in (new / gid / "limits.txt").read_text()
+        assert host_bytes(new / gid, "picks.las") == newer
+        assert "moved=1\n" in host_text(site.host / gid, "limits.txt")
+        assert "moved=" not in host_text(new / gid, "limits.txt")
         site.sync()
         assert site.q("SELECT retouch_picks FROM sessions WHERE id=?", (sid,))[0][0] == "img3.jpg"
 
@@ -77,7 +75,7 @@ def test_picks_sent_to_the_old_host_after_the_last_check_come_with_the_move(site
         assert code == 409 and json.loads(body) == {"moved": 1, "contact": "hello@studio.example"}
         assert _post_picks(base2 + gid + "/picks.php", newer, _proof(site, sid))[0] == 204
         words = [r[0] for r in site.q("SELECT action FROM audit ORDER BY rowid")]
-        assert "Started putting galleries on the new gallery host" in words and "Galleries move go" not in words
+        assert "Started putting galleries on the new web host" in words and "Galleries move go" not in words
     finally:
         php2.terminate()
         php2.wait()
@@ -89,18 +87,18 @@ def test_after_the_move_the_old_host_is_still_read_until_its_copies_come_down(si
     site.c.post("/galleries/move", environ_base=E)
     assert site.q("SELECT moved_from FROM galleries WHERE session_id=?", (sid,))[0][0]
 
-    late = _sealed(site, sid, "picks.bin", _now(0), "img2.jpg")
-    (site.host / gid / "picks.bin").write_bytes(late)
+    late = _sealed(site, sid, "picks.las", _now(0), "img2.jpg")
+    (site.host / gid / "picks.las").write_bytes(late)
     site.sync()
-    assert (new / gid / "picks.bin").read_bytes() == late
+    assert host_bytes(new / gid, "picks.las") == late
     assert site.q("SELECT retouch_picks FROM sessions WHERE id=?", (sid,))[0][0] == "img2.jpg"
-    older = _sealed(site, sid, "picks.bin", _now(600), "img1.jpg")
-    (site.host / gid / "picks.bin").write_bytes(older)
+    older = _sealed(site, sid, "picks.las", _now(600), "img1.jpg")
+    (site.host / gid / "picks.las").write_bytes(older)
     site.sync()
-    assert (new / gid / "picks.bin").read_bytes() == late
+    assert host_bytes(new / gid, "picks.las") == late
     site.c.post("/galleries/clear-old", environ_base=E)
     words = [r[0] for r in site.q("SELECT action FROM audit ORDER BY rowid")]
-    assert "Started taking the old copies down from the earlier gallery host" in words
+    assert "Started taking the old copies down from the earlier web host" in words
     site.sync()
     assert site.q("SELECT moved_from FROM galleries WHERE session_id=?", (sid,))[0][0] is None
 
@@ -153,15 +151,15 @@ def test_the_gate_uses_the_exact_instant_and_still_reads_the_date_alone(site):
         except urllib.error.HTTPError as e:
             return e.code, dict(e.headers)
     soon = int(time.time()) + 3600
-    (d / "limits.txt").write_text(f"days=30\nunopened_until=2099-01-01\nproof=1\nwarn_days=7\nuntil={today}\nuntil_ts={soon}\n")
+    host_write(d, "limits.txt", f"days=30\nunopened_until=2099-01-01\nproof=1\nwarn_days=7\nuntil={today}\nuntil_ts={soon}\n")
     code, h = head()
     assert code == 200 and h["X-Sunset"] == datetime.fromtimestamp(soon, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    (d / "limits.txt").write_text(f"days=30\nunopened_until=2099-01-01\nproof=1\nuntil=2099-01-01\nuntil_ts={int(time.time()) - 5}\n")
+    host_write(d, "limits.txt", f"days=30\nunopened_until=2099-01-01\nproof=1\nuntil=2099-01-01\nuntil_ts={int(time.time()) - 5}\n")
     assert head()[0] == 410
-    (d / "limits.txt").write_text(f"days=30\nunopened_until=2099-01-01\nproof=1\nwarn_days=7\nuntil={today}\n")
+    host_write(d, "limits.txt", f"days=30\nunopened_until=2099-01-01\nproof=1\nwarn_days=7\nuntil={today}\n")
     code, h = head()
     assert code == 200 and h["X-Sunset"] == today + "T23:59:59Z"
-    (d / "limits.txt").write_text(f"days=30\nunopened_until={today}\nunopened_ts={int(time.time()) - 5}\nproof=1\n")
+    host_write(d, "limits.txt", f"days=30\nunopened_until={today}\nunopened_ts={int(time.time()) - 5}\nproof=1\n")
     assert head()[0] == 410
 
 def test_put_back_online_writes_the_instant_the_app_takes_it_down(site):
@@ -171,7 +169,7 @@ def test_put_back_online_writes_the_instant_the_app_takes_it_down(site):
     assert site.wait_up(sid) == "up"
     from plugins import gallery as G
     until = (date.today() + timedelta(days=7)).isoformat()
-    lim = (site.host / site.gid(sid) / "limits.txt").read_text()
+    lim = host_text(site.host / site.gid(sid), "limits.txt")
     assert f"until={until}\nuntil_ts={G.day_close(until)}\n" in lim and "unopened_ts=" in lim
 
 def test_no_extension_is_offered_for_a_gallery_put_back_online(site):
@@ -185,7 +183,7 @@ def test_no_extension_is_offered_for_a_gallery_put_back_online(site):
         nice = site.A.nice((date.today() + timedelta(days=14)).isoformat())
     assert f"Deletes {nice}" in page and 'name="extension_used" value="1" ' not in page and "back online" in page
     site.c.post(f"/session/{sid}/quick", data={"act": "extend"}, environ_base=E)
-    assert f"until={(date.today() + timedelta(days=14)).isoformat()}\n" in (site.host / site.gid(sid) / "limits.txt").read_text()
+    assert f"until={(date.today() + timedelta(days=14)).isoformat()}\n" in host_text(site.host / site.gid(sid), "limits.txt")
 
 def test_a_removed_gallery_shows_no_planned_deletion(site):
     sid = site.gallery("Lane")
@@ -219,14 +217,14 @@ def test_esc_closes_the_notice_and_the_download_carries_on(site, browser):
 def test_put_back_online_brings_the_clients_picks_back(site, browser):
     sid = site.gallery("Lane")
     gid = site.gid(sid)
-    picks = _sealed(site, sid, "picks.bin", _now(5), "img1.jpg")
-    (site.host / gid / "picks.bin").write_bytes(picks)
+    picks = _sealed(site, sid, "picks.las", _now(5), "img1.jpg")
+    (site.host / gid / "picks.las").write_bytes(picks)
     site.sync()
     _expire(site, sid)
-    assert not (site.host / gid / "picks.bin").exists()
+    assert not host_has(site.host / gid, "picks.las")
     site.c.post(f"/session/{sid}/gallery/back-online", data={"days": "7"}, environ_base=E)
     assert site.wait_up(sid) == "up"
-    assert (site.host / gid / "picks.bin").read_bytes() == picks
+    assert host_bytes(site.host / gid, "picks.las") == picks
 
 def test_a_second_device_after_the_one_download_reads_that_it_was_made(site, browser):
     sid = site.gallery("Pine Street Realty", stype="realestate", title="418 Pine Street")
@@ -240,7 +238,7 @@ def test_a_second_device_after_the_one_download_reads_that_it_was_made(site, bro
     with page.expect_download():
         page.locator("#dlallb").click()
     ctx.close()
-    assert (site.host / gid / "done.txt").exists()
+    assert host_has(site.host / gid, "done.txt")
     ctx, page = _open(browser, site.link(sid), PHONE)
     page.wait_for_selector("#sunset:not([hidden])")
     assert page.locator("#sstitle").inner_text() == "This gallery's one download has been made."
@@ -287,5 +285,5 @@ def test_a_proofing_visit_asks_for_no_saved_picks_that_are_not_there(site, brows
     page.reload()
     page.wait_for_selector(".cell .tag i")
     page.wait_for_timeout(500)
-    assert missing == [] and (site.host / site.gid(sid) / "draft.bin").exists()
+    assert missing == [] and host_has(site.host / site.gid(sid), "draft.las")
     ctx.close()

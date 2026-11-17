@@ -1,8 +1,12 @@
 "use strict";
 const fs = require("fs");
+const LSO = require("./ls_open.js");
 const html = fs.readFileSync(process.argv[2], "utf8");
 const src = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 const subtle = globalThis.crypto.subtle;
+const LAS = new Function(fs.readFileSync(require("path").join(__dirname, "..", "plugins", "sealed_assets", "sealed.js"), "utf8")
+  + "\nreturn LAS;")();
+const GID = "g-galXYZAAAAAAAAAAAAAAAAA";
 
 function el(tag, id) {
   const cls = new Set();
@@ -26,18 +30,11 @@ async function seal(keyBytes, data, name) {
   const ct = new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv, additionalData: new TextEncoder().encode("lumen-aureum-gallery:" + name) }, k, data));
   const out = new Uint8Array(12 + ct.length); out.set(iv); out.set(ct, 12); return out;
 }
-async function unseal(keyBytes, body, name) {
-  const k = await subtle.importKey("raw", keyBytes, "AES-GCM", false, ["decrypt"]);
-  if (body instanceof URLSearchParams) {        // 1.2: the envelope goes as a form field, d=<base64url>
-    const d = body.get("d").replace(/-/g, "+").replace(/_/g, "/");
-    body = Uint8Array.from(atob(d + "===".slice((d.length + 3) % 4)), c => c.charCodeAt(0));
-  }
-  const b = new Uint8Array(body);
-  if (String.fromCharCode(...b.subarray(0, 4)) !== "LAK1") return { bad: "magic" };
+async function unseal(keyBytes, body, purpose) {
+  if (!(body instanceof URLSearchParams)) return { bad: "not a form" };     // the envelope goes as a form field, d=
   try {
-    return JSON.parse(new TextDecoder().decode(await subtle.decrypt({ name: "AES-GCM", iv: b.subarray(4, 16),
-      additionalData: new TextEncoder().encode("lumen-aureum-gallery:" + name) }, k, b.subarray(16))));
-  } catch (e) { return { bad: "decrypt" }; }
+    return JSON.parse(new TextDecoder().decode(await LAS.openLink(purpose, GID, keyBytes, LAS.decode(body.get("d")))));
+  } catch (e) { return { bad: e.code || "open" }; }
 }
 const items = names => names.map((n, i) => ({ f: i.toString(16).padStart(24, "0") + ".bin", t: (i + 100).toString(16).padStart(24, "0") + ".bin", w: 10, h: 10, tw: 5, th: 5, n }));
 
@@ -47,25 +44,24 @@ async function run({ draft, store = {}, pick = false }) {
   const man = await seal(key, new TextEncoder().encode(JSON.stringify(manifest)), "manifest.bin");
   let hostDraft = null;
   if (draft && typeof draft === "object") {
-    const s = await seal(key, new TextEncoder().encode(JSON.stringify({ v: 1, ...draft })), "draft.bin");
-    hostDraft = new Uint8Array(4 + s.length); hostDraft.set(new TextEncoder().encode("LAK1")); hostDraft.set(s, 4);
+    hostDraft = await LAS.sealLink("draft", GID, key, new TextEncoder().encode(JSON.stringify({ v: 1, ...draft })));
   } else if (draft === "garbage") hostDraft = globalThis.crypto.getRandomValues(new Uint8Array(80));
   const els = {};
   const root = el("html");
-  root.dataset.gid = "galX"; root.dataset.gate = "1";
+  root.dataset.gid = GID; root.dataset.gate = "1";
   const document = {
     documentElement: root, getElementById: id => (els[id] = els[id] || el("div", id)), createElement: t => el(t),
     querySelector: () => el("x"), querySelectorAll: () => [], addEventListener() {}, body: el("body"), activeElement: null,
     fonts: { add() {} }, visibilityState: "visible",
   };
   const mem = new Map(Object.entries(store));
-  const localStorage = { getItem: k => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)) };
+  const localStorage = { getItem: k => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)), removeItem: k => mem.delete(k) };
   const posts = [];
   const bin = b => ({ ok: true, status: 200, headers: { get: () => "application/octet-stream" }, arrayBuffer: async () => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) });
   const status = s => ({ ok: s >= 200 && s < 300, status: s, headers: { get: () => "" }, arrayBuffer: async () => new ArrayBuffer(0) });
   const fetch = async (u, o = {}) => {
     if (u === "gate.php?f=manifest.bin") return bin(man);
-    if (u === "gate.php?f=draft.bin") {
+    if (u === "gate.php?f=draft.las") {
       if (!o.headers || !/^[0-9a-f]{32}$/.test(o.headers["X-Proof"] || "")) return status(403);
       if (draft === "network") throw new TypeError("Failed to fetch");
       return hostDraft ? bin(hostDraft) : status(404);
@@ -88,8 +84,9 @@ async function run({ draft, store = {}, pick = false }) {
   }
   await new Promise(r => setTimeout(r, 2200));
   const drafts = [];
-  for (const p of posts) drafts.push({ u: p.u, proof: p.proof.length, payload: await unseal(key, p.body, p.u.includes("kind=draft") ? "draft.bin" : "picks.bin") });
-  return { kept: JSON.parse(mem.get("picks:/g/x/") || "null"), tray: els.trayn ? els.trayn.textContent : "", drafts };
+  for (const p of posts) drafts.push({ u: p.u, proof: p.proof.length, payload: await unseal(key, p.body, p.u.includes("kind=draft") ? "draft" : "picks") });
+  const saved = await LSO.open(mem, key, LSO.names("/g/x/", GID));
+  return { kept: JSON.parse(saved["picks:/g/x/"] || "null"), stored: Object.fromEntries(mem), tray: els.trayn ? els.trayn.textContent : "", drafts };
 }
 
 (async () => {

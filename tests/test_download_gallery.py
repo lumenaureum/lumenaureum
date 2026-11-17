@@ -13,6 +13,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from helpers import fresh_modules, signed_in_client
+from helpers import host_bytes, host_has, host_write
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
 SECRET = b"SECRET-GPS-48.8584N"
@@ -300,7 +301,7 @@ def test_first_open_of_a_download_gallery_is_files_delivered(env):
     c.post("/gallery/sync", environ_base=E)
     assert row(A, "SELECT sd_shipped FROM sessions WHERE id=?", (sid,))[0] is None
     opened_on = date.today() - timedelta(days=2)
-    (host / gid / "seen.txt").write_text(opened_on.isoformat() + "T12:00:00Z")
+    host_write(host / gid, "seen.txt", opened_on.isoformat() + "T12:00:00Z")
     c.post("/gallery/sync", environ_base=E)
     sd, fv = row(A, "SELECT sd_shipped, first_visit FROM sessions WHERE id=?", (sid,))
     assert sd and fv and abs((date.fromisoformat(sd) - opened_on).days) <= 1
@@ -326,8 +327,8 @@ def test_portrait_proofs_first_then_the_download_gallery_in_their_place(env):
     c.post(f"/session/{sid}/gallery/upload", environ_base=E)
     join("gal-up", sid)
     assert row(A, "SELECT upload_state FROM galleries WHERE session_id=?", (sid,))[0] == "up"
-    (host / gid / "seen.txt").write_text((date.today() - timedelta(days=5)).isoformat() + "T12:00:00Z")
-    (host / gid / "draft.bin").write_bytes(b"LAK1" + b"x" * 40)
+    host_write(host / gid, "seen.txt", (date.today() - timedelta(days=5)).isoformat() + "T12:00:00Z")
+    (host / gid / "draft.las").write_bytes(b"LAS1" + b"x" * 40)
     c.post("/gallery/sync", environ_base=E)
     assert row(A, "SELECT first_visit FROM sessions WHERE id=?", (sid,))[0]
     link_before = c.get(f"/c/1?s={sid}", environ_base=E).get_data(as_text=True)
@@ -337,8 +338,8 @@ def test_portrait_proofs_first_then_the_download_gallery_in_their_place(env):
     assert "Build download gallery" in c.get(f"/c/1?s={sid}", environ_base=E).get_data(as_text=True)
     build(c, sid, src)
     assert G.is_download(gid) and not G.online_download(gid)
-    old_manifest = (host / gid / "manifest.bin").read_bytes()
     k = row(A, "SELECT key, ekey FROM galleries WHERE session_id=?", (sid,))
+    old_manifest = host_bytes(host / gid, "manifest.bin", k[1] or k[0])
     assert "dl" not in json.loads(opened(G, k[1] or k[0], old_manifest, "manifest.bin"))
     page = c.get(f"/c/1?s={sid}", environ_base=E).get_data(as_text=True)
     assert "still due. Your terms release the download gallery on payment." in page
@@ -346,7 +347,7 @@ def test_portrait_proofs_first_then_the_download_gallery_in_their_place(env):
     c.post(f"/session/{sid}/gallery/upload", environ_base=E)
     join("gal-up", sid)
     state, err = row(A, "SELECT upload_state, upload_error FROM galleries WHERE session_id=?", (sid,))
-    assert state == "up" and "released on payment" in err and (host / gid / "seen.txt").exists()
+    assert state == "up" and "released on payment" in err and host_has(host / gid, "seen.txt")
     con = A.connect()
     con.execute("INSERT INTO payments (session_id, amount, received, kind) VALUES (?, 300, ?, 'payment')",
                 (sid, date.today().isoformat()))
@@ -357,8 +358,8 @@ def test_portrait_proofs_first_then_the_download_gallery_in_their_place(env):
     join("gal-up", sid)
     assert row(A, "SELECT upload_state FROM galleries WHERE session_id=?", (sid,))[0] == "up"
     assert G.online_download(gid)
-    assert not (host / gid / "seen.txt").exists() and not (host / gid / "draft.bin").exists()
-    m = json.loads(opened(G, k[1] or k[0], (host / gid / "manifest.bin").read_bytes(), "manifest.bin"))
+    assert not host_has(host / gid, "seen.txt") and not host_has(host / gid, "draft.las")
+    m = json.loads(opened(G, k[1] or k[0], host_bytes(host / gid, "manifest.bin", k[1] or k[0]), "manifest.bin"))
     assert m["dl"] == 1
     assert c.get(f"/c/1?s={sid}", environ_base=E).get_data(as_text=True).count(f"{gid}/#k=") >= 1
     assert f"{gid}/#k=" in link_before
@@ -370,7 +371,7 @@ def test_portrait_proofs_first_then_the_download_gallery_in_their_place(env):
     con = A.connect()
     con.execute("INSERT INTO tasks (id, session_id, stage, title, sort) VALUES (9001, ?, 'delivered', 'Send retouched photos', 1)", (sid,))
     con.commit(); con.close()
-    (host / gid / "seen.txt").write_text(date.today().isoformat() + "T08:00:00Z")
+    host_write(host / gid, "seen.txt", date.today().isoformat() + "T08:00:00Z")
     c.post("/gallery/sync", environ_base=E)
     assert row(A, "SELECT sd_shipped FROM sessions WHERE id=?", (sid,))[0]
     assert row(A, "SELECT done FROM tasks WHERE id=9001")[0]

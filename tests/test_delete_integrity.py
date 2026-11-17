@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from helpers import fresh_modules, signed_in_client
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
-GID = "abcdef123456"
+GID = "g-abcdef123456AAAAAAAAAAA"
 
 @pytest.fixture
 def install(tmp_path, monkeypatch):

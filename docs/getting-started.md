@@ -7,14 +7,15 @@ they are marked **Decide carefully**.
 
 ## What you need
 
-- **A computer you own that is always on and runs Docker**, such as a NAS or home server. You use Lumen Aureum from
-  a web browser on any computer in your home or studio. See [where-it-runs.md](where-it-runs.md) for installing it.
+- **A computer you own that is always on:** a TrueNAS (install it from the app catalog), or any NAS or home server
+  that runs Docker. You use Lumen Aureum from a web browser on any computer in your home or studio. See
+  [where-it-runs.md](where-it-runs.md) for installing it.
 - **A phone with an authenticator app**, for two-factor sign-in.
 - **Somewhere for backups**: a second disk, a share on another machine, or an SFTP or S3 account. Setup checks it.
 - **For online galleries (optional)**: a web hosting plan. Lumen Aureum uploads only encrypted gallery files to it,
   over SFTP, to an S3-compatible bucket, or to a folder a web server on your network serves. Galleries stay online
-  when your computer is off. Use an address only for galleries, such as `photos.example.com`, not a folder on your
-  main website (see [Security](security.md)). A folder on this machine must also be mounted into the container: see
+  when your computer is off. Give galleries a folder of their own on your web host, such as `/g/`; an address of
+  their own (`photos.example.com`, say) works too, but isn't needed (see [Security](security.md)). A folder on this machine must also be mounted into the container: see
   [Folders outside the container](where-it-runs.md#folders-outside-the-container). A host that runs PHP also lets galleries expire on time and send the client's picks back
   by themselves. With a folder on your own network, the web server must be able to write in it (run it as the app's
   user, or give it the folder's group with write permission); otherwise first visits and picks aren't recorded and
@@ -32,7 +33,8 @@ back to it in Settings.
 ### 1. Owner account and master key
 The **setup code** comes first. It shows you are the person who installed the app, and it stops working once setup is
 done. It is in the file `SETUP-CODE.txt` in your `data` folder, which only the app's user can read: use
-`sudo cat data/SETUP-CODE.txt`, or find it in the container log with `docker compose logs lumenaureum`. Then your name,
+`sudo cat data/SETUP-CODE.txt`, or find it in the container log with `docker compose logs lumenaureum` (from the
+TrueNAS app catalog: Apps, lumenaureum, Logs, or `SETUP-CODE.txt` in the data dataset). Then your name,
 email, password, and two-factor (an authenticator app), then your **master key**, shown once: save it in a password
 manager and print it. You also get recovery codes to print.
 The first person to finish this step owns the install; the setup page closes to everyone else.
@@ -52,7 +54,7 @@ The key is checked in memory and forgotten; only the date of the check is kept. 
 ### 2. Your business
 - Your name, the business name that appears on contracts and invoices, and a brand name if it is different.
 - Business email, phone and mailing address, printed on your documents. Your website, if you add one in Settings,
-  is linked from your client galleries. On a gallery host that runs PHP, the client's
+  is linked from your client galleries. On a web host that runs PHP, the client's
   picks come back to the app by themselves. On any other host, the client's picks arrive by email at this address.
 - **Time zone**, and your home ZIP code (or latitude and longitude), used for sunset and golden hour times.
 
@@ -63,9 +65,16 @@ The key is checked in memory and forgotten; only the date of the check is kept. 
   vault: sealed backups and photo archives go here, encrypted. Use a different disk from the app's data.
 - **Second copy, in another place** (optional): it receives a copy once a day.
 - **Daily backup time.**
-- Each location is tested (write, read, delete) before it is accepted.
-- A folder on this machine works only if it is mounted into the container in `compose.yaml`. The vault folder is
-  already there (`/vault`). For a second disk, add a line: see
+- **Test and continue** tests each location (write, read, delete) before it is accepted; nothing is saved unless it
+  works. It is the one test: there is no separate test button.
+- An SFTP server the app hasn't connected to before isn't tested yet: the step shows the server's key fingerprint
+  and a **Trust this server** box. Check the fingerprint matches the one your host gives, tick the box, and press Test
+  and continue again. From then on only that key is accepted. If the server's key ever changes, the step says so and
+  shows the new fingerprint the same way; trust it only if your host confirms the change.
+- If a test fails, everything you typed stays in the form. A secret key you typed is kept by the app for the next try
+  (the field says "kept from your last try"); it is never shown back.
+- A folder on this machine works only if it is mounted into the container. The vault folder is already there
+  (`/vault`), and the step fills it in for you when it is mounted. For a second disk, add a line: see
   [Folders outside the container](where-it-runs.md#folders-outside-the-container).
 
 Photos are not set up here: you upload them on each session page (below), and the app stores them encrypted in its
@@ -88,7 +97,8 @@ travel and mileage. These answers apply to every session type they cover, weddin
 Changes apply to new quotes; a quote already sent keeps the terms it was sent with.
 
 ### 6. Sales tax (optional)
-None, or one rate for every client. Tax is counted when payments are received.
+None, or one rate for every client. Tax is counted when payments are received. With print orders on (Settings,
+Plugins): whether to charge tax on prints and on shipping (your decision with your accountant).
 
 ### 7. Documents (optional)
 Who owns the photos once paid, for each session type: **Client** (the copyright transfers once the balance is paid)
@@ -108,8 +118,10 @@ The agreement, release and other documents that come with Lumen Aureum are examp
 Signed documents keep the wording they were signed with.
 
 ### 8. Online galleries (optional)
-The gallery host (web hosting over SFTP, an S3 bucket with a public web address, or a folder a web server on this
-machine serves) and its public web address. A test upload confirms it works. Then how long a gallery stays up after
+The web host (web hosting over SFTP, an S3 bucket with a public web address, or a folder a web server on this
+machine serves) and its public web address. **Test and continue** uploads a small test file to confirm it works;
+for an SFTP host the app hasn't connected to before, it first shows the server's key fingerprint and a **Trust this
+server** box, as on the Backups step. Then how long a gallery stays up after
 the client first opens it, and when a gallery nobody opens comes down. One extension can be given from the session
 page. In its last week (or the last quarter of a shorter window), a gallery on a host that runs PHP opens with a notice, on every
 visit, that it is about to sunset: the date it closes and your email (and Download all, for a download gallery). Once a gallery comes down, its link says the gallery has gone dark
@@ -121,10 +133,25 @@ host as in the app. The email is the
 one in Settings, so set it before galleries go online. A folder on this machine must be mounted into the container first: see
 [Folders outside the container](where-it-runs.md#folders-outside-the-container).
 
+After saving, the step shows **What this host can do**: whether galleries there close on their last day by
+themselves, whether clients' picks come back by themselves, whether the studio page's inquiry form can work there, and
+whether clients can order prints from download galleries (see [Print orders](print-orders.md)). They all need a host that runs PHP 7.4 or later; a plain bucket gives none of them
+(see [Choosing a web host](where-it-runs.md#choosing-a-web-host)). It also says whether galleries with a codeword
+can go there (not on a host that hands out gallery files without asking for the key), and whether a proxy or CDN sits
+in front of it. **Check again** asks the host once more; the app also asks once a day, and Today says if anything
+changed for the worse.
+
+If the web address has a certificate that isn't from a public authority (a self-signed one, as a web server on your
+home network often has), the step then shows **The web host's certificate**: its SHA-256 fingerprint, who it was
+issued to and by, and when it ends. Check the fingerprint matches the one your web server shows, then press **Trust
+this certificate**. The app then accepts only that certificate's key at that address (a renewal with the same key
+keeps working); the certificate must name the address you typed. If the key ever changes, the app stops and
+asks you here again (see [The web host's certificate](where-it-runs.md#the-web-hosts-certificate)).
+
 **Decide carefully: the gallery address.** Each QR letter you mail contains it. If the address changes, links in
 letters already sent stop working. Use a domain you control and intend to keep.
 
-**If your gallery host goes away** (it closes, or you move): set up the new host in this step, then open **Move
+**If your web host goes away** (it closes, or you move): set up the new host in this step, then open **Move
 galleries** from Today. One button puts every gallery there, built from the copies on this computer, with its days,
 the client's picks and the same link. Point your gallery address at the new host and every link keeps working. If the
 address has to change, the same page lists the clients who need the new link. When the earlier host can still be
@@ -140,15 +167,23 @@ later check, or with Take the old copies down. If an earlier host is gone for go
 host is gone for good: forget it** there: History names any gallery that may still be online on it. Changing your
 time zone in Settings moves the closing instant of every gallery online at the next check.
 
+**Print orders** are off until you turn them on in **Settings, Plugins**. Then clients can order prints from their
+download gallery on a host that runs PHP: in Settings, Print prices, check the sample price list and your shipping,
+press Save, then turn prints on. Turning print orders off later keeps everything recorded (and print money stays in
+Finances). See [Print orders](print-orders.md).
+
 ### 9. Who can reach this (optional)
 By default, devices on your local network, over HTTPS, using an address or a name listed in `CRM_HOSTNAMES`. Every
-device on your network can reach the sign-in page. To narrow it, add `CRM_ALLOW_ONLY` with the addresses that may
-connect, as a line under `environment:` in `compose.yaml`. Keep it on your local network; do not expose it to the
-internet.
+device on your network can reach the sign-in page. To narrow it, set `CRM_ALLOW_ONLY` to the addresses that may
+connect, then restart the app: with `compose.yaml`, as a line under `environment:`; on a TrueNAS app, in the app's
+Edit screen, under Additional Environment Variables. The step shows the address your request came from; devices
+behind a router or VPN can share one address, so it may be the router's rather than your device's. Keep it on your
+local network; do not expose it to the internet.
 
 ## After a restart
 Lumen Aureum starts **locked**: your data stays encrypted until you sign in. Backups, gallery checks and scheduled
-deletions wait until then. On a web host that runs PHP with Apache rewrite rules, galleries still expire on time;
+deletions wait until then. On a web host that runs PHP and keeps gallery files behind the gallery's gate, galleries
+still expire on time;
 on other hosts they come down once you sign in. If the machine restarts on its
 own, for example after a system update, sign in once to unlock. To have it unlock itself instead, see "Unattended
 unlock" in [Security](security.md).
@@ -179,8 +214,11 @@ people sign has one agreement per signer, each with its own **Mark signed**. On 
 document still waiting; when several people still have to sign, it opens the session's paperwork instead, so you tick
 off only the ones who signed. A signed document keeps the wording it was signed with.
 
-**Email it** on a document opens a draft in your mail app, addressed to the client. It doesn't attach anything:
-download the PDF and attach it before you send.
+**Email it** on a document opens a draft in your mail app, addressed to the client. The draft gives the document's
+key facts, so it reads on its own: an invoice's number, total, what it is for, what is paid so far and how to pay; a
+receipt's number and total; a quote's total and the day it is good through. A mail link can't attach a file, and the
+draft never says anything is attached: if you like, download the PDF and attach it for their records. **Text it**
+sends the same first line.
 
 ## Galleries: proofing or delivery
 Client galleries are for session types with a Gallery step: portraits, seniors, families, weddings, sports,
@@ -212,7 +250,7 @@ A session delivered by Download link builds its download gallery straight away w
 retouched photos onto **Retouched finals** under Photos, then press **Build download gallery**. If the client never
 sends picks, press **Deliver without picks**. The download gallery takes the proofs' place at the same link when you
 press **Upload**, after payment. It holds every photo
-twice (one by one and in the zip), so it needs about twice as much space on the gallery host as the photos
+twice (one by one and in the zip), so it needs about twice as much space on the web host as the photos
 themselves.
 
 Rebuilding a gallery that is already online updates it at the same link. The old photo files are removed from the
@@ -220,7 +258,7 @@ host as soon as the new build is up. A page the client already has open notices 
 reload.
 
 ## Your studio page (optional)
-A small public website for your studio, posted to your gallery host in the folder above your galleries: a few photos
+A small public website for your studio, posted to your web host in the folder above your galleries: a few photos
 you pick, an About page, how to reach you, and an inquiry form. Off until you switch it on in Settings, Studio page.
 See [studio-page.md](studio-page.md).
 

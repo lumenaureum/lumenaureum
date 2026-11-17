@@ -14,7 +14,7 @@ from helpers import fresh_modules
 from test_viewer_browser import Host
 
 sync_api = pytest.importorskip("playwright.sync_api")
-GID = "galBrowse01"
+GID = "g-galBrowse01AAAAAAAAAAAA"
 BASE = f"https://gallery.test/g/{GID}/"
 
 def _photos(folder, n):

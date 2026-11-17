@@ -1,6 +1,5 @@
 import os
 import re
-import shutil
 import socket
 import subprocess
 import sys
@@ -10,6 +9,9 @@ import urllib.request
 from datetime import date, datetime, timedelta, timezone
 
 import pytest
+
+from helpers_tools import need_tool
+from helpers import host_bytes, host_has, host_text, host_write, remember_key
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -28,9 +30,7 @@ def _free_port():
     return p
 
 def _php(folder):
-    php = shutil.which("php")
-    if not php:
-        pytest.skip("php is not installed")
+    php = need_tool("php")
     port = _free_port()
     p = subprocess.Popen([php, "-d", "display_errors=1", "-d", "error_reporting=E_ALL", "-S", f"127.0.0.1:{port}", "-t", str(folder)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     for _ in range(100):
@@ -116,7 +116,10 @@ class Site:
             time.sleep(0.05)
 
     def gid(self, sid):
-        return self.q("SELECT gallery_id FROM sessions WHERE id=?", (sid,))[0][0]
+        r = self.q("SELECT s.gallery_id, g.key, g.ekey FROM sessions s LEFT JOIN galleries g ON g.session_id=s.id "
+                   "WHERE s.id=?", (sid,))[0]
+        remember_key(r[0], r[2] or r[1])
+        return r[0]
 
     def link(self, sid):
         with self.A.app.app_context():
@@ -128,7 +131,7 @@ class Site:
     def seen(self, sid, days_ago):
 
         at = datetime.now(timezone.utc) - timedelta(days=days_ago)
-        (self.host / self.gid(sid) / "seen.txt").write_text(at.strftime("%Y-%m-%dT%H:%M:%SZ"))
+        host_write(self.host / self.gid(sid), "seen.txt", at.strftime("%Y-%m-%dT%H:%M:%SZ"))
         day = (date.today() - timedelta(days=days_ago)).isoformat()
         self.q("UPDATE sessions SET first_visit=?, sd_shipped=CASE WHEN type='realestate' THEN ? ELSE sd_shipped END WHERE id=?",
                (day, day, sid))
@@ -290,10 +293,10 @@ def test_one_download_closes_an_hour_after_download_all(site, browser):
     assert page.locator("#sstitle").inner_text() == "This gallery is open for one download."
     with page.expect_download():
         page.locator("#dlallb").click()
-    left = int((site.host / gid / "done.txt").read_text()) - time.time()
+    left = int(host_text(site.host / gid, "done.txt")) - time.time()
     assert 3500 < left <= 3600
     ctx.close()
-    (site.host / gid / "done.txt").write_text(str(int(time.time()) - 1))
+    host_write(site.host / gid, "done.txt", str(int(time.time()) - 1))
     assert _get(site.base + gid + "/gate.php?f=manifest.bin")[0] == 410
     site.sync()
     assert site.q("SELECT upload_state FROM galleries WHERE session_id=?", (sid,))[0][0] == "removed"
@@ -311,7 +314,7 @@ def test_a_rebuild_keeps_the_one_download_closing(site, browser):
     with page.expect_download():
         page.locator("#dlallb").click()
     ctx.close()
-    assert (site.host / gid / "done.txt").exists()
+    assert host_has(site.host / gid, "done.txt")
 
 def test_put_back_on_an_extended_session_shows_the_real_last_day(site):
     sid = site.gallery("Lane")
@@ -321,7 +324,7 @@ def test_put_back_on_an_extended_session_shows_the_real_last_day(site):
     site.c.post(f"/session/{sid}/gallery/back-online", data={"days": "7"}, environ_base=E)
     assert site.wait_up(sid) == "up"
     until = (date.today() + timedelta(days=7)).isoformat()
-    assert f"until={until}\n" in (site.host / site.gid(sid) / "limits.txt").read_text()
+    assert f"until={until}\n" in host_text(site.host / site.gid(sid), "limits.txt")
     page = site.c.get(f"/c/1?s={sid}", environ_base=E).get_data(as_text=True)
     with site.A.app.app_context():
         nice = site.A.nice(until)
@@ -362,9 +365,9 @@ def test_move_to_a_new_address_carries_picks_and_lists_the_client(site, browser)
     php2, base2 = _php(new)
     try:
         site.settings(gallery_base_url=base2)
-        assert "1 gallery is still on your earlier gallery host" in site.c.get("/", environ_base=E).get_data(as_text=True)
+        assert "1 gallery is still on your earlier web host" in site.c.get("/", environ_base=E).get_data(as_text=True)
         site.c.post("/galleries/move", environ_base=E)
-        assert (new / gid / "picks.bin").read_bytes() == (site.host / gid / "picks.bin").read_bytes()
+        assert host_bytes(new / gid, "picks.las") == host_bytes(site.host / gid, "picks.las")
         page_ = site.c.get("/galleries/move", environ_base=E).get_data(as_text=True)
         assert "Lane" in page_ and base2 + gid + "/#k=" in page_
         ctx, page = _open(browser, site.link(sid), PHONE)
@@ -373,7 +376,7 @@ def test_move_to_a_new_address_carries_picks_and_lists_the_client(site, browser)
         assert page.locator(".cell").nth(0).get_attribute("aria-label") == "Photo 1, Suggested for portfolio"
         ctx.close()
         site.c.post("/galleries/clear-old", environ_base=E)
-        assert not (site.host / gid).exists() and (new / gid / "manifest.bin").exists()
+        assert not (site.host / gid).exists() and host_has(new / gid, "manifest.bin")
     finally:
         php2.terminate()
         php2.wait()
@@ -386,7 +389,7 @@ def test_take_the_old_copies_down_never_touches_the_host_in_use(site):
     site.VW.write_config(cfg)
     assert "Take the old copies down" not in site.c.get("/galleries/move", environ_base=E).get_data(as_text=True)
     site.c.post("/galleries/clear-old", environ_base=E)
-    assert (site.host / gid / "manifest.bin").exists()
+    assert host_has(site.host / gid, "manifest.bin")
 
 def test_the_same_folder_with_a_trailing_slash_is_not_a_new_host(site):
     sid = site.gallery("Lane")
@@ -397,4 +400,4 @@ def test_the_same_folder_with_a_trailing_slash_is_not_a_new_host(site):
     site.VW.write_config(cfg)
     site.c.post("/galleries/move", environ_base=E)
     site.c.post("/galleries/clear-old", environ_base=E)
-    assert (site.host / gid / "manifest.bin").exists()
+    assert host_has(site.host / gid, "manifest.bin")

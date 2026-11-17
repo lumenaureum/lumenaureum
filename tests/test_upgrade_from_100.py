@@ -1,4 +1,5 @@
 import hmac
+import re
 import json
 import shutil
 from pathlib import Path
@@ -75,7 +76,7 @@ def test_the_fixture_is_a_1_0_0_database():
 
 def test_upgrade_takes_a_backup_and_reaches_the_current_version(upgraded):
     A, c, taken, _ = upgraded
-    assert A.SCHEMA_VERSION == 7
+    assert A.SCHEMA_VERSION == 8
     assert taken == ["upgrade"]
     assert _q(A, "PRAGMA user_version")[0][0] == A.SCHEMA_VERSION
 
@@ -177,3 +178,75 @@ def test_version_2_code_refuses_the_upgraded_database(upgraded, monkeypatch):
     monkeypatch.setattr(A, "SCHEMA_VERSION", 2)
     with pytest.raises(A.SchemaTooNew):
         A.init_db()
+
+def _services(html):
+
+    part = html.split("<h2>Services</h2>", 1)[1].split("<h2>Payments</h2>", 1)[0]
+    rows = re.findall(r'<tr><td>(.*?)</td><td class="n">(.*?)</td></tr>', part, re.S)
+    total = [a for lab, a in rows if lab == "<b>Total</b>"]
+    return [(lab, a) for lab, a in rows if lab != "<b>Total</b>"], total[0].replace("<b>", "").replace("</b>", "")
+
+def _balance_due(html):
+    part = html.split("<h2>Payments</h2>", 1)[1]
+    return re.search(r'<b>Balance due</b></td><td class="n"><b>(.*?)</b>', part).group(1)
+
+def test_the_1_0_0_invoice_reads_as_1_0_0_issued_it(upgraded):
+
+    A, c, taken, _ = upgraded
+    lane = EXPECTED["sessions_by_name"]["lane"]
+    want = EXPECTED["sessions"][str(lane)]
+    number = [n for n, s in EXPECTED["invoice_numbers"].items() if s == lane][0]
+    assert not _q(A, "SELECT 1 FROM bill_snapshots WHERE number=?", (number,))
+
+    refund = [v for v in EXPECTED["refund_lines"].values() if v["session"] == lane]
+    assert [v["amount"] for v in refund] == [-40.0]
+    stored = [(r[0], r[1]) for r in _q(A, """SELECT label, amount FROM lines WHERE session_id=?
+                                              ORDER BY kind IN ('discount','tax'), kind='tax', id""", (lane,))]
+    as_1_0_0 = stored + [("Refund", v["amount"]) for v in refund]
+    assert round(sum(a for _, a in as_1_0_0), 2) == want["quoted"] == 310.0
+    money = A.money
+    page = c.get(f"/session/{lane}/invoice", environ_base=E)
+    assert page.status_code == 200
+    data, html = _q(A, "SELECT data, html FROM bill_snapshots WHERE number=?", (number,))[0]
+    data = json.loads(data)
+    assert [(l["label"], l["amount"]) for l in data["lines"]] == as_1_0_0
+    assert data["total"] == want["quoted"] and round(data["paid"], 2) == want["paid"] and data["balance"] == want["due"]
+    assert [p["amount"] for p in data["payments"]] == [100.0, 250.0, -40.0]
+
+    assert round(data["total"] - sum(p["amount"] for p in data["payments"]), 2) == data["balance"] == 0
+    again = c.get(f"/session/{lane}/invoice", environ_base=E).get_data(as_text=True)
+    for doc in (html, page.get_data(as_text=True), again):
+        lines, total = _services(doc)
+        assert lines == [(lab, money(a)) for lab, a in as_1_0_0] and total == money(310) == "$310"
+        assert _balance_due(doc) == "$0"
+    assert number in html and ("Refund", "-$40") in _services(html)[0]
+
+    t = _in_request(A, lambda: A.totals(lane))
+    assert round(t["quoted"], 2) == want["quoted_without_refund_lines"] and round(t["due"], 2) == want["due"]
+    assert _finances(A, c, EXPECTED["year"]) == EXPECTED["finances"]
+    assert round(_in_request(A, lambda: A._charge_target(lane))[0], 2) == want["quoted_without_refund_lines"]
+    _in_request(A, lambda: A.sync_charges(lane))
+    assert round(sum(r[0] for r in _q(A, "SELECT amount FROM charges WHERE session_id=?", (lane,))), 2) == \
+        want["quoted_without_refund_lines"]
+    assert {str(r[0]): r[1] for r in _q(A, "SELECT session_id, number FROM invoice_sent")} == EXPECTED["invoice_sent"]
+
+    assert c.post(f"/session/{lane}/invoice/issue", environ_base=E).status_code in (200, 302, 303)
+    assert _q(A, "SELECT number FROM doc_numbers WHERE session_id=? AND kind='INV'", (lane,))[0][0] == number
+    assert _q(A, "SELECT html FROM bill_snapshots WHERE number=?", (number,))[0][0] == html
+
+def test_an_invoice_issued_after_the_upgrade_has_no_1_0_0_refund_line(upgraded):
+
+    A, c, taken, _ = upgraded
+    lane = EXPECTED["sessions_by_name"]["lane"]
+    con = A.connect()
+    try:
+        con.execute("DELETE FROM invoice_sent WHERE session_id=?", (lane,))
+        con.execute("DELETE FROM doc_numbers WHERE session_id=?", (lane,))
+        con.commit()
+    finally:
+        con.close()
+    assert c.post(f"/session/{lane}/invoice/issue", environ_base=E).status_code in (200, 302, 303)
+    number = _q(A, "SELECT number FROM doc_numbers WHERE session_id=? AND kind='INV'", (lane,))[0][0]
+    data = json.loads(_q(A, "SELECT data FROM bill_snapshots WHERE number=?", (number,))[0][0])
+    assert "Refund" not in [l["label"] for l in data["lines"]] and "refund_lines_1_0_0" not in data
+    assert data["total"] == EXPECTED["sessions"][str(lane)]["quoted_without_refund_lines"]

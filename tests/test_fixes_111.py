@@ -182,7 +182,7 @@ def test_an_imported_logo_is_checked_and_re_encoded():
     im = Image.open(io.BytesIO(base64.b64decode(s["logo_png"])))
     assert im.format == "PNG" and im.size == (600, 240)
 
-GID = "galFix111"
+GID = "g-galFix111AAAAAAAAAAAAAA"
 
 @pytest.fixture
 def gal(tmp_path, monkeypatch):
@@ -216,16 +216,18 @@ def gal(tmp_path, monkeypatch):
     con.commit(); con.close()
     return A, c, G, host, key, sid, src
 
-def _sealed(G, key, picks, aad, at):
-    import secrets as _s
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    iv = _s.token_bytes(12)
-    return b"LAK1" + iv + AESGCM(G.key_bytes(key)).encrypt(iv, json.dumps({"v": 1, "at": at, "picks": picks}).encode(), aad)
+def _put(host, key, plain, data):
+    from helpers import host_write
+    host_write(host / GID, plain, data, key)
+
+def _sealed(G, key, picks, purpose, at):
+    from helpers import seal_picks
+    return seal_picks(key, GID, picks, purpose, at)
 
 @pytest.mark.parametrize("at", ["0001-01-01T00:00:00+14:00", "9999-12-31T23:59:59-14:00"])
 def test_a_bad_draft_date_never_stops_expiry(gal, at):
     A, c, G, host, key, sid, src = gal
-    (host / GID / "draft.bin").write_bytes(_sealed(G, key, [{"i": 0, "name": "p0.jpg", "r": True}], G.DRAFT_AAD, at))
+    _put(host, key, "draft.las", _sealed(G, key, [{"i": 0, "name": "p0.jpg", "r": True}], "draft", at))
     old = (date.today() - timedelta(days=A.C.GALLERY_DAYS + 2)).isoformat()
     con = A.connect()
     con.execute("UPDATE sessions SET first_visit=? WHERE id=?", (old, sid))
@@ -238,8 +240,8 @@ def test_a_draft_listing_picks_in_another_order_is_not_still_picking(gal):
     A, c, G, host, key, sid, src = gal
     a = {"i": 0, "name": "p0.jpg", "r": True, "note": "soften"}
     b = {"i": 1, "name": "p1.jpg", "m": True}
-    (host / GID / "picks.bin").write_bytes(_sealed(G, key, [a, b], G.PICKS_AAD, "2026-11-01T10:00:00Z"))
-    (host / GID / "draft.bin").write_bytes(_sealed(G, key, [b, a], G.DRAFT_AAD, "2026-11-01T10:00:01Z"))
+    _put(host, key, "picks.las", _sealed(G, key, [a, b], "picks", "2026-11-01T10:00:00Z"))
+    _put(host, key, "draft.las", _sealed(G, key, [b, a], "draft", "2026-11-01T10:00:01Z"))
     c.post("/gallery/sync", environ_base=E)
     assert _q(A, "SELECT draft_n FROM galleries WHERE session_id=?", (sid,))[0][0] is None
 
@@ -249,7 +251,9 @@ def _rebuild(A, G, key, src, sid):
 def test_an_update_removes_the_old_files_once_the_new_page_is_up(gal, monkeypatch):
 
     A, c, G, host, key, sid, src = gal
-    old = {p.name for p in (host / GID).iterdir() if re.fullmatch(r"[0-9a-f]{24}\.bin", p.name)}
+    from helpers import hosted
+    sealed_names = {hosted(host / GID, n, key).name for n in ("manifest.bin", "offer.bin")}
+    old = {p.name for p in (host / GID).iterdir() if re.fullmatch(r"[0-9a-f]{24}\.bin", p.name)} - sealed_names
 
     def upload_and_wait():
         c.post(f"/session/{sid}/gallery/upload", environ_base=E)
@@ -261,11 +265,13 @@ def test_an_update_removes_the_old_files_once_the_new_page_is_up(gal, monkeypatc
     _rebuild(A, G, key, src, sid)
     upload_and_wait()
     have = {p.name for p in (host / GID).iterdir()}
-    assert not (old & have) and (host / GID / "manifest.bin").exists()
+    assert not (old & have) and hosted(host / GID, "manifest.bin", key).exists()
     assert not _q(A, "SELECT prune_due FROM galleries WHERE session_id=?", (sid,))[0][0]
     assert _q(A, "SELECT COUNT(*) FROM audit WHERE action LIKE 'Gallery updated on the web%earlier files removed%'")[0][0] == 1
 
-    old = {p.name for p in (host / GID).iterdir() if re.fullmatch(r"[0-9a-f]{24}\.bin", p.name)}
+    from helpers import hosted
+    sealed_names = {hosted(host / GID, n, key).name for n in ("manifest.bin", "offer.bin")}
+    old = {p.name for p in (host / GID).iterdir() if re.fullmatch(r"[0-9a-f]{24}\.bin", p.name)} - sealed_names
     glb = A.app.view_functions["upload_gallery_req"].__globals__
     real = glb["prune_host"]
     monkeypatch.setitem(glb, "prune_host", lambda gid: (_ for _ in ()).throw(IOError("host busy")))

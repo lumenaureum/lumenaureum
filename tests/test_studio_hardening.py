@@ -9,7 +9,7 @@ import pytest
 
 from test_studio_page import E, env, jpeg_with_metadata, session_photo, setting, switch_on, wait
 from test_studio_inquiries import GOOD, put_inquiry
-from test_studio_site_release import WORK, _d, php_site, set_veto, upload
+from test_studio_site_release import FIXED_KEY, WORK, _d, php_site, set_veto, upload
 
 def test_a_vetoed_name_holds_back_its_edits_and_nothing_else():
     from plugins.studio_page import read_veto, vetoed
@@ -141,7 +141,7 @@ def test_a_flood_is_taken_a_check_at_a_time_and_today_says_check_for_spam(env):
     for i in range(30):
         put_inquiry(web, S.seal_inquiry(pub, dict(GOOD, name=f"Sender {i}")))
     assert collect() == dict(added=25, dropped=0, bad=0)
-    assert len(list((web / "inquiries").glob("*.bin"))) == 5
+    assert len(list((web / "inquiries").glob("*.las"))) == 5
     assert "more waiting for the next check" in setting(A, "site_inq_note")
     assert "Many website inquiries at once; check for spam" in c.get("/", environ_base=E).get_data(as_text=True)
     assert collect() == dict(added=5, dropped=0, bad=0)
@@ -169,7 +169,7 @@ def test_a_flood_past_50_a_day_still_reaches_the_review_list(env):
     for i in range(5):
         put_inquiry(web, S.seal_inquiry(pub, dict(GOOD, name=f"Later {i}")))
     assert A.app.config["studio_page_collect"]()["added"] == 5
-    assert not list((web / "inquiries").glob("*.bin"))
+    assert not list((web / "inquiries").glob("*.las"))
     today = c.get("/", environ_base=E).get_data(as_text=True)
     assert "65 website inquiries to review" in today and "Many website inquiries at once; check for spam" in today
 
@@ -232,7 +232,7 @@ def test_the_built_form_and_script_carry_this_installs_salt_and_work(env):
 def test_inquiry_php_wants_the_proof_of_work_and_keeps_a_resent_one_once(php_site):
     from plugins import studio_page as S
     site, post = php_site
-    _, pub = S.new_inquiry_key()
+    _, pub = FIXED_KEY
     blob = S.seal_inquiry(pub, GOOD)
     w = S.solve_work(blob, WORK)
     bad = next(f"{i:016x}" for i in range(1000) if not S.work_ok(blob, f"{i:016x}", WORK))
@@ -241,27 +241,28 @@ def test_inquiry_php_wants_the_proof_of_work_and_keeps_a_resent_one_once(php_sit
     assert post(b"d=" + d, addr="198.51.100.7") == 400
     assert post(b"w=" + w.encode() + b"&d=" + d, addr="198.51.100.7") == 204
     assert post(b"w=" + w.encode() + b"&d=" + d, addr="198.51.100.8") == 204
-    assert len(list((site / "inquiries").glob("*.bin"))) == 1
+    assert len(list((site / "inquiries").glob("*.las"))) == 1
 
 def test_inquiry_php_counts_ipv4_by_address_and_ipv6_by_64(php_site):
     from plugins import studio_page as S
     site, post = php_site
-    _, pub = S.new_inquiry_key()
+    _, pub = FIXED_KEY
     assert [post(_d(S, pub), addr=f"2001:db8:0:{n}::1") for n in range(3)] == [204] * 3
     assert [post(_d(S, pub), addr=f"198.51.100.{n}") for n in range(3)] == [204] * 3
     assert [post(_d(S, pub), addr="::ffff:198.51.100.9") for _ in range(6)].count(204) == 5
-    rate = (site / "inquiries" / ".rate").read_text()
+    rate = (site / "inquiries" / ".rate.php").read_text()
+    assert rate.startswith("<?php exit; ?>\n")
     assert "198.51" not in rate and "2001" not in rate
 
 def test_a_full_tracker_makes_room_instead_of_refusing_everyone(php_site):
     from plugins import studio_page as S
     site, post = php_site
-    _, pub = S.new_inquiry_key()
+    _, pub = FIXED_KEY
     now = int(time.time())
     seen = {f"a{i:016x}": [now - 3000 + i % 2000] for i in range(5000)}
-    (site / "inquiries" / ".rate").write_text(json.dumps(seen))
+    (site / "inquiries" / ".rate.php").write_text("<?php exit; ?>\n" + json.dumps(seen) + "\n")
     assert post(_d(S, pub), addr="203.0.113.5") == 204
-    kept = json.loads((site / "inquiries" / ".rate").read_text())
+    kept = json.loads((site / "inquiries" / ".rate.php").read_text().split("\n", 1)[1])
     assert 4000 <= len(kept) <= 4001 and f"a{0:016x}" not in kept and f"a{1999:016x}" in kept
 
 def _font():

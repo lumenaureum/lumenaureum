@@ -30,6 +30,15 @@
       <label class="mini">Date <input type="date" name="date" value="{{ today_iso }}" style="width:auto"></label><label class="mini grow">What <input name="label" maxlength="200" required style="width:100%"></label>
       <label class="mini">Amount <input type="number" step="0.01" name="amount" placeholder="$" style="width:90px"></label><label class="mini">Miles <input type="number" step="0.1" name="miles" style="width:70px"></label><button class="quiet">Add</button></form></div>
   {% if tax_due %}<div class="card"><h2>Sales tax to remit</h2><div class="stat">{{ money(tax_due) }}</div>{% if tax_adjusted|abs > 0.005 %}<div class="sub">{{ 'includes' if tax_adjusted > 0 else 'after' }} {{ money(tax_adjusted|abs) }} {{ 'added' if tax_adjusted > 0 else 'taken back' }} this year on money received earlier (a price changed after payment, a booking called off or reopened)</div>{% endif %}<div class="sub" style="font-size:12px">Figures follow your settings. Whether a service, a print or a kept deposit is taxable depends on where you work; check with your tax authority or accountant.</div></div>{% endif %}
+  {% if prints and prints.any %}<div class="card" id="prints"><h2>Print orders</h2><table>
+    <tr><td>Received for prints</td><td class="n">{{ money(prints.received / 100) }}</td></tr>
+    <tr><td>Print sales</td><td class="n">{{ money(prints.sales / 100) }}</td></tr>
+    <tr><td>Shipping charged</td><td class="n">{{ money(prints.shipping / 100) }}</td></tr>
+    <tr><td>Sales tax collected on print invoices</td><td class="n">{{ money(prints.tax / 100) }}</td></tr>
+    <tr><td>Print lab cost</td><td class="n">{{ money(-prints.cost / 100) }}</td></tr>
+    {% if prints.lab_tax %}<tr><td>The lab's sales tax</td><td class="n">{{ money(-prints.lab_tax / 100) }}</td></tr>{% endif %}
+    <tr><td><b>Profit on prints</b></td><td class="n"><b>{{ money(prints.profit / 100) }}</b></td></tr></table>
+    <div class="sub" style="font-size:12px">Kept apart from your sessions: not in received above. The sales tax collected on print invoices is yours to remit with the rest.</div></div>{% endif %}
   {% if refunds %}<div class="card"><h2>Refunds</h2><div class="stat">{{ money(-refunds) }}</div></div>{% endif %}
   {% if tips %}<div class="card"><h2>Tips</h2><div class="stat">{{ money(tips) }}</div><div class="sub">in received; not sales, so no sales tax</div></div>{% endif %}
   {% if written_off %}<div class="card"><h2>Written off</h2><div class="stat">{{ money(written_off) }}</div><div class="sub">balances waived, never received (not in received){% if written_off < 0 %}; a balance written off earlier was paid this year{% endif %}</div></div>{% endif %}

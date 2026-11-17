@@ -108,6 +108,17 @@ root.querySelectorAll('[data-show-if]').forEach(el => {
   if (!form) return;
   const sync = () => { const r = form.querySelector(`[name="${name}"]:checked`); el.hidden = !(r && r.value === val); };
   form.addEventListener('change', sync); sync(); });
+root.querySelectorAll('[data-after-refund]').forEach(box => {
+  const form = box.closest('form'); if (!form) return;
+  const paid = parseFloat(box.dataset.paid) || 0, amt = form.querySelector('input[name=amount]');
+  let byHand = false;
+  box.addEventListener('change', () => { byHand = true; });
+  const sync = () => {
+    const k = form.querySelector('[name=kind]:checked'); box.hidden = !(k && k.value === 'refund');
+    const a = amt ? parseFloat(amt.value) : NaN;
+    if (byHand || isNaN(a)) return;
+    const r = box.querySelector(`input[value="${paid - a > 0.005 ? 'release' : 'hold'}"]`); if (r) r.checked = true; };
+  form.addEventListener('change', sync); amt && amt.addEventListener('input', sync); sync(); });
 root.querySelectorAll('select[data-show-custom]').forEach(sel => {
   const box = sel.form && sel.form.querySelector('.qcustom'); if (!box) return;
   const sync = () => { const on = sel.value === 'custom'; box.hidden = !on;
@@ -181,10 +192,10 @@ document.addEventListener('click', e => {
 document.addEventListener('submit', e => {
   const f = e.target, bal = f.dataset && f.dataset.balance; if (bal === undefined || e.defaultPrevented) return;
   const kind = (f.querySelector('[name=kind]:checked') || f.querySelector('[name=kind]') || {}).value;
-  const amt = parseFloat((f.querySelector('[name=amount]') || {}).value || '0');
+  const amt = parseFloat(((f.querySelector('[name=amount]') || {}).value || '0').replace(/[$,\s]/g, ''));
   if (kind === 'refund' || !(amt > parseFloat(bal) + 0.005)) return;
-  const over = (amt - Math.max(parseFloat(bal), 0)).toFixed(2);
-  if (!confirm('That is $' + over + ' more than the balance. Record it anyway? The extra shows as a credit on the session.'))
+  const over = (amt - Math.max(parseFloat(bal), 0)).toFixed(2), on = f.dataset.creditOn || 'session';
+  if (!confirm('That is $' + over + ' more than the balance. Record it anyway? The extra shows as a credit on the ' + on + '.'))
     e.preventDefault(); });
 document.addEventListener('submit', e => {
   const f = e.target; if ((f.getAttribute('method') || '').toLowerCase() !== 'post' || f.target === '_blank') return;

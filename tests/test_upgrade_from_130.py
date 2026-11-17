@@ -114,9 +114,16 @@ def _gallery_rows(A):
     cols = tuple(EXPECTED["galleries_130"]["1"])
     return {str(r[0]): dict(zip(cols, r[1:])) for r in _q(A, f"SELECT session_id, {', '.join(cols)} FROM galleries")}
 
+def _folder(A, sid):
+
+    gid, was = _q(A, "SELECT s.gallery_id, g.link_was FROM galleries g JOIN sessions s ON s.id=g.session_id WHERE s.id=?",
+                  (sid,))[0]
+    return was or gid
+
 def _on_host(A, tmp_path):
     out = {}
-    for sid, gid in _q(A, "SELECT s.id, s.gallery_id FROM galleries g JOIN sessions s ON s.id=g.session_id"):
+    for (sid,) in _q(A, "SELECT session_id FROM galleries"):
+        gid = _folder(A, sid)
         out[str(sid)] = {w: sorted(p.name for p in (tmp_path / w / gid).iterdir()) if (tmp_path / w / gid).is_dir() else None
                          for w in (HOST, EARLIER)}
     return out
@@ -332,7 +339,7 @@ def _opened(G, key, blob, name):
     return AESGCM(G.key_bytes(key)).decrypt(blob[:12], blob[12:], ("lumen-aureum-gallery:" + name).encode())
 
 def _manifest(A, G, tmp_path, sid):
-    gid = _q(A, "SELECT gallery_id FROM sessions WHERE id=?", (sid,))[0][0]
+    gid = _folder(A, sid)
     key, ekey = _q(A, "SELECT key, ekey FROM galleries WHERE session_id=?", (sid,))[0]
     blob = (tmp_path / HOST / gid / "manifest.bin").read_bytes()
     return gid, ekey or key, blob, json.loads(_opened(G, ekey or key, blob, "manifest.bin"))
@@ -353,14 +360,14 @@ def test_every_gallery_and_its_host_record_is_as_1_3_0_left_it(upgraded):
     assert EXPECTED["on_host"][lane][EARLIER] and "picks.bin" in EXPECTED["on_host"][lane][HOST]
     assert g[hale]["dark_at"] and g[hale]["upload_state"] == "removed" and EXPECTED["on_host"][hale][HOST] == ["index.html"]
     assert g[ivers]["restored_at"] and g[ivers]["restore_days"] == 14 and g[ivers]["upload_state"] == "up"
-    hale_gid = _q(A, "SELECT gallery_id FROM sessions WHERE id=?", (BY["hale"],))[0][0]
+    hale_gid = _folder(A, BY["hale"])
     page = (tmp_path / HOST / hale_gid / "index.html").read_bytes()
     assert hashlib.sha256(page).hexdigest() == EXPECTED["dark_page_sha256"] and b"This gallery has gone dark." in page
     assert {r[0]: r[1] for r in _q(A, "SELECT id, retouch_picks FROM sessions WHERE id=?", (BY["lane"],))} \
         == {BY["lane"]: EXPECTED["gallery"]["retouch_picks"]}
     move = _page(c, "/galleries/move")
-    assert "Nothing: every gallery is on the gallery host set up now." in move
-    assert "needs the new link" not in _page(c, "/") and "still on your earlier gallery host" not in _page(c, "/")
+    assert "Nothing: every gallery is on the web host set up now." in move
+    assert "needs the new link" not in _page(c, "/") and "still on your earlier web host" not in _page(c, "/")
     for sid in (lane, ivers):
         link = _in_request(A, lambda: A.app.config["gallery_link"](int(sid)))
         assert link.startswith(EXPECTED["gallery_base_url"])

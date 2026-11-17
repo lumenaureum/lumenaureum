@@ -12,6 +12,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from helpers import fresh_modules, signed_in_client
+from helpers import host_bytes, host_has, host_write, hosted
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
 
@@ -79,8 +80,8 @@ def test_rebuild_of_an_online_gallery_goes_online(env):
     gid, key = row(A, "SELECT s.gallery_id, g.key FROM sessions s JOIN galleries g ON g.session_id=s.id WHERE s.id=1")
     assert row(A, "SELECT upload_state FROM galleries WHERE session_id=1")[0] == "up"
     old = {p.name for p in (host / gid).glob("*.bin")}
-    (host / gid / "picks.bin").write_bytes(b"LAK1 the client's picks")
-    (host / gid / "seen.txt").write_text("2026-10-05T12:00:00Z")
+    (host / gid / "picks.las").write_bytes(b"LAS1 the client's picks")
+    host_write(host / gid, "seen.txt", "2026-10-05T12:00:00Z")
     block = gallery_block(c)
     assert "older than this build" not in block
     link = re.search(r'<span hidden id="gal-link-1">([^<]+)</span>', block).group(1)
@@ -90,13 +91,13 @@ def test_rebuild_of_an_online_gallery_goes_online(env):
     c.post("/session/1/gallery/build", data={"source_dir": str(src)}, environ_base=E)
     wait("gallery-1")
     out = G.OUT_ROOT / gid
-    assert (host / gid / "manifest.bin").read_bytes() == (out / "manifest.bin").read_bytes()
+    assert host_bytes(host / gid, "manifest.bin", key) == (out / "manifest.bin").read_bytes()
     assert (host / gid / "index.html").read_bytes() == (out / "index.html").read_bytes()
     now = {p.name for p in (host / gid).glob("*.bin")}
-    assert not (old - {"manifest.bin"}) & now
+    assert not (old - {hosted(host / gid, "manifest.bin", key).name}) & now
     assert not row(A, "SELECT prune_due FROM galleries WHERE session_id=1")[0]
-    assert (host / gid / "picks.bin").read_bytes() == b"LAK1 the client's picks" and (host / gid / "seen.txt").exists()
-    assert (host / gid / "limits.txt").exists() and not (host / gid / G.ONLINE_MARK).exists()
+    assert host_bytes(host / gid, "picks.las") == b"LAS1 the client's picks" and host_has(host / gid, "seen.txt")
+    assert host_has(host / gid, "limits.txt") and not (host / gid / G.ONLINE_MARK).exists()
     assert tuple(row(A, "SELECT s.gallery_id, g.key, g.upload_state FROM sessions s JOIN galleries g ON g.session_id=s.id WHERE s.id=1")) \
         == (gid, key, "up")
     assert row(A, "SELECT COUNT(*) FROM audit WHERE action LIKE 'Gallery updated on the web%'")[0] == 1
@@ -109,7 +110,7 @@ def test_a_held_update_says_the_copy_online_is_older_and_offers_upload(env):
     wait("gallery-1")
     c.post("/session/1/gallery/upload", environ_base=E)
     wait("gal-up-1")
-    gid = row(A, "SELECT gallery_id FROM sessions WHERE id=1")[0]
+    gid, key = row(A, "SELECT s.gallery_id, g.key FROM sessions s JOIN galleries g ON g.session_id=s.id WHERE s.id=1")
     held = []
     A.hooks.guards.setdefault("gallery_upload", []).append(lambda proceed, **kw: held.append(kw) or True)
     try:
@@ -118,13 +119,13 @@ def test_a_held_update_says_the_copy_online_is_older_and_offers_upload(env):
     finally:
         A.hooks.guards["gallery_upload"].pop()
     assert held and held[0]["update"] is True and held[0]["gallery_id"] == gid
-    assert (host / gid / "manifest.bin").read_bytes() != (G.OUT_ROOT / gid / "manifest.bin").read_bytes()
+    assert host_bytes(host / gid, "manifest.bin", key) != (G.OUT_ROOT / gid / "manifest.bin").read_bytes()
     block = gallery_block(c)
     assert "The copy online is older than this build" in block and "Upload the new build" in block
     assert row(A, "SELECT upload_state FROM galleries WHERE session_id=1")[0] == "up"
     c.post("/session/1/gallery/upload", environ_base=E)
     wait("gal-up-1")
-    assert (host / gid / "manifest.bin").read_bytes() == (G.OUT_ROOT / gid / "manifest.bin").read_bytes()
+    assert host_bytes(host / gid, "manifest.bin", key) == (G.OUT_ROOT / gid / "manifest.bin").read_bytes()
     assert "older than this build" not in gallery_block(c)
 
 def test_corner_mark_with_a_logo_that_has_no_see_through_part_uses_the_word(env):

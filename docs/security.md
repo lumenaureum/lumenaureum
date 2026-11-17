@@ -14,6 +14,10 @@ machine, a disk, or a copy of its data folder exposes no client records.
 | Delivered sessions (RAWs and exports) | the vault | The same files, moved into the vault 7 days after the files are marked delivered (or when you seal it); the app then forgets their keys, so only the master key opens them |
 | Client galleries | your web host | AES-256-GCM, each file bound to its name; decrypted in the browser. The key is in the link on the letter you mail, after the `#`, which browsers never send to a server (the app keeps a copy to rebuild the link) |
 
+**Face photos** are the optional picture you can add on a client's page, so you recognize them when you meet. They
+appear only inside the app (a client without one shows initials instead), never in a gallery or on the studio page,
+and nothing in the app analyzes or recognizes faces.
+
 One random **data key** encrypts everything in the data folder. It is never written down in the clear: the
 `keyring.json` file holds it wrapped by your **password** and by your **master key** (both standard `age`, so the
 stock `age` tool can recover it without this software). The keyring carries a check value, so a keyring edited
@@ -23,7 +27,8 @@ cannot tell an older, genuine copy of the keyring from the current one: see "Rot
 ## Signing in unlocks
 After any restart the app holds no key: it is **locked**, and every page asks you to sign in. Your password unwraps
 the data key; it stays in memory only after your two-factor code is accepted (a key waiting for the code is dropped
-after five minutes). Recovery codes stand in for the two-factor code only; they never unlock the data without your
+after five minutes, and at once whenever the password, the master key or the recovery codes change, or you sign out
+every other device, so a sign-in started before the change can't finish after it). Recovery codes stand in for the two-factor code only; they never unlock the data without your
 password. `/healthz` reports `"locked": true` so a NAS can show it.
 
 **Choose a long password.** The keyring's password wrap uses `age`'s passphrase mode (scrypt), which sets how slow
@@ -77,7 +82,9 @@ rest for availability; leave it off unless you need it.
 - **PDFs** you open in the browser (quotes, agreements, letters) may be kept by the browser in its cache or
   Downloads. Delete downloads you don't need; on a laptop, use full-disk encryption.
 - **Memory.** While unlocked, the data key is in the app's memory. A swap or hibernation file can hold memory on disk;
-  use encrypted swap, or run on a machine that doesn't hibernate.
+  use encrypted swap, or run on a machine that doesn't hibernate. The app never writes its memory to disk itself: core
+  dumps are off (the process is marked not dumpable and its core file size is 0, and `compose.yaml` sets the same), so
+  a crash leaves no copy of a key or of client data on the machine's disk.
 - **A running, unlocked machine** that is taken while on is protected only by the network allow-list and sign-in.
 
 Galleries on a web host that runs PHP expire by themselves: the gallery page fetches every encrypted file through a
@@ -89,68 +96,154 @@ a visitor once the gallery has closed, and the page left at an expired gallery's
 The client's name and the photos are never on it.
 
 Deleting a session or client takes its gallery down from the host in use (the delete stops if that fails) and from any
-earlier gallery host that still holds a copy. A copy that can't be removed then (the host can't be reached) is kept in
+earlier web host that still holds a copy. A copy that can't be removed then (the host can't be reached) is kept in
 a list of gallery folders still to come down, tried again by the regular check (an unreachable host once a day) and by
 Take the old copies down; Today mentions it until it is down. While a delete runs, the session's gallery can't be put
 back online, uploaded or rebuilt, and the delete checks once more, just before the records go, that it is down.
 
 What a gallery link can and can't protect:
 - **The link is the key.** Anyone holding the full link (with what follows the `#`) can open the gallery, the same as
-  the client. A codeword adds a second thing they must know. On a PHP host running Apache (or with the same rules
-  added), the gate also refuses the encrypted files to anyone who can't prove they hold the key, so a codeword can't
-  be guessed offline there. On any other host, someone with the link could download the files and guess the codeword
-  at their own pace, which is why the app refuses short or common codewords.
-- **The host serves the page.** A web host that turns hostile could change the gallery page so that it sends the key
-  somewhere when a client opens it. Use a host you trust.
+  the client. A codeword adds a second thing they must know. The files a codeword could be tested against (the
+  manifest, the print offer, the client's picks and draft) are kept on the web host under names made from the key,
+  so someone holding only the link can't even find them, on any web server; on a host that runs PHP the gate also
+  refuses them to anyone who can't prove they hold the key. Each guess at a codeword is one request through the gate,
+  and after 10 wrong guesses in an hour at one gallery, every request must carry a small proof of work (about a second
+  in a browser, once an hour), so guessing gets slow and nobody is ever locked out, whoever else shares their address.
+  A web host that hands gallery files out without asking for the key (Setup's host check tests a real gallery for
+  this), or one that runs no PHP, would let someone with the link try codewords as fast as their computer allows, so
+  the app refuses galleries with a codeword there and says why. It also refuses short or common codewords.
+- **The host serves the page.** A web host that turns hostile (or is broken into) could change the gallery page so
+  that it sends the key somewhere when a client opens it. No web page can fully prevent that, whoever serves it: it
+  is a limit of encryption delivered by a web page, not something a setting or a choice of host protects against.
 - **Expiry needs the host's help.** The window is kept in two small files on the host (the first-visit stamp and the
-  limits file). A host that alters them can keep a gallery up longer; the app still removes it on its next check.
+  limits file). A host that alters them can keep a gallery up longer, and one that hands out gallery files without the
+  gate doesn't close a gallery by itself; the app still removes it on its next check.
   Nothing a visitor writes to the gallery folder (picks, a draft) can stop that check.
 - **What was downloaded stays downloaded.** A client who saved photos while the gallery was open keeps them.
 
-### The PHP files on a gallery host
-Each gallery folder holds a few small PHP files and two small text files beside the encrypted photos. What each does:
+### What is sealed, and how
+Everything a gallery sends back to the app, and everything a visitor writes in the studio page's form, is sealed in
+the browser in one shared format, LAS1 ([Sealed formats](sealed-format.md)), before it leaves the device. The host
+keeps it as a `.las` file it can't open, and checks only its shape. Each gallery is a link: its folder on the web host
+is named by its link ID (`g-` and 23 random characters), and its link key (the part of the client's link after "#")
+is its own, made at random for it alone.
+
+| Item | Sealed by | File on the host | Who can open it |
+|---|---|---|---|
+| The client's picks | the gallery page, on Send my picks | `<link ID>/picks.las` | the app, and the client's browser (to show what was really sent) |
+| The picks still being made | the gallery page, a moment after each change | `<link ID>/draft.las` | the app, and the client's other devices |
+| A studio page inquiry | the visitor's browser | `inquiries/<sender>-<content>.las` | only the app |
+
+Picks and drafts are sealed under a key derived (HKDF-SHA256) from the link key for that one purpose and that one
+link (its kind included), so a draft can't be passed off as sent picks, and one gallery's picks can't be passed off as
+another's. Every item carries its own item ID: the app takes each in once, and an older one a host hands back never
+replaces a newer one.
+Inquiries are sealed to the studio's public key with a one-time key (ECDH P-256, HKDF-SHA256, AES-256-GCM), and carry
+the studio key's ID, so the key can be changed later without losing an inquiry on its way. Every envelope's header is
+authenticated in full; the host's address is in none of them, so a gallery moved to another host keeps working.
+
+The link files (`manifest.bin`, and the photo and Download all files with random names) are not envelopes: each is a
+12-byte nonce, then AES-256-GCM under the link key, with the file's own name as associated data, so the host can't
+serve one file in place of another. Anyone with the link (and the word, if set) can open them; nobody else.
+
+On the web host, `manifest.bin`, `offer.bin`, `picks.las` and `draft.las` are kept under names made from the key
+proof: the first 24 hex characters of SHA-256("lumen-aureum file name", 0, the plain name, 0, the proof), with the
+same extension. The gate and `picks.php` work the name out from the proof a visitor sends; the page does too, where no
+gate runs. The photo and Download all files already have random names that only the sealed manifest lists. So none of
+a gallery's sealed files sits at a name anyone can guess. (Below, each is called by its plain name.)
+
+Galleries online before 1.4 had shorter folder names and sealed picks in an earlier form. The 1.4 update moves every
+gallery to its link ID and carries every pick, draft and order sent before over once (see
+[Operations](operations.md#the-14-update)); the old folder keeps only a page that sends the browser on to the new one.
+1.4 reads only the new form.
+
+### The PHP files on a web host
+Each gallery folder holds a few small PHP files beside the encrypted photos. Every file that keeps the gallery's state
+begins with a PHP exit line (`<?php exit; ?>`), so on a host that runs PHP, fetching it shows nothing, whatever web
+server the host runs; nothing in the folder depends on `.htaccess` to stay private. Every script answers with an
+`X-Host-Scripts` header naming its set (1.4.0), on every answer, so the app can tell the scripts it put there are the
+ones running. What each does:
 
 | File | What it does |
 |---|---|
-| `limits.txt` | The gallery's window: how many days after the first visit, and the date it closes if nobody opens it (with the exact instant that day ends in your time zone, written again when the time zone changes). The app writes it at upload and on every change. After Move galleries, the copy left on the earlier host is marked moved (with your email, which earlier copies didn't carry), and a page built before 1.3 there is replaced with this version's, which reads the same files and tells the client the gallery moved. |
-| `seen-key.php` | The SHA-256 of the key proof (the proof is the first 32 hex characters of the SHA-256 of the gallery key). It starts with `<?php exit; ?>`, so fetching it shows nothing. |
-| `seen.php` | Records the first visit in `seen.txt`, once, and only for a visitor who sends the key proof. A stamp left empty is replaced. |
-| `gate.php` | Serves the encrypted photo files, `manifest.bin`, `draft.bin` and `picks.bin`, and only while the window is open. A missing or unreadable `limits.txt` counts as closed. On galleries built since 1.1 it also asks for the key proof for every file. `draft.bin` and `picks.bin` always need the proof. |
-| `picks.php` | Saves the client's picks (`picks.bin`) or the picks still being made (`draft.bin`). It takes only an encrypted body of the right shape, up to 256 KB, from a visitor who sends the key proof, and only while the window is open. Wrong proofs count toward the same limit as the gate's. On a copy marked moved it saves nothing and answers with your email. |
-| `tries.php` | Written by the gate and `picks.php`: recent wrong key proofs, by sender. Each sender is kept as a hash keyed by the gallery's proof hash, never the address itself. It starts with `<?php exit; ?>`, so fetching it shows nothing. |
-| `.htaccess` | Apache rules: refuse `seen.txt`, `seen-key.php`, `tries.php`, `limits.txt`, `picks.bin` and `draft.bin` to everyone, and send every photo file and `manifest.bin` through `gate.php`. |
+| `limits.php` | The gallery's window: how many days after the first visit, and the date it closes if nobody opens it (with the exact instant that day ends in your time zone, written again when the time zone changes). The app writes it at upload and on every change. After Move galleries, the copy left on the earlier host is marked moved (with your email, which earlier copies didn't carry), and a page built before 1.3 there is replaced with this version's, which reads the same files and tells the client the gallery moved. It also says whether the gallery has a codeword, and whether the host sits behind a proxy or CDN. Galleries from before 1.4 had it as `limits.txt`; the 1.4 update moves it. |
+| `seen-key.php` | The SHA-256 of the key proof (the proof is the first 32 hex characters of the SHA-256 of the link key). It starts with `<?php exit; ?>`, so fetching it shows nothing. |
+| `seen.php` | Records the first visit in `seen-at.php` (before 1.4, `seen.txt`), once, and only for a visitor who sends the key proof. A stamp left empty is replaced. |
+| `gate.php` | Serves the encrypted photo files, `manifest.bin`, `offer.bin`, `draft.las` and `picks.las`, and only while the window is open. A missing or unreadable `limits.php` counts as closed. It asks for the key proof for every file, and finds the sealed files by the names the proof gives. A one-time download's list and end go in `once.php` and `done.php`. It never serves anything else. |
+| `picks.php` | Saves the client's picks (`picks.las`) or the picks still being made (`draft.las`). It takes one form field holding a sealed envelope (LAS1, purpose picks or draft, bound to this gallery's folder name, its link ID), up to 256 KB, that doesn't look like readable text, from a visitor who sends the key proof, and only while the window is open, under the name the proof gives. Wrong proofs count toward the same limit as the gate's. On a copy marked moved it saves nothing and answers with your email. |
+| `orders.php` | Keeps a print order sent from a download gallery, as `orders/<hash>.las`, for the app to collect. It takes one sealed envelope (LAS1, purpose print-order: sealed to your studio key with the link key mixed in, bound to this gallery's folder name and the studio key's ID, at most 64 KB and padded to one of five sizes), with the key proof, a proof of work, and only while the window is open and prints are on (`offer-kid.php` is there). 5 orders an hour and 10 waiting from one sender (behind a proxy or CDN, where every client seems to share an address, only the gallery's own limits), 100 files and 6.5 MB waiting in all. Past the hourly limit it answers with Retry-After (when the oldest of the five is an hour old), so the gallery page tells the client when to try again. It never reads, lists or serves an order, and `orders/` holds an empty `index.html`, so a web server that lists folders shows nothing there. |
+| `offer.bin` | The print offer: your price list (prices only, never your cost), the shipping lines, your email and the studio's public key, sealed under the link key like `manifest.bin`, so the host can't swap the key the page seals to. Only on a gallery that offers prints. |
+| `offer-kid.php` | The studio key's ID `orders.php` checks. It starts with `<?php exit; ?>`, so fetching it shows nothing. |
+| `sealed.php` | The shape check `picks.php` and `inquiry.php` use (the sealed format's checks, steps 1 to 15). It holds no key and opens nothing; fetched on its own it prints nothing. |
+| `tries.php` | Written by the gate, `picks.php` and `orders.php`: the times of recent wrong key proofs at this gallery (no address, not even hashed). It starts with `<?php exit; ?>`, so fetching it shows nothing. |
+| `.htaccess` | For web servers that read it (Apache): the same files refused once more, the `orders/` folder refused, and every photo file sent through `gate.php`, so a gallery also closes on time when a file is fetched by its name. Nothing a client needs kept private depends on it. |
 
 How the gate answers:
 - A request with no key proof is refused at once.
-- A wrong key proof is refused at once too, and counted. After 10 wrong proofs in an hour from one sender (an IPv4
-  address, or an IPv6 /56), every proof from that sender is refused for that gallery, unchecked, until the hour is up.
-  That limits guessing a codeword through the host. Nothing waits, so a script sending wrong proofs can't tie up the
-  host's PHP workers and take the galleries (or a site sharing the host) offline. Before 1.3.1 a wrong proof waited one
-  second, which held a worker for that second; a gallery gets this version's gate when it is next uploaded.
-- The gallery page reads `picks.bin` through the gate, with the proof, to check what was really sent. The app reads
+- A right key proof is never refused because of what anyone else sent: no address is ever locked out.
+- A wrong key proof is refused at once. In a gallery with a codeword it is counted, for the gallery as a whole: after
+  10 wrong proofs in an hour, every request must carry a proof of work (`SHA-256(SHA-256("lumen-aureum gate work", 0,
+  proof, 0, hour) . w)` starting with 16 zero bits, one more for each doubling of the wrong proofs, at most 20). The
+  gate answers 429 with the number of bits, the page works it out (about a second, once an hour) and asks again. So
+  each guess at a codeword costs work on top of the codeword's own 600,000 rounds, and a client sharing an address
+  with someone guessing (an office network, a phone carrier, a proxy or CDN in front of the host) still gets in.
+  Nothing waits on the host, so a script sending wrong proofs can't tie up its PHP workers. A gallery without a
+  codeword counts nothing: its proof can't be guessed.
+- The gallery page reads `picks.las` through the gate, with the proof, to check what was really sent. The app reads
   it over the upload connection, not through the gate. With `manifest.bin`, and only for a visitor who sent the right
-  proof, the gate says whether `draft.bin` and `picks.bin` are there, so the page asks only for the ones that are.
+  proof, the gate says whether `draft.las` and `picks.las` are there, so the page asks only for the ones that are.
 
-**The key proof protection relies on Apache.** The `.htaccess` rules are what stop someone fetching the files by
-name, around the gate. Apache reads them; other web servers ignore them. On nginx with PHP-FPM, on LiteSpeed without
-rewrite support, or on `php -S`, anyone with the gallery address can download `manifest.bin`, `draft.bin`,
-`picks.bin` and `limits.txt` directly, without the proof. What they get is encrypted (plus the dates in
-`limits.txt`). But with `manifest.bin` or `draft.bin` and the link, someone who doesn't know the codeword can guess it
-offline, at their own pace. Use Apache with `.htaccess` allowed, or add the same rules to your web server. For nginx,
-inside the server block for your gallery address:
+**On any web server.** None of this depends on how the web host is set up. The sealed files sit under names only the
+key gives, the state files print nothing, and the folders a client's things wait in hold an empty `index.html`. What a
+web server that ignores `.htaccess` (nginx with PHP-FPM, LiteSpeed without rewrite support, `AllowOverride None`)
+changes is only this: someone who has a gallery's link could fetch its files by their names without going through the
+gate, so the gate can't close the gallery on its last day by itself (the app takes it down at its next check), and
+could try codewords without the gate's proof of work. So Setup's host check fetches a real gallery's manifest by its
+name without the proof: on a host that hands it out, Setup says so in plain words, and galleries with a codeword are
+refused there (Today says so too if it starts later). A gallery with a codeword already there stays online, but
+someone with its link could try codewords much faster: Today says to take it down or move to a host that passes the
+check. A gallery without a codeword is as safe there as anywhere (its key can't be guessed). The 1.4 update and every
+later gallery update move each gallery's files to these names, and the refit's first check of each host tries it the
+same way.
 
-```
-location ~ /(seen\.txt|seen-key\.php|tries\.php|limits\.txt|(picks|draft)\.bin.*)$ { return 403; }
-location ~ ^/(.+)/([0-9a-f]{24}\.bin|manifest\.bin)$ { rewrite ^/(.+)/([^/]+)$ /$1/gate.php?f=$2 last; }
-```
+### Print orders
+Print orders are sealed in the client's browser so that only your Lumen Aureum can open them; your web host holds
+them only as unreadable files until the app collects them. When you prepare an order for the lab, the app cuts the
+print files at home and hands them straight to your browser as a download, with an order sheet; nothing readable is
+saved on your NAS or put on your web host. What you save on your own computer, and what you send to your lab, is
+yours to look after, under your lab's own terms.
 
-Adjust the paths if your galleries sit under a folder (for example `/g/`). Then check that fetching
-`<gallery address>/<gallery>/limits.txt` gives 403 and `manifest.bin` without the proof gives 403.
+- **Who can open an order.** Only the app: it is sealed to your studio key (the same key as the studio page's
+  inquiries; the private half is only in the app's encrypted database). The link key is mixed in, so only someone
+  holding the gallery link could have made it: the host, which knows the public key, can't invent an order. Nobody
+  can read one back from the host, the client's own browser included; the client gets the details from you.
+- **How long a ship-to is kept in full.** Only two kinds of address are ever reduced: an address a client sent prints
+  to for someone else ("ship to someone else"), and the address on a guest order whose orderer was never accepted as a
+  client. Each is kept in full until one year after its order closed (closed, canceled or expired), then reduced to
+  city, state and ZIP (the daily rules do it, and History says so). A client's own address is never reduced: that
+  includes an orderer matched to a client by email, added to the client's family, or made a client of their own from
+  the review list. Issued invoices are never changed: they keep the address they were issued with.
+- **What an order does not prove** is who typed it. Links get forwarded, and anyone holding the link can order in any
+  name, to any address. An order is a request to you, not an instruction: it is reviewed and invoiced to whoever
+  ordered, and nothing goes to a lab before it is paid in full (unless you choose Order before payment for that
+  order). Someone not already your client lands on a review list; the app never makes a client by itself.
+- **What the host can do** is withhold an order, or send it again (the app records every order id it ever took in and
+  ignores a repeat). The padding hides an order's size.
+- **Collection before deletion.** No path removes a gallery folder from a host (going dark, a take-down, an update, a
+  move, taking old copies down) before every order waiting there, and the picks and draft, have been collected on the
+  same connection. If that fails, nothing is deleted and it is tried again. Forgetting a host as gone for good warns
+  that orders not yet collected there may be lost.
+- **The client's browser keeps** only the order being put together (photos, sizes, quantities, crops: no names, no
+  address, no prices) and, after sending, a small marker per order (date, number of prints, total), sealed like the
+  picks (below).
 
-**Serve galleries from their own address.** Use a subdomain only for galleries (for example
-`photos.example.com`), not a folder on your main website. The gallery page keeps the client's picks, notes included,
-in the browser's storage for the gallery's address. Any script on the same address, such as a website plugin or an
-analytics script, could read them. The gallery key itself is never stored.
+**What the client's browser keeps is sealed.** The gallery page keeps the client's picks, notes included, the print
+cart and order markers, and the gallery's colors in the browser's storage, so they survive a reload. Each is sealed
+(AES-256-GCM) under a key derived (HKDF-SHA256, "lumen-aureum local storage") from the gallery key, which comes from
+the link (and the codeword) on every visit and is never stored; each entry's name is itself a keyed hash, so nothing
+there says which galleries the browser opened. So a gallery in a folder of your main website is safe from that
+site's other scripts (a plugin, an analytics script), and nothing readable about a client stays on their device.
+Older entries are sealed (and the readable copy removed) the first time the gallery is opened with this version.
 
 ## The studio page
 The studio page is public and unencrypted, like any website; see [Studio page](studio-page.md). What it guards:
@@ -162,18 +255,26 @@ The studio page is public and unencrypted, like any website; see [Studio page](s
 - **Its files on the host.** Only files it put there, and only while each still matches the SHA-256 recorded when it
   went up. Anything edited there since is left. A client's photo its client no longer allows stays on the list while
   it is on the host, edited or not: Today reminds (with the page switched off too), and Remove it anyway deletes it.
-- **Inquiries.** Sealed in the visitor's browser to the studio's key (ECDH P-256, HKDF-SHA256, AES-256-GCM); the host
-  keeps files it can't open. `inquiry.php` takes 5 an hour from one sender (an IPv4 address, or one IPv6 /56), needs
-  a small proof of work from the browser (`SHA-256(SHA-256(envelope) . w)` starting with 17 zero bits, about a second
-  on a phone), keeps the same envelope once, holds at most 10 from one sender and 200 in all, and when full drops the
-  newest of the sender with the most waiting rather than refusing everyone. Senders are kept only as an HMAC keyed
+- **Inquiries.** Sealed in the visitor's browser to the studio's key (the sealed format LAS1, purpose inquiry: ECDH
+  P-256, HKDF-SHA256, AES-256-GCM, with the studio key's ID in the header); the host keeps `.las` files it can't open,
+  and `inquiry.php` (with `sealed.php` beside it) refuses anything not sealed to this studio's key ID.
+  Because the public key reaches the visitor inside a page the host serves, a hostile host could hand out a key of its
+  own and read what visitors type: that is true of any form on a host you don't run. `inquiry.php` needs a small proof
+  of work from the browser (`SHA-256(SHA-256(envelope) . w)` starting with 17 zero bits, about a second on a phone),
+  keeps the same envelope once, and holds at most 200 in all. Past 5 an hour or 10 waiting from one sender (an IPv4
+  address, or one IPv6 /56), a sender is never simply refused: each further inquiry needs 20 bits of work (a few
+  seconds, asked for by the host and done by the form), so visitors who share an address (an office, a phone
+  network, a proxy) still get through and a script sending many pays for each. When full it drops the newest of the
+  sender with the most waiting rather than refusing everyone. Behind a proxy or CDN that the host check saw, where
+  everyone seems to share an address, no sender is counted: every inquiry needs the 20 bits, and a full folder refuses
+  more rather than drop one already kept. Senders are kept only as an HMAC keyed
   with a random value per install, written into `inquiry.php` (PHP source is never served). The app collects up to
   200 per check with no daily cap, holds them in the encrypted database for you to Add or mark as Spam (none becomes a
   client record by itself), and Today flags more than 10 in a day.
-- **The inquiries folder** is closed to the web by `inquiries/.htaccess`, which only Apache reads. On nginx or with
-  `AllowOverride None`, deny the folder in the server's own rules: the sealed files stay unreadable either way, but the
-  rate file (hashed addresses and times) would be open. Taking the site down collects what waits, then removes the
-  folder's own files and the folder.
+- **The inquiries folder** holds only sealed files, the rate list `.rate.php` (hashed addresses and times, behind a
+  PHP exit line, so fetching it shows nothing) and an empty `index.html` (so a web server that lists folders shows
+  nothing), on any web server; `inquiries/.htaccess` closes it once more where the server reads it. Taking the site
+  down collects what waits, then removes the folder's own files and the folder.
 
 ## On the network
 - HTTPS only, always: a certificate the app makes on first start (its SHA-256 fingerprint is printed in the container
@@ -191,6 +292,15 @@ The studio page is public and unencrypted, like any website; see [Studio page](s
 - Pages carry a Content Security Policy (no framing; scripts and connections only from the app itself; no inline
   script without the page's own nonce), nosniff and no-framing headers. Inline styles are still allowed.
 - Galleries: client galleries are linked over https only; the viewer refuses to open on an insecure page.
+- Web host certificates: the app checks the web host over its https address with the system's normal certificate
+  checks (the authority and the name). A certificate that isn't publicly trusted (self-signed, or from your own
+  authority) is shown in Setup with its SHA-256 fingerprint and accepted only once you confirm it; from then on only
+  its public key (SHA-256 of the SubjectPublicKeyInfo) is accepted at that address, in a certificate that still names
+  the address, checked before anything is sent. A certificate for another name is never offered or accepted. A new
+  key stops every check of the host until you confirm or refuse it in Setup; it is never accepted by itself. The
+  checks never follow a redirect, and every connection and read has a time limit. The confirmed
+  certificate is kept with your storage settings, encrypted like the SFTP host key. Certificate checks are never
+  simply turned off: there is no setting for it. See [Where it runs](where-it-runs.md#the-web-hosts-certificate).
 
 Pages are sent with `Cache-Control: no-store`, so the browser does not keep client pages on disk, and the app keeps
 no access log (request lines can carry search terms).

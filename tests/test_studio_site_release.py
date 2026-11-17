@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from helpers_tools import need_tool
+
 from test_studio_page import E, add_own, env, session_photo, setting, switch_on, wait
 from test_studio_inquiries import GOOD, put_inquiry
 
@@ -167,14 +169,14 @@ def test_collect_leaves_what_isnt_an_inquiry_and_survives_odd_entries(env):
     upload(c, S)
     pub = S.inquiry_public(setting(A, "site_inquiry_key"))
     good = put_inquiry(web, S.seal_inquiry(pub, dict(GOOD, name="Zoë 山田", message="Café \U0001F4F7 日本 שלום")))
-    oversize = put_inquiry(web, b"LAQ1" + os.urandom(S.INQ_MAX + 10))
-    (web / "inquiries" / ("ef" * 16 + ".bin")).mkdir()
+    oversize = put_inquiry(web, b"LAS1" + os.urandom(S.INQ_MAX + 10))
+    (web / "inquiries" / ("ef" * 8 + "-" + "ef" * 16 + ".las")).mkdir()
     (web / "inquiries" / "README.txt").write_text("host note")
-    (web / "inquiries" / ("AB" * 16 + ".bin")).write_bytes(b"upper case: not a name inquiry.php makes")
+    (web / "inquiries" / ("AB" * 8 + "-" + "AB" * 16 + ".las")).write_bytes(b"upper case: not a name inquiry.php makes")
     res = A.app.config["studio_page_collect"]()
     assert res == dict(added=1, dropped=0, bad=1), res
     assert not good.exists() and not oversize.exists()
-    assert (web / "inquiries" / "README.txt").is_file() and (web / "inquiries" / ("AB" * 16 + ".bin")).is_file()
+    assert (web / "inquiries" / "README.txt").is_file() and (web / "inquiries" / ("AB" * 8 + "-" + "AB" * 16 + ".las")).is_file()
     c.post("/settings/studio-page/inquiries/review", data={"do": "add_all"}, environ_base=E)
     con = A.connect()
     name = con.execute("SELECT name FROM households WHERE source='Website'").fetchone()[0]
@@ -199,12 +201,13 @@ def _free_port():
 @pytest.fixture
 def php_site(tmp_path):
 
-    if not shutil.which("php"):
-        pytest.skip("php is not installed")
+    need_tool("php")
     site = tmp_path / "site"
     (site / "inquiries").mkdir(parents=True)
     from plugins import studio_page as S
-    (site / "inquiry.php").write_text(S.inquiry_php_source("cd" * 16, WORK))
+    (site / "inquiry.php").write_text(S.inquiry_php_source("cd" * 16, WORK, S.kid_hex(FIXED_KEY[1])))
+    shutil.copyfile(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "plugins", "sealed_assets",
+                                 "sealed.php"), site / "sealed.php")
     (site / "_t.php").write_text("<?php $_SERVER['REMOTE_ADDR'] = $_SERVER['HTTP_X_T_ADDR'] ?? $_SERVER['REMOTE_ADDR'];"
                                  " include __DIR__ . '/inquiry.php';\n")
     port = _free_port()
@@ -233,6 +236,12 @@ def php_site(tmp_path):
 
 WORK = 8
 
+def _fixed_key():
+    from plugins import studio_page as S
+    return S.new_inquiry_key()
+
+FIXED_KEY = _fixed_key()
+
 def _d(S, pub, blob=None, **kw):
     blob = blob or S.seal_inquiry(pub, dict(GOOD, **kw))
     return b"w=" + S.solve_work(blob, WORK).encode() + b"&d=" + base64.urlsafe_b64encode(blob).rstrip(b"=")
@@ -240,7 +249,7 @@ def _d(S, pub, blob=None, **kw):
 def test_inquiry_php_refuses_every_other_shape(php_site):
     from plugins import studio_page as S
     site, post = php_site
-    _, pub = S.new_inquiry_key()
+    _, pub = FIXED_KEY
     d = _d(S, pub)
     assert post(None, method="GET", ctype=None) == 405
     assert post(d, method="PUT") == 405
@@ -248,25 +257,25 @@ def test_inquiry_php_refuses_every_other_shape(php_site):
     assert post(d, ctype="text/plain") == 415
     assert post(d, path="_t.php?x=1") == 400
     assert post(d.replace(b"&d=", b"&d[]=")) == 400
-    assert post(d + b"%3D") == 413
+    assert post(d + b"%3D") == 400
     assert post(b"d=" + b"A" * 2_000_000) == 413
-    assert not list((site / "inquiries").glob("*.bin"))
+    assert not list((site / "inquiries").glob("*.las"))
     assert post(d, ctype="application/x-www-form-urlencoded; charset=UTF-8") == 204
 
 def test_inquiry_php_holds_at_most_200_waiting(php_site):
     from plugins import studio_page as S
     site, post = php_site
-    _, pub = S.new_inquiry_key()
+    _, pub = FIXED_KEY
     blob = S.seal_inquiry(pub, GOOD)
     for i in range(199):
-        (site / "inquiries" / (f"{i:032x}.bin")).write_bytes(blob)
+        (site / "inquiries" / (f"{i:032x}.las")).write_bytes(blob)
     assert post(_d(S, pub), addr="198.51.100.1") == 204
     assert post(_d(S, pub), addr="198.51.100.2") == 507
-    assert len(list((site / "inquiries").glob("*.bin"))) == 200
+    assert len(list((site / "inquiries").glob("*.las"))) == 200
 
 def test_inquiry_php_counts_one_ipv6_network_as_one_sender(php_site):
     from plugins import studio_page as S
     site, post = php_site
-    _, pub = S.new_inquiry_key()
+    _, pub = FIXED_KEY
     codes = [post(_d(S, pub), addr=f"2001:db8::{i:x}") for i in range(8)]
     assert codes.count(204) <= 5

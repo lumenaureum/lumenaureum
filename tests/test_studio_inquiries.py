@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pytest
 
+from helpers_tools import need_tool
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TESTS = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)
@@ -31,8 +33,10 @@ def test_envelope_round_trip_in_python():
     S = S_()
     pem, pub = S.new_inquiry_key()
     blob = S.seal_inquiry(pub, GOOD)
-    assert blob[:4] == b"LAQ1" and b"Ada" not in blob and b"spring" not in blob
-    assert S.open_inquiry(pem, blob) == GOOD
+    assert blob[:7] == b"LAS1\x02\x03\x00" and b"Ada" not in blob and b"spring" not in blob
+    assert blob[7:15].hex() == S.kid_hex(pub)
+    got = S.open_inquiry(pem, blob)
+    assert len(got.pop("id")) == 32 and got == GOOD
     other, _ = S.new_inquiry_key()
     with pytest.raises(ValueError):
         S.open_inquiry(other, blob)
@@ -47,8 +51,8 @@ def test_envelope_round_trip_in_python():
     f, why = S.clean_inquiry(dict(GOOD, type="<b>", date="9999-01-01", email="not an email", phone="555"), types)
     assert why == "" and (f["type"], f["date"], f["email"]) == ("", "", "")
 
-@pytest.mark.skipif(not shutil.which("node"), reason="node is not installed")
 def test_the_page_script_seals_what_the_app_opens():
+    need_tool("node")
     S = S_()
     pem, pub = S.new_inquiry_key()
     form = dict(name="Ada Lovelace", email="ada@example.org", phone="", type="family", date="", message="Hello there",
@@ -75,6 +79,31 @@ def test_the_page_script_seals_what_the_app_opens():
     d = trap["posted"][0]["body"][21:]
     assert S.open_inquiry(pem, base64.urlsafe_b64decode(d + "=" * (-len(d) % 4)))["hp"] == "http://spam.example"
 
+def test_an_edited_inquiry_sent_again_is_another_item():
+
+    need_tool("node")
+    S = S_()
+    pem, pub = S.new_inquiry_key()
+    form = dict(name="Ada Lovelace", email="ada@example.org", phone="", type="family", date="", message="Hello there",
+                website="", work=0)
+
+    def ids(tries):
+        out = json.loads(subprocess.run(["node", os.path.join(TESTS, "inquiry_harness.js"), str(ASSETS / "inquiry.js"), pub,
+                                         json.dumps(dict(form, tries=tries))], capture_output=True, text=True, timeout=60,
+                                        check=True).stdout)
+        got = []
+        for p in out["posted"]:
+            d = p["body"][21:]
+            data = S.open_inquiry(pem, base64.urlsafe_b64decode(d + "=" * (-len(d) % 4)))
+            got.append((data["id"], data["message"]))
+        return got
+    same = ids([{"status": 500}, {"status": 204}])
+    assert len(same) == 2 and same[0][0] == same[1][0]
+    edited = ids([{"status": 500}, {"set": {"message": "Hello there, and a date"}, "status": 204}])
+    assert len(edited) == 2 and edited[0][0] != edited[1][0] and edited[1][1] == "Hello there, and a date"
+    after = ids([{"status": 204}, {"set": {"name": "Ada", "email": "ada@example.org", "message": "Hello there"}, "status": 204}])
+    assert len(after) == 2 and after[0][0] != after[1][0]
+
 def _free_port():
     s = socket.socket()
     s.bind(("127.0.0.1", 0))
@@ -82,13 +111,14 @@ def _free_port():
     s.close()
     return p
 
-@pytest.mark.skipif(not shutil.which("php"), reason="php is not installed")
 def test_inquiry_php_keeps_only_the_envelope(tmp_path):
+    need_tool("php")
     S = S_()
     _, pub = S.new_inquiry_key()
     site = tmp_path / "site"
     (site / "inquiries").mkdir(parents=True)
-    (site / "inquiry.php").write_text(S.inquiry_php_source("ab" * 16, 8))
+    (site / "inquiry.php").write_text(S.inquiry_php_source("ab" * 16, 8, S.kid_hex(pub)))
+    shutil.copyfile(Path(ROOT) / "plugins" / "sealed_assets" / "sealed.php", site / "sealed.php")
     port = _free_port()
     srv = subprocess.Popen(["php", "-d", "display_errors=1", "-d", "error_reporting=E_ALL", "-S", f"127.0.0.1:{port}", "-t", str(site)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
@@ -113,19 +143,24 @@ def test_inquiry_php_keeps_only_the_envelope(tmp_path):
         assert post(b64(blob), "text/plain") == 415
         assert post(b'{"d": "x"}', "application/json") == 415
         assert post(b64(blob) + b"&x=1") == 400
-        assert post(b64(b"LAQ2" + blob[4:])) == 400
+        assert post(b64(b"LAS2" + blob[4:])) == 400
         assert post(b64(blob[:60])) == 400
-        assert post(b64(b"LAQ1\x04" + b"readable words " * 30)) == 400
+        assert post(b64(blob[:92] + b"readable words " * 30)) == 400
+        assert post(b64(S.seal_inquiry(S.new_inquiry_key()[1], GOOD))) == 400
+        legacy = b"LAQ1" + blob[15:]
+        assert post(b64(legacy)) == 400
         assert post(b"w=0000000000000000&d=" + b"A" * 30000) == 413
-        assert not list((site / "inquiries").glob("*.bin"))
+        assert not list((site / "inquiries").iterdir())
         assert post(b64(blob)) == 204
-        kept = list((site / "inquiries").glob("*.bin"))
+        kept = list((site / "inquiries").glob("*.las"))
         assert len(kept) == 1 and kept[0].read_bytes() == blob and re.fullmatch(r"[0-9a-f]{16}-[0-9a-f]{32}", kept[0].stem)
+        old = site / "inquiries" / ("0" * 16 + "-" + "1" * 32 + ".bin")
+        old.write_bytes(b"x" * 300)
         for _ in range(4):
             assert post(b64(S.seal_inquiry(pub, GOOD))) == 204
         assert post(b64(S.seal_inquiry(pub, GOOD))) == 429
-        assert len(list((site / "inquiries").glob("*.bin"))) == 5
-        rate = (site / "inquiries" / ".rate").read_text()
+        assert len(list((site / "inquiries").glob("*.las"))) == 5 and old.read_bytes() == b"x" * 300
+        rate = (site / "inquiries" / ".rate.php").read_text()
         assert "127.0.0.1" not in rate
         for f in (site / "inquiries").iterdir():
             assert b"Ada" not in f.read_bytes() and b"spring" not in f.read_bytes()
@@ -136,7 +171,7 @@ def test_inquiry_php_keeps_only_the_envelope(tmp_path):
 def put_inquiry(web, blob, name=None):
     d = web / "inquiries"
     d.mkdir(exist_ok=True)
-    n = name or os.urandom(16).hex() + ".bin"
+    n = name or os.urandom(8).hex() + "-" + os.urandom(16).hex() + ".las"
     (d / n).write_bytes(blob)
     return d / n
 
@@ -159,13 +194,15 @@ def test_the_app_collects_inquiries(env, monkeypatch):
     assert good.is_file()
     monkeypatch.undo()
     spam = put_inquiry(web, S.seal_inquiry(pub, dict(GOOD, hp="buy now")))
-    junk = put_inquiry(web, b"LAQ1" + os.urandom(200))
+    junk = put_inquiry(web, b"LAS1" + os.urandom(200))
+    old = put_inquiry(web, os.urandom(300), name=os.urandom(8).hex() + "-" + os.urandom(16).hex() + ".bin")
     other = put_inquiry(web, S.seal_inquiry(S.new_inquiry_key()[1], GOOD))
     stranger = put_inquiry(web, b"not ours", name="notes.txt")
     res = A.app.config["studio_page_collect"]()
     assert res == dict(added=1, dropped=1, bad=2), res
     assert not good.exists() and not spam.exists() and not junk.exists() and not other.exists()
     assert stranger.read_bytes() == b"not ours"
+    assert old.is_file()
     con = A.connect()
     assert not con.execute("SELECT 1 FROM households WHERE source='Website'").fetchone()
     con.close()

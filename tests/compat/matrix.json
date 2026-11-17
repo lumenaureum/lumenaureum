@@ -1,0 +1,11 @@
+{
+ "about": "The release compatibility check (sealed-format-upgrade.md 7): for every kept page set and script set, one of works (the full scenario list passes), refuses (the named scenarios end in the named visible message and the host holds nothing new) or never (the pair cannot occur, with the reason). A pair not listed follows the default rule: scripts at or after the page's release work; scripts before it never meet it. 'current' is this working tree's set (not yet released).",
+ "floor": "1.4.0",
+ "pairs": [
+  {"page": "1.3.1", "scripts": "current", "result": "refuses",
+   "why": "the open-tab case only: a 1.3.1 page left open while its gallery is refit to 1.4",
+   "scenarios": {"send": "Couldn't send. Please tell your photographer.", "draft": "Saved on this device"}},
+  {"page": "current", "scripts": "1.3.1", "result": "never",
+   "why": "the page goes up last, after the scripts it needs; the refit replaces the scripts first and proves them running"}
+ ]
+}

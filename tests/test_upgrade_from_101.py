@@ -201,10 +201,14 @@ def test_the_gallery_and_its_codeword_survive(upgraded):
     key, ekey, n_files, built_at, cw_fixed = _q(A, "SELECT key, ekey, n_files, built_at, cw_fixed FROM galleries WHERE session_id=?",
                                                 (sid,))[0]
     gid, built, word = _q(A, "SELECT gallery_id, gallery_built, gallery_codeword FROM sessions WHERE id=?", (sid,))[0]
-    assert (gid, built, word) == (want["gallery_id"], want["session_built"], want["codeword"])
+    was = _q(A, "SELECT link_was FROM galleries WHERE session_id=?", (sid,))[0][0]
+
+    assert G.is_link(gid) and was == want["gallery_id"]
+    assert (built, word) == (want["session_built"], want["codeword"])
     assert (n_files, built_at, cw_fixed) == (want["n_files"], want["built_at"], want["cw_fixed"])
     assert want["has_codeword_key"] and ekey != key
-    assert ekey == G.codeword_key(key, gid, word)
+    assert ekey == G.codeword_key(key, was, word)
+    assert ekey == G.codeword_key(key, G.cw_id({"link_was": was}, gid), word)
     link = _in_request(A, lambda: A.app.config["gallery_link"](sid))
     assert link and link.endswith("&c=1") == want["link_asks_for_word"] and f"{gid}/#k={key}" in link
 

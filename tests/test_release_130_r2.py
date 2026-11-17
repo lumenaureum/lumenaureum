@@ -6,6 +6,8 @@ from datetime import timedelta
 
 import pytest
 
+from helpers_tools import need_tool
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -309,9 +311,7 @@ def test_setup_and_reprint_fields_have_labels(env):
 
 def test_upload_announcements_keep_every_sealed_and_problem_message(tmp_path):
     import subprocess
-    node = shutil.which("node")
-    if not node:
-        pytest.skip("node is not installed")
+    node = need_tool("node")
     js = open(os.path.join(ROOT, "static", "photos.js")).read()
     part = js[js.index("const regions = {};"):js.index("const flying")]
     script = tmp_path / "q.js"

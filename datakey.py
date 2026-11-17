@@ -86,6 +86,7 @@ def drop_pending(tok=None):
         _state["pending"].pop(tok, None)
 
 def drop_all_pending():
+
     with _lock:
         _state["pending"].clear()
 
@@ -228,6 +229,7 @@ def rewrap_password_here(password, path=None):
         _check(ring, key)
         ring["password"] = wrap
         _write(ring, key, path)
+    drop_all_pending()
     return old, new
 
 def unwrap_master(secret, ring_path=None):
@@ -250,6 +252,7 @@ def rewrap_password(new_password, key=None):
         _check(ring, key)
         ring["password"] = wrap
         _write(ring, key)
+    drop_all_pending()
 
 def master_pub():
     try:
@@ -442,3 +445,4 @@ def replace_master(new_pub, key=None):
         ring["master"] = _b64(pyrage.encrypt(key, [x25519.Recipient.from_str(new_pub)]))
         ring["master_pub"] = new_pub
         _write(ring, key)
+    drop_all_pending()

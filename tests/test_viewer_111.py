@@ -10,10 +10,10 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import fresh_modules, posted_envelope
+from helpers import LS_READ, fresh_modules, posted_envelope
 
 sync_api = pytest.importorskip("playwright.sync_api")
-GID, MAIL_GID = "galView111a", "galView111m"
+GID, MAIL_GID = "g-galView111aAAAAAAAAAAAA", "g-galView111mAAAAAAAAAAAA"
 
 def base(gid):
     return f"https://gallery.test/g/{gid}/"
@@ -53,10 +53,14 @@ def browser():
     b.close()
     pw.stop()
 
-def seal(G, key, obj, name):
+def seal(G, key, obj, name, gid=GID):
+
+    if name in ("picks.las", "draft.las"):
+        import sealed
+        return sealed.seal_link(name[:-4], gid, G.key_bytes(key), json.dumps(obj).encode())
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     iv = secrets.token_bytes(12)
-    return b"LAK1" + iv + AESGCM(G.key_bytes(key)).encrypt(iv, json.dumps(obj).encode(), f"lumen-aureum-gallery:{name}".encode())
+    return iv + AESGCM(G.key_bytes(key)).encrypt(iv, json.dumps(obj).encode(), f"lumen-aureum-gallery:{name}".encode())
 
 def manifest(G, folder, key):
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -67,13 +71,15 @@ class Host:
 
     def __init__(self, folder, gid):
         self.folder, self.gid, self.files, self.gone, self.held, self.waiting = folder, gid, {}, set(), set(), []
+        self.plain = {}
 
     def handle(self, route):
         name = route.request.url.split("#")[0][len(base(self.gid)):] or "index.html"
         if name.startswith("gate.php?f="):
             name = name.split("=", 1)[1]
+        name = self.plain.get(name, name)
         if name.startswith("picks.php"):
-            self.files["draft.bin" if "kind=draft" in name else "picks.bin"] = posted_envelope(route.request.post_data_buffer)
+            self.files["draft.las" if "kind=draft" in name else "picks.las"] = posted_envelope(route.request.post_data_buffer)
             return route.fulfill(status=204, body=b"")
         if name == "seen.php":
             return route.fulfill(status=204, body=b"")
@@ -100,6 +106,10 @@ class Host:
         self.waiting.clear()
 
 def open_page(browser, host, key, gid=GID, store=None, init=""):
+    import base64
+    import hostfiles
+    proof = hostfiles.proof_of(base64.urlsafe_b64decode(key + "=" * (-len(key) % 4)))
+    host.plain = {hostfiles.name_for(proof, n): n for n in hostfiles.GATED}
     ctx = browser.new_context(bypass_csp=True, viewport={"width": 1280, "height": 860})
     ctx.route("https://gallery.test/**", host.handle)
     k = f"picks:/g/{gid}/"
@@ -128,8 +138,8 @@ def test_a_forged_draft_saying_sent_is_never_shown_as_sent(built, browser):
     ctx.close()
 
     at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-    host.files["draft.bin"] = seal(G, g["key"], {"v": 1, "at": at, "sent": True, "picks": [
-        {"i": 4, "name": "img5.jpg", "k": "n:img5.jpg", "r": True, "note": "Attacker-chosen note", "m": False, "v": False}]}, "draft.bin")
+    host.files["draft.las"] = seal(G, g["key"], {"v": 1, "at": at, "sent": True, "picks": [
+        {"i": 4, "name": "img5.jpg", "k": "n:img5.jpg", "r": True, "note": "Attacker-chosen note", "m": False, "v": False}]}, "draft.las")
     ctx, page = open_page(browser, host, g["key"])
     page.wait_for_function("document.querySelector('#trayn').textContent.endsWith('Not sent yet')")
     assert "Retouch 1/3" in tray(page) and page.locator("#sent").inner_text() == ""
@@ -138,22 +148,22 @@ def test_a_forged_draft_saying_sent_is_never_shown_as_sent(built, browser):
 def test_a_draft_from_the_future_is_ignored(built, browser):
     G, g, _ = built
     host = Host(g["folder"], GID)
-    host.files["draft.bin"] = seal(G, g["key"], {"v": 1, "at": "2099-01-01T00:00:00Z", "picks": [
-        {"i": 4, "name": "img5.jpg", "k": "n:img5.jpg", "r": False, "note": "", "m": True, "v": False}]}, "draft.bin")
+    host.files["draft.las"] = seal(G, g["key"], {"v": 1, "at": "2099-01-01T00:00:00Z", "picks": [
+        {"i": 4, "name": "img5.jpg", "k": "n:img5.jpg", "r": False, "note": "", "m": True, "v": False}]}, "draft.las")
     mine = {"v": 2, "picks": {"n:img2.jpg": {"r": True, "n": "soften"}}, "at": "2026-11-10T10:00:00.000Z"}
     ctx, page = open_page(browser, host, g["key"], store={"": json.dumps(mine)})
     page.wait_for_timeout(2500)
-    kept = json.loads(page.evaluate(f"localStorage.getItem('picks:/g/{GID}/')"))
+    kept = json.loads(page.evaluate(LS_READ, [f"picks:/g/{GID}/", g["key"], False]))
     assert kept["picks"] == mine["picks"]
     ctx.close()
 
-def test_picks_sent_from_an_older_page_count_as_sent_when_picks_bin_matches(built, browser):
+def test_picks_sent_from_an_older_page_count_as_sent_when_picks_las_matches(built, browser):
     G, g, _ = built
     host = Host(g["folder"], GID)
 
-    host.files["picks.bin"] = seal(G, g["key"], {"v": 1, "at": "2026-10-01T10:00:00Z", "picks": [
+    host.files["picks.las"] = seal(G, g["key"], {"v": 1, "at": "2026-10-01T10:00:00Z", "picks": [
         {"i": 0, "name": "img1.jpg", "r": True, "note": "less glare", "m": False, "v": False},
-        {"i": 2, "name": "img3.jpg", "r": False, "note": "", "m": True, "v": False}]}, "picks.bin")
+        {"i": 2, "name": "img3.jpg", "r": False, "note": "", "m": True, "v": False}]}, "picks.las")
     old = {"0": {"r": True, "n": "less glare"}, "2": {"m": True}}
     ctx, page = open_page(browser, host, g["key"], store={"": json.dumps(old)})
     page.wait_for_function("document.querySelector('#sent').textContent.startsWith('Sent.')")
@@ -183,7 +193,7 @@ def test_a_photo_removed_by_an_update_offers_a_reload(built, browser):
     assert page.locator("#lbagain").inner_text() == "Try again"
     page.locator("#close").click()
 
-    host.files["manifest.bin"] = seal(G, g["key"], dict(m, title="Updated"), "manifest.bin")[4:]
+    host.files["manifest.bin"] = seal(G, g["key"], dict(m, title="Updated"), "manifest.bin")
     host.gone.update(it["f"] for it in m["items"])
     page.locator(".cell").nth(9).click()
     page.wait_for_function("document.querySelector('#lbsay').textContent.startsWith('These photos were just updated')")

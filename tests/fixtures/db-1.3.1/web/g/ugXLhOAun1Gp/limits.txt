@@ -1,0 +1,8 @@
+days=30
+unopened_until=2027-11-16
+unopened_ts=1826427599
+warn_days=7
+until=2026-11-30
+until_ts=1796101199
+contact="hello@studio.example"
+proof=1

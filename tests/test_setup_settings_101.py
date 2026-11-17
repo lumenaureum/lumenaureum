@@ -64,7 +64,7 @@ def test_the_storage_step_never_offers_a_folder_it_refuses(fresh, monkeypatch):
     data_vault = str(tmp / "vault")
     monkeypatch.setattr(settings_io, "_inside_private", lambda p: os.path.realpath(p) == data_vault or real(p))
     page = c.get("/setup/storage", environ_base=E).get_data(as_text=True)
-    offered = re.search(r'name="primary_path" placeholder="/vault" value="([^"]*)"', page).group(1)
+    offered = re.search(r'name="primary_path" placeholder="e.g. /vault" value="([^"]*)"', page).group(1)
     assert offered and offered != data_vault and not settings_io._inside_private(offered)
     assert offered == os.path.join(os.path.dirname(os.path.realpath(ROOT)), "lumen-aureum-vault")
 
@@ -268,3 +268,45 @@ def test_operations_doc_lists_every_file_and_numbered_steps():
     steps = re.findall(r"^(\d+)\. \*\*", part, re.M)
     assert steps == [str(i) for i in range(1, len(steps) + 1)] and len(steps) >= 8
     assert "—" not in part
+
+def _clock(A, last=None):
+    con = A.connect()
+    try:
+        if last is not None:
+            con.execute("""INSERT INTO settings (key, value) VALUES ('clock_last', ?)
+                           ON CONFLICT(key) DO UPDATE SET value=excluded.value""", (last,))
+            con.commit()
+        return dict(con.execute("SELECT key, value FROM settings WHERE key IN ('clock_last', 'clock_paused')").fetchall())
+    finally:
+        con.close()
+
+@pytest.mark.parametrize("where", ["setup", "settings"])
+def test_choosing_the_time_zone_is_not_a_clock_jump(tmp_path, monkeypatch, where):
+
+    from datetime import timedelta
+    A = _env(tmp_path, monkeypatch)
+    import setup
+    monkeypatch.setattr(setup, "same_disk", lambda a, b: False)
+    c = signed_in_client(A, setup_done=where == "settings")
+    tomorrow = (A.datetime.now(A.ZoneInfo("America/New_York")).date() + timedelta(days=1)).isoformat()
+    _clock(A, tomorrow)
+    if where == "setup":
+        post(c, "/setup/business", business_name="B", photographer_name="P", timezone="America/New_York")
+    else:
+        post(c, "/settings/timezone", timezone="America/New_York")
+    assert A.TZ.key == "America/New_York"
+    with A.app.app_context():
+        assert A.app.config["clock_ok"]()
+    have = _clock(A)
+    assert not have.get("clock_paused") and have["clock_last"] == A.today().isoformat()
+    assert "Automatic deletions are paused" not in c.get("/", environ_base=E).get_data(as_text=True)
+
+def test_choosing_the_time_zone_still_catches_a_real_jump(done):
+
+    from datetime import timedelta
+    A, c, _ = done
+    _clock(A, (A.today() + timedelta(days=5)).isoformat())
+    post(c, "/settings/timezone", timezone="America/New_York")
+    with A.app.app_context():
+        assert not A.app.config["clock_ok"]()
+    assert _clock(A).get("clock_paused")

@@ -4,6 +4,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from helpers import host_bytes
 from test_gallery_expiry import E, GID, env, go_live, days_ago
 from test_gallery_sunset import stamp
 
@@ -91,17 +92,17 @@ def test_a_move_never_writes_older_picks_over_newer_ones(env, tmp_path):
     con = A.connect()
     key = con.execute("SELECT key FROM galleries WHERE session_id=1").fetchone()[0]
     con.close()
-    older = sealed(G, key, G.PICKS_AAD)
-    (host / GID / "picks.bin").write_bytes(older)
+    older = sealed(G, key, "picks", GID)
+    (host / GID / "picks.las").write_bytes(older)
     c.post("/gallery/sync", environ_base=E)
-    assert G.kept_copy(GID, "picks.bin") == older
-    newer = sealed(G, key, G.PICKS_AAD)
+    assert G.kept_copy(GID, "picks.las") == older
+    newer = sealed(G, key, "picks", GID)
     assert newer != older
-    (host / GID / "picks.bin").write_bytes(newer)
-    draft_new = sealed(G, key, G.DRAFT_AAD)
+    (host / GID / "picks.las").write_bytes(newer)
+    draft_new = sealed(G, key, "draft", GID)
     new = switch_host(A, tmp_path)
     (new / GID).mkdir()
-    (new / GID / "draft.bin").write_bytes(draft_new)
+    (new / GID / "draft.las").write_bytes(draft_new)
     c.post("/galleries/move", environ_base=E)
-    assert (new / GID / "picks.bin").read_bytes() == newer
-    assert (new / GID / "draft.bin").read_bytes() == draft_new
+    assert host_bytes(new / GID, "picks.las") == newer
+    assert host_bytes(new / GID, "draft.las") == draft_new

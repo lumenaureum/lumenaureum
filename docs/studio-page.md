@@ -67,7 +67,7 @@ if a plugin of yours holds gallery uploads for an approval, it holds this too. I
 approved, every photo is checked again against what its client allows now: if a client declined portfolio use, or
 asked you not to show a photo, while the upload waited, the site is built again without it before anything is sent.
 Before the site is built, and again when the upload is approved, the client's latest picks (their Don't show list
-among them) are read from your gallery host, so a list the client sent since the app last checked counts too. If they
+among them) are read from your web host, so a list the client sent since the app last checked counts too. If they
 can't be read, nothing is uploaded and the page says so.
 
 What it writes, and what it never touches:
@@ -75,7 +75,7 @@ What it writes, and what it never touches:
   the upload stops before anything is written and names the files. Move them aside or delete them on your host, then
   press Upload again. A file it did put there once, but which was changed on your host since and so let go, stops the
   upload the same way, and the page names it as such rather than as someone else's. So does a file it put there under
-  earlier gallery host settings that couldn't be confirmed to reach this same folder (recognized by its fingerprint);
+  earlier web host settings that couldn't be confirmed to reach this same folder (recognized by its fingerprint);
   and the page names first, on their own, any client photos on your host that their client no longer allows.
 - It never writes into, or removes anything from, your galleries' folder.
 - It keeps a list of every file it uploaded, with a fingerprint (SHA-256) of each. Only those are ever replaced or
@@ -85,7 +85,7 @@ What it writes, and what it never touches:
   was changed there (your host recompressed it, say), Upload and Take the site down leave it, so Today keeps reminding
   until it is gone from the host, and the Studio page offers **Remove it anyway** for that file (through the same
   approval). Deleting it on the host yourself works too; the next upload notices it has gone.
-- When the gallery host settings change (another SFTP user name, port or root, the server's name written another way,
+- When the web host settings change (another SFTP user name, port or root, the server's name written another way,
   another path to the same folder), the app tells whether it is still the same place: the same server, port, user name
   and folder written another way is the same host, and otherwise a small probe file written through the new settings
   and looked for through the earlier ones tells (it is removed right away). The same place keeps its list. Another
@@ -108,7 +108,8 @@ its reminders; and inquiries sent through the form still online are still collec
 
 ## The inquiry form
 On the Contact page. A visitor gives a name, an email or a phone number, the kind of session, a preferred date and a
-message. What they type is sealed in their browser to your studio's own key, so only this app can read it: the web
+message. What they type is sealed in their browser to your studio's own key ([Sealed format](sealed-format.md), purpose
+inquiry), so only this app can read it: the web
 host keeps a sealed file it can't open, until Lumen Aureum collects it (every 15 minutes, or **Check for inquiries**).
 Collected inquiries wait in **Website inquiries to review** on the Studio page, and Today says how many. Press **Add**
 to make it a new client with an Inquiry session, with "Inquiry from your website" in its History and "New inquiry from
@@ -132,7 +133,9 @@ Details:
 - Spam: the form has a hidden field people never see and fill in, and a form isn't sent sooner than 3 seconds after
   the page opened (pressed sooner, the Send button says "Sending..." and the form waits, then sends). Both are checked
   again here; inquiries with the hidden field filled in, or sent sooner, are dropped and counted in History.
-- Files on the host that aren't an inquiry sealed to your key are removed and counted, never shown.
+- Files on the host named as this version's inquiries (`.las`) that aren't an inquiry sealed to your key are removed and
+  counted, never shown. Files of any other name in the folder are never touched by the collector (the 1.4 update
+  collects the ones 1.3's form left).
 - The host takes 5 inquiries an hour from one sender (an IPv4 address, or all of one IPv6 /56, the block one
   subscriber usually gets), at most 10 waiting from one sender, and at most 200 waiting in all. When the folder is
   full, the newest inquiry of the sender with the most waiting makes room (only when that sender has at least two more
@@ -144,10 +147,15 @@ Details:
 - Up to 200 inquiries are collected at each check (the host's whole folder), with no daily limit: they wait on the
   review list, sealed in the encrypted database, and none becomes a client until you add it. When more than 10 arrive
   in a day, Today says "Many website inquiries at once; check for spam".
-- The inquiries folder is closed to the web by its `.htaccess` file on Apache. On nginx, or on Apache with
-  `AllowOverride None`, add a rule denying it yourself (for nginx: `location ^~ /inquiries/ { deny all; }`, with your
-  site's folder in front if it has one). Without it, the sealed inquiries stay unreadable, but the rate file (hashed
-  addresses and times) could be fetched.
+- The inquiries folder keeps nothing readable, on any web server: the inquiries are sealed, the rate list
+  (`.rate.php`: hashed addresses and times) begins with a PHP exit line so fetching it shows nothing, and an empty
+  `index.html` keeps a web server that lists folders from listing it. Its `.htaccess` closes it once more where the
+  server reads it.
+- Visitors who share an address (an office, a phone network, a proxy or CDN in front of your host) are never turned
+  away because of each other: past a few inquiries from one address, each further one needs a little more work in the
+  visitor's browser (a few seconds on a phone, asked for by the host and done by the form). Behind a proxy or CDN that
+  Setup's host check saw, senders aren't counted at all and every inquiry needs that work; a full folder there refuses
+  more rather than drop an inquiry already waiting.
 - The form needs a host that runs PHP (SFTP web hosting, or a folder a PHP web server serves). On a host that doesn't,
   such as an S3 bucket, the Contact page shows your email and phone instead.
 - No captcha, nothing from other sites.

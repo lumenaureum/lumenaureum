@@ -7,6 +7,7 @@ import time
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from helpers import host_bytes, host_has, host_text, host_write
 from test_gallery_lifecycle_e2e import E, site
 from test_gallery_round_two import _files, _job, _new_folder, _setup_host
 
@@ -21,11 +22,9 @@ def _back_to(site, folder):
     assert r.status_code in (302, 303)
     site.settings(gallery_base_url=site.base)
 
-def _sealed(G, key, at, name):
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    iv = secrets.token_bytes(12)
-    body = json.dumps({"v": 1, "at": at, "picks": [{"i": 0, "name": name, "r": True}]}).encode()
-    return b"LAK1" + iv + AESGCM(G["key_bytes"](key)).encrypt(iv, body, G["PICKS_AAD"])
+def _sealed(G, key, at, name, gid):
+    from helpers import seal_picks
+    return seal_picks(key, gid, [{"i": 0, "name": name, "r": True}], "picks", at)
 
 def test_a_failed_upload_in_place_of_the_proofs_then_a_delete_leaves_nothing_online(site, monkeypatch):
 
@@ -40,7 +39,7 @@ def test_a_failed_upload_in_place_of_the_proofs_then_a_delete_leaves_nothing_onl
     def flaky(g, host=None):
         calls.append(g)
         if len(calls) == 1:
-            raise IOError("the gallery host did not answer")
+            raise IOError("the web host did not answer")
         return real(g, host=host)
     monkeypatch.setitem(G, "delete_gallery", flaky)
     site.c.post(f"/session/{sid}/gallery/upload", data={"early": "1"}, environ_base=E)
@@ -67,7 +66,7 @@ def test_a_session_deleted_after_going_back_to_the_first_host_leaves_nothing_the
     assert "Moved 2" in _job("gallery-move")["message"]
     _back_to(site, site.host)
     site.sync()
-    assert (site.host / gid / "manifest.bin").exists()
+    assert host_has(site.host / gid, "manifest.bin")
     site.c.post(f"/session/{sid}/delete", environ_base=E)
     assert _job(f"session-delete:{sid}")["state"] == "done"
     assert _files(B, gid) == []
@@ -82,12 +81,12 @@ def test_moving_back_to_the_first_host_never_brings_back_older_picks(site):
     gid = site.gid(sid)
     G = _G(site)
     key = site.q("SELECT COALESCE(NULLIF(ekey, ''), key) FROM galleries WHERE session_id=?", (sid,))[0][0]
-    (site.host / gid / "picks.bin").write_bytes(_sealed(G, key, "2026-11-01T10:00:00Z", "OLD.jpg"))
+    host_write(site.host / gid, "picks.las", _sealed(G, key, "2026-11-01T10:00:00Z", "OLD.jpg", gid))
     site.sync()
     B = _new_folder(site, "hostB")
     _setup_host(site, B)
     site.c.post("/galleries/move", environ_base=E)
-    (B / gid / "picks.bin").write_bytes(_sealed(G, key, "2026-11-10T10:00:00Z", "NEW.jpg"))
+    host_write(B / gid, "picks.las", _sealed(G, key, "2026-11-10T10:00:00Z", "NEW.jpg", gid))
     site.sync()
     assert site.q("SELECT retouch_picks FROM sessions WHERE id=?", (sid,))[0][0] == "NEW.jpg"
     _back_to(site, site.host)
@@ -150,7 +149,7 @@ def test_a_failed_upload_gallery_on_a_host_that_cant_be_reached_is_noted_then_re
 
     sid = site.gallery("Unreachable")
     gid = site.gid(sid)
-    site.q("UPDATE galleries SET upload_state='error', upload_error='the gallery host did not answer' WHERE session_id=?", (sid,))
+    site.q("UPDATE galleries SET upload_state='error', upload_error='the web host did not answer' WHERE session_id=?", (sid,))
     (site.host / ".vault-root").unlink()
     site.c.post(f"/session/{sid}/delete", environ_base=E)
     assert _job(f"session-delete:{sid}")["state"] == "done"
@@ -188,7 +187,7 @@ def test_a_failed_upload_gallery_on_an_earlier_host_is_listed_and_comes_down_wit
 
     sid = site.gallery("Failed On A")
     gid = site.gid(sid)
-    site.q("UPDATE galleries SET upload_state='error', upload_error='the gallery host did not answer' WHERE session_id=?", (sid,))
+    site.q("UPDATE galleries SET upload_state='error', upload_error='the web host did not answer' WHERE session_id=?", (sid,))
     B = _new_folder(site, "hostB")
     _setup_host(site, B)
     page = site.c.get("/galleries/move", environ_base=E).get_data(as_text=True)
@@ -206,20 +205,20 @@ def test_moving_back_replaces_the_copy_left_there_and_the_newest_picks_win(site)
     gid = site.gid(sid)
     G = _G(site)
     key = site.q("SELECT COALESCE(NULLIF(ekey, ''), key) FROM galleries WHERE session_id=?", (sid,))[0][0]
-    (site.host / gid / "picks.bin").write_bytes(_sealed(G, key, "2026-11-01T10:00:00Z", "OLD.jpg"))
+    host_write(site.host / gid, "picks.las", _sealed(G, key, "2026-11-01T10:00:00Z", "OLD.jpg", gid))
     site.sync()
     B = _new_folder(site, "hostB")
     _setup_host(site, B)
     site.c.post("/galleries/move", environ_base=E)
-    assert "moved=1" in (site.host / gid / "limits.txt").read_text()
-    (B / gid / "picks.bin").write_bytes(_sealed(G, key, "2026-11-10T10:00:00Z", "NEW.jpg"))
+    assert "moved=1" in host_text(site.host / gid, "limits.txt")
+    host_write(B / gid, "picks.las", _sealed(G, key, "2026-11-10T10:00:00Z", "NEW.jpg", gid))
     _back_to(site, site.host)
     site.c.post("/galleries/move", environ_base=E)
     assert "Moved 1" in _job("gallery-move")["message"]
-    assert "moved=1" not in (site.host / gid / "limits.txt").read_text()
+    assert "moved=1" not in host_text(site.host / gid, "limits.txt")
     site.sync()
     assert site.q("SELECT retouch_picks FROM sessions WHERE id=?", (sid,))[0][0] == "NEW.jpg"
-    assert G["open_picks"]((site.host / gid / "picks.bin").read_bytes(), key)["retouch"] == ["NEW.jpg"]
+    assert G["open_picks"](host_bytes(site.host / gid, "picks.las"), key, gid)["retouch"] == ["NEW.jpg"]
 
 def test_a_check_never_writes_older_picks_over_the_sessions(site):
 
@@ -227,15 +226,15 @@ def test_a_check_never_writes_older_picks_over_the_sessions(site):
     gid = site.gid(sid)
     G = _G(site)
     key = site.q("SELECT COALESCE(NULLIF(ekey, ''), key) FROM galleries WHERE session_id=?", (sid,))[0][0]
-    new = _sealed(G, key, "2026-11-10T10:00:00Z", "NEW.jpg")
-    (site.host / gid / "picks.bin").write_bytes(new)
+    new = _sealed(G, key, "2026-11-10T10:00:00Z", "NEW.jpg", gid)
+    host_write(site.host / gid, "picks.las", new)
     site.sync()
     assert site.q("SELECT retouch_picks FROM sessions WHERE id=?", (sid,))[0][0] == "NEW.jpg"
-    (site.host / gid / "picks.bin").write_bytes(_sealed(G, key, "2026-11-01T10:00:00Z", "OLD.jpg"))
+    host_write(site.host / gid, "picks.las", _sealed(G, key, "2026-11-01T10:00:00Z", "OLD.jpg", gid))
     site.sync()
     assert site.q("SELECT retouch_picks FROM sessions WHERE id=?", (sid,))[0][0] == "NEW.jpg"
-    assert (site.host / gid / "picks.bin").read_bytes() == new
-    (site.host / gid / "picks.bin").write_bytes(_sealed(G, key, "2026-11-12T10:00:00Z", "NEWER.jpg"))
+    assert host_bytes(site.host / gid, "picks.las") == new
+    host_write(site.host / gid, "picks.las", _sealed(G, key, "2026-11-12T10:00:00Z", "NEWER.jpg", gid))
     site.sync()
     assert site.q("SELECT retouch_picks FROM sessions WHERE id=?", (sid,))[0][0] == "NEWER.jpg"
 

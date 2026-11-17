@@ -197,16 +197,15 @@ def gallery_with_picks(A, web, veto_names):
     import secrets as _s
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     from plugins import gallery as G
-    gid = "galStudio01"
+    gid = "g-galStudio01AAAAAAAAAAAA"
     key = G.new_key()
     ex(A, "UPDATE sessions SET gallery_id=? WHERE id=1", (gid,))
     ex(A, "INSERT INTO galleries (session_id, key, upload_state, uploaded_at) VALUES (1, ?, 'up', '2026-11-01')", (key,))
     picks = [{"i": i, "name": n, "r": False, "m": False, "v": True} for i, n in enumerate(veto_names)]
-    iv = _s.token_bytes(12)
-    blob = b"LAK1" + iv + AESGCM(G.key_bytes(key)).encrypt(iv, _j.dumps({"v": 1, "at": "2026-11-14T15:00:00.000Z",
-                                                                          "picks": picks}).encode(), G.PICKS_AAD)
+    from helpers import seal_picks
+    blob = seal_picks(key, gid, picks, "picks", "2026-11-14T15:00:00.000Z")
     (web / "g" / gid).mkdir(exist_ok=True)
-    (web / "g" / gid / "picks.bin").write_bytes(blob)
+    (web / "g" / gid / "picks.las").write_bytes(blob)
 
 def test_a_dont_show_not_yet_collected_counts_before_the_build(env):
     A, c, S, tmp, web = env

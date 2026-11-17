@@ -10,6 +10,7 @@ import secrets
 import shutil
 import threading
 import unicodedata
+import items
 from datetime import date, datetime
 from pathlib import Path
 from typing import NamedTuple
@@ -20,6 +21,7 @@ _DATA = Path(os.environ.get("CRM_DB", _REPO / "data" / "crm.db")).parent
 SITE_ROOT = Path(os.environ.get("CRM_SITE_ROOT", _DATA / "site"))
 FONTS = _HERE / "gallery_assets" / "fonts"
 ASSETS = _HERE / "studio_assets"
+SEALED_ASSETS = _HERE / "sealed_assets"
 THEME_FONTS = {"elegant": "cormorant-garamond.woff2", "script": "great-vibes.woff2"}
 
 DISPLAY_EDGE = 1100
@@ -67,7 +69,7 @@ class Conflict(SiteProblem):
                         "left as they are: " + few(other) + ".")
         if mine:
             said.append(("These files" if len(mine) > 1 else "This file") + " on your web host "
-                        + ("were" if len(mine) > 1 else "was") + " put there by Lumen Aureum under your earlier gallery "
+                        + ("were" if len(mine) > 1 else "was") + " put there by Lumen Aureum under your earlier web "
                         "host settings, which couldn't be confirmed to reach this same folder, so Lumen Aureum won't write "
                         "over " + ("them" if len(mine) > 1 else "it") + ": " + few(mine) + ".")
         if ed:
@@ -431,7 +433,7 @@ PAGE = """<!doctype html>
 <link rel="apple-touch-icon" href="{{ root }}apple-touch-icon.png">
 {% endif %}<link rel="stylesheet" href="{{ root }}assets/site.css">
 {% if script %}<script src="{{ root }}assets/site.js" defer></script>
-{% endif %}{% if page == 'contact' and form %}<script src="{{ root }}assets/inquiry.js" defer></script>
+{% endif %}{% if page == 'contact' and form %}<script src="{{ root }}assets/inquiry.js?v={{ form.js_v }}" defer></script>
 {% endif %}</head>
 <body>
 {% if lost %}<main class="lost"><div class="box">
@@ -604,7 +606,10 @@ def build_site(out_dir, conf, photos):
         email = conf.get("email") or ""
         inq = conf.get("inquiry")
         form_off = draft or bool(conf.get("preview"))
-        form = dict(inq, work=inq.get("work", INQ_WORK)) if inq and (conf.get("php") or form_off) else None
+        inq_js = (ASSETS / "inquiry.js").read_text()
+
+        form = dict(inq, work=inq.get("work", INQ_WORK), js_v=hashlib.sha256(inq_js.encode()).hexdigest()[:8]) \
+            if inq and (conf.get("php") or form_off) else None
         common = dict(name=conf["name"], owner=conf.get("owner") or conf["name"], tagline=conf.get("tagline") or "",
                       intro=conf.get("intro") or "", email=email, phone=phone,
                       phone_link=re.sub(r"[^0-9+]", "", phone), address=conf.get("address") or "",
@@ -629,10 +634,13 @@ def build_site(out_dir, conf, photos):
             put(fname, tpl.render(page=page, root=root, home=root or "./", photos=ph_, about=about,
                                   script=page == "home" and len(items) > 1, lost=False, noindex=False, **common, **extra))
         if form:
-            put("assets/inquiry.js", (ASSETS / "inquiry.js").read_text())
+            put("assets/inquiry.js", inq_js)
             if not form_off:
-                put("inquiry.php", inquiry_php_source(inq.get("salt") or secrets.token_hex(16), form["work"]))
+                put("sealed.php", (SEALED_ASSETS / "sealed.php").read_text())
+                put("inquiry.php", inquiry_php_source(inq.get("salt") or secrets.token_hex(16), form["work"],
+                                                      inq.get("kid") or kid_hex(inq["key"]), bool(inq.get("shared"))))
                 put(f"{INQ_DIR}/.htaccess", (ASSETS / "inquiries.htaccess").read_text())
+                put(f"{INQ_DIR}/index.html", "")
 
         lost_root = "" if draft else (conf.get("preview_base") or "") if conf.get("preview") else site_path
         put("404.html", tpl.render(page="404", root=lost_root, home=lost_root or "./", photos=[], about=[], script=False,
@@ -667,12 +675,12 @@ def clear_build(name):
     for p in SITE_ROOT.glob(f".{name}.*") if SITE_ROOT.is_dir() else []:
         shutil.rmtree(p, ignore_errors=True)
 
-INQ_MAGIC = b"LAQ1"
-INQ_INFO = b"lumen-aureum inquiry v1"
 INQ_MAX = 16384
-INQ_NAME = re.compile(r"^(?:[0-9a-f]{16}-)?[0-9a-f]{32}\.bin$")
+
+INQ_NAME = re.compile(r"^[0-9a-f]{16}-[0-9a-f]{32}\.las$")
 INQ_TMP = re.compile(r"^\.[0-9a-f]{32}\.tmp$")
-INQ_RATE = ".rate"
+INQ_RATE = ".rate.php"
+INQ_HOUSE = (".rate", INQ_RATE, "index.html")
 INQ_MIN_MS = 3000
 INQ_WORK = 17
 INQ_PER_CHECK = 200
@@ -700,16 +708,32 @@ def solve_work(body, bits):
             return w.hex()
         i += 1
 
-def inquiry_php_source(salt, work=INQ_WORK):
+def inquiry_php_source(salt, work=INQ_WORK, kid="", shared=False):
 
-    if not re.fullmatch(r"[0-9a-f]{16,64}", salt or "") or not 0 <= int(work) <= 32:
-        raise ValueError("bad inquiry salt or work")
+    if not re.fullmatch(r"[0-9a-f]{16,64}", salt or "") or not 0 <= int(work) <= 32 or not re.fullmatch(r"[0-9a-f]{16}", kid or ""):
+        raise ValueError("bad inquiry salt, work or key ID")
     src = (ASSETS / "inquiry.php").read_text()
     out = re.sub(r"(?m)^\$SALT = '[^'\n]*';", f"$SALT = '{salt}';", src, count=1)
     out = re.sub(r"(?m)^\$WORK = \d+;", f"$WORK = {int(work)};", out, count=1)
-    if out.count(f"$SALT = '{salt}';") != 1 or out.count(f"$WORK = {int(work)};") != 1:
-        raise ValueError("inquiry.php has no salt or work line")
+    out = re.sub(r"(?m)^\$KID = '[^'\n]*';", f"$KID = '{kid}';", out, count=1)
+    out = re.sub(r"(?m)^\$SHARED = \d;", f"$SHARED = {1 if shared else 0};", out, count=1)
+    if out.count(f"$SALT = '{salt}';") != 1 or out.count(f"$WORK = {int(work)};") != 1 or out.count(f"$KID = '{kid}';") != 1 \
+            or len(re.findall(r"(?m)^\$SHARED = [01];", out)) != 1:
+        raise ValueError("inquiry.php has no salt, work, key ID or proxy line")
     return out
+
+def kid_hex(public_b64):
+
+    import sealed
+    return sealed.kid_of(base64.urlsafe_b64decode(public_b64 + "=" * (-len(public_b64) % 4))).hex()
+
+def inquiry_keys(pem):
+
+    from cryptography.hazmat.primitives import serialization
+    import sealed
+    k = serialization.load_pem_private_key(pem.encode(), password=None)
+    raw = k.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
+    return {sealed.kid_of(raw): k}
 
 def new_inquiry_key():
 
@@ -726,37 +750,24 @@ def inquiry_public(pem):
     raw = k.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
 
-def _inq_key(shared, eph_raw, site_raw):
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-    return HKDF(algorithm=hashes.SHA256(), length=32, salt=eph_raw + site_raw, info=INQ_INFO).derive(shared)
-
 def seal_inquiry(public_b64, fields):
 
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.hazmat.primitives.asymmetric import ec
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    import sealed
     site_raw = base64.urlsafe_b64decode(public_b64 + "=" * (-len(public_b64) % 4))
-    eph = ec.generate_private_key(ec.SECP256R1())
-    eph_raw = eph.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
-    shared = eph.exchange(ec.ECDH(), ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), site_raw))
-    iv = secrets.token_bytes(12)
-    ct = AESGCM(_inq_key(shared, eph_raw, site_raw)).encrypt(iv, json.dumps(fields).encode(), INQ_MAGIC)
-    return INQ_MAGIC + eph_raw + iv + ct
+    fields = dict(fields)
+    if "id" not in fields:
+        fields["id"] = secrets.token_hex(16)
+    elif fields["id"] is None:
+        del fields["id"]
+    return sealed.seal_studio("inquiry", site_raw, json.dumps(fields).encode())
 
 def open_inquiry(pem, blob):
 
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.hazmat.primitives.asymmetric import ec
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    if not isinstance(blob, (bytes, bytearray)) or len(blob) > INQ_MAX or len(blob) < 4 + 65 + 12 + 16 or blob[:4] != INQ_MAGIC:
+    import sealed
+    if not isinstance(blob, (bytes, bytearray)) or len(blob) > INQ_MAX:
         raise ValueError("not an inquiry")
     try:
-        k = serialization.load_pem_private_key(pem.encode(), password=None)
-        site_raw = k.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
-        eph_raw = bytes(blob[4:69])
-        shared = k.exchange(ec.ECDH(), ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), eph_raw))
-        data = json.loads(AESGCM(_inq_key(shared, eph_raw, site_raw)).decrypt(bytes(blob[69:81]), bytes(blob[81:]), INQ_MAGIC))
+        data = json.loads(sealed.open_studio("inquiry", inquiry_keys(pem), bytes(blob)))
     except Exception as e:
         raise ValueError("not an inquiry") from e
     if not isinstance(data, dict) or data.get("v") != 1:
@@ -791,8 +802,16 @@ def clean_inquiry(data, types):
         return out, "incomplete"
     return out, ""
 
-NAME_OK = re.compile(r"^(?:(?:photos|assets|about|galleries|contact)/)?[A-Za-z0-9][A-Za-z0-9._-]{0,120}$|^(?:inquiries/)?\.htaccess$")
+NAME_OK = re.compile(r"^(?:(?:photos|assets|about|galleries|contact)/)?[A-Za-z0-9][A-Za-z0-9._-]{0,120}$|^(?:inquiries/)?\.htaccess$|^inquiries/index\.html$")
 INQ_DIR = "inquiries"
+
+SITE_TOP_NAMES = frozenset({"photos", "assets", "about", "contact", INQ_DIR, "index.html", "404.html", "sealed.php",
+                            "inquiry.php", "robots.txt", "sitemap.xml", ".htaccess", "favicon.ico",
+                            "apple-touch-icon.png"})
+
+def reserved_folder(name):
+
+    return (name or "").strip("/").lower() in SITE_TOP_NAMES
 MIME = {".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8",
         ".jpg": "image/jpeg", ".png": "image/png", ".ico": "image/x-icon", ".txt": "text/plain; charset=utf-8",
         ".xml": "application/xml", ".woff2": "font/woff2", ".htaccess": "text/plain", ".php": "application/x-httpd-php"}
@@ -848,7 +867,7 @@ def site_target(gallery_cfg, gallery_base):
         parent, _, last = pre.rpartition("/")
         cfg["prefix"] = parent
     else:
-        raise SiteProblem("The gallery host isn't one the studio page knows.")
+        raise SiteProblem("The web host isn't one the studio page knows.")
     if not last:
         raise SiteProblem("Your galleries are at the top of your web host, so there is no room for the studio page "
                           "above them. Galleries need their own folder, such as g/.")
@@ -915,7 +934,7 @@ def check_name(name, folder):
 
 def _order(n):
 
-    return (n == "index.html", n.endswith(".html"), n)
+    return (n == "index.html", n.endswith(".html"), n != "sealed.php", n == "inquiry.php", n)
 
 class _Sha:
     def __init__(self):
@@ -1015,7 +1034,7 @@ SETTINGS_PAGE = """{% extends "base.html" %}
 <h1>Studio page</h1>
 {% if request.args.get('saved') %}<p class="ok-msg" style="color:var(--gold)">Saved.</p>{% endif %}
 <form method="post" action="{{ url_for('studio_page_switch') }}" class="card f" style="max-width:720px;margin-top:4px">
-  <p style="font-size:13px;margin:0">A small public website for your studio, in the look of your galleries: a few photos you pick, an About page, and how to reach you, with an inquiry form. It goes to your gallery host, in the folder above your galleries (your galleries stay as they are), only when you press Upload. No tracking, nothing loaded from anywhere else.</p>
+  <p style="font-size:13px;margin:0">A small public website for your studio, in the look of your galleries: a few photos you pick, an About page, and how to reach you, with an inquiry form. It goes to your web host, in the folder above your galleries (your galleries stay as they are), only when you press Upload. No tracking, nothing loaded from anywhere else.</p>
   <label class="row" style="gap:6px"><input type="checkbox" name="use" value="1" data-autosubmit {{ 'checked' if on }}>Use the studio page</label>
   <noscript><div><button class="quiet">Save</button></div></noscript>
 </form>
@@ -1122,7 +1141,7 @@ SETTINGS_PAGE = """{% extends "base.html" %}
     {% else %}Not online yet.{% endif %}{% if note %} {{ note }}{% endif %}</div>
   {% for s_ in stale %}<div class="row" style="gap:8px;flex-wrap:wrap"><span class="grow" style="font-size:13px;color:var(--amber, #b07a12)">{{ s_.name }} is a photo its client no longer allows{% if s_.edited %}. It was changed on your web host since it went up, so an upload or a take-down leaves it there: delete it on your host, or remove it here{% else %}{{ ': press Upload to take it off' if on else ': take the site down to remove it' }}{% endif %}.</span>
     {% if s_.edited and not busy %}<form method="post" action="{{ url_for('studio_page_remove_file') }}" class="inline" data-confirm="Remove {{ s_.name }} from your web host, whatever was changed in it there?"><input type="hidden" name="name" value="{{ s_.name }}"><button class="ghost">Remove it anyway</button></form>{% endif %}</div>{% endfor %}
-  {% for h_ in earlier %}<div class="row" style="gap:8px;flex-wrap:wrap"><span class="grow" style="font-size:13px;color:var(--amber, #b07a12)">{% if problem %}On {{ h_.label }}: {{ h_.n }} file{{ '' if h_.n == 1 else 's' }} the studio page put there{% else %}Left on an earlier web host, {{ h_.label }}: {{ h_.n }} file{{ '' if h_.n == 1 else 's' }} the studio page put there before your gallery host settings changed to another place{% endif %}{% if h_.stale %}, among them {{ h_.stale|map(attribute='name')|join(', ') }}: {{ 'client photos their clients no longer allow' if h_.stale|length > 1 else 'a client photo its client no longer allows' }}{% endif %}.{% if not h_.known %} Its settings aren't known here: delete the files on that host yourself.{% endif %}</span>
+  {% for h_ in earlier %}<div class="row" style="gap:8px;flex-wrap:wrap"><span class="grow" style="font-size:13px;color:var(--amber, #b07a12)">{% if problem %}On {{ h_.label }}: {{ h_.n }} file{{ '' if h_.n == 1 else 's' }} the studio page put there{% else %}Left on an earlier web host, {{ h_.label }}: {{ h_.n }} file{{ '' if h_.n == 1 else 's' }} the studio page put there before your web host settings changed to another place{% endif %}{% if h_.stale %}, among them {{ h_.stale|map(attribute='name')|join(', ') }}: {{ 'client photos their clients no longer allow' if h_.stale|length > 1 else 'a client photo its client no longer allows' }}{% endif %}.{% if not h_.known %} Its settings aren't known here: delete the files on that host yourself.{% endif %}</span>
     {% if not busy %}{% if h_.known %}<form method="post" action="{{ url_for('studio_page_take_down_earlier') }}" class="inline" data-confirm="Remove the studio page's files from {{ h_.label }}? Only the files Lumen Aureum put there are removed, and only while they are as it put them."><input type="hidden" name="host" value="{{ h_.fp }}"><button class="ghost">Take down there</button></form>{% endif %}
     {% if not problem %}<form method="post" action="{{ url_for('studio_page_forget_host') }}" class="inline" data-confirm="Forget {{ h_.label }} and its list of files? Do this only when that host is gone for good: nothing is removed from it, and Today stops reminding about it."><input type="hidden" name="host" value="{{ h_.fp }}"><button class="quiet">Gone for good</button></form>{% endif %}{% endif %}</div>
     {% for s_ in h_.stale if s_.edited and h_.known and not busy %}<div class="row" style="gap:8px"><span class="grow" style="font-size:13px">{{ s_.name }} on {{ h_.label }} was changed there since it went up, so taking down leaves it.</span><form method="post" action="{{ url_for('studio_page_remove_file') }}" class="inline" data-confirm="Remove {{ s_.name }} from {{ h_.label }}, whatever was changed in it there?"><input type="hidden" name="name" value="{{ s_.name }}"><input type="hidden" name="host" value="{{ h_.fp }}"><button class="ghost">Remove it anyway</button></form></div>{% endfor %}{% endfor %}
@@ -1150,6 +1169,8 @@ def register(ctx):
         sha256 TEXT PRIMARY KEY, session_id INTEGER, household_id INTEGER, received TEXT, outcome TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS studio_inquiry_review (
         id INTEGER PRIMARY KEY, sha256 TEXT UNIQUE NOT NULL, fields TEXT NOT NULL, received TEXT NOT NULL);""")
+    ctx.migrate(items.TABLE)
+    ctx.on_unlock(items.migrate_hook(ctx.connect))
 
     @ctx.on_unlock
     def _restamp_hosts():
@@ -1305,6 +1326,14 @@ def register(ctx):
             put_setting("site_inquiry_key", pem)
         return pem
 
+    def host_shared():
+
+        try:
+            caps = json.loads(setting("gallery_host_caps") or "{}")
+        except ValueError:
+            return False
+        return bool((caps.get("now") or caps.get("setup") or {}).get("proxy"))
+
     def inquiry_salt():
 
         s = setting("site_inquiry_salt")
@@ -1355,7 +1384,8 @@ def register(ctx):
                     problem=problem, site_cfg=site_cfg, preview=preview,
                     preview_base=url_for("studio_page_preview") if preview else "",
                     php=bool(site_cfg) and site_cfg.get("type") in ("sftp", "local"),
-                    inquiry=dict(key=inquiry_public(inquiry_key()), types=form_types(), salt=inquiry_salt(), work=INQ_WORK)
+                    inquiry=dict(key=inquiry_public(inquiry_key()), kid=kid_hex(inquiry_public(inquiry_key())),
+                                 types=form_types(), salt=inquiry_salt(), work=INQ_WORK, shared=host_shared())
                     if setting("site_inquiries") != "0" else None)
 
     def build(out_name, preview=False):
@@ -1777,14 +1807,19 @@ def register(ctx):
             if not gid or not G.GID_OK.match(gid) or (r_["host_fp"] and r_["host_fp"] != fp_now) or G.online_download(gid):
                 continue
             try:
+                if ("sealed_gen" in r_.keys() and not r_["sealed_gen"]) or not G.is_link(gid):
+
+                    import upgrade_140
+                    upgrade_140.ensure(ctx, G._G() if hasattr(G, "_G") else G, r_["sid"])
+                    gid = q("SELECT gallery_id FROM sessions WHERE id=?", (r_["sid"],), one=True)["gallery_id"]
                 blob = G.picks_blob(gid)
             except Exception as e:
-                raise SiteProblem("The client's latest picks couldn't be read from your gallery host, so nothing was "
+                raise SiteProblem("The client's latest picks couldn't be read from your web host, so nothing was "
                                   f"uploaded ({str(e)[:200]}). Try again in a moment.")
             if not blob:
                 continue
             try:
-                pk = G.open_picks(blob, r_["ekey"] or r_["key"])
+                pk = G.open_picks(blob, r_["ekey"] or r_["key"], gid)
             except Exception:
                 pk = None
             if pk is None:
@@ -1841,9 +1876,9 @@ def register(ctx):
                     "closed to the web. Press Check for inquiries, then do this again.")
         with ih.session() if ih else contextlib.nullcontext():
             for n in names:
-                if n == INQ_RATE or INQ_TMP.match(n):
+                if n in INQ_HOUSE or INQ_TMP.match(n):
                     ih.delete(n)
-        others = [n for n, _, plain in entries if not plain or n not in (".htaccess", INQ_RATE) and not INQ_TMP.match(n)]
+        others = [n for n, _, plain in entries if not plain or n not in (".htaccess",) + INQ_HOUSE and not INQ_TMP.match(n)]
         if others:
             return ("Other files in the inquiries folder on your host (" + ", ".join(others[:5]) + ") were left, so its "
                     ".htaccess stays, keeping them closed to the web.")
@@ -2214,7 +2249,7 @@ def register(ctx):
                 ih = open_inq_host(ogcfg, ocfg)
                 entries = top_files(ih)
                 waiting = [n for n, _, plain in entries if plain and INQ_NAME.match(n)]
-                others = [n for n, _, plain in entries if not plain or n not in (".htaccess", INQ_RATE) and not INQ_TMP.match(n)
+                others = [n for n, _, plain in entries if not plain or n not in (".htaccess",) + INQ_HOUSE and not INQ_TMP.match(n)
                           and not INQ_NAME.match(n)]
                 if waiting or others:
                     inq = ("The inquiries folder there still holds files (" + ", ".join((waiting + others)[:5]) + "), so it "
@@ -2222,7 +2257,7 @@ def register(ctx):
                 else:
                     with ih.session() if ih else contextlib.nullcontext():
                         for n, _, plain in entries:
-                            if plain and (n == INQ_RATE or INQ_TMP.match(n)):
+                            if plain and (n in INQ_HOUSE or INQ_TMP.match(n)):
                                 ih.delete(n)
                     with host.session():
                         st = host_copy(host, INQ_HT, *have[INQ_HT])
@@ -2347,9 +2382,7 @@ def register(ctx):
 
     def collect_inquiries(limit=None, force=False):
 
-        import locks
         import time as _time
-        from flask import g as _g
         with app.app_context():
             if not setting("site_inquiry_key") or not force and not form_online() and (
                     not on() or setting("site_inquiries") == "0"):
@@ -2382,31 +2415,22 @@ def register(ctx):
                     host.delete(n)
                     continue
                 try:
-                    fields, why = clean_inquiry(open_inquiry(pem, blob), types)
+                    data_ = open_inquiry(pem, blob)
+                    item_ = items.item_of(data_)
+                    if item_ is None:
+                        raise ValueError("no item id")
+                    fields, why = clean_inquiry(data_, types)
                 except ValueError:
                     res["bad"] += 1
                     host.delete(n)
                     continue
-                if not locks.WRITES.acquire(timeout=60):
+                with app.app_context():
+                    seen_ = items.state(q, "inquiry", "", item_) != "new"
+                if seen_:
+                    host.delete(n)
+                    continue
+                if not save_inquiry(sha, fields, why, item_):
                     break
-                try:
-                    with app.app_context():
-                        _g.tx = True
-                        try:
-                            now_ = datetime.now().isoformat(timespec="seconds")
-                            if not why:
-                                x("INSERT INTO studio_inquiry_review (sha256, fields, received) VALUES (?,?,?)",
-                                  (sha, json.dumps(fields), now_))
-                            x("INSERT INTO studio_inquiries (sha256, session_id, household_id, received, outcome) VALUES (?,?,?,?,?)",
-                              (sha, None, None, now_, why or "waiting"))
-                            _g.db.commit()
-                        except BaseException:
-                            _g.db.rollback()
-                            raise
-                        finally:
-                            _g.pop("tx", None)
-                finally:
-                    locks.WRITES.release()
                 host.delete(n)
                 res["dropped" if why else "added"] += 1
             for n, mt, plain in top_files(host):
@@ -2425,6 +2449,159 @@ def register(ctx):
         return res
 
     app.config["studio_page_collect"] = collect_inquiries
+
+    def save_inquiry(sha, fields, why, item=None):
+
+        import locks
+        from flask import g as _g
+        if not locks.WRITES.acquire(timeout=60):
+            return False
+        try:
+            with app.app_context():
+                _g.tx = True
+                try:
+                    now_ = datetime.now().isoformat(timespec="seconds")
+                    if not why:
+                        x("INSERT INTO studio_inquiry_review (sha256, fields, received) VALUES (?,?,?)",
+                          (sha, json.dumps(fields), now_))
+                    x("INSERT INTO studio_inquiries (sha256, session_id, household_id, received, outcome) VALUES (?,?,?,?,?)",
+                      (sha, None, None, now_, why or "waiting"))
+                    if item:
+                        items.take(q, x, "inquiry", "", item)
+                    _g.db.commit()
+                except BaseException:
+                    _g.db.rollback()
+                    raise
+                finally:
+                    _g.pop("tx", None)
+        finally:
+            locks.WRITES.release()
+        return True
+
+    LEGACY_INQ = re.compile(r"^(?:[0-9a-f]{16}-)?[0-9a-f]{32}\.bin$")
+
+    def _record_put(fp, name, size, sha):
+        x("""INSERT INTO studio_files (name, host_fp, size, sha256, session_id, photo_id, at) VALUES (?,?,?,?,?,?,?)
+             ON CONFLICT(name, host_fp) DO UPDATE SET size=excluded.size, sha256=excluded.sha256, at=excluded.at""",
+          (name, fp, size, sha, None, None, datetime.now().isoformat(timespec="seconds")))
+
+    def up_hosts():
+        site_cfg, site_url, _folder = target()
+        gcfg = gallery_cfg()
+        return (open_host(gcfg, site_cfg), open_inq_host(gcfg, site_cfg), site_url,
+                "php" if site_cfg.get("type") in ("sftp", "local") else "static")
+
+    def up_put_scripts(host):
+
+        site_cfg, _u, _f = target()
+        fp = host_fingerprint(site_cfg)
+        src = inquiry_php_source(inquiry_salt(), INQ_WORK, kid_hex(inquiry_public(inquiry_key())), host_shared())
+        with host.session():
+            for name, data in (("sealed.php", (SEALED_ASSETS / "sealed.php").read_bytes()), ("inquiry.php", src.encode()),
+                               (f"{INQ_DIR}/.htaccess", (ASSETS / "inquiries.htaccess").read_bytes()),
+                               (f"{INQ_DIR}/index.html", b"")):
+                size, sha = host.put_stream(name, io.BytesIO(data), content_type=MIME.get(Path(name).suffix or Path(name).name),
+                                            cache_control="no-cache")
+                _record_put(fp, name, size, sha)
+
+    def _read_inq(ih, n):
+        size = ih.stat(n)
+        if size is None:
+            return None
+        buf = io.BytesIO()
+        if size <= INQ_MAX:
+            ih.get_stream(n, buf)
+        return buf.getvalue()
+
+    def _delete_if(ih, n, sha):
+
+        now_ = _read_inq(ih, n)
+        if now_ is not None and hashlib.sha256(now_).hexdigest() == sha:
+            ih.delete(n)
+
+    def up_sweep(ih, opener, shas):
+
+        res = dict(added=0, dropped=0, left=0)
+        if ih is None:
+            return res
+        pem, types = setting("site_inquiry_key"), form_types()
+        with ih.session():
+            for n in [n for n in ih.list("") if LEGACY_INQ.match(n)]:
+                blob = _read_inq(ih, n)
+                if blob is None:
+                    continue
+                sha = hashlib.sha256(blob).hexdigest()
+                if q("SELECT 1 FROM studio_inquiries WHERE sha256=?", (sha,), one=True):
+                    _delete_if(ih, n, sha)
+                    continue
+                try:
+                    fields, why = clean_inquiry(opener(pem, blob), types)
+                except ValueError:
+                    shas[n] = sha
+                    res["left"] += 1
+                    continue
+                if not save_inquiry(sha, fields, why):
+                    raise RuntimeError("the app was busy; the inquiries are collected at the next try")
+                _delete_if(ih, n, sha)
+                res["dropped" if why else "added"] += 1
+        if res["added"] or res["dropped"]:
+            ctx.audit(f"Website inquiries sent before the 1.4 update: {res['added']} to review"
+                      + (f", {res['dropped']} dropped (spam or no way to reply)" if res["dropped"] else ""), who="Lumen Aureum")
+        return res
+
+    def up_put_form(host):
+
+        site_cfg, _u, _f = target()
+        fp = host_fingerprint(site_cfg)
+        have = owned(fp)
+        if "contact/index.html" not in have:
+            return
+        try:
+            built, _conf, _sk = build("upgrade")
+            with host.session():
+                for name in ("assets/inquiry.js", "contact/index.html"):
+                    p = SITE_ROOT / "upgrade" / name
+                    if not p.is_file():
+                        continue
+                    with open(p, "rb") as f_:
+                        size, sha = host.put_stream(name, f_, content_type=MIME.get(Path(name).suffix), cache_control="no-cache")
+                    _record_put(fp, name, size, sha)
+        finally:
+            clear_build("upgrade")
+
+    def up_drop_unreadable(shas):
+
+        if not shas:
+            return
+        site_cfg, _u, _f = target()
+        ih = open_inq_host(gallery_cfg(), site_cfg)
+        if ih is None:
+            return
+        with ih.session():
+            for n, sha in shas.items():
+                if LEGACY_INQ.match(n):
+                    _delete_if(ih, n, sha)
+
+    def up_form_online():
+
+        try:
+            return form_online()
+        except Exception:
+            return False
+
+    app.config["studio_page_upgrade"] = dict(form_online=up_form_online, hosts=up_hosts, put_scripts=up_put_scripts,
+                                             sweep=up_sweep, put_form=up_put_form, drop_unreadable=up_drop_unreadable)
+
+    @ctx.after_unlock
+    def _upgrade_form_without_galleries():
+
+        if app.config.get("gallery_upgrade_run"):
+            return
+        import jobs as _jobs
+        import upgrade_140
+        with app.app_context():
+            if not upgrade_140.finished(q):
+                _jobs.start(app, "upgrade-140", "Updating the inquiry form", lambda job: upgrade_140.run(ctx, None, job))
 
     def collect_quietly():
         try:

@@ -26,8 +26,17 @@ Keep your own plugins **outside** this code, in a folder of your own, so updates
    Files starting with `_` are skipped, so `_draft.py` stays off.
 
 To switch a plugin off without deleting it, list its file name (without `.py`) in `CRM_PLUGINS_OFF`, separated by
-commas. That works for the built-in ones too, except `retention`: sealing the unedited files and deleting them on the
-day the agreement names is a promise to clients, so it always runs. Online galleries (`gallery`) can be switched off.
+commas. That works for the built-in ones too, except the core ones, which always run: `retention` (sealing the
+unedited files and deleting them on the day the agreement names is a promise to clients) and `print_core` (whatever a
+client sent to a gallery is collected before any gallery folder is deleted, and print money stays in Finances,
+statements and the accountant export). Online galleries (`gallery`) and print orders (`prints`) can be switched off.
+
+**Settings, Plugins** lists every plugin and its state. A plugin that calls `ctx.switchable(default=..., label=...,
+about=..., before_off=fn)` gets an on/off switch there, stored as the setting `plugin_on_<name>` and read at each use
+(no restart). The plugin stays loaded and checks `ctx.active()` wherever it acts; `before_off()` returns words to show
+(with "Turn off anyway") when turning it off needs a second thought, or "". `ctx.plugin_on(name)` tells any plugin
+whether another is on. `CRM_PLUGINS_OFF` always wins: a plugin it names is not loaded, and its switch can't turn it on.
+Print orders (`prints`) are switchable and **off by default**: on a new install and after the 1.4 update.
 
 If a plugin needs a Python package the image doesn't have, build your own image on top of this one:
 ```dockerfile
@@ -130,7 +139,7 @@ Append functions to these (`ctx.hooks.<name>.append(fn)`):
   asks once: `move=True`, `n_galleries`, `n_files`, with `sid` and `gallery_id` None. The studio page's upload asks the
   same guard: `site=True`, `n_files`, `site_url`, with `sid` and `gallery_id` None (taking the site down adds
   `remove=True`), so a plugin that holds gallery uploads holds the website too. Taking the old copies down from an
-  earlier gallery host asks it too: `remove=True`, `earlier_host=True`, with `sid` and `gallery_id` None.
+  earlier web host asks it too: `remove=True`, `earlier_host=True`, with `sid` and `gallery_id` None.
 - `settings_tabs` - `(label, endpoint, sub)`: a page of your plugin's own settings, listed under Plugins in Settings.
   Add the endpoint to `ctx.app.jinja_env.globals["SETTINGS_ENDPOINTS"]` so it opens beside the Settings list.
 - `tax_region` (set it, don't append) - `dict(name=, areas=[(key, label)], area_of=fn(client_address) -> (area, warning),
@@ -142,6 +151,60 @@ Append functions to these (`ctx.hooks.<name>.append(fn)`):
 Through `ctx.app.config`:
 - `ep_words` (dict) - `{endpoint: "plain sentence"}` for the history line of your POST routes.
 - `quiet_endpoints` (set) - POST routes that should not appear in history at all.
+
+## The lab hook (print orders)
+A plugin can talk to one print lab for the photographer. Core never contacts a lab: with no lab plugin every order is
+prepared for the lab by hand (Prepare for the lab), and that stays available whatever a plugin does. A lab plugin is
+off until the photographer connects it in its own settings, and "Where prints are made" (Settings, Print prices) lists
+it beside "By hand, at any lab" while its `ready()` is true. Core keeps each order's state, money and review rules; a
+plugin only reports what happened at its lab, and core decides whether that move is allowed.
+
+Register a dict with `ctx.hooks.labs.append(lab)`. Only `id`, `name`, `ready` and `send` are required.
+
+| Key | Signature | Core uses it for |
+|---|---|---|
+| `id`, `name` | strings | `id` (letters, digits, `-`) keys item references and orders; `name` is shown. |
+| `ready` | `fn() -> (ok, words)` | Whether the lab can be chosen and used now. |
+| `item_fields` | `fn(item) -> html or None` | Fields under a price list size, to tie it to the lab's product. |
+| `item_save` | `fn(item, form) -> (ref, error)` | Stores the lab's reference in the size's `lab[id]` (any JSON value; core never reads inside it). |
+| `starter_items` | `fn() -> [dict(label, w, h, finish, each, cost, lab)]` | "Use <lab>'s starter list" in place of the SAMPLE list. |
+| `costs` | `fn(items) -> {item_id: dict(cents=, as_of=, words=)}` | "Fill costs from <lab>": only on the photographer's press. |
+| `shipping_quote` | `fn(order) -> dict(cents=, lab_tax_cents=, total_cost_cents=, words=) or None` | "Shipping from <lab>" at review. |
+| `file_rules` | dict: `max_bytes`, `quality`, `color` | Applied when core cuts the print files for this lab (a size cap re-encodes at 90, then 85). |
+| `host_folder` | string ending `.d` (default `<id>.d`) | The plugin's own folder on the web host, beside the gallery folders (a link ID never holds a ".", so the two never collide). |
+| `can_send` | `fn(order) -> (ok, [reasons])` | Before "Send to <lab>". |
+| `send` | `fn(order) -> dict(accepted=bool, words=)` | The hand-off; return at once. Accepted: the order is "with the lab", showing `words`. |
+| `status` | `fn(order) -> dict(words=) or None` | "Check now" on an order. Report changes through `report`, not here. |
+| `cancel` | `fn(order, confirm=False) -> dict(outcome=, words=)` | Without `confirm`, what would happen; with it, act. `outcome`: `canceled`, `requested`, `kept`, `not_possible`, `not_placed`. |
+
+`order` is a read-only snapshot: `id`, `oid`, `invoice`, `state`, `paid_in_full`, `lines` (`n`, `item`, `lab` (your
+reference for that size), `qty`, `label`, `w`, `h`) and `ship` (`how`, `name`, address lines, `city`, `state`, `zip`,
+`country`, `phone`). Never the orderer's email, never the gallery key.
+
+What core gives a lab plugin, through `ctx.prints`:
+- `order(order_id)`: the snapshot above.
+- `print_files(order_id, lab_id)`: an iterator of `(file_id, file_name, line_numbers, jpeg_bytes)`, exactly the files
+  Prepare for the lab makes, cut in memory one at a time with your `file_rules`. It runs the same checks (the photo
+  opens, every cropped line was marked Looks right, no line below its size's floor) and raises with the reason.
+- `hand_off(order_id, lab_id, automatic=False)`: core refuses unless the order is paid in full (by hand only, an order
+  the photographer marked Order before payment; never with `automatic=True`), every cropped line looks right, no line
+  is below its floor, and its review flags are checked. Then it calls `can_send` and `send`.
+- `report(order_id, lab_id, what, numbers=, carrier=, tracking=, url=, outcome=, cost=dict(products=, shipping=,
+  lab_tax=, other=, pending=), words=)`: the only way a plugin moves an order. `what` is `placed`, `shipped`,
+  `delivered`, `given_back` or `canceled` (only while it still holds the order); any other move raises.
+- `paid_in_full(order_id)`.
+- `host(lab_id)`: your folder on the web host: `put(name, bytes)`, `delete(name)`, `list()`, `public_url(name)`,
+  `fetch_public(name)` and `probe()` (the host's last PHP check). Names can't leave the folder.
+- `secret_get(name)`, `secret_set(name, value)`: encrypted storage in the database for your keys; prefix the names
+  with your `id`. Never exported in the settings file.
+
+Events through `ctx.hooks.on`: `print_order_paid(order_id)`, `print_order_changed(order_id, old, new)`,
+`host_refit(host_fp)`, `gallery_host_changed(old_fp, new_fp)`, `host_gone(host_fp)`.
+
+Rules core keeps: any call to a lab plugin that raises or takes more than 30 seconds changes nothing; it is logged and
+Today says "<lab> had a problem with <name>'s order". Prepare for the lab on an order a plugin holds asks first, then
+calls its `cancel`. Only one plugin holds an order at a time. Use the `today` and `settings_tabs` hooks for your own
+Today lines and settings page.
 
 ## Pages that look like the app
 Use `render_template_string` with `{% extends "base.html" %}` and put your page in `{% block body %}`.

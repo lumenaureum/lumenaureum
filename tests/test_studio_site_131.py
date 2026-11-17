@@ -1,11 +1,12 @@
 import json
 import os
 import re
-import shutil
 import subprocess
 from urllib.parse import urljoin
 
 import pytest
+
+from helpers_tools import need_tool
 
 from test_studio_page import E, env, session_photo, setting, switch_on
 from test_studio_site_r3 import ex, q
@@ -46,7 +47,7 @@ def test_page_off_with_a_settings_problem_still_shows_what_to_act_on(env):
     assert "The gallery address in Online galleries must be set" in pub
     assert name in pub and "no longer allows" in pub
     assert "Remove it anyway" in pub and "Take down there" in pub
-    assert "before your gallery host settings changed" not in pub and "Gone for good" not in pub
+    assert "before your web host settings changed" not in pub and "Gone for good" not in pub
     fp = q(A, "SELECT host_fp FROM studio_files WHERE name=?", (name,))[0][0]
     c.post("/settings/studio-page/forget-host", data={"host": fp}, environ_base=E)
     assert q(A, "SELECT 1 FROM studio_files WHERE host_fp=?", (fp,))
@@ -101,8 +102,8 @@ def test_a_light_file_beside_a_variable_regular_one_draws_the_light_text(tmp_pat
     assert faces == {"own-400": "400 900", "own-300": "300"}
     assert ".text, .intro, .text .lede { font-weight: 300; }" in css
 
-@pytest.mark.skipif(not shutil.which("node"), reason="node is not installed")
 def test_the_send_button_reads_send_again_after_a_send():
+    need_tool("node")
     from plugins import studio_page as S
     _, pub = S.new_inquiry_key()
     form = dict(name="Ada Lovelace", email="ada@example.org", phone="", type="", date="", message="Hello", website="",

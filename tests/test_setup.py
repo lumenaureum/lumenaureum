@@ -205,7 +205,8 @@ def test_custom_types_regional_tax_and_demo(env, tmp_path, monkeypatch):
 def test_storage_errors_in_plain_words():
     import setup
     cfg = dict(type="sftp", host="files.example.com", key_file="/keys/id")
-    assert "never connected to files.example.com" in setup.plain_error(FileNotFoundError(2, "No such file", "/data/.ssh/known_hosts"), cfg)
+    msg = setup.plain_error(FileNotFoundError(2, "No such file", "/data/.ssh/known_hosts"), cfg)
+    assert "hasn't connected to files.example.com" in msg and "known_hosts" not in msg
     assert setup.plain_error(FileNotFoundError(2, "No such file", "/keys/id"), cfg) == "The private key file isn't there."
     assert setup.plain_error(ValueError("odd"), cfg) == "ValueError: odd"
 

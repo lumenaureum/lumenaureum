@@ -1,5 +1,17 @@
 # The sealed photo format (LAP1)
 
+Lumen Aureum seals things in three formats (`docs/sealed-format.md` lists them in plain words): files kept at rest,
+small sealed messages, and link files. This is the first: files kept at rest at home and in the vault, any size,
+sealed in pieces, each file under its own key, the format blind to what the file is.
+
+Formal name (in these format docs only): LAP = Lumen Aureum Perpetuum, files kept at rest, in pieces.
+
+What it holds today: the photo store's kinds `raw` (RAWs from the shoot), `export` (the edited exports a gallery is
+built from) and `final` (retouched finals). Expected later, as new kinds with the format unchanged: signed agreements
+(the final PDF with its signature page), other documents worth keeping sealed (model releases, signed waivers), print
+files kept for remakes, video clips, and files a client sends the studio (which arrive through the web host, then are
+kept at home in this format).
+
 Every photo uploaded into Lumen Aureum (RAWs and edited exports) is stored in this format from the first byte that
 reaches the server: the photo is encrypted in memory as each piece of the upload arrives, and only ciphertext is ever
 written to disk. The same files are mirrored to the backup location and, when a session is sealed, moved into the
@@ -89,7 +101,7 @@ as its pieces are sealed.
 
 A photographer can have a gallery ask for a word the client chose. The gallery is then encrypted, as above, under:
 
-    key = PBKDF2-SHA256(word, salt = link secret (32 bytes) || gallery id (ASCII), 600000 rounds, 32 bytes)
+    key = PBKDF2-SHA256(word, salt = link secret (32 bytes) || gallery ID (ASCII; for a gallery moved to its link ID in 1.4, the ID it had), 600000 rounds, 32 bytes)
 
 The word is normalized first: Unicode NFKC, trimmed, lowercase, runs of spaces made single. The link carries the
 32-byte link secret as before, plus `c=1`, which tells the page to ask for the word; the word is never printed or

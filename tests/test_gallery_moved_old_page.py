@@ -4,6 +4,7 @@ import sys
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from helpers import host_has, host_text
 from test_gallery_lifecycle_e2e import DESK, _expect, _php, browser
 from test_upgrade_from_120 import EXPECTED, _manifest, _q, upgraded
 
@@ -33,11 +34,15 @@ def test_a_1_2_page_left_behind_by_a_move_is_told_it_moved(upgraded, browser, wh
     cfg["gallery_hosts_prev"], cfg["gallery_host"] = [cfg["gallery_host"]], {"type": "local", "path": str(new_dir)}
     VW.write_config(cfg)
     c.post("/galleries/move", environ_base=E)
-    assert (new_dir / gid / "manifest.bin").exists()
+
+    new = _q(A, "SELECT gallery_id FROM sessions WHERE id=?", (sid,))[0][0]
+    k = _q(A, "SELECT key, ekey FROM galleries WHERE session_id=?", (sid,))[0]
+    assert G.is_link(new) and host_has(new_dir / new, "manifest.bin", k[1] or k[0]) and not (new_dir / gid).exists()
     after = (old_dir / gid / "index.html").read_text()
-    assert G._script_hashes(after) == G.VIEWER_SCRIPT_HASHES and f'data-gid="{gid}"' in after[:400]
-    assert "moved=1" in (old_dir / gid / "limits.txt").read_text(), (old_dir / gid / "limits.txt").read_text()
-    assert "hello@studio.example" in (old_dir / gid / "limits.txt").read_text(), (old_dir / gid / "limits.txt").read_text()
+    assert G._script_hashes(after) == G.VIEWER_SCRIPT_HASHES and f'data-gid="{new}"' in after[:400]
+    assert f'data-cws="{gid}"' in after[:400]
+    assert "moved=1" in host_text(old_dir / gid, "limits.txt"), host_text(old_dir / gid, "limits.txt")
+    assert "hello@studio.example" in host_text(old_dir / gid, "limits.txt"), host_text(old_dir / gid, "limits.txt")
     php, base = _php(old_dir)
     errors = []
     try:

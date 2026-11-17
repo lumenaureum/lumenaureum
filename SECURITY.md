@@ -19,8 +19,9 @@ Fixes go into the next release of the current version. Please test against the l
 ## In scope
 
 - The app itself: sign-in, the encrypted database, backups, restores, and key rotation.
-- Client galleries: the gallery files on the web host and the viewer that opens them in the browser.
+- Client galleries: the link files on the web host and the viewer that opens them in the browser.
 - The photo file format (LAP1) and its key handling, described in [docs/photo-format.md](docs/photo-format.md).
+- The sealed message format (LAS1) and link files, described in [docs/sealed-format.md](docs/sealed-format.md).
 - The container image published to ghcr.io.
 
 The design, threat model, and known limits are in [docs/security.md](docs/security.md). Problems that need someone

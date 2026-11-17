@@ -9,7 +9,6 @@
     <button class="kpi sel" data-filter="week"><b>{{ kpi.week }}</b><span>to do this week</span></button>
     <button class="kpi sel {{ 'warm' if kpi.owed }}" data-filter="money"><b>{{ money(kpi.owed) }}</b><span>owed to you</span></button>
     {% if kpi.deposits %}<button class="kpi sel" data-filter="money"><b>{{ money(kpi.deposits) }}</b><span>deposits unpaid</span></button>{% endif %}
-    <a class="kpi" href="{{ url_for('money_view') }}"><b>Finances</b><span>year, owed, and tax &rsaquo;</span></a>
     <button class="kpi sel" data-filter="lead"><b>{{ kpi.leads }}</b><span>open lead{{ '' if kpi.leads == 1 else 's' }}</span></button>
   </div>
 </header>
@@ -33,7 +32,7 @@
   <a href="{{ url_for('unconfirmed_view') }}">Review and decide</a></section>{% endif %}
 {% if loose %}
 <section class="finish also"><b>Also</b>
-  <ul>{% for it in loose %}<li><a href="{{ it.link }}">{{ it.text }}</a>{% if it.sub %} <span class="mute">{{ it.sub }}</span>{% endif %}</li>{% endfor %}</ul>
+  <ul>{% for it in loose %}<li>{% if it.link %}<a href="{{ it.link }}">{{ it.text }}</a>{% else %}{{ it.text }}{% endif %}{% if it.sub %} <span class="mute">{{ it.sub }}</span>{% endif %}{% if it.post %} <form method="post" action="{{ it.post }}" class="inline">{% for k, v in (it.fields or {}).items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}<button class="quiet" style="font-size:12px;padding:3px 8px">{{ it.verb }}</button></form>{% endif %}</li>{% endfor %}</ul>
 </section>
 <style>.finish.also { border-left-color: var(--line); }</style>
 {% endif %}

@@ -6,6 +6,7 @@ from datetime import date, timedelta
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from helpers import host_has, host_text
 from test_gallery_lifecycle_e2e import E, _expire, site
 from test_gallery_round_two import _files, _galleries_off, _job, _new_folder, _setup_host
 
@@ -69,7 +70,7 @@ def test_galleries_off_nothing_moves_or_comes_down_and_on_again_is_where_it_was(
     assert _files(site.host, gid) == before
     _setup_host(site, site.host)
     assert not site.VW.config().get("gallery_hosts_prev")
-    assert "still on your earlier gallery host" not in _today(site)
+    assert "still on your earlier web host" not in _today(site)
     assert _files(site.host, gid) == before
 
 def test_galleries_off_then_on_with_another_host_makes_the_first_one_earlier(site):
@@ -78,9 +79,9 @@ def test_galleries_off_then_on_with_another_host_makes_the_first_one_earlier(sit
     _galleries_off(site)
     new = _new_folder(site, "host2")
     _setup_host(site, new)
-    assert "1 gallery is still on your earlier gallery host" in _today(site)
+    assert "1 gallery is still on your earlier web host" in _today(site)
     site.c.post("/galleries/move", environ_base=E)
-    assert (new / gid / "manifest.bin").exists()
+    assert host_has(new / gid, "manifest.bin")
     site.c.post("/galleries/clear-old", environ_base=E)
     assert _files(site.host, gid) == [] and not site.VW.config().get("gallery_hosts_prev")
 
@@ -103,7 +104,7 @@ def test_a_deleted_clients_gallery_on_an_unreachable_earlier_host_is_kept_in_min
     assert not site.q("SELECT 1 FROM households WHERE id=?", (hid,))
     assert "manifest.bin" in _files(site.host, gid)
     assert [tuple(r) for r in site.q("SELECT gallery_id FROM gallery_leftovers")] == [(gid,)]
-    assert "1 gallery of a deleted session still has to come down from a gallery host" in _today(site)
+    assert "1 gallery of a deleted session still has to come down from a web host" in _today(site)
     page = _move_page(site)
     assert f"gallery (folder {gid})" in page and "This host is gone for good" in page
     assert not any(str(site.host) in h for h in _history(site))
@@ -180,8 +181,8 @@ def test_a_host_gone_for_good_can_be_forgotten_naming_what_may_still_be_there(si
     assert not site.q("SELECT 1 FROM gallery_leftovers")
     assert site.q("SELECT moved_from FROM galleries WHERE session_id=?", (moved,))[0][0] is None
     assert any("may still be online there" in h and "Moved Away" in h for h in _history(site, moved))
-    assert any("Forgot an earlier gallery host" in h and gid_d in h for h in _history(site))
-    assert "Earlier gallery hosts" not in _move_page(site)
+    assert any("Forgot an earlier web host" in h and gid_d in h for h in _history(site))
+    assert "Earlier web hosts" not in _move_page(site)
 
 def test_a_gallery_online_again_during_a_delete_comes_down_before_the_records_go(site, monkeypatch):
     sid = site.gallery("Slipped Through")
@@ -224,7 +225,7 @@ def test_a_time_zone_change_moves_the_closing_instant_of_galleries_online(site, 
     until = (date.today() + timedelta(days=7)).isoformat()
 
     def ts(key):
-        return dict(l_.split("=", 1) for l_ in (site.host / gid / "limits.txt").read_text().split("\n") if "=" in l_)[key]
+        return dict(l_.split("=", 1) for l_ in host_text(site.host / gid, "limits.txt").split("\n") if "=" in l_)[key]
     assert ts("until") == until and int(ts("until_ts")) == P["day_close"](until)
     old_tz = os.environ.get("TZ")
     zone = "Pacific/Kiritimati" if P["day_close"](until) != _close_in("Pacific/Kiritimati", until) else "America/Adak"

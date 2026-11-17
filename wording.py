@@ -92,7 +92,7 @@ If photos are lost, damaged or not taken, for any reason, or I do not do somethi
 You are responsible for your own safety and belongings at each location. Some locations may refuse photography on the day, and we will move to another spot.
 
 # 12. Your information
-I keep your contact details, session notes and photos to run your session and my business records. I keep them secure, and the copies in my own systems are encrypted where my software allows. I share them only with the services I use to run my business (such as my gallery host, email, payment and print lab), and only as much as each needs. At a group event, group photos go to the families in them. I never sell your information. I keep business records for up to [RECORDS YEARS] years after our last session, then delete them. If you ask, I will tell you what I hold about you, or delete it, except records I must keep for taxes. Your gallery link works for anyone who has it: keep the letter safe and do not post the link.
+I keep your contact details, session notes and photos to run your session and my business records. I keep them secure, and the copies in my own systems are encrypted where my software allows. I share them only with the services I use to run my business (such as my web host, email, payment and print lab), and only as much as each needs. At a group event, group photos go to the families in them. I never sell your information. I keep business records for up to [RECORDS YEARS] years after our last session, then delete them. If you ask, I will tell you what I hold about you, or delete it, except records I must keep for taxes. Your gallery link works for anyone who has it: keep the letter safe and do not post the link.
 
 # 13. The whole agreement
 This agreement and the quote are our whole agreement. Changes are made in writing. The law of [LAW] applies.
@@ -191,3 +191,6 @@ def clean(text):
 FIELDS["transfer"] = TRANSFER_FIELDS
 FIELDS["license"] = LICENSE_FIELDS
 LABELS = {"agreement": "Agreement", "release": "Release", "transfer": "Copyright transfer", "license": "Photo license"}
+
+AGREEMENT_1_3 = STANDARD["agreement"].replace("(such as my web host, email,", "(such as my gallery host, email,")
+assert AGREEMENT_1_3 != STANDARD["agreement"]

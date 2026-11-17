@@ -126,12 +126,12 @@ def test_this_sqlcipher_opens_it_with_the_same_settings(upgraded):
     con.close()
     assert (tmp_path / "crm.db").read_bytes()[:16] != b"SQLite format 3\x00"
 
-def test_the_schema_moves_to_7_after_a_sealed_backup(upgraded):
+def test_the_schema_moves_to_the_current_version_after_a_sealed_backup(upgraded):
     A, c, taken, _ = upgraded
     assert A.SCHEMA_VERSION >= V120_SCHEMA
     assert _q(A, "PRAGMA user_version")[0][0] == A.SCHEMA_VERSION
     assert taken == (["upgrade"] if A.SCHEMA_VERSION > V120_SCHEMA else [])
-    assert A.SCHEMA_VERSION == 7 and taken == ["upgrade"]
+    assert A.SCHEMA_VERSION == 8 and taken == ["upgrade"]
     cols = {t: [r[1] for r in _q(A, f"PRAGMA table_info({t})")] for t in ("bill_snapshots", "sessions", "galleries")}
     assert "html" in cols["bill_snapshots"] and {"priced_on", "delivery_method"} <= set(cols["sessions"])
     assert set(NEW_GALLERY_COLS) | {"proof", "prune_due"} <= set(cols["galleries"])
@@ -361,8 +361,9 @@ def test_download_galleries_their_files_and_zip_pieces_survive(upgraded):
         assert (m.get("brand") or {}).get("site") == want["site"]
         assert [dict(n=it["n"], on=it["on"], o=it["o"], os=it["os"]) for it in m["items"]] == want["items"]
         assert [dict(name=z["name"], size=z["size"], parts=z["parts"]) for z in m["zips"]] == want["zips"]
+
+        assert sorted(p.name for p in (tmp_path / "galleries" / gid).iterdir()) == sorted(want["built_files"])
         assert sorted(p.name for p in (tmp_path / "host" / gid).iterdir()) == want["host_files"]
-        assert sorted(p.name for p in (tmp_path / "galleries" / gid).iterdir()) == want["built_files"]
         fulls = {}
         for it in m["items"]:
             full = _opened(G, key, (tmp_path / "host" / gid / it["o"]).read_bytes(), it["o"])

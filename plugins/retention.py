@@ -401,6 +401,27 @@ def register(ctx):
             return days <= 0
         return (date.today() - date.fromisoformat(cur[0])).days >= days
 
+    def print_hold(sid, due):
+
+        import json
+        hold = app.config.get("print_hold")
+        r = row(sid)
+        try:
+            n = json.loads((r["notice"] if r and "notice" in r.keys() else "") or "{}")
+        except ValueError:
+            n = {}
+        if hold and hold(sid):
+            n["print_hold"] = date.today().isoformat()
+            if date.today() > due - timedelta(days=PURGE_NOTICE_DAYS):
+                n["purge"] = [date.today().isoformat(), due.isoformat()]
+            x("""INSERT INTO retention (session_id, notice) VALUES (?,?)
+                 ON CONFLICT(session_id) DO UPDATE SET notice=excluded.notice""", (sid, json.dumps(n)))
+            return True
+        if "print_hold" in n:
+            n.pop("print_hold")
+            x("UPDATE retention SET notice=? WHERE session_id=?", (json.dumps(n), sid))
+        return False
+
     def pass_once():
         if not app.config["clock_ok"]():
             app.logger.warning("retention pass skipped: the date jumped; waiting for the owner to confirm it on Today")
@@ -434,6 +455,8 @@ def register(ctx):
                      ON CONFLICT(session_id) DO UPDATE SET keep_days=excluded.keep_days""", (s["id"], ctx.C.raw_keep_days(s["type"])))
                 r = row(s["id"])
             due = due_date(s, r)
+            if due and date.today() >= due - timedelta(days=PURGE_NOTICE_DAYS) and print_hold(s["id"], due):
+                continue
             if due and date.today() >= due - timedelta(days=PURGE_NOTICE_DAYS):
                 if noticed(s["id"], "purge", due, PURGE_NOTICE_DAYS) and date.today() > due:
                     try:
@@ -484,6 +507,8 @@ def register(ctx):
 
         out = []
         rets = {r_["session_id"]: r_ for r_ in q("SELECT * FROM retention")}
+        hold_ = app.config.get("print_hold")
+        held = lambda sid: bool(hold_ and hold_(sid))
         delivered = {r_[0]: r_[1] for r_ in q("SELECT session_id, MIN(at) FROM stage_log WHERE stage='delivered' GROUP BY session_id")}
         import photostore
         with_uploads = {r_[0] for r_ in q("SELECT DISTINCT session_id FROM photo_files WHERE state='done'")} \
@@ -507,7 +532,7 @@ def register(ctx):
                     out.append(dict(text="RAWs and exports seal", when=sd_.isoformat(), link=back_of(s),
                                     who=dict(name=s["household"], sub=ctx.C.SESSION_TYPES.get(s["type"], s["type"]),
                                              link=back_of(s), type=s["type"], hid=s["household_id"])))
-            if due and (due - date.today()).days <= WARN_DAYS:
+            if due and (due - date.today()).days <= WARN_DAYS and not held(s["id"]):
                 out.append(dict(text="RAWs and outtakes delete", when=due.isoformat(), link=back_of(s),
                                 who=dict(name=s["household"], sub=ctx.C.SESSION_TYPES.get(s["type"], s["type"]),
                                          link=back_of(s), type=s["type"], hid=s["household_id"])))

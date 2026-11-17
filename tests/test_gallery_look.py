@@ -2,12 +2,13 @@ import base64
 import io
 import json
 import os
-import shutil
 import subprocess
 import sys
 import threading
 
 import pytest
+
+from helpers_tools import need_tool
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -111,9 +112,7 @@ def test_palettes_readable_and_match_the_preview_script():
         assert S._contrast(c, S._rgb(p["ink"])) >= 4.5 and S._contrast(c, S._rgb(p["mute"])) >= 4.5, (bg, p)
         assert S._contrast(c, S._rgb(p["ring"])) >= 3, (bg, p)
         assert S._contrast(c, S._rgb(p["mute"])) <= S._contrast(c, S._rgb(p["ink"]))
-    node = shutil.which("node")
-    if not node:
-        pytest.skip("node is not installed")
+    node = need_tool("node")
     colors = [b for b in colors if b not in S.PALETTES]
     js = ("const {palette} = require(process.argv[1]); process.stdout.write(JSON.stringify(" + json.dumps(colors) +
           ".map(b => palette(b, {}))));")
@@ -228,9 +227,7 @@ def items(*names):
 
 @pytest.fixture(scope="module")
 def viewer_runs(tmp_path_factory):
-    node = shutil.which("node")
-    if not node:
-        pytest.skip("node is not installed")
+    node = need_tool("node")
     picks = dict(retouch=3, market=2, email="me@example.com")
     dark = dict(font="script", colors=dict(bg="#262422", ink="#eee7dc", mute="#a59b8f", line="#3a3631", cell="#33302c", edge="#57514a"))
     cases = {
@@ -307,3 +304,13 @@ def test_gallery_brand_says_who_keeps_the_copyright(env, monkeypatch):
     assert owns[3] is True and owns[5] is True
     assert owns[4] is False
     assert owns[6] is False
+
+def test_the_device_keeps_nothing_readable(viewer_runs):
+
+    for name in ("theme", "rebuilt", "migrated", "same_names"):
+        stored = viewer_runs[name]["stored"]
+        assert stored, name
+        for k, v in stored.items():
+            assert k.startswith("la:") and len(k) == 35, (name, k)
+            for word in ("/g/x/", "picks:", "look:", "b.jpg", "soften", "#262422"):
+                assert word not in k and word not in v, (name, word)

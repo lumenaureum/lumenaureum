@@ -26,12 +26,17 @@ els["inq-msg"] = { textContent: "", className: "", hidden: true };
 els["inq-alt"] = { hidden: false };
 const document = { getElementById: id => els[id] || null };
 const window = { crypto: globalThis.crypto, fetch: true, TextEncoder };
-const fetch = async (url, opts) => { if (fields.fail) return { status: 500 }; busy = { text: button.textContent, aria: button.attrs["aria-busy"] || null, disabled: button.disabled }; posted.push({ url, type: opts.headers["Content-Type"], body: opts.body, credentials: opts.credentials }); return { status: 204 }; };
+let answer = 204;                 // what the host answers this try ("tries": a 500 after the envelope reached the host)
+const fetch = async (url, opts) => { if (fields.fail) return { status: 500 }; busy = { text: button.textContent, aria: button.attrs["aria-busy"] || null, disabled: button.disabled }; posted.push({ url, type: opts.headers["Content-Type"], body: opts.body, credentials: opts.credentials }); return { status: answer }; };
 const timer = (fn, ms) => { now += ms || 0; return setTimeout(fn, 0); };
 new Function("document", "window", "fetch", "Date", "btoa", "atob", "TextEncoder", "setTimeout", src)(document, window, fetch, FakeDate, btoa, atob, TextEncoder, timer);
 (async () => {
   now += fields.wait_ms === undefined ? 10000 : fields.wait_ms;
-  await submit({ preventDefault() {} });
+  for (const t of fields.tries || [{}]) {     // "tries": [{set: {field: value}, status}], one press of Send each
+    for (const k in t.set || {}) form.elements[k].value = t.set[k];
+    answer = t.status || 204;
+    await submit({ preventDefault() {} });
+  }
   process.stdout.write(JSON.stringify({ shown: !form.hidden, msg: els["inq-msg"].textContent, posted, busy,
     after: { text: button.textContent, aria: button.attrs["aria-busy"] || null, disabled: button.disabled },
     cleared: !!form.cleared }));

@@ -33,6 +33,8 @@ services:
     #   CRM_HOSTNAMES: "nas.local"                   # names you reach it by, besides its address
     #   CRM_TLS_SAN: "192.168.1.10,nas.local"        # put these in the certificate, so the browser asks only once;
     #                                                  # adding one later makes a new certificate at the next start
+    ulimits:
+      core: 0                                        # no core dumps: a crash never writes memory (keys, client data) to disk
     read_only: true
     tmpfs:
       - /tmp

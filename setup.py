@@ -3,6 +3,7 @@ import json
 import os
 import re
 import secrets
+import threading
 import time
 import zoneinfo
 from pathlib import Path
@@ -24,7 +25,10 @@ STEPS = [
     ("network", "Who can reach this", False),
 ]
 SLUGS = [s for s, _, _ in STEPS]
-OPEN_DURING_SETUP = {"static", "logout", "healthz", "setup_step", "setup_test", "security", "settings_import", "settings_import_gallery", "settings_export", "about"}
+OPEN_DURING_SETUP = {"static", "logout", "healthz", "setup_step", "setup_test", "setup_host_check", "setup_web_cert_check",
+                     "setup_web_cert_trust", "setup_web_cert_refuse", "security", "settings_import",
+                     "settings_import_gallery", "settings_export", "about"}
+
 PAYMENT_CHOICES = ["cash", "check", "card", "bank transfer", "payment app"]
 _ZIPS = None
 
@@ -53,12 +57,14 @@ def _data_and_program():
     data = os.path.dirname(os.path.realpath(os.environ.get("CRM_DB", str(ROOT / "data" / "crm.db"))))
     return data, os.path.realpath(str(ROOT))
 
+VAULT_MOUNT = "/vault"
+
 def suggested_vault():
 
     import settings_io
     data, prog = _data_and_program()
-    for p_ in ("/vault", os.path.join(data, "vault"), os.path.join(os.path.dirname(prog), "lumen-aureum-vault")):
-        if (p_ != "/vault" or os.path.isdir(p_)) and not settings_io._inside_private(p_):
+    for p_ in (VAULT_MOUNT, os.path.join(data, "vault"), os.path.join(os.path.dirname(prog), "lumen-aureum-vault")):
+        if (p_ != VAULT_MOUNT or os.path.isdir(p_)) and not settings_io._inside_private(p_):
             return p_
     return ""
 
@@ -144,11 +150,11 @@ def _put(**kv):
     finally:
         con.close()
 
-def test_backend(cfg, init_local=False, keep=True):
+def test_backend(cfg, init_local=False, keep=True, seen=None):
 
     made = []
     try:
-        return _test_backend(cfg, init_local, made)
+        return _test_backend(cfg, init_local, made, seen)
     finally:
         if not keep:
             for path in reversed(made):
@@ -157,7 +163,7 @@ def test_backend(cfg, init_local=False, keep=True):
                 except OSError:
                     pass
 
-def _test_backend(cfg, init_local, made):
+def _test_backend(cfg, init_local, made, seen=None):
 
     if not cfg:
         return "Nothing chosen."
@@ -202,24 +208,155 @@ def _test_backend(cfg, init_local, made):
             pass
         return "" if out.getvalue() == body else "The file read back differently from what was written."
     except Exception as e:
+        if seen is not None:
+            seen.append(e)
         return plain_error(e, cfg)
 
 def plain_error(e, cfg):
+
     text = str(e)
+    host = cfg.get("host") or "that server"
     if "is not initialised" in text or "is not initialized" in text:
         return ("That folder hasn't been set up for Lumen Aureum yet. If it is a new empty folder, tick \"New empty folder:"
                 " set it up\". If it should already be set up, check that the share is mounted.")
-    if isinstance(e, FileNotFoundError) and "known_hosts" in text:
-        return f"This machine has never connected to {cfg.get('host', 'that server')}. Add it to known_hosts first."
+    if type(e).__name__ == "BadHostKeyException":
+        return (f"{host}'s key changed since you trusted it. Trust the new key below only if your host confirms its"
+                " fingerprint changed (a rebuilt or moved server, say).")
+    if isinstance(e, FileNotFoundError) and "known_hosts" in text or "not found in known_hosts" in text or (
+            "known_hosts" in text.lower() and "server" in text.lower()):
+        return f"This app hasn't connected to {host} before. Test again to see its key fingerprint and trust it."
     if isinstance(e, FileNotFoundError) and cfg.get("key_file") and cfg["key_file"] in text:
         return "The private key file isn't there."
-    if "not found in known_hosts" in text or "known_hosts" in text.lower() and "server" in text.lower():
-        return f"{cfg.get('host', 'That server')} isn't in known_hosts (or its key changed)."
+    if "WRONG_VERSION_NUMBER" in text:
+        return "This address doesn't answer with HTTPS. Check the port, or whether the server uses https."
+    if "CERTIFICATE_VERIFY_FAILED" in text:
+        if re.search(r"self[- ]signed", text):
+            return "Its certificate isn't trusted (self-signed). Lumen Aureum can't use a self-signed S3 certificate yet."
+        return "Its certificate isn't trusted. Check the address, and that the certificate is current."
     if type(e).__name__ == "AuthenticationException":
         return "The server refused the key."
     if isinstance(e, (TimeoutError, ConnectionRefusedError)) or type(e).__name__ in ("NoValidConnectionsError", "gaierror"):
         return "Can't reach that server."
     return f"{type(e).__name__}: {e}"
+
+def unknown_host(c):
+
+    if not c or c.get("type") != "sftp" or not c.get("host") or c.get("host_key"):
+        return False
+    kh = os.path.expanduser(c.get("known_hosts", "~/.ssh/known_hosts"))
+    if not os.path.isfile(kh):
+        return True
+    try:
+        import paramiko
+        port = int(c.get("port", 22))
+        return paramiko.HostKeys(kh).lookup(c["host"] if port == 22 else f"[{c['host']}]:{port}") is None
+    except Exception:
+        return True
+
+def first_contact(c):
+
+    try:
+        line, fp = B.fetch_host_key(c["host"], c.get("port", 22))
+    except Exception as e:
+        return plain_error(e, c), None
+    return None, dict(host_key=line, fp=fp)
+
+def first_contact_message(c):
+    return (f"First connection to {c['host']}. Check that the key fingerprint shown below matches the one your host"
+            " gives, tick Trust this server, and test again.")
+
+SECRET_FIELDS = ("primary_secret_key", "secondary_secret_key", "gallery_secret_key")
+STEP_PREFIXES = {"storage": ("primary_", "secondary_"), "galleries": ("gallery_",)}
+
+def offer_trust(locs):
+
+    from flask import g
+    trust, msgs = g.setdefault("setup_trust", {}), []
+    for label, p_, c_ in locs:
+        if unknown_host(c_):
+            why, got = first_contact(c_)
+            if got:
+                trust[p_] = got
+            msgs.append(label + (why or first_contact_message(c_)))
+    return " ".join(msgs)
+
+def offer_changed_key(p_, seen):
+
+    from flask import g
+    e = seen[-1] if seen else None
+    if type(e).__name__ == "BadHostKeyException" and getattr(e, "key", None) is not None:
+        line = f"{e.key.get_name()} {e.key.get_base64()}"
+        g.setdefault("setup_trust", {})[p_] = dict(host_key=line, fp=B.host_key_fingerprint(line))
+
+def trust_boxes(prefixes):
+
+    from flask import g
+    out = {k_: dict(v_) for k_, v_ in (getattr(g, "setup_trust", None) or {}).items()}
+    if request.method != "POST":
+        return out
+    for p_ in prefixes:
+        hk = request.form.get(p_ + "host_key", "").strip()
+        ticked = bool(request.form.get(p_ + "trust"))
+        if p_ in out:
+            out[p_]["ticked"] = ticked and hk == out[p_]["host_key"]
+        elif hk:
+            try:
+                out[p_] = dict(host_key=hk, fp=B.host_key_fingerprint(hk), ticked=ticked)
+            except Exception:
+                pass
+    return out
+
+def form_value(name, saved=""):
+
+    return request.form.get(name, "") if request.method == "POST" else ("" if saved is None else saved)
+
+def form_ticked(name, saved):
+
+    return name in request.form if request.method == "POST" else bool(saved)
+
+def in_container():
+    return os.path.exists("/.dockerenv") or bool(os.environ.get("LUMENAUREUM_BUILD"))
+
+_PENDING, _PENDING_TTL, _PENDING_LOCK = {}, 900, threading.Lock()
+
+def _pending_token(make=False):
+    from flask import session as fs
+    t = fs.get("setup_pending")
+    if not t and make:
+        t = fs["setup_pending"] = secrets.token_urlsafe(18)
+    return t
+
+def pending_secrets():
+    t, now = _pending_token(), time.time()
+    with _PENDING_LOCK:
+        for k_ in [k_ for k_, (at, _) in _PENDING.items() if at < now]:
+            del _PENDING[k_]
+        return {f_: v_ for (t_, f_), (_, v_) in _PENDING.items() if t and t_ == t}
+
+def keep_secrets(form):
+    typed = {f_: form.get(f_, "").strip() for f_ in SECRET_FIELDS if form.get(f_, "").strip()}
+    if typed:
+        t = _pending_token(make=True)
+        with _PENDING_LOCK:
+            for f_, v_ in typed.items():
+                _PENDING[(t, f_)] = (time.time() + _PENDING_TTL, v_)
+
+def drop_secrets(prefixes):
+    t = _pending_token()
+    with _PENDING_LOCK:
+        for k_ in [k_ for k_ in _PENDING if k_[0] == t and k_[1].startswith(prefixes)]:
+            del _PENDING[k_]
+
+def with_pending(form):
+
+    pend = pending_secrets()
+    if not pend:
+        return form
+    f = form.copy()
+    for f_, v_ in pend.items():
+        if not f.get(f_, "").strip():
+            f[f_] = v_
+    return f
 
 def app_hooks():
     import sys
@@ -264,6 +401,178 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
         if after_rules:
             after_rules()
 
+    def check_host():
+
+        import hostcheck
+        from plugins.gallery import fingerprint_of, open_host
+        gh = VW.config().get("gallery_host")
+        base = get("gallery_base_url", "")
+        if not gh or not base:
+            return None
+
+        loaded = app.config.get("gallery_take_down")
+        live = loaded.__globals__["check_gallery"] if loaded else (lambda: None)
+        try:
+            res = hostcheck.capabilities(open_host(gh), base, live())
+        except Exception as e:
+            res = dict(at=time.strftime("%Y-%m-%d %H:%M"), kind="unreachable", version="", detail=str(e)[:200],
+                       htaccess=None, features=[(k_, l_, False, "the host couldn't be checked") for k_, l_ in hostcheck.FEATURES])
+        put(gallery_host_caps=json.dumps(dict(fp=fingerprint_of(gh), setup=res, now=res, checked=time.time())))
+        return res
+
+    @app.post("/setup/host-check", endpoint="setup_host_check")
+    def setup_host_check():
+
+        check_host()
+        return redirect(url_for("setup_step", step="galleries") + "#hostcaps")
+
+    def seen_certs():
+        import webtls
+        con = connect()
+        try:
+            rows = con.execute("SELECT key, value FROM settings WHERE key LIKE ?", (webtls.SEEN_KEY + "%",)).fetchall()
+        finally:
+            con.close()
+        out = {}
+        for k_, v_ in rows:
+            try:
+                v_ = json.loads(v_)
+            except (TypeError, ValueError):
+                continue
+            if isinstance(v_, dict) and v_.get("kind") in ("untrusted", "changed"):
+                out[k_[len(webtls.SEEN_KEY):]] = v_
+        return out
+
+    def cert_rows():
+
+        import webtls
+        base = get("gallery_base_url", "")
+        seen = seen_certs()
+        addrs = ([webtls.address(base)] if base.startswith("https://") else []) + sorted(seen)
+        pins = webtls.pins()
+        rows, had = [], set()
+        for a_ in addrs:
+            if not a_ or a_ in had:
+                continue
+            had.add(a_)
+            pin = pins.get(a_) if isinstance(pins.get(a_), dict) and pins[a_].get("spki") else None
+            now_ = None
+            if pin:
+                try:
+                    now_ = json.loads(get(webtls.NOW_KEY + a_, "") or "null")
+                except ValueError:
+                    now_ = None
+                if not (isinstance(now_, dict) and now_.get("spki") == pin.get("spki")
+                        and now_.get("sha256") != pin.get("sha256")):
+                    now_ = None
+            s_ = seen.get(a_)
+            if s_ and s_.get("cert") and "name_ok" not in s_["cert"]:
+                s_["cert"]["name_ok"] = webtls.names_address(s_["cert"], webtls.host_of(a_))
+            rows.append(dict(addr=a_, host=webtls.host_of(a_), pinned=pin, renewed=now_, seen=s_,
+                             expired=bool(pin and webtls.expired(now_ or pin))))
+        return rows
+
+    def known_addr(a_):
+        return a_ and any(r_["addr"] == a_ for r_ in cert_rows())
+
+    def after_cert():
+
+        base = get("gallery_base_url", "")
+        if base:
+            check_host()
+        fn = app.config.get("gallery_start_upgrade")
+        if fn:
+            try:
+                fn()
+            except Exception:
+                app.logger.exception("web host certificate: starting the gallery update")
+
+    def drop_seen(a_):
+        import webtls
+        con = connect()
+        try:
+            con.execute("DELETE FROM settings WHERE key IN (?,?)", (webtls.SEEN_KEY + a_, webtls.NOW_KEY + a_))
+            con.commit()
+        finally:
+            con.close()
+
+    @app.post("/setup/web-cert/check", endpoint="setup_web_cert_check")
+    def setup_web_cert_check():
+
+        import webtls
+        a_ = (request.form.get("addr") or "")[:300]
+        if known_addr(a_):
+            webtls.check(a_)
+        return redirect(url_for("setup_step", step="galleries") + "#webcert")
+
+    @app.post("/setup/web-cert/trust", endpoint="setup_web_cert_trust")
+    def setup_web_cert_trust():
+
+        import webtls
+        a_, _, sha_ = (request.form.get("cert") or "")[:400].strip().rpartition(" ")
+        sha_ = sha_.lower()
+        rec = seen_certs().get(a_) or {}
+        cert = rec.get("cert") or {}
+        if not known_addr(a_) or not sha_ or cert.get("sha256") != sha_:
+            return redirect(url_for("setup_step", step="galleries", cert="stale") + "#webcert")
+        now = webtls.peek(a_)
+        if now is None or now["sha256"] != sha_:
+            webtls.check(a_)
+            return redirect(url_for("setup_step", step="galleries", cert="stale") + "#webcert")
+        public = webtls.publicly_trusted(a_)
+        if not public and not webtls.names_address(now, webtls.host_of(a_)):
+
+            return redirect(url_for("setup_step", step="galleries", cert="name") + "#webcert")
+        cert = now
+        cfg = VW.config()
+        certs = dict(cfg.get(webtls.STORE) or {})
+        if public:
+            certs.pop(a_, None)
+            said = f"The web host's certificate at {a_} is publicly trusted now; the certificate confirmed before is forgotten"
+        else:
+            certs[a_] = webtls.stamp(cert)
+            said = (f"Trusted the web host's certificate at {a_} (SHA-256 {cert.get('fp', '')}; its key "
+                    f"{cert.get('spki_fp', '')})")
+        if certs:
+            cfg[webtls.STORE] = certs
+        else:
+            cfg.pop(webtls.STORE, None)
+        write_storage(cfg)
+        drop_seen(a_)
+        after_cert()
+        audit(said)
+        if not complete() and "galleries" in done() and not any(
+                r_["seen"] and not r_["seen"].get("refused") for r_ in cert_rows()):
+
+            return nxt("galleries")
+        return redirect(url_for("setup_step", step="galleries", cert="trusted") + "#webcert")
+
+    @app.post("/setup/web-cert/refuse", endpoint="setup_web_cert_refuse")
+    def setup_web_cert_refuse():
+
+        import webtls
+        a_ = (request.form.get("addr") or "")[:300]
+        rec = seen_certs().get(a_)
+        if rec and known_addr(a_):
+            rec["refused"] = (rec.get("cert") or {}).get("sha256", "")
+            put(**{webtls.SEEN_KEY + a_: json.dumps(rec)})
+            audit(f"Refused the web host's new certificate at {a_} (SHA-256 {(rec.get('cert') or {}).get('fp', '')})")
+        return redirect(url_for("setup_step", step="galleries") + "#webcert")
+
+    app.config.setdefault("ep_words", {})["setup_web_cert_check"] = "Checked the web host's certificate"
+    app.config.setdefault("quiet_endpoints", set()).update({"setup_web_cert_trust", "setup_web_cert_refuse"})
+
+    def host_caps():
+        try:
+            caps = json.loads(get("gallery_host_caps", "") or "{}")
+        except ValueError:
+            return None
+        from plugins.gallery import fingerprint_of
+        gh = VW.config().get("gallery_host")
+        if not gh or caps.get("fp") != fingerprint_of(gh):
+            return None
+        return caps.get("now") or caps.get("setup")
+
     def done():
         try:
             return set(json.loads(get("setup_done", "[]")))
@@ -296,6 +605,7 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
     app.before_request_funcs.setdefault(None, []).insert(1, gate)
     app.config.setdefault("quiet_endpoints", set()).add("setup_test")
     app.config.setdefault("ep_words", {})["setup_test"] = "Tested a storage connection"
+    app.config["ep_words"]["setup_host_check"] = "Checked what the web host can do"
 
     def nxt(step):
         i = SLUGS.index(step)
@@ -314,9 +624,17 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             if skip and (step != SLUGS[-1] or complete()):
                 mark(step)
                 return nxt(step)
-            err = None if skip else save(step, f)
+            err = None if skip else save(step, with_pending(f) if step in STEP_PREFIXES else f)
+            if err and step in STEP_PREFIXES:
+                keep_secrets(f)
             if not err:
+                if step in STEP_PREFIXES:
+                    drop_secrets(STEP_PREFIXES[step])
                 mark(step)
+                if step == "galleries" and f.get("gallery_type") and any(
+                        r_["seen"] and not r_["seen"].get("refused") for r_ in cert_rows()):
+
+                    return redirect(url_for("setup_step", step="galleries", cert="check") + "#webcert")
                 if step == SLUGS[-1] and not complete():
                     missing = [t for s, t, r in STEPS if r and s not in done()]
                     if missing:
@@ -336,15 +654,11 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
         cfg = VW.config()
         old = cfg.get({"primary": "primary", "secondary": "secondary", "gallery": "gallery_host"}.get(which, ""), {})
         c = backend_from_form(request.form, which + "_", old)
-        if c and c.get("type") == "sftp" and c.get("host") and not c.get("host_key") and not os.path.isfile(
-                os.path.expanduser(c.get("known_hosts", "~/.ssh/known_hosts"))):
-            try:
-                line, fp = B.fetch_host_key(c["host"], c.get("port", 22))
-            except Exception as e:
-                return {"ok": False, "message": plain_error(e, c)}
-            return {"ok": False, "host_key": line, "fingerprint": fp,
-                    "message": f"First connection to {c['host']}. Its key fingerprint is {fp}. Check it matches the one your "
-                               "host shows, tick Trust this server, and test again."}
+        if unknown_host(c):
+            why, got = first_contact(c)
+            if why:
+                return {"ok": False, "message": why}
+            return {"ok": False, "host_key": got["host_key"], "fingerprint": got["fp"], "message": first_contact_message(c)}
         msg = test_backend(c, init_local=which in ("primary", "secondary", "gallery") and request.form.get(which + "_init") == "1",
                            keep=False)
         if not msg and which == "primary" and c.get("type") == "local" and same_disk(c.get("path", ""), str(VW.CFG_PATH.parent)):
@@ -410,6 +724,7 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             return redirect(url_for("settings_view") + "#tz")
         put(timezone=tz)
         apply_settings()
+        app.config["clock_rezone"](lambda k_, v_: put(**{k_: v_}))
         audit(f"Set the time zone to {tz}")
         fs["notice"] = f"Time zone set to {tz}. Documents already issued keep their dates."
         return redirect(url_for("settings_view"))
@@ -443,18 +758,25 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
                 studio_name=f.get("studio_name", "").strip(), business_email=f.get("business_email", "").strip(),
                 business_phone=f.get("business_phone", "").strip()[:40], business_address=f.get("business_address", "").strip(), timezone=tz, home_zip=z, home_lat=lat, home_lon=lon)
             apply_settings()
+            app.config["clock_rezone"](lambda k_, v_: put(**{k_: v_}))
             return None
         if step == "storage":
             cfg = VW.config()
             prim = backend_from_form(f, "primary_", cfg.get("primary"))
-            msg = test_backend(prim, init_local=f.get("primary_init") == "1")
+            sec = backend_from_form(f, "secondary_", cfg.get("secondary")) if f.get("secondary_type") else None
+            msg = offer_trust([("Primary location: ", "primary_", prim), ("Second location: ", "secondary_", sec)])
             if msg:
+                return msg
+            seen = []
+            msg = test_backend(prim, init_local=f.get("primary_init") == "1", seen=seen)
+            if msg:
+                offer_changed_key("primary_", seen)
                 return "Primary location: " + msg
             cfg["primary"] = prim
-            if f.get("secondary_type"):
-                sec = backend_from_form(f, "secondary_", cfg.get("secondary"))
-                msg = test_backend(sec, init_local=f.get("secondary_init") == "1")
+            if sec:
+                msg = test_backend(sec, init_local=f.get("secondary_init") == "1", seen=seen)
                 if msg:
+                    offer_changed_key("secondary_", seen)
                     return "Second location: " + msg
                 if f.get("same_disk_ok"):
                     cfg["same_disk_ok"] = True
@@ -513,6 +835,8 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             if not (0 <= st <= 25 and 0 <= lo <= 10):
                 return "Sales tax rates are between 0 and 25 percent (local between 0 and 10)."
             put(tax_mode=mode, sales_tax_pct=(st if mode != "none" else ""), local_tax_pct=(lo if mode == "regional" else ""))
+            if f.get("prints_shown"):
+                put(tax_prints="1" if f.get("tax_prints") else "0", tax_print_shipping="1" if f.get("tax_print_shipping") else "0")
             return None
         if step == "shoot":
             chosen = [k for k in C.PRESETS if f.get("preset_" + k)]
@@ -551,9 +875,19 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             cfg = VW.config()
             if f.get("gallery_type"):
                 gh = backend_from_form(f, "gallery_", cfg.get("gallery_host") or cfg.get("gallery_host_off"))
-                msg = test_backend(gh, init_local=f.get("gallery_init") == "1")
+                from plugins.gallery import folder_names, studio_page_clash
+                clash = studio_page_clash(gh, f.get("gallery_base_url", ""), in_use=folder_names(
+                    cfg.get("gallery_host") or cfg.get("gallery_host_off"), get("gallery_base_url", "")))
+                if clash:
+                    return clash
+                msg = offer_trust([("Web host: ", "gallery_", gh)])
                 if msg:
-                    return "Gallery host: " + msg
+                    return msg
+                seen = []
+                msg = test_backend(gh, init_local=f.get("gallery_init") == "1", seen=seen)
+                if msg:
+                    offer_changed_key("gallery_", seen)
+                    return "Web host: " + msg
                 base = f.get("gallery_base_url", "").strip()
                 if not base.startswith("https://"):
                     return ("The web address of the gallery folder must start with https://. Clients' browsers open the"
@@ -568,6 +902,8 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
                 put(gallery_base_url="")
             write_storage(cfg)
             save_rules(**kv)
+            if f.get("gallery_type"):
+                check_host()
             return None
         if step == "network":
             return None
@@ -581,13 +917,16 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             have = {t["key"] for t in C.TYPES}
             chosen = [k for k, pr in C.PRESETS.items() if all(t["key"] in have for t in pr["types"])] \
                 if "shoot" in done() or rules().get("TYPES") else []
-            return dict(get=get, rules=C.current_rules(), types=C.SESSION_TYPES, presets=C.PRESETS, chosen=chosen,
+            return dict(get=get, rules=C.current_rules(), types=C.SESSION_TYPES, presets=C.PRESETS, chosen=chosen, fv=form_value, fc=form_ticked,
                         custom=[t for t in C.TYPES if t["key"] not in preset_keys])
         if step == "tax":
             reg = app_hooks().tax_region
-            return dict(get=get, rules=C.current_rules(), types=C.SESSION_TYPES, region=reg["name"] if reg else None)
+            return dict(get=get, rules=C.current_rules(), types=C.SESSION_TYPES, region=reg["name"] if reg else None,
+                        fv=form_value, fc=form_ticked)
         r = dict(C.current_rules())
-        base = dict(get=get, rules=r, types=C.SESSION_TYPES, **extra_)
+        base = dict(get=get, rules=r, types=C.SESSION_TYPES, fv=form_value, fc=form_ticked, **extra_)
+        if step in STEP_PREFIXES:
+            base.update(trust=trust_boxes(STEP_PREFIXES[step]), pending=pending_secrets())
         if step == "business":
             base.update(zones=timezones(), tz=get("timezone", "") or host_tz(),
                         tz_saved=bool(get("timezone", "")))
@@ -596,15 +935,17 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
                 return c.get("type") == "local" and os.path.isfile(os.path.join(c.get("path", ""), B.LocalBackend.MARKER))
             import settings_io
             primary = dict(cfg.get("primary", {}))
+            mounted = False
             if primary.get("type", "local") == "local" and not is_marked(primary) and (
-                    os.path.isdir("/vault") or settings_io._inside_private(primary.get("path", ""))):
+                    os.path.isdir(VAULT_MOUNT) or settings_io._inside_private(primary.get("path", ""))):
                 primary["path"] = suggested_vault()
 
+                mounted = primary["path"] == VAULT_MOUNT
             secondary = cfg.get("secondary", {})
             if request.method == "POST":
                 primary = backend_from_form(request.form, "primary_", primary) or primary
                 secondary = backend_from_form(request.form, "secondary_", secondary) or {}
-            base.update(marked={"primary_": is_marked(primary), "secondary_": is_marked(secondary)},
+            base.update(marked={"primary_": is_marked(primary), "secondary_": is_marked(secondary)}, vault_mounted=mounted,
                         primary=primary, secondary=secondary,
                         btime=(request.form.get("backup_time") if request.method == "POST" else None) or get("backup_time", "02:40"),
                         data_dir=str(VW.CFG_PATH.parent))
@@ -614,9 +955,10 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             gal = dict(cfg.get("gallery_host", {}))
             if request.method == "POST" and request.form.get("gallery_type"):
                 gal = backend_from_form(request.form, "gallery_", gal) or gal
-            base.update(gallery=gal, gallery_marked=gal.get("type") == "local" and
+            base.update(gallery=gal, host_caps=host_caps(), web_certs=cert_rows(), cert_msg=request.args.get("cert", ""),
+                        gallery_marked=gal.get("type") == "local" and
                         os.path.isfile(os.path.join(gal.get("path", ""), B.LocalBackend.MARKER)))
         elif step == "network":
             base.update(nets=[str(n) for n in allow_nets], me=request.remote_addr,
-                        only=bool(os.environ.get("CRM_ALLOW_ONLY")))
+                        only=bool(os.environ.get("CRM_ALLOW_ONLY")), container=in_container())
         return base

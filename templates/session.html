@@ -24,7 +24,11 @@
   <div><div class="k">Subjects</div><div class="v">{{ subjects|map(attribute='name')|join(', ') or '-' }}</div></div>
   <div><div class="k">Paperwork</div><div class="v">{% if docs %}<span class="pill {{ 'green' if signed == docs|length else 'red' }}">{{ signed }}/{{ docs|length }} signed</span>{% else %}-{% endif %}</div></div>
   <div><div class="k">Quote</div><div class="v">{{ money(t.quoted) if t.quoted else '-' }}</div></div>
-  <div><div class="k">Balance</div><div class="v">{{ money(t.due) if t.quoted else '-' }}</div></div>
+  
+  {% if t.refund_due > 0.005 %}<div><div class="k">Refund due</div><div class="v">{{ money(t.refund_due) }}</div></div>
+  {% elif s.stage == 'lost' and t.kept > 0.005 %}<div><div class="k">Deposit kept</div><div class="v">{{ money(t.kept) }}</div></div>
+  {% elif t.due < -0.005 %}<div><div class="k">Credit</div><div class="v">{{ money(-t.due) }}</div></div>
+  {% else %}<div><div class="k">Balance</div><div class="v">{{ money(t.due) if t.quoted else '-' }}</div></div>{% endif %}
   {% if s.event_id %}<div><div class="k">Event</div><div class="v"><a href="{{ url_for('event_view', eid=s.event_id) }}">{{ s.event_name }}</a></div></div>{% endif %}
   {% if expires %}<div><div class="k">Gallery</div><div class="v">{{ 'Deletes' if expires >= today else 'Deleted' }} {{ nice(expires.isoformat()) }}</div></div>{% endif %}
 </div>
@@ -58,7 +62,7 @@
       <button form="delform" class="ghost danger-text">Delete</button></div>
   </form>
   <form id="lostform" method="post" action="{{ url_for('session_stage', sid=s.id) }}"><input type="hidden" name="stage" value="lost"></form>
-  <form id="delform" method="post" action="{{ url_for('session_delete', sid=s.id) }}"{% if payments|rejectattr('voided')|list %} data-no-confirm{% endif %} data-confirm="Delete this session and everything on it?{% if issued_docs %} Issued {{ 'documents' if issued_docs|length > 1 else 'document' }} {{ issued_docs|join(', ') }} {{ 'are' if issued_docs|length > 1 else 'is' }} kept in History, and {{ 'their numbers are' if issued_docs|length > 1 else 'its number is' }} never used again.{% endif %}"></form>
+  <form id="delform" method="post" action="{{ url_for('session_delete', sid=s.id) }}"{% if payments|rejectattr('voided')|list %} data-no-confirm{% endif %} data-confirm="Delete this session and everything on it?{% if issued_docs %} Issued {{ 'documents' if issued_docs|length > 1 else 'document' }} {{ issued_docs|join(', ') }} {{ 'are' if issued_docs|length > 1 else 'is' }} kept in History, and {{ 'their numbers are' if issued_docs|length > 1 else 'its number is' }} never used again.{% endif %}{% if print_orders_n %} {{ print_orders_n }} print order{{ 's' if print_orders_n > 1 else '' }} from its gallery {{ 'are' if print_orders_n > 1 else 'is' }} deleted with it.{% endif %}"></form>
   {% for p in panels %}{{ p }}{% endfor %}
 </section>
 
@@ -114,6 +118,8 @@
         {% set dep_now = s.stage in ('inquiry', 'quoted', 'booked') and t.deposit_short > 0.005 %}
         <span class="mute" aria-hidden="true">$</span><input type="number" step="0.01" name="amount" placeholder="$" aria-label="Amount in dollars" required value="{{ '%.2f'|format(t.deposit_short if dep_now else t.due) if t.due > 0 }}" style="width:90px">
         {{ seg('kind', ['deposit','balance','tip','refund','other'] + ([('tip_back', 'tip back')] if t.tips > 0.005 else []), 'deposit' if dep_now else 'balance', label='Payment kind') }}
+        {% set amt_ = t.deposit_short if dep_now else (t.due if t.due > 0 else 0) %}
+        <span class="row" style="gap:6px" data-after-refund data-paid="{{ '%.2f'|format(t.paid) }}" hidden><span class="mute" id="after-refund-l">After this refund, the gallery:</span>{{ seg('after_refund', [('release', 'releases once nothing is owed'), ('hold', 'stays held until paid again')], 'release' if t.paid - amt_ > 0.005 else 'hold', by='after-refund-l') }}</span>
         {{ seg('method', C.PAYMENT_METHODS, C.PAYMENT_METHODS[0] if C.PAYMENT_METHODS else '', label='Paid by') }}<input name="ref" maxlength="40" placeholder="Check #" aria-label="Check number" style="width:90px" data-show-if="method=check"><input type="date" name="received" value="{{ today.isoformat() }}" aria-label="Payment received on" style="width:auto"><button>Record</button></form></div>
     <div><div class="section-title"><h2>Expenses and miles</h2></div>
       <table class="data"><tbody>{% for e in expenses %}<tr><td>{{ nice(e.date) }}</td><td>{{ e.label }}</td><td class="n">{% if e.miles %}{{ e.miles|round(1) }} mi{% endif %}</td><td class="n">{% if e.amount %}{{ money(e.amount) }}{% endif %}</td><td style="width:30px"><form method="post" action="{{ url_for('money_delete', what='expense', rid=e.id) }}" class="inline"><button class="xbtn" aria-label="Remove expense {{ e.label }}" title="Remove this expense">&times;</button></form></td></tr>{% else %}<tr><td class="empty">None</td></tr>{% endfor %}</tbody></table>

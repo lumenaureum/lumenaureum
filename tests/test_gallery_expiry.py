@@ -9,9 +9,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from helpers import fresh_modules, signed_in_client
+from helpers import host_text
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
-GID = "galExpiry01"
+GID = "g-galExpiry01AAAAAAAAAAAA"
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):
@@ -102,12 +103,12 @@ def test_unopened_gallery_comes_down_after_a_year(env):
 def test_extension_doubles_the_host_deadline(env):
     A, c, G, host = env
     go_live(A, G, days_ago(1))
-    assert f"days={A.C.GALLERY_DAYS}\n" in (host / GID / "limits.txt").read_text()
+    assert f"days={A.C.GALLERY_DAYS}\n" in host_text(host / GID, "limits.txt")
     c.post("/session/1/quick", data={"act": "extend"}, environ_base=E)
     con = A.connect()
     assert con.execute("SELECT extension_used FROM sessions WHERE id=1").fetchone()[0] == 1
     con.close()
-    assert f"days={2 * A.C.GALLERY_DAYS}\n" in (host / GID / "limits.txt").read_text()
+    assert f"days={2 * A.C.GALLERY_DAYS}\n" in host_text(host / GID, "limits.txt")
 
 def test_upload_error_text_is_bounded(env, monkeypatch):
     A, c, G, host = env
@@ -125,14 +126,17 @@ def test_upload_error_text_is_bounded(env, monkeypatch):
     assert st == "error"
     assert err.startswith("host said no") and len(err) == 200
 
-def _client_picks(G, key, picks, nonce=None):
+def one_veto(A):
+    con = A.connect()
+    try:
+        return con.execute("SELECT veto FROM sessions WHERE id=1").fetchone()[0]
+    finally:
+        con.close()
 
-    import json as _json
-    import secrets as _s
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    iv = nonce or _s.token_bytes(12)
-    ct = AESGCM(G.key_bytes(key)).encrypt(iv, _json.dumps({"v": 1, "picks": picks}).encode(), G.PICKS_AAD)
-    return b"LAK1" + iv + ct
+def _client_picks(G, key, picks, gid=GID):
+
+    from helpers import seal_picks
+    return seal_picks(key, gid, picks, "picks", at=None)
 
 def test_picks_come_back_by_themselves(env):
     A, c, G, host = env
@@ -141,7 +145,7 @@ def test_picks_come_back_by_themselves(env):
     con = A.connect()
     key = con.execute("SELECT key FROM galleries WHERE session_id=1").fetchone()[0]
     con.close()
-    (host / GID / "picks.bin").write_bytes(_client_picks(G, key, [
+    (host / GID / "picks.las").write_bytes(_client_picks(G, key, [
         {"i": 0, "name": "a.jpg", "r": True, "note": "soften the shadow", "m": True},
         {"i": 1, "name": "b.jpg", "v": True}]))
     c.post("/gallery/sync", environ_base=E)
@@ -150,10 +154,14 @@ def test_picks_come_back_by_themselves(env):
     con.close()
     assert tuple(r) == ("a.jpg: soften the shadow", "a.jpg", "b.jpg")
 
-    (host / GID / "picks.bin").write_bytes(_client_picks(G, G.new_key(), [{"i": 0, "name": "x.jpg", "v": True}]))
+    (host / GID / "picks.las").write_bytes(_client_picks(G, G.new_key(), [{"i": 0, "name": "x.jpg", "v": True}]))
     c.post("/gallery/sync", environ_base=E)
     con = A.connect()
     assert con.execute("SELECT veto FROM sessions WHERE id=1").fetchone()[0] == "b.jpg"
     con.close()
+
+    (host / GID / "picks.las").write_bytes(_client_picks(G, key, [{"i": 0, "name": "y.jpg", "v": True}], gid="g-otherGalleryAAAAAAAAAAA"))
+    c.post("/gallery/sync", environ_base=E)
+    assert one_veto(A) == "b.jpg"
     with pytest.raises(Exception):
-        G.open_picks(b'{"picks": []}', key)
+        G.open_picks(b'{"picks": []}', key, GID)

@@ -10,6 +10,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from helpers import fresh_modules, signed_in_client
+from helpers import host_text, host_write
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
 SECRET = b"SECRET-GPS-48.8584N"
@@ -59,6 +60,16 @@ def decrypt(G, key, blob, name):
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     return AESGCM(G.key_bytes(key)).decrypt(blob[:12], blob[12:], ("lumen-aureum-gallery:" + name).encode())
 
+def _opens_as_image(data):
+    import io
+    from PIL import Image
+    try:
+        with Image.open(io.BytesIO(data)) as im:
+            im.load()
+        return True
+    except Exception:
+        return False
+
 def test_build_encrypts_and_strips_metadata(env):
     A, c, G, tmp, src = env
     key = G.new_key()
@@ -70,7 +81,8 @@ def test_build_encrypts_and_strips_metadata(env):
     assert "<with>" not in page and "data-credit" not in page and 'href="https://lumenaureum.org"' in page
     for p in out.glob("*.bin"):
         data = p.read_bytes()
-        assert SECRET not in data and not data.startswith(b"\xff\xd8")
+        assert SECRET not in data and not _opens_as_image(data)
+
     manifest = json.loads(decrypt(G, key, (out / "manifest.bin").read_bytes(), "manifest.bin"))
     assert len(manifest["items"]) == 3
     web = decrypt(G, key, (out / manifest["items"][0]["f"]).read_bytes(), manifest["items"][0]["f"])
@@ -146,10 +158,10 @@ def test_upload_waits_for_balance_then_copies_and_deletes(env):
         con.commit(); con.close()
     n = G.upload_gallery(gid, 5, "2027-12-31")
     files = {p.name for p in (host / gid).iterdir()}
-    assert "index.html" in files and "limits.txt" in files and n == len(files)
-    assert "days=5" in (host / gid / "limits.txt").read_text()
+    assert "index.html" in files and "limits.php" in files and n == len(files)
+    assert "days=5" in host_text(host / gid, "limits.txt")
     assert G.seen_at(gid) is None
-    (host / gid / "seen.txt").write_text("2026-10-05T12:00:00Z")
+    host_write(host / gid, "seen.txt", "2026-10-05T12:00:00Z")
     assert G.seen_at(gid) == "2026-10-05T12:00:00Z"
     G.delete_gallery(gid)
     assert not (host / gid).exists()
