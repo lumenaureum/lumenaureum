@@ -16,7 +16,6 @@ New features, behavior changes, security fixes, and other fixes in each release.
 - Sample documents say they may be binding once signed.
 
 ### Security
-- Codewords never appear in emails or texts the app drafts.
 - Self-signed S3 certificates are pinned; a changed certificate stops backups until you confirm it.
 - PDFs never load anything from the internet.
 
