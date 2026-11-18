@@ -90,7 +90,7 @@ CASES = {
     "gallery url over http": _set(["settings", "gallery_base_url"], "http://gallery.example.com"),
     "storage of unknown kind": _set(["storage"], {"primary": {"type": "ftp", "host": "x"}}),
     "s3 endpoint over http": _set(["storage"], {"primary": {"type": "s3", "bucket": "b",
-                                                            "endpoint": "http://s3.example.com"}}),
+                                                            "endpoint": "http://93.184.215.14"}}),
 }
 
 def test_a_well_formed_file_parses(S):

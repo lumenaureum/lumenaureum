@@ -1152,3 +1152,34 @@ nav.top form.search input::placeholder { color: #a39a8c; opacity: 1; }
   background: var(--gold); color: #141210; font-size: 10px; font-weight: 700; line-height: 15px; text-align: center; }
 .jm[data-tip-lines] { cursor: pointer; }
 
+.t-stage .t-st { white-space: normal; text-align: right; }   
+.t-foot { flex-wrap: wrap; row-gap: 2px; }
+.t-foot .t-shoot { white-space: normal; overflow: visible; }  
+@media (max-width: 640px) { .tick.minor b { display: none; } }   
+@media (max-width: 640px) {   
+  .qtable { display: table; table-layout: fixed; width: 100%; }
+  .qtable td.n { width: 76px; }
+  .qnewf select { min-width: 0; max-width: 100%; flex-basis: 100%; }
+}
+@media (max-width: 640px) {   
+  table.stack-phone { display: block; overflow: visible; }
+  table.stack-phone thead { display: none; }
+  table.stack-phone tbody, table.stack-phone tr { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
+  table.stack-phone tbody { flex-direction: column; align-items: stretch; }
+  table.stack-phone tr { padding: 8px 0; border-bottom: 1px solid var(--line); }
+  table.stack-phone td { display: block; border: 0; padding: 0; }
+  table.stack-phone td[data-l] { display: flex; align-items: center; gap: 6px; }
+  table.stack-phone td[data-l]::before { content: attr(data-l); font-size: 12px; color: var(--mute); }
+  table.people-t td:has(input[name=name]), table.people-t td:has(input[type=email]), table.people-t td:has(input[type=tel]) { flex: 1 1 100%; }
+  table.people-t td input[name=name], table.people-t td input[type=email], table.people-t td input[type=tel] { width: 100%; }
+  table.people-t td:has(input[name=is_minor]) { display: flex; align-items: center; gap: 4px; }
+  table.people-t td:has(input[name=is_minor])::after { content: "Minor"; font-size: 12px; color: var(--mute); }
+}
+@media (max-width: 640px) {   
+  table.sp-photos { display: block; overflow: visible; }
+  table.sp-photos tbody, table.sp-photos tr { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+  table.sp-photos tr { padding: 8px 0; border-bottom: 1px solid var(--line); }
+  table.sp-photos td { display: block; border: 0; padding: 0; width: auto !important; }
+  table.sp-photos td:nth-child(2) { order: 3; flex: 1 1 100%; }
+}
+

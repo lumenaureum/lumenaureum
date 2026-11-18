@@ -41,7 +41,9 @@ def describe(cfg):
         return "-"
     t = cfg.get("type")
     return {"local": f"folder {cfg.get('path')}", "sftp": f"SFTP {cfg.get('user')}@{cfg.get('host')}:{cfg.get('root')}",
-            "s3": f"S3 bucket {cfg.get('bucket')}{' at ' + cfg['endpoint'] if cfg.get('endpoint') else ''}"}.get(t, t)
+            "s3": f"S3 bucket {cfg.get('bucket')}{' at ' + cfg['endpoint'] if cfg.get('endpoint') else ''}"
+                  + (" (plain http, accepted only on your own network)"
+                     if str(cfg.get("endpoint") or "").lower().startswith("http://") else "")}.get(t, t)
 
 def _setting(con, key, default=""):
     r = con.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()

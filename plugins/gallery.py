@@ -143,6 +143,11 @@ BLOCK = """
   {% else %}<span class="grow">{% if us == 'declined' %}Upload declined{% elif us == 'expired' %}Tap expired{% elif us == 'error' and not (g.upload_error or '').startswith('balance') %}<span style="color:var(--red)">Upload failed: {{ g.upload_error }}</span>{% elif owed and proof %}These proofs carry your mark, so they can go online before payment{% else %}Ready to upload{% endif %}</span>
     <form method="post" action="{{ url_for('upload_gallery_req', sid=s.id) }}" class="inline"><button class="primary">Upload</button></form>{% endif %}
   </div>
+  {% if served_bad and us == 'up' %}<div class="row" style="font-size:13px;flex-wrap:wrap"><span class="grow" style="color:var(--red)">The page or scripts your web host serves for this gallery are not the ones Lumen Aureum put there ({{ served_bad|join(', ') }}). Someone with access to your web host may have changed them.</span>
+    <form method="post" action="{{ url_for('gallery_take_down_now', sid=s.id) }}" class="inline" data-confirm="Take this gallery off the web host now? What the client sent is collected first. You can put it back online later."><button class="primary">Take down now</button></form>
+    <form method="post" action="{{ url_for('gallery_put_back_page', sid=s.id) }}" class="inline"><button class="quiet">Put the published page back</button></form></div>{% endif %}
+  {% if us in ('up', 'removed') %}<div class="row" style="font-size:13px"><span class="grow mute">Link lost, or passed on to someone it shouldn't be?</span>
+    <form method="post" action="{{ url_for('gallery_replace_link', sid=s.id) }}" class="inline" data-confirm="Replace this gallery's link? The old link stops working for good (what the client sent is collected first). The gallery is built again at a new link; you put it online and send the client a new QR letter."><button class="quiet">Replace this link</button></form></div>{% endif %}
   {% if moved_off %}<div class="row" style="font-size:14px"><span class="grow" style="color:var(--amber, #b07a12)">This gallery is still on your earlier web host.</span>
     <a class="go" href="{{ url_for('galleries_move') }}">Move galleries &rsaquo;</a></div>{% endif %}
   {% if new_link %}<div class="row" style="font-size:14px"><span class="grow" style="color:var(--amber, #b07a12)">The gallery address changed. Send the client the new link (Copy link or Email link above).</span>
@@ -1945,14 +1950,19 @@ def register(ctx):
 
     @app.post("/session/<int:sid>/gallery/build", endpoint="build_gallery")
     def build_gallery(sid):
+        return start_build(sid, request.form.get("from"), request.form.get("source_dir", "").strip(),
+                           request.form.get("proofs_ok"))
+
+    def start_build(sid, frm, source_dir, proofs_ok):
+
         s = session(sid)
         back = url_for("client_stage", hid=s["household_id"]) + f"?s={sid}#gallery"
         if being_deleted(s):
             return refuse_deleting(s, back)
         gid, g = ensure(s)
-        if request.form.get("from") in ("uploads", "finals") or not FOLDERS:
+        if frm in ("uploads", "finals") or not FOLDERS:
             finals = uploaded(sid, "final")
-            if needs_finals(s) and not finals and not request.form.get("proofs_ok"):
+            if needs_finals(s) and not finals and not proofs_ok:
 
                 JOBS[sid] = dict(state="error", done=0, total=0, error="Upload the retouched finals in Photos first.")
                 return redirect(back)
@@ -1962,7 +1972,7 @@ def register(ctx):
                 return redirect(back)
             x("UPDATE galleries SET source_dir='' WHERE session_id=?", (sid,))
         else:
-            src = in_photos(request.form.get("source_dir", "").strip())
+            src = in_photos(source_dir)
             if src is None:
                 JOBS[sid] = dict(state="error", done=0, total=0, error="Folder must be under " + str(PHOTOS_ROOT))
                 return redirect(back)
@@ -2184,7 +2194,8 @@ def register(ctx):
                 until_ = (date.today() + timedelta(days=(rp["restore_days"] if rp and rp["restore_days"] else days_ * (2 if ext else 1)))).isoformat()
             k = upload_gallery(gid, days_ * (2 if ext else 1),
                                (date.today() + timedelta(days=ctx.C.GALLERY_UNOPENED_DAYS)).isoformat(), until=until_, once=once_)
-            if back_up and not is_download(gid):
+            if (back_up or (not replace and any(kept_copy(gid, n_) for n_ in (PICKS_FILE, DRAFT_FILE)))) \
+                    and not is_download(gid):
 
                 host_ = gallery_host()
                 for name in (PICKS_FILE, DRAFT_FILE):
@@ -3381,6 +3392,10 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
         if live:
 
             x("UPDATE galleries SET removed_at=?, upload_state='removed' WHERE session_id=?", (date.today().isoformat(), sid))
+            from flask import g as _gc, has_app_context as _hac
+            if _hac() and "db" in _gc:
+                _gc.db.commit()
+
             if on_cur:
                 try:
                     delete_gallery(gid)
@@ -3413,6 +3428,228 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
     app.config["gallery_online"] = gallery_online
 
     app.config["gallery_take_down"] = take_down
+
+    SERVED_KEY = "served_check"
+    SERVED_EVERY_MIN = 60
+
+    def served_check(force=False):
+
+        import time as _t
+        import hostcheck
+        import refit
+        if not has_host():
+            return
+        st = refit.load_state(q, SERVED_KEY)
+        now = _t.time()
+        if not force and now - float(st.get("last") or 0) < SERVED_EVERY_MIN * 60:
+            return
+        st["last"] = now
+        try:
+            fp_now = host_fingerprint()
+        except Exception:
+            return
+        rel = refit.fingerprint(_G())
+        rows = q("""SELECT g.*, s.gallery_id, s.id AS sid FROM galleries g JOIN sessions s ON s.id=g.session_id
+                    WHERE g.upload_state='up' AND g.removed_at IS NULL AND (g.host_fp IS NULL OR g.host_fp=?)
+                    AND g.page_set=?""", (fp_now, rel))
+        bad = st.get("bad") if isinstance(st.get("bad"), dict) else {}
+        keep = {}
+        base = base_url()
+        host = None
+        for r in rows:
+            gid = r["gallery_id"]
+            if not GID_OK.match(gid or ""):
+                continue
+            try:
+                local = (OUT_ROOT / gid / "index.html").read_text()
+            except OSError:
+                continue
+            want = refit.page_for(_G(), gid, local)
+            code, body = hostcheck.fetch(hostcheck.join(base, f"{gid}/index.html"))
+            if code == 0:
+                if gid in bad:
+                    keep[gid] = bad[gid]
+                continue
+            what = []
+            if code != 200 or body != want:
+                what.append("the page as served")
+            try:
+                host = host or gallery_host()
+                with host.session():
+                    stored = _read(host, f"{gid}/index.html")
+                    if stored is not None and stored != want:
+                        what.append("the page on the host")
+                    for n_ in sorted(HOST_SCRIPTS):
+                        b_ = _read(host, f"{gid}/{n_}")
+                        if b_ is not None and b_ != refit.script_bytes(_G(), n_):
+                            what.append(n_)
+            except Exception:
+                app.logger.exception("served-page check %s", gid)
+            if what:
+                was_ = bad.get(gid) or {}
+                keep[gid] = dict(sid=r["sid"], what=what, n=int(was_.get("n") or 0) + 1,
+                                 since=was_.get("since") or date.today().isoformat())
+                if keep[gid]["n"] == 2:
+                    ctx.audit("The gallery page or scripts on the web host are not the ones Lumen Aureum put there ("
+                              + ", ".join(what) + ")", sid=r["sid"], who="Lumen Aureum")
+        st["bad"] = keep
+        refit.save_state(x, st, SERVED_KEY)
+
+    SYNC_HOOKS.append(served_check)
+    app.config["gallery_served_check"] = served_check
+
+    def served_changed(sid=None):
+
+        import refit
+        bad = refit.load_state(q, SERVED_KEY).get("bad") or {}
+        out = {int(v.get("sid") or 0): v.get("what") or [] for v in bad.values()
+               if isinstance(v, dict) and int(v.get("n") or 0) >= 2}
+        return out.get(sid) if sid is not None else out
+
+    def served_today():
+        out = []
+        for sid_, what in served_changed().items():
+            r_ = q("SELECT h.name, s.household_id FROM sessions s JOIN households h ON h.id=s.household_id WHERE s.id=?",
+                   (sid_,), one=True)
+            if not r_:
+                continue
+            out.append(dict(text=f"The gallery of {r_['name']} on your web host is not what Lumen Aureum put there "
+                                 f"({', '.join(what)} changed). Someone with access to your web host may have changed "
+                                 "it: take it down now, then check your web host account",
+                            link=url_for("client_stage", hid=r_["household_id"]) + f"?s={sid_}#gallery"))
+        return out
+
+    ctx.hooks.today.append(served_today)
+
+    def _served_forget(gid):
+        import refit
+        st = refit.load_state(q, SERVED_KEY)
+        if gid in (st.get("bad") or {}):
+            st["bad"].pop(gid, None)
+            refit.save_state(x, st, SERVED_KEY)
+
+    @app.post("/session/<int:sid>/gallery/take-down", endpoint="gallery_take_down_now")
+    def gallery_take_down_now(sid):
+
+        from flask import session as _fs
+        s = session(sid)
+        back = url_for("client_stage", hid=s["household_id"]) + f"?s={sid}#gallery"
+        try:
+            take_down(sid)
+        except Exception as e:
+            from flask import g as _g
+            _g.refused = True
+            _fs["notice"] = f"The web host did not let the gallery come down ({str(e)[:120]}). Try again, or remove it there."
+            return redirect(back)
+        _served_forget(s["gallery_id"])
+        _fs["notice"] = "The gallery is off the web host. Check your web host account before you put it back online."
+        return redirect(back)
+
+    @app.post("/session/<int:sid>/gallery/put-back-page", endpoint="gallery_put_back_page")
+    def gallery_put_back_page(sid):
+
+        import refit
+        s = session(sid)
+        x("UPDATE galleries SET page_set=NULL WHERE session_id=?", (sid,))
+        try:
+            refit.run_all(ctx, _G(), only_sid=sid, force=True)
+        except Exception as e:
+            x("UPDATE galleries SET upload_error=? WHERE session_id=?", (str(e)[:200], sid))
+        _served_forget(s["gallery_id"])
+        return redirect(url_for("client_stage", hid=s["household_id"]) + f"?s={sid}#gallery")
+
+    REPLACED_TASK = "Send the client the new gallery link"
+
+    @app.post("/session/<int:sid>/gallery/replace-link", endpoint="gallery_replace_link")
+    def gallery_replace_link(sid):
+
+        from flask import g as _g
+        s = session(sid)
+        back = url_for("client_stage", hid=s["household_id"]) + f"?s={sid}#gallery"
+        if being_deleted(s):
+            return refuse_deleting(s, back)
+        g = gal(sid)
+        from flask import session as _fs
+        if not g or not g["built_at"]:
+            _g.refused = True
+            _fs["notice"] = "This gallery has no link yet: its link is made when the gallery is built."
+            return redirect(back)
+        if JOBS.get(sid, {}).get("state") == "running" or sid in UPDATING or g["upload_state"] in ("uploading", "awaiting"):
+            _g.refused = True
+            _fs["notice"] = "The gallery is being built or put online. Replace its link once that has finished."
+            return redirect(back)
+
+        src_dir = (g["source_dir"] or "").rstrip("/")
+        if src_dir and FOLDERS:
+            p_ = in_photos(src_dir)
+            have = bool(p_ and p_.is_dir() and list_jpegs(p_))
+        else:
+            have = bool(uploaded(sid, "final") or uploaded(sid))
+        if not have:
+            _g.refused = True
+            _fs["notice"] = ("The photos this gallery was built from are no longer here, so it can't be built again at a "
+                             "new link. Its link was not changed.")
+            return redirect(back)
+        old = s["gallery_id"]
+        try:
+            take_down(sid)
+        except Exception as e:
+            app.logger.exception("replace link: taking the old folder down")
+            _g.refused = True
+            _fs["notice"] = (f"The old link could not be taken down ({str(e)[:120] or 'the web host did not answer'}). "
+                             "Nothing was changed; try again once the web host answers.")
+            return redirect(back)
+        import hashlib as _hl
+        import sealed as _sealed
+
+        old_key = g["ekey"] or g["key"]
+        carried = {}
+        if GID_OK.match(old or ""):
+            for name in (PICKS_FILE, DRAFT_FILE):
+                blob = kept_copy(old, name)
+                if not blob:
+                    continue
+                try:
+                    carried[name] = _sealed.open_link(PURPOSE_OF[name], old, key_bytes(old_key), blob)
+                except Exception:
+                    app.logger.warning("replace link: the kept %s does not open; not carried", name)
+        new, key = new_gid(), new_key()
+        word = (s["gallery_codeword"] if "gallery_codeword" in s.keys() else "") or ""
+        new_ekey = codeword_key(key, new, word)
+        picks_hash = ""
+        for name, payload in carried.items():
+            env = _sealed.seal_link(PURPOSE_OF[name], new, key_bytes(new_ekey), payload)
+            keep_host_copy(new, name, env)
+            if name == PICKS_FILE:
+                picks_hash = _hl.sha256(env).hexdigest()
+        x("UPDATE sessions SET gallery_id=?, letter_mailed=NULL WHERE id=?", (new, sid))
+        x("""UPDATE galleries SET key=?, ekey='', built_at=NULL, out_dir='', upload_state=NULL, upload_error='',
+             uploaded_at=NULL, removed_at=NULL, dark_at=NULL, restored_at=NULL, restore_days=NULL, restore_once=NULL,
+             host_fp=NULL, link_base=NULL, moved_from=NULL, link_was=NULL, was_open=0, was_fp=NULL, page_set=NULL,
+             picks_hash=?, draft_n=NULL, draft_at=NULL, prune_due=NULL, cw_fixed=NULL WHERE session_id=?""",
+          (key, picks_hash, sid))
+        for t_ in ("print_galleries", "print_orders", "print_order_oids"):
+            try:
+                x(f"UPDATE {t_} SET gid=? WHERE gid=?", (new, old))
+            except Exception as e:
+                if "no such table" not in str(e):
+                    raise
+        x("UPDATE OR IGNORE sealed_seen SET link=? WHERE link=?", (new, old))
+        if GID_OK.match(old or ""):
+            shutil.rmtree(OUT_ROOT / old, ignore_errors=True)
+            shutil.rmtree(KEPT_ROOT / old, ignore_errors=True)
+        if not q("SELECT 1 FROM tasks WHERE session_id=? AND title=? AND done IS NULL", (sid, REPLACED_TASK), one=True):
+            x("INSERT INTO tasks (id, session_id, title, due, sort, stage, own) VALUES (?,?,?,?,999,?,1)",
+              (ctx.next_id("tasks"), sid, REPLACED_TASK, date.today().isoformat(), s["stage"]))
+        ctx.audit("Replaced the gallery's link: the old link no longer opens anything (what the client sent there was "
+                  "collected first, and their picks and draft go to the new link). The gallery is being built again at its new link; put it online, then send the "
+                  "client the new link with a new QR letter.", sid=sid)
+        _fs["notice"] = ("The old link no longer opens anything. The gallery is being built at its new link: put it online "
+                         "when it's ready, then send the client the new link (a new QR letter).")
+        start_build(sid, None if (src_dir and FOLDERS) else "uploads", src_dir, "1")
+        return redirect(back)
+
+    app.config.setdefault("quiet_endpoints", set()).add("gallery_replace_link")
 
     def proof_built(sid):
 
@@ -3550,6 +3787,7 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
                                       dl_online=dl_online, opened=opened,
                                       skip_picks=may_skip_picks(s) and not (job and job.get("state") == "running"),
                                       mailto=link_mail(s) if g and g["upload_state"] == "up" else "",
+                                      served_bad=served_changed(s["id"]) if g and g["upload_state"] == "up" else None,
                                       refit_wait=refit_waiting(gid))
         return [("Gallery", html)]
 
@@ -3586,6 +3824,10 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
                  + (" When it asks, enter the word you chose with me." if "&c=1" in link else ""),
                  f"Thank you,\n{sign}" if sign else "Thank you"]
         body = "\n\n".join(lines)
+        from formats import drop_codewords
+        words = [r_["gallery_codeword"] for r_ in q("SELECT gallery_codeword FROM sessions WHERE household_id=?",
+                                                    (s["household_id"],))]
+        subject, body = drop_codewords(subject, words), drop_codewords(body, words)
         return f"mailto:{qu(who['email'] if who else '', safe='@')}?subject={qu(subject)}&body={qu(body)}"
 
     def step_action(label, s):

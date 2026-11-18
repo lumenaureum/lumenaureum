@@ -11,7 +11,7 @@ from pathlib import Path
 from flask import abort, redirect, render_template, request, url_for
 
 import config as C
-from vault import backends as B, web as VW
+from vault import backends as B, s3 as S3, web as VW
 
 ROOT = Path(__file__).resolve().parent
 STEPS = [
@@ -119,7 +119,8 @@ def backend_from_form(f, prefix, old=None):
         c = {"type": "s3", "bucket": f.get(prefix + "bucket", "").strip(), "endpoint": f.get(prefix + "endpoint", "").strip() or None,
              "region": f.get(prefix + "region", "").strip() or None, "access_key": f.get(prefix + "access_key", "").strip(),
              "secret_key": f.get(prefix + "secret_key", "").strip() or old.get("secret_key", ""),
-             "prefix": f.get(prefix + "s3prefix", "").strip()}
+             "prefix": f.get(prefix + "s3prefix", "").strip(),
+             "addressing": f.get(prefix + "addressing", "auto") if f.get(prefix + "addressing") in ("path", "virtual") else None}
         return {k: v for k, v in c.items() if v is not None}
     return None
 
@@ -172,8 +173,9 @@ def _test_backend(cfg, init_local, made, seen=None):
         if cfg.get(k) and settings_io._inside_private(cfg[k]):
             return inside_private_message(k)
     ep = (cfg.get("endpoint") or "") if cfg.get("type") == "s3" else ""
-    if ep and not (ep.startswith("https://") or re.match(r"http://(127\.0\.0\.1|localhost)(:\d+)?(/|$)", ep)):
-        return "The S3 endpoint must start with https:// (credentials and files would otherwise cross the network unencrypted)."
+    why = S3.endpoint_problem(ep) if ep else None
+    if why:
+        return why
     try:
         if cfg["type"] == "local":
             p = cfg.get("path", "")
@@ -227,11 +229,18 @@ def plain_error(e, cfg):
         return f"This app hasn't connected to {host} before. Test again to see its key fingerprint and trust it."
     if isinstance(e, FileNotFoundError) and cfg.get("key_file") and cfg["key_file"] in text:
         return "The private key file isn't there."
+    if isinstance(e, S3.CertProblem):
+        return ("Its certificate changed since you trusted it. Check it below, under The S3 storage's certificate."
+                if e.kind == "changed" else
+                "Its certificate isn't from a public authority (it may be self-signed). Check its fingerprint below, under"
+                " The S3 storage's certificate, and trust it if it matches.")
+    if isinstance(e, (S3.S3Error, S3.PlainHTTPRefused)):
+        return str(e)
     if "WRONG_VERSION_NUMBER" in text:
         return "This address doesn't answer with HTTPS. Check the port, or whether the server uses https."
     if "CERTIFICATE_VERIFY_FAILED" in text:
         if re.search(r"self[- ]signed", text):
-            return "Its certificate isn't trusted (self-signed). Lumen Aureum can't use a self-signed S3 certificate yet."
+            return "Its certificate isn't trusted (self-signed). Test again to see its fingerprint and trust it."
         return "Its certificate isn't trusted. Check the address, and that the certificate is current."
     if type(e).__name__ == "AuthenticationException":
         return "The server refused the key."
@@ -562,6 +571,131 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
     app.config.setdefault("ep_words", {})["setup_web_cert_check"] = "Checked the web host's certificate"
     app.config.setdefault("quiet_endpoints", set()).update({"setup_web_cert_trust", "setup_web_cert_refuse"})
 
+    def s3_note(addr, kind, seen):
+
+        key = S3.SEEN_KEY + addr
+        con = connect()
+        try:
+            was = con.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+            if kind:
+                rec = dict(kind=kind, cert=seen, at=time.time())
+                try:
+                    old = json.loads(was[0]) if was else {}
+                except (TypeError, ValueError):
+                    old = {}
+                if isinstance(old, dict) and old.get("refused") and old["refused"] == (seen or {}).get("sha256"):
+                    rec["refused"] = old["refused"]
+                con.execute("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                            (key, json.dumps(rec)))
+                con.commit()
+            elif was:
+                con.execute("DELETE FROM settings WHERE key=?", (key,))
+                con.commit()
+        finally:
+            con.close()
+
+    S3.NOTE = s3_note
+
+    def s3_seen():
+        con = connect()
+        try:
+            rows = con.execute("SELECT key, value FROM settings WHERE key LIKE ?", (S3.SEEN_KEY + "%",)).fetchall()
+        finally:
+            con.close()
+        out = {}
+        for k_, v_ in rows:
+            try:
+                v_ = json.loads(v_)
+            except (TypeError, ValueError):
+                continue
+            if isinstance(v_, dict) and v_.get("kind") in ("untrusted", "changed"):
+                out[k_[len(S3.SEEN_KEY):]] = v_
+        return out
+
+    def s3_cert_rows(step):
+
+        import webtls
+        cfg = VW.config()
+        locs = [cfg.get(p_) for p_ in (("primary", "secondary") if step == "storage" else ("gallery_host",))]
+        seen = s3_seen()
+        table = cfg.get(S3.STORE) or {}
+        rows, had = [], set()
+        for a_ in [S3.cert_address(c_) for c_ in locs] + sorted(seen):
+            if not a_ or a_ in had:
+                continue
+            had.add(a_)
+            pin, s_ = S3.pin_for(a_, table), seen.get(a_)
+            if not pin and not s_:
+                continue
+            if s_ and s_.get("cert") and "name_ok" not in s_["cert"]:
+                s_["cert"]["name_ok"] = webtls.names_address(s_["cert"], webtls.host_of(a_))
+            rows.append(dict(addr=a_, host=webtls.host_of(a_), pinned=pin, seen=s_))
+        return rows
+
+    def s3_cert_action(step, f):
+
+        from flask import g
+        import webtls
+        known = lambda a_: bool(a_) and any(r_["addr"] == a_ for r_ in s3_cert_rows(step))
+        table = VW.config().get(S3.STORE) or {}
+        if f.get("s3cert_check"):
+            a_ = f["s3cert_check"][:300]
+            if known(a_):
+                S3.check(a_, table=table)
+            g.s3cert_msg = "checked"
+            return "Checked the S3 storage's certificate: it is shown below."
+        if f.get("s3cert_refuse"):
+            a_ = f["s3cert_refuse"][:300]
+            rec = s3_seen().get(a_)
+            if rec and known(a_):
+                rec["refused"] = (rec.get("cert") or {}).get("sha256", "")
+                put(**{S3.SEEN_KEY + a_: json.dumps(rec)})
+                audit(f"Refused the S3 storage's new certificate at {a_} (SHA-256 {(rec.get('cert') or {}).get('fp', '')})")
+            return "Kept the certificate you confirmed before. Backups there stay stopped until the server shows it again."
+        a_, _, sha_ = (f.get("s3cert_trust") or "")[:400].strip().rpartition(" ")
+        sha_ = sha_.lower()
+        rec = s3_seen().get(a_) or {}
+        stale = "The certificate changed again since it was shown. Check the one shown now."
+        if not known(a_) or not sha_ or (rec.get("cert") or {}).get("sha256") != sha_:
+            g.s3cert_msg = "stale"
+            return stale
+        now = webtls.peek(a_)
+        if now is None or now["sha256"] != sha_:
+            S3.check(a_, table=table)
+            g.s3cert_msg = "stale"
+            return stale
+        public = webtls.publicly_trusted(a_)
+        if not public and not webtls.names_address(now, webtls.host_of(a_)):
+            g.s3cert_msg = "name"
+            return "Not trusted: that certificate doesn't name the S3 storage's address."
+        cfg = VW.config()
+        certs = dict(cfg.get(S3.STORE) or {})
+        if public:
+            certs.pop(a_, None)
+            said = f"The S3 storage's certificate at {a_} is publicly trusted now; the certificate confirmed before is forgotten"
+        else:
+            certs[a_] = webtls.stamp(now)
+            said = f"Trusted the S3 storage's certificate at {a_} (SHA-256 {now.get('fp', '')}; its key {now.get('spki_fp', '')})"
+        if certs:
+            cfg[S3.STORE] = certs
+        else:
+            cfg.pop(S3.STORE, None)
+        write_storage(cfg)
+        con = connect()
+        try:
+            con.execute("DELETE FROM settings WHERE key=?", (S3.SEEN_KEY + a_,))
+            con.commit()
+        finally:
+            con.close()
+        from flask import after_this_request
+
+        @after_this_request
+        def _said(resp):
+            audit(said)
+            return resp
+        g.s3cert_msg = "trusted"
+        return None
+
     def host_caps():
         try:
             caps = json.loads(get("gallery_host_caps", "") or "{}")
@@ -619,7 +753,14 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             abort(404)
         err = None
         f = request.form
-        if request.method == "POST":
+        held = None
+        if request.method == "POST" and step in STEP_PREFIXES and (
+                f.get("s3cert_trust") or f.get("s3cert_refuse") or f.get("s3cert_check")):
+            held = s3_cert_action(step, with_pending(f))
+            if held:
+                keep_secrets(f)
+                err = held
+        if request.method == "POST" and not held:
             skip = f.get("skip") and not dict((s, r) for s, _, r in STEPS)[step]
             if skip and (step != SLUGS[-1] or complete()):
                 mark(step)
@@ -909,6 +1050,10 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             return None
         return None
 
+    def g_s3msg():
+        from flask import g
+        return g.get("s3cert_msg", "")
+
     def context(step):
         cfg = VW.config()
         extra_ = dict(app_pub=app_ssh_key()[1], host_fp=B.host_key_fingerprint) if step in ("storage", "galleries") else {}
@@ -945,6 +1090,7 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             if request.method == "POST":
                 primary = backend_from_form(request.form, "primary_", primary) or primary
                 secondary = backend_from_form(request.form, "secondary_", secondary) or {}
+            base.update(s3_certs=s3_cert_rows(step), s3cert_msg=g_s3msg())
             base.update(marked={"primary_": is_marked(primary), "secondary_": is_marked(secondary)}, vault_mounted=mounted,
                         primary=primary, secondary=secondary,
                         btime=(request.form.get("backup_time") if request.method == "POST" else None) or get("backup_time", "02:40"),
@@ -955,6 +1101,7 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             gal = dict(cfg.get("gallery_host", {}))
             if request.method == "POST" and request.form.get("gallery_type"):
                 gal = backend_from_form(request.form, "gallery_", gal) or gal
+            base.update(s3_certs=s3_cert_rows(step), s3cert_msg=g_s3msg())
             base.update(gallery=gal, host_caps=host_caps(), web_certs=cert_rows(), cert_msg=request.args.get("cert", ""),
                         gallery_marked=gal.get("type") == "local" and
                         os.path.isfile(os.path.join(gal.get("path", ""), B.LocalBackend.MARKER)))

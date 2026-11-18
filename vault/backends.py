@@ -340,17 +340,12 @@ class S3Backend(Backend):
 
     kind = "s3"
 
-    def __init__(self, bucket, access_key, secret_key, endpoint=None, region=None, prefix=""):
-        import re as _re
-        if endpoint and not (endpoint.startswith("https://") or _re.match(r"http://(127\.0\.0\.1|localhost)(:\d+)?(/|$)", endpoint)):
-            raise ValueError("The S3 endpoint must start with https://")
-        try:
-            import boto3
-        except ImportError:
-            raise ImportError("S3 storage needs boto3: pip install -r requirements-s3.txt") from None
+    def __init__(self, bucket, access_key, secret_key, endpoint=None, region=None, prefix="", addressing="auto",
+                 pins=None):
+        from vault import s3
         self.bucket, self.prefix = bucket, prefix.strip("/")
-        self.s3 = boto3.client("s3", aws_access_key_id=access_key, aws_secret_access_key=secret_key,
-                               endpoint_url=endpoint or None, region_name=region or None)
+        self.s3 = s3.Client(bucket, access_key, secret_key, endpoint=endpoint or None, region=region or None,
+                            addressing=addressing or "auto", pins_table=pins)
 
     def _k(self, name):
         _check(name)
@@ -358,32 +353,21 @@ class S3Backend(Backend):
 
     def put_stream(self, name, reader, content_type=None, cache_control=None):
         hr = _Hashing(reader)
-        extra = {k_: v_ for k_, v_ in (("ContentType", content_type), ("CacheControl", cache_control)) if v_} or None
-        self.s3.upload_fileobj(hr, self.bucket, self._k(name), ExtraArgs=extra)
+        self.s3.upload(self._k(name), hr, content_type=content_type, cache_control=cache_control)
         return hr.n, hr.h.hexdigest()
 
     def get_stream(self, name, writer):
-        self.s3.download_fileobj(self.bucket, self._k(name), writer)
+        self.s3.download(self._k(name), writer)
 
     def stat(self, name):
-        from botocore.exceptions import ClientError
-        try:
-            return self.s3.head_object(Bucket=self.bucket, Key=self._k(name))["ContentLength"]
-        except ClientError as e:
-            if str(e.response.get("Error", {}).get("Code")) in ("404", "NoSuchKey", "NotFound"):
-                return None
-            raise
+        return self.s3.head(self._k(name))
 
     def list(self, prefix=""):
-        out, pre = [], self._k(prefix) if prefix else (self.prefix + "/" if self.prefix else "")
-        for page in self.s3.get_paginator("list_objects_v2").paginate(Bucket=self.bucket, Prefix=pre):
-            for o in page.get("Contents", []):
-                k = o["Key"][len(self.prefix) + 1:] if self.prefix else o["Key"]
-                out.append(k)
-        return sorted(out)
+        pre = self._k(prefix) if prefix else (self.prefix + "/" if self.prefix else "")
+        return sorted(k[len(self.prefix) + 1:] if self.prefix else k for k in self.s3.list(pre))
 
     def delete(self, name):
-        self.s3.delete_object(Bucket=self.bucket, Key=self._k(name))
+        self.s3.delete(self._k(name))
 
 def new_ssh_key():
 
@@ -429,5 +413,5 @@ def from_config(cfg):
                            cfg.get("known_hosts", "~/.ssh/known_hosts"), cfg.get("private_key"), cfg.get("host_key"))
     if t == "s3":
         return S3Backend(cfg["bucket"], cfg["access_key"], cfg["secret_key"], cfg.get("endpoint"), cfg.get("region"),
-                         cfg.get("prefix", ""))
+                         cfg.get("prefix", ""), cfg.get("addressing") or "auto")
     raise ValueError(f"unknown backend type {t!r}")

@@ -7,7 +7,7 @@ from flask import render_template
 
 ROOT = Path(__file__).resolve().parent
 SOURCE = "https://github.com/lumenaureum/lumenaureum"
-REQS = ("requirements.txt", "requirements-sftp.txt", "requirements-s3.txt")
+REQS = ("requirements.txt", "requirements-sftp.txt")
 
 OTHER = [("SQLCipher", "BSD-3-Clause", "inside sqlcipher3"), ("OpenSSL libcrypto", "Apache-2.0", "inside sqlcipher3"),
          ("Fraunces font", "OFL-1.1", "Undercase Type"), ("Material Symbols font", "Apache-2.0", "Google"),

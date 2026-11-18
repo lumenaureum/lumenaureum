@@ -30,7 +30,7 @@
   <div class="j-past">{% for e in j.past %}<div class="jm l{{ e.lane }} {{ 'lab' if e.show }}" style="left:{{ e.x }}%" data-tip="{{ e.tip }}"{% if e.n > 1 %} data-tip-lines tabindex="0" role="button" aria-label="{{ e.tip }}"{% endif %}>{{ sym(e.sym, 'next', 22) }}{% if e.n > 1 %}<b class="jn" aria-hidden="true">{{ e.n }}</b>{% endif %}</div>{% endfor %}</div>
   <div class="j-axis">
     {% for b in j.bands %}<div class="band st-{{ b.stage }}" style="left:{{ b.a }}%;width:{{ b.w }}%" data-tip="{{ stage_label[b.stage] }}">{% if b.label %}<span>{{ stage_label[b.stage] }}</span>{% endif %}</div>{% endfor %}
-    {% for tk in j.ticks %}<i class="tick" style="left:{{ tk.x }}%"><b>{{ tk.label }}</b></i>{% endfor %}
+    {% for tk in j.ticks %}<i class="tick{{ ' minor' if tk.minor }}" style="left:{{ tk.x }}%"><b>{{ tk.label }}</b></i>{% endfor %}
     {% if j.shoot is not none %}<div class="j-shoot" style="left:{{ j.shoot }}%" data-tip="Shoot {{ nice(j.shoot_d) }}">{% if j.shoot_label %}<span>Shoot</span>{% endif %}</div>{% endif %}
     <div class="j-today" style="left:{{ j.today }}%">{{ avatar(h.id, 34) }}<b>Today</b></div>
   </div>

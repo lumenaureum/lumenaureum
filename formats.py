@@ -22,3 +22,13 @@ def month_label(ym):
         return date(y, m, 1).strftime("%b %Y")
     except (ValueError, TypeError):
         return ym or ""
+
+CODEWORD_LEFT_OUT = "(the gallery codeword you chose with me)"
+
+def drop_codewords(text, words):
+
+    import re
+    for w in sorted({" ".join((w or "").split()) for w in words if (w or "").strip()}, key=len, reverse=True):
+        pat = r"\s+".join(re.escape(p) for p in w.split(" "))
+        text = re.sub(pat, CODEWORD_LEFT_OUT, text, flags=re.IGNORECASE)
+    return text

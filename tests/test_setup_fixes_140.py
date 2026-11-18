@@ -186,8 +186,8 @@ def test_s3_tls_errors_in_plain_words():
     assert setup.plain_error(wrong, cfg) == "This address doesn't answer with HTTPS. Check the port, or whether the server uses https."
     selfs = Exception("SSL validation failed for https://nas.example.com:9000/b [SSL: CERTIFICATE_VERIFY_FAILED] certificate "
                       "verify failed: self-signed certificate (_ssl.c:1006)")
-    assert setup.plain_error(selfs, cfg) == ("Its certificate isn't trusted (self-signed). Lumen Aureum can't use a "
-                                             "self-signed S3 certificate yet.")
+    assert setup.plain_error(selfs, cfg) == ("Its certificate isn't trusted (self-signed). Test again to see its "
+                                             "fingerprint and trust it.")
     other = Exception("[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired")
     assert "SSL" not in setup.plain_error(other, cfg)
 

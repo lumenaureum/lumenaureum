@@ -81,8 +81,8 @@ def test_example_documents_disclaimer(tmp_path, monkeypatch):
     sid = con.execute("SELECT id FROM sessions WHERE type='family' LIMIT 1").fetchone()[0]
     did = con.execute("SELECT id FROM documents WHERE kind='release' LIMIT 1").fetchone()[0]
     con.execute("DELETE FROM settings WHERE key='agreement_reviewed'"); con.commit(); con.close()
-    assert "SAMPLE: example wording" in c.get(f"/session/{sid}/agreement", environ_base=E).data.decode()
-    assert "SAMPLE: example wording" in c.get(f"/doc/{did}/release", environ_base=E).data.decode()
+    assert "SAMPLE wording, not yet reviewed by you" in c.get(f"/session/{sid}/agreement", environ_base=E).data.decode()
+    assert "SAMPLE wording, not yet reviewed by you" in c.get(f"/doc/{did}/release", environ_base=E).data.decode()
     assert "examples only" in open(os.path.join(ROOT, "README.md")).read()
 
 def test_a_reviewed_document_stays_reviewed(tmp_path, monkeypatch):
@@ -93,11 +93,11 @@ def test_a_reviewed_document_stays_reviewed(tmp_path, monkeypatch):
     con.close()
     url = f"/session/{sid}/agreement"
     c.post("/settings/wording/agreement", data={"text": "# Terms\\nOne."}, environ_base=E)
-    assert "SAMPLE: example wording" in c.get(url, environ_base=E).data.decode()
+    assert "SAMPLE wording, not yet reviewed by you" in c.get(url, environ_base=E).data.decode()
     c.post("/settings/review/agreement", environ_base=E)
-    assert "SAMPLE: example wording" not in c.get(url, environ_base=E).data.decode()
+    assert "SAMPLE wording, not yet reviewed by you" not in c.get(url, environ_base=E).data.decode()
     c.post("/settings/wording/agreement", data={"text": "# Terms\\nTwo."}, environ_base=E)
-    assert "SAMPLE: example wording" not in c.get(url, environ_base=E).data.decode()
+    assert "SAMPLE wording, not yet reviewed by you" not in c.get(url, environ_base=E).data.decode()
     c.post("/settings/review/agreement", data={"revert": "1"}, environ_base=E)
     page = c.get(url, environ_base=E).data.decode()
-    assert "SAMPLE: example wording" in page and "Two." not in page
+    assert "SAMPLE wording, not yet reviewed by you" in page and "Two." not in page

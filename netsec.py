@@ -129,7 +129,42 @@ def host_ok(host):
         ipaddress.ip_address(h)
         return True
     except ValueError:
-        return h in HOSTNAMES
+        return h in HOSTNAMES or _on_own_cert(h)
+
+_CERT_NAMES = {}
+
+def own_cert_names():
+
+    path = os.environ.get("CRM_TLS_CERT", "")
+    if not path:
+        return frozenset()
+    try:
+        st_ = os.stat(path)
+    except OSError:
+        return frozenset()
+    sig = (path, st_.st_mtime_ns, st_.st_size)
+    if sig not in _CERT_NAMES:
+        names = set()
+        try:
+            from cryptography import x509
+            cert = x509.load_pem_x509_certificate(Path(path).read_bytes())
+            try:
+                names = {n.lower() for n in cert.extensions.get_extension_for_class(
+                    x509.SubjectAlternativeName).value.get_values_for_type(x509.DNSName)}
+            except x509.ExtensionNotFound:
+                names = set()
+        except Exception:
+            names = set()
+        _CERT_NAMES.clear()
+        _CERT_NAMES[sig] = frozenset(names)
+    return _CERT_NAMES[sig]
+
+def _on_own_cert(h):
+
+    for n in own_cert_names():
+        if n == h or (n.startswith("*.") and h.count(".") >= 2 and h.split(".", 1)[1] == n[2:] and h.split(".", 1)[0]):
+            return True
+    return False
 
 def secure_request(request):
 

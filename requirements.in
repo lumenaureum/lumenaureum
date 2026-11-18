@@ -7,4 +7,3 @@ segno>=1.6
 sqlcipher3==0.6.5
 gunicorn>=23
 paramiko>=3.5
-boto3>=1.35

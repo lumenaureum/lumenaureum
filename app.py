@@ -1,6 +1,7 @@
 import importlib.util
 import ipaddress
 import json
+import math
 import re
 import os
 import secrets
@@ -17,11 +18,13 @@ from markupsafe import Markup
 
 import config as C
 import sun
-from formats import clock, month_label
+from formats import clock, drop_codewords, month_label
 
 os.umask(0o077)
 import nodump
 nodump.harden()
+import safe_media
+safe_media.restrict_pillow()
 
 ROOT = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get("CRM_DB", ROOT / "data" / "crm.db"))
@@ -3308,6 +3311,12 @@ def journey(sr, acts):
         if dd.weekday() == 0:
             ticks.append(dict(x=pos(dd.isoformat()), label=dd.strftime("%b %-d")))
         dd += timedelta(days=1)
+
+    if len(ticks) > 1:
+        gap_ = max(ticks[1]["x"] - ticks[0]["x"], 0.01)
+        wide_, phone_ = max(1, math.ceil(5 / gap_)), max(1, math.ceil(12 / gap_))
+        phone_ = math.ceil(phone_ / wide_) * wide_
+        ticks = [dict(tk, minor=i % phone_ != 0) for i, tk in enumerate(ticks) if i % wide_ == 0]
     tpos, spos = pos(t), (pos(shoot) if shoot else None)
     ticks = [tk for tk in ticks if abs(tk["x"] - tpos) > 6 and (spos is None or abs(tk["x"] - spos) > 6)]
     for b in bands:
@@ -5420,7 +5429,8 @@ def html_pdf(html, name):
     from flask import Response
     import weasyprint
     page = weasyprint.CSS(string="@page { size: Letter; margin: 0.5in; }")
-    pdf = weasyprint.HTML(string=html, base_url=str(ROOT)).write_pdf(stylesheets=[page])
+    import safe_media
+    pdf = weasyprint.HTML(string=html, base_url=str(ROOT), url_fetcher=safe_media.pdf_fetcher()).write_pdf(stylesheets=[page])
     return Response(pdf, mimetype="application/pdf", headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 def file_slug(*parts):
@@ -5548,6 +5558,9 @@ def _send_ctx(sid, kind, subject, lines):
     sent = q("""SELECT done FROM tasks WHERE session_id=? AND title=? AND done IS NOT NULL
                 AND COALESCE(outcome, 'done') = 'done' ORDER BY done DESC""", (sid, step_), one=True) if step_ else None
     sms_body = lines[0] if lines else subject
+    words_ = [r_["gallery_codeword"] for r_ in q("SELECT gallery_codeword FROM sessions WHERE household_id=?",
+                                                 (s_["household_id"],))] if s_ else []
+    subject, body, sms_body = (drop_codewords(t_, words_) for t_ in (subject, body, sms_body))
     return dict(mailto=f"mailto:{_qu(who['email'] if who else '', safe='@')}?subject={_qu(subject)}&body={_qu(body)}",
                 to=who["email"] if who else "", sid=sid, phone=(reach["phone"] if reach else ""),
                 sms=f"sms:{phone_}?&body={_qu(sms_body)}" if len(phone_) >= 7 else "", task=task["id"] if task else None, sent=nice(sent["done"]) if sent and not task else "", back=request.full_path.rstrip("?"))
@@ -6444,6 +6457,8 @@ def bill_ctx(sid, receipt=False, live=False):
                 due_sentence=(f"Due by {long_date(bd)}." if (net or s["type"] in C.BEFORE_TYPES) and bd else
                               "Due on delivery: your photos are released on payment."),
                 license=lic, event_family=bool(s["event_id"]), checks="check" in C.PAYMENT_METHODS,
+
+                agreement_signed=bool(_signed_on(plan_head(sid), "agreement")),
                 pay_words=(lambda w: w[:1].upper() + w[1:])(C._or_list(C.payment_methods()) or "ask me how to pay"),
                 pay_details=" ".join((C.pay_details() or "").split()),
                 photographer=setting("photographer_name"), business=setting("business_name"), address=setting("business_address"),
@@ -6611,6 +6626,9 @@ def plugins_settings():
         if not on:
             x("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
               (f"plugin_off_at_{name}", datetime.now().isoformat(timespec="seconds")))
+
+            x("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+              (f"plugin_off_n_{name}", str(int(setting(f"plugin_off_n_{name}") or 0) + 1)))
         session["notice"] = f"{sw['label']} turned {'on' if on else 'off'}."
         return redirect(url_for("plugins_settings"))
     return render_template_string(PLUGINS_PAGE, rows=_plugin_rows(), ask=ask)
@@ -8060,8 +8078,7 @@ def type_edit(key):
                            keep_raw_days=max(1, min(3650, _int_or_none(f.get("keep_raw_days")) or C.raw_keep_days(key))))
         if f.get("delivery_method") in C.DELIVERY_METHODS:
             t["policy"]["delivery_method"] = f["delivery_method"]
-        if f.get("gallery_codeword"):
-            t["policy"]["gallery_codeword"] = True
+        t["policy"]["gallery_codeword"] = bool(f.get("gallery_codeword"))
         dd_ = _int_or_none(f.get("delivery_days"))
         general_ = C.EVENT_DELIVERY_DAYS if t["kind"] == "event" else C.DELIVERY_DAYS
         if dd_ and dd_ > 0 and dd_ != general_:

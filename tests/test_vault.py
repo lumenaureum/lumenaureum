@@ -17,11 +17,13 @@ def make_backends(tmp_path):
 
 @pytest.fixture
 def s3():
-    from moto import mock_aws
-    with mock_aws():
-        import boto3
-        boto3.client("s3", region_name="us-east-1").create_bucket(Bucket="vault-test")
-        yield B.S3Backend("vault-test", "x", "y", region="us-east-1", prefix="lumenaureum")
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from fake_s3 import ACCESS, SECRET, FakeS3
+    f = FakeS3(buckets=("vault-test",))
+    try:
+        yield B.S3Backend("vault-test", ACCESS, SECRET, endpoint=f.endpoint, region="us-east-1", prefix="lumenaureum")
+    finally:
+        f.close()
 
 @pytest.fixture
 def con(tmp_path):

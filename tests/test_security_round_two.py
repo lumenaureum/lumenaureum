@@ -44,4 +44,7 @@ def test_plain_http_s3_refused_in_the_backend():
     fresh_modules()
     from vault import backends as B
     with pytest.raises(ValueError):
-        B.S3Backend("b", "a", "s", endpoint="http://example.com")
+        B.S3Backend("b", "a", "s", endpoint="http://93.184.215.14")
+    with pytest.raises(ValueError):
+        B.S3Backend("b", "a", "s", endpoint="ftp://192.168.20.5")
+    B.S3Backend("b", "a", "s", endpoint="http://192.168.20.5:9000")

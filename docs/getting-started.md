@@ -8,7 +8,7 @@ they are marked **Decide carefully**.
 ## What you need
 
 - **A computer you own that is always on:** a TrueNAS (install it from the app catalog), or any NAS or home server
-  that runs Docker. You use Lumen Aureum from a web browser on any computer in your home or studio. See
+  that runs Docker on a 64-bit Intel, AMD or ARM processor. You use Lumen Aureum from a web browser on any computer in your home or studio. See
   [where-it-runs.md](where-it-runs.md) for installing it.
 - **A phone with an authenticator app**, for two-factor sign-in.
 - **Somewhere for backups**: a second disk, a share on another machine, or an SFTP or S3 account. Setup checks it.

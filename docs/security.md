@@ -115,6 +115,11 @@ What a gallery link can and can't protect:
 - **The host serves the page.** A web host that turns hostile (or is broken into) could change the gallery page so
   that it sends the key somewhere when a client opens it. No web page can fully prevent that, whoever serves it: it
   is a limit of encryption delivered by a web page, not something a setting or a choice of host protects against.
+  What the app does: about once an hour, at the regular gallery check, it fetches each online gallery's page from its
+  public address and reads the page and the gallery's scripts back from the host, and compares every byte with what it
+  put there. A difference seen at two checks in a row shows on Today and in the gallery's panel, with Take down now
+  and Put the published page back. This finds a change after it happens; it can't stop a client opening a changed
+  page before the next check.
 - **Expiry needs the host's help.** The window is kept in two small files on the host (the first-visit stamp and the
   limits file). A host that alters them can keep a gallery up longer, and one that hands out gallery files without the
   gate doesn't close a gallery by itself; the app still removes it on its next check.
@@ -301,6 +306,11 @@ The studio page is public and unencrypted, like any website; see [Studio page](s
   checks never follow a redirect, and every connection and read has a time limit. The confirmed
   certificate is kept with your storage settings, encrypted like the SFTP host key. Certificate checks are never
   simply turned off: there is no setting for it. See [Where it runs](where-it-runs.md#the-web-hosts-certificate).
+- S3 storage: every request is signed (AWS Signature Version 4, the content's hash included), and the secret key never
+  crosses the network. A self-signed certificate is trusted the same way as the web host's: shown in Setup, accepted
+  only once you confirm it, and only its key from then on; a new key stops backups there until you decide. Plain
+  `http://` is accepted only to an address on your own network (checked against the address actually reached, on
+  every connection), never to one on the internet. See [Where it runs](where-it-runs.md#s3-storage).
 
 Pages are sent with `Cache-Control: no-store`, so the browser does not keep client pages on disk, and the app keeps
 no access log (request lines can carry search terms).

@@ -24,7 +24,7 @@
     {% else %}<tr><td><b>Balance due</b></td><td class="n"><b>{{ money(v.balance) }}</b></td></tr>{% endif %}
     {% if v.credit %}<tr><td>Credit due to you (paid beyond the total)</td><td class="n">{{ money(v.credit) }}</td></tr>{% endif %}</table>
   {% if v.receipt %}
-  <div class="promise"><b>Thank you.</b> {% if v.event_family %}Your photos are yours to print, share, and post for personal use.{% elif v.license %}Your license to use the photos is set out in your agreement.{% else %}With this payment, the copyright in your delivered photos is yours.{% endif %}</div>
+  <div class="promise"><b>Thank you.</b> {% if v.event_family %}Your photos are yours to print, share, and post for personal use.{% elif v.license %}{% if v.get('agreement_signed', True) %}Your license to use the photos is set out in your agreement.{% endif %}{% else %}With this payment, the copyright in your delivered photos is yours.{% endif %}</div>
   {% elif v.balance > 0.005 %}
   <h2>How to pay</h2>
   <p>{{ v.pay_words }}.{% if v.checks and (v.business or v.photographer) %} Checks are made out to {{ v.business or v.photographer }}{% if v.address %} and mailed to {{ v.address|oneline }}{% endif %}.{% endif %}{% if v.pay_details %} {{ v.pay_details }}{% endif %} {{ v.due_sentence }}</p>

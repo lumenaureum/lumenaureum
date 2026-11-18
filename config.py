@@ -91,7 +91,9 @@ DEFAULT_POLICY = dict(free_reschedule=True, notice_hours=48, late_minutes=30, ou
                       delivery="as full-resolution digital files, with an online gallery",
                       weather="we reschedule at no charge",
                       keep_raw_days=90,
-                      license_use="personal use: printing, sharing and posting them, and having them printed anywhere")
+                      license_use="personal use: printing, sharing and posting them, and having them printed anywhere",
+
+                      gallery_codeword=True)
 
 FILL_INS = [("delivery", "You receive the edited photos ___.", "HOW YOU DELIVER"),
             ("weather", "If the weather turns, ___.", "WEATHER PLAN"),

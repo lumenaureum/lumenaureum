@@ -1390,11 +1390,15 @@ paid, Prepare for the lab gives you the print-ready files and an order sheet, an
     CANCEL_ANSWERS = (("canceled", "Canceled at the lab"), ("finishing", "The lab is finishing the cancellation"),
                       ("not", "Not canceled at the lab"))
 
-    def mailto(to, subject, lines):
+    def mailto(to, subject, lines, sid=None):
         from urllib.parse import quote as _qu
+        from formats import drop_codewords
         sign = setting("photographer_name") or setting("business_name")
         first = (to[0].split() or [""])[0] if to[0] else ""
         body = "\n\n".join([f"Hi {first}," if first else "Hello,"] + lines + [f"Thank you,\n{sign}" if sign else "Thank you"])
+        words = [r_["gallery_codeword"] for r_ in q("""SELECT gallery_codeword FROM sessions WHERE household_id=
+                     (SELECT household_id FROM sessions WHERE id=?)""", (sid,))] if sid else []
+        subject, body = drop_codewords(subject, words), drop_codewords(body, words)
         return f"mailto:{_qu(to[1] or '', safe='@')}?subject={_qu(subject)}&body={_qu(body)}"
 
     def order_or_404(oid_):
@@ -1452,7 +1456,7 @@ paid, Prepare for the lab gives you the print-ready files and an order sheet, an
         costs = [o[k_] for k_ in ("cost_products", "cost_shipping", "cost_tax", "cost_other")]
         profit = (f_["total"] - f_["tax"] - cost_total - (o["ship_lab_cents"] or 0)) if all_costed and ls and \
             o["ship_lab_cents"] is not None else None
-        inv_mail = mailto(who, f"Invoice {o['invoice_number']}", invoice_mail_lines(o)) if o["invoice_number"] else ""
+        inv_mail = mailto(who, f"Invoice {o['invoice_number']}", invoice_mail_lines(o), sid=o["session_id"]) if o["invoice_number"] else ""
         return render_template_string(
             ORDER, o=o, p=p_, words=P.WORDS.get(o["state"], o["state"]), lines=view, flags=flags_of(o, ls), f=f_,
             pay_balance=issued_figures(o)["balance"] if o["invoice_number"] else f_["balance"],
@@ -1477,11 +1481,11 @@ paid, Prepare for the lab gives you the print-ready files and an order sheet, an
                                 ([f"Your prints{order_words(o)} are ready to collect from {studio_name()}."] if sh.get("how") == "pickup" else
                                  [f"Your prints{order_words(o)} are on their way to {', '.join(P.label_lines(sh, who[0]))}."]
                                  + [f"Tracking: {t_}" for t_ in tracking_words(o)]
-                                 + [setting("prints_arrive", ARRIVE_DEFAULT)])),
+                                 + [setting("prints_arrive", ARRIVE_DEFAULT)]), sid=o["session_id"]),
             mail_expired=mailto(who, "Your print order", [
                 f"Your print order{order_words(o, voided=True)} was not paid within {P.UNPAID_EXPIRE_DAYS} days, so its "
                 "invoice was voided and nothing was printed. If you would still like the prints, just reply and I will "
-                "set it up again."]))
+                "set it up again."], sid=o["session_id"]))
 
     def order_words(o, voided=False):
 
@@ -2072,7 +2076,8 @@ paid, Prepare for the lab gives you the print-ready files and an order sheet, an
             import weasyprint
             html = ("<!doctype html><meta charset='utf-8'><style>body{font:12px/1.45 sans-serif}pre{white-space:pre-wrap;"
                     "font:12px/1.45 sans-serif}</style><pre>" + str(escape(text)) + "</pre>")
-            return weasyprint.HTML(string=html).write_pdf()
+            import safe_media
+            return weasyprint.HTML(string=html, url_fetcher=safe_media.pdf_fetcher()).write_pdf()
         except Exception:
             app.logger.exception("prints: the order sheet PDF")
             return b""

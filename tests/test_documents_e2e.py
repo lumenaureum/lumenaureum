@@ -234,7 +234,7 @@ def test_delivery_letters_are_editable_and_drafts_until_reviewed(studio):
     _people_transfer(c, C)
     sid = sids["portrait"][0]
     con = A.connect(); con.execute("DELETE FROM settings WHERE key='agreement_reviewed'"); con.commit(); con.close()
-    assert "SAMPLE: example wording" in flat(pdf_text(c.get(f"/letters/{sid}/print-release.pdf", environ_base=E).data))
+    assert "SAMPLE wording, not yet reviewed by you" in flat(pdf_text(c.get(f"/letters/{sid}/print-release.pdf", environ_base=E).data))
     c.post("/settings/wording/transfer", data={"text": "# Yours\n[PHOTOGRAPHER] hands over the photos. [FAVORITES] stay in my portfolio."}, environ_base=E)
     text = flat(pdf_text(c.get(f"/letters/{sid}/print-release.pdf", environ_base=E).data))
     assert "hands over the photos." in text and "favorite" in text and "transfers to you all copyright" not in text

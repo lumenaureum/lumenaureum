@@ -14,7 +14,7 @@ SETTING_KEYS = ("business_name", "photographer_name", "studio_name", "business_e
 SECRET_FIELDS = ("secret_key", "password", "private_key")
 STORAGE_PARTS = ("primary", "secondary", "gallery_host")
 BACKEND_FIELDS = {"local": ("type", "path"), "sftp": ("type", "host", "user", "key_file", "root", "port", "known_hosts", "host_key"),
-                  "s3": ("type", "bucket", "endpoint", "region", "access_key", "prefix")}
+                  "s3": ("type", "bucket", "endpoint", "region", "access_key", "prefix", "addressing")}
 FEE_UNITS = ("flat", "hour", "each", "mile", "person")
 MAX_TEXT = 2000
 
@@ -562,8 +562,13 @@ def _storage(raw, current):
         for k in ("path", "key_file", "known_hosts"):
             if clean.get(k) and _inside_private(clean[k]):
                 raise ImportProblem(f"storage.{part}.{k}: can't be inside Lumen Aureum's data folder or program")
-        if clean.get("type") == "s3" and clean.get("endpoint") and not clean["endpoint"].startswith("https://"):
-            raise ImportProblem(f"storage.{part}.endpoint: must start with https://")
+        if clean.get("type") == "s3" and clean.get("endpoint"):
+            from vault import s3 as S3
+            why = S3.endpoint_problem(clean["endpoint"])
+            if why:
+                raise ImportProblem(f"storage.{part}.endpoint: {why}")
+        if clean.get("type") == "s3" and clean.get("addressing", "auto") not in ("auto", "path", "virtual"):
+            raise ImportProblem(f"storage.{part}.addressing: auto, path or virtual")
         old = current.get(part) or {}
         if old.get("type") == clean.get("type"):
             clean.update({k: old[k] for k in SECRET_FIELDS if k in old})

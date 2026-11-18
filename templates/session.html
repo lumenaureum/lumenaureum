@@ -75,14 +75,14 @@
 </section>{% endif %}
 
 <section class="sec" id="paperwork"><h2 class="sec-h">Paperwork</h2>
-  <table class="data"><thead><tr><th>Document</th><th>About</th><th>Signer</th><th>Status</th><th>Signed on</th><th>Paper kept</th></tr></thead><tbody>
+  <table class="data stack-phone"><thead><tr><th>Document</th><th>About</th><th>Signer</th><th>Status</th><th>Signed on</th><th>Paper kept</th></tr></thead><tbody>
   {% for doc in docs %}<tr>
     <td>{{ doc.kind|capitalize }}</td><td>{{ doc.person or 'Session' }}</td><td class="mute">{{ doc.signer or '-' }}</td>
     <td data-v="{{ doc.status }}"><form method="post" action="{{ url_for('doc_save', did=doc.id) }}" class="inline"><input type="hidden" name="cycle" value="1"><input type="hidden" name="from" value="{{ doc.status }}"><input type="hidden" name="back" value="{{ here }}#paperwork">
       <button class="pillbtn {{ {'signed':'green','sent':'amber'}.get(doc.status,'red') }}">{{ doc.status }}</button></form></td>
-    <td data-v="{{ doc.signed or '' }}"><form method="post" action="{{ url_for('doc_save', did=doc.id) }}" class="inline"><input type="hidden" name="back" value="{{ here }}#paperwork">
+    <td data-l="Signed on" data-v="{{ doc.signed or '' }}"><form method="post" action="{{ url_for('doc_save', did=doc.id) }}" class="inline"><input type="hidden" name="back" value="{{ here }}#paperwork">
       <input type="date" name="signed_on" value="{{ doc.signed or '' }}" aria-label="{{ doc.kind|capitalize }} signed on" data-autosubmit style="width:auto"></form></td>
-    <td><form method="post" action="{{ url_for('doc_save', did=doc.id) }}" class="inline"><input type="hidden" name="back" value="{{ here }}#paperwork">
+    <td data-l="Paper kept"><form method="post" action="{{ url_for('doc_save', did=doc.id) }}" class="inline"><input type="hidden" name="back" value="{{ here }}#paperwork">
       <input name="note" value="{{ doc.note }}" placeholder="Where" aria-label="Where the paper {{ doc.kind }} is kept" data-autosubmit></form></td>
   </tr>{% else %}<tr><td colspan="6" class="empty">None</td></tr>{% endfor %}</tbody></table>
   <form method="post" action="{{ url_for('doc_add', sid=s.id) }}" class="row rel-add">
@@ -157,7 +157,7 @@
   <div class="f2" style="margin-top:10px"><div><label class="l" for="f-favorites">Client's portfolio suggestions{{ help("You choose up to " ~ C.MARKETING_PICKS ~ " photos for your portfolio. The client may suggest favorites, and you never show a photo they asked you not to.") }}</label><input id="f-favorites" name="favorites" value="{{ s.favorites }}"></div>
     <div><label class="l" for="f-veto">Don't show (the client asked)</label><input id="f-veto" name="veto" value="{{ s.veto }}"></div></div>
   {% set gcw_ = C.POLICY[s.type].get('gallery_codeword') or s.gallery_codeword %}
-  {% if gcw_ %}<div style="margin-top:8px"><label class="l" for="f-gallery_codeword">Gallery codeword{{ help("Three words the client chose. The gallery asks for them; with only the link, someone would have to guess them, so short or common words are refused. It's never printed on the letter. Once the gallery is online, the word stays as it is so the link you sent keeps working.") }}</label>
+  {% if gcw_ %}<div style="margin-top:8px"><label class="l" for="f-gallery_codeword">Gallery codeword{{ help("Three words the client chose. The gallery asks for them; with only the link, someone would have to guess them, so short or common words are refused. It's never printed on the letter or written into any email the app drafts: the client chooses it with you in person or on the phone. Once the gallery is online, the word stays as it is so the link you sent keeps working.") }}</label>
     {%- set cwr_ = session.pop('cw_refused', None) %}{% set cwr_ = cwr_ if cwr_ and cwr_.sid == s.id else None %}
     <input name="gallery_codeword" id="f-gallery_codeword" maxlength="60" value="{{ cwr_.word if cwr_ else (s.gallery_codeword or '') }}" autocomplete="off" placeholder="three words, e.g. heron maple tide"{% if cwr_ %} aria-invalid="true" aria-describedby="cw-refused"{% endif %}>
     {%- if cwr_ %}<div id="cw-refused" style="font-size:12px;color:var(--red);margin-top:3px">Not saved: this codeword is too easy to guess. Use three or more words, or 14 letters or more, then save.{% if s.gallery_codeword %} The saved codeword is still "{{ s.gallery_codeword }}".{% endif %}</div>{% endif %}</div>{% endif %}

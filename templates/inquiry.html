@@ -35,7 +35,8 @@
   {% if plans and type_ in C.NEEDS_AGREEMENT %}<label class="l" for="f-plan_of">One agreement with another session of theirs?</label>
   <select id="f-plan_of" name="plan_of"><option value="">No, its own agreement</option>{% for p_ in plans %}<option value="{{ p_.id }}">Yes, with {{ p_.title or C.SESSION_TYPES.get(p_.type, p_.type) }}{% if p_.shoot_date %}, {{ nice(p_.shoot_date) }}{% endif %}</option>{% endfor %}</select>{% endif %}
   {% if C.POLICY[type_].get('gallery_codeword') %}<label class="l" for="f-gallery_codeword">Gallery codeword (three words the client will remember)</label>
-  <input name="gallery_codeword" id="f-gallery_codeword" maxlength="60" autocomplete="off" placeholder="three words, e.g. heron maple tide">{% endif %}
+  <input name="gallery_codeword" id="f-gallery_codeword" maxlength="60" autocomplete="off" placeholder="three words, e.g. heron maple tide" aria-describedby="cw-say">
+  <div class="sub" id="cw-say" style="font-size:12px">Ask the client to choose it in person or on the phone. It is never written into any email the app drafts, so a read mailbox can't open the gallery.</div>{% endif %}
   {% if C.INTAKE.get(type_) %}<label class="l">What they want</label>
   {% for k, label in C.INTAKE[type_] %}<input name="i_{{ k }}" placeholder="{{ label }}" aria-label="{{ label }}">{% endfor %}{% endif %}
   <div class="row">{{ seg('channel', ['email','text','call','in person'], label='How they got in touch') }}

@@ -34,7 +34,7 @@ the master key alone restores it.
 ## Backends (one contract: put, get, list, stat, delete, verified delete)
 - `local`  - a folder that carries a `.vault-root` marker (an unmounted share is refused, never written into).
 - `sftp`   - key auth, host key pinned from known_hosts (needs `requirements-sftp.txt`).
-- `s3`     - any S3-compatible endpoint, bucket-scoped key, versioning off (needs `requirements-s3.txt`).
+- `s3`     - any S3-compatible endpoint, bucket-scoped key, versioning off (the app's own client, `vault/s3.py`).
 Config: `data/storage.json` (mode 0600): `primary`, optional `secondary` (copied once a day, never mirrored live),
 `gallery_host`. Credentials live only there.
 

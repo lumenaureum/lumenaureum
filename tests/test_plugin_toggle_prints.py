@@ -419,3 +419,55 @@ def test_a_1_3_1_install_updated_has_print_orders_off_and_nothing_for_prints_on_
         con.close()
     c.get("/", environ_base=E)
     assert "print order" not in c.get("/", environ_base=E).data.decode().lower()
+
+def test_an_order_collected_in_the_same_second_as_the_switch_is_not_counted_as_arrived_while_off(e):
+
+    late = PE.payload(e, OIDS[1], email="guest@example.org", name="A Guest")
+    PE.send(e, PE.payload(e, OIDS[0]))
+    PE.collect(e)
+    toggle(e, False)
+    off_at = setting(e, "plugin_off_at_prints")
+    sql(e, "UPDATE print_orders SET collected_at=?", (off_at,))
+    assert "arrived while print orders are off" not in today(e)
+    PE.send(e, late)
+    check(e)
+    assert "1 print order arrived while print orders are off" in today(e)
+    assert {r["oid"]: json.loads(r["flags"]).get("off_n") for r in PE.q(e, "SELECT oid, flags FROM print_orders")} == \
+        {OIDS[0]: None, OIDS[1]: 1}
+
+def test_each_spell_off_counts_only_its_own_orders(e):
+    import printorders as P
+    first = PE.payload(e, OIDS[0])
+    second = PE.payload(e, OIDS[1], email="guest@example.org", name="A Guest")
+    later = PE.send(e, second)
+    (e.host / GID / "orders" / P.host_name(later)).unlink()
+    toggle(e, False)
+    PE.send(e, first)
+    check(e)
+    assert "1 print order arrived while print orders are off" in today(e)
+    toggle(e, True)
+    assert "arrived while print orders are off" not in today(e)
+    toggle(e, False)
+    assert setting(e, "plugin_off_n_prints") == "2"
+    assert "arrived while print orders are off" not in today(e)
+    sql(e, "UPDATE settings SET value=? WHERE key='plugin_off_at_prints'", ("2000-01-01T00:00:00",))
+    assert "arrived while print orders are off" not in today(e)
+    (e.host / GID / "orders").mkdir(exist_ok=True)
+    (e.host / GID / "orders" / P.host_name(later)).write_bytes(later)
+    check(e)
+    assert "1 print order arrived while print orders are off" in today(e)
+
+def test_a_1_4_0_install_that_is_off_keeps_its_count_after_the_update(e):
+
+    toggle(e, False)
+    PE.send(e, PE.payload(e, OIDS[0]))
+    check(e)
+    sql(e, "UPDATE settings SET value='2000-01-01T00:00:00' WHERE key='plugin_off_at_prints'")
+    sql(e, "DELETE FROM settings WHERE key='plugin_off_n_prints'")
+    sql(e, "UPDATE print_orders SET flags='{}'")
+    steps = [fn for fn in e.A.UNLOCK_HOOKS if getattr(fn, "__name__", "") == "_later_columns"]
+    assert steps
+    for fn in steps:
+        fn()
+    assert setting(e, "plugin_off_n_prints") == "1"
+    assert "1 print order arrived while print orders are off" in today(e)

@@ -46,7 +46,42 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
 {% macro s3_fields(p, cur) %}
   <div class="be" data-be="{{ p }}s3"><div class="two"><input name="{{ p }}bucket" placeholder="Bucket name" value="{{ fv(p ~ 'bucket', cur.bucket if cur.type == 's3') }}"><input name="{{ p }}endpoint" placeholder="Endpoint, e.g. https://s3.example.com (blank for AWS)" value="{{ fv(p ~ 'endpoint', cur.endpoint if cur.type == 's3') }}"></div>
     <div class="two"><input name="{{ p }}access_key" placeholder="Access key" value="{{ fv(p ~ 'access_key', cur.access_key if cur.type == 's3') }}"><input type="password" name="{{ p }}secret_key" placeholder="{{ 'Secret key (kept from your last try; blank keeps it)' if pending and pending.get(p ~ 'secret_key') else ('Secret key (saved; blank keeps it)' if cur.secret_key else 'Secret key') }}" autocomplete="off"></div>
-    <div class="two"><input name="{{ p }}region" placeholder="Region (optional)" value="{{ fv(p ~ 'region', cur.region if cur.type == 's3') }}"><input name="{{ p }}s3prefix" placeholder="Folder prefix (optional)" value="{{ fv(p ~ 's3prefix', cur.prefix if cur.type == 's3') }}"></div></div>{% endmacro %}
+    <div class="two"><input name="{{ p }}region" placeholder="Region (optional)" value="{{ fv(p ~ 'region', cur.region if cur.type == 's3') }}"><input name="{{ p }}s3prefix" placeholder="Folder prefix (optional)" value="{{ fv(p ~ 's3prefix', cur.prefix if cur.type == 's3') }}"></div>
+    {% set ad_ = fv(p ~ 'addressing', cur.addressing if cur.type == 's3') or 'auto' %}
+    <label class="l" for="f-{{ p }}addressing">Bucket address{{ help("How the bucket's name goes into each request. Automatic works for AWS and almost every other service. Change it only if your storage's instructions ask for one or the other.") }}</label>
+    <select id="f-{{ p }}addressing" name="{{ p }}addressing" style="width:auto">{% for v_, w_ in [('auto', 'Automatic'), ('path', 'After the address (path style)'), ('virtual', 'In the server name (virtual host)')] %}<option value="{{ v_ }}"{{ ' selected' if ad_ == v_ }}>{{ w_ }}</option>{% endfor %}</select>
+    {% if ((fv(p ~ 'endpoint', cur.endpoint if cur.type == 's3') or '')|lower).startswith('http://') %}<div class="hint" style="color:var(--amber, #b07a12)">This address uses plain http://. The app accepts it only for storage on your own network, never on the internet. Your backups are encrypted before they leave, but the requests themselves cross your network unencrypted: use https:// if your storage offers it.</div>{% endif %}</div>{% endmacro %}
+
+{% macro s3cert_panel(rows, msg) %}{% if rows %}<div id="s3cert" style="margin-top:10px">
+    <label class="l">The S3 storage's certificate{{ help("The app connects to S3 storage over https://. A certificate from a public authority is trusted as it is. A self-signed certificate, or one from your own authority (a NAS on your home network, say), is trusted once you confirm it here, and from then on only that certificate's key is accepted at that address, in a certificate that names it.") }}</label>
+    {% if msg == 'trusted' %}<div class="hint">Saved. The app tests the storage again now.</div>{% endif %}
+    {% macro s3_lines(c) %}<div class="mono" style="font-size:11px;margin:4px 0;word-break:break-all">SHA-256 fingerprint: {{ c.fp }}{% if c.spki_fp %}<br>Its key (SHA-256): {{ c.spki_fp }}{% endif %}</div>
+      <div class="hint">Issued to: {{ c.subject or 'no name' }}{% if c.names %} ({{ c.names|join(', ') }}){% endif %}. Issued by: {{ 'itself (self-signed)' if c.self_signed else (c.issuer or 'no name') }}. Valid until: {{ c.not_after or 'not given' }}.</div>{% endmacro %}
+    {% macro s3_wrong_name(c, host) %}<div class="hint" style="color:var(--amber, #b07a12)">This certificate is for {{ (c.names if c.san else [c.cn])|select|join(', ') or 'no name' }}, not for {{ host }}, the address you set for the storage. It can't be trusted for this address: make a certificate on the storage server that names {{ host }}, then press Check the certificate.</div>{% endmacro %}
+    {% for r_ in rows %}<div style="margin:6px 0 10px">
+      <div><b>{{ r_.addr }}</b></div>
+      {% set s_ = r_.seen %}
+      {% if s_ and s_.kind == 'changed' %}
+        <div style="color:var(--amber, #b07a12)">The S3 storage's certificate changed. Backups there are stopped until you decide.</div>
+        {% if r_.pinned %}<div class="hint">The one you confirmed:</div>{{ s3_lines(r_.pinned) }}{% endif %}
+        {% if s_.cert %}<div class="hint">The one it shows now:</div>{{ s3_lines(s_.cert) }}
+          {% if s_.refused == s_.cert.sha256 %}<div class="hint">You refused this one. Backups there stay stopped until the server shows the certificate you confirmed.</div>{% endif %}
+          <div class="hint">Compare the new fingerprint with the one your storage server shows. Trust it only if you changed the certificate yourself.</div>
+          {% if s_.cert.name_ok is sameas false %}{{ s3_wrong_name(s_.cert, r_.host) }}{% else %}<button type="submit" class="quiet tbtn" formnovalidate name="s3cert_trust" value="{{ r_.addr }} {{ s_.cert.sha256 }}">Trust the new certificate</button>{% endif %}
+          {% if s_.refused != s_.cert.sha256 %}<button type="submit" class="quiet tbtn" formnovalidate name="s3cert_refuse" value="{{ r_.addr }}">Keep the old one</button>{% endif %}
+        {% else %}<div class="hint">Its certificate couldn't be read just now.</div>{% endif %}
+      {% elif s_ %}
+        <div style="color:var(--amber, #b07a12)">The S3 storage's certificate isn't trusted: it isn't from a public authority (it may be self-signed, or from your own authority).</div>
+        {% if s_.cert %}{{ s3_lines(s_.cert) }}
+          <div class="hint">Check this fingerprint matches the one your storage server shows for its certificate. Once you trust it, the app accepts only this certificate's key at this address (a renewal with the same key keeps working); if the key ever changes, the app stops and asks you here again.</div>
+          {% if s_.cert.name_ok is sameas false %}{{ s3_wrong_name(s_.cert, r_.host) }}{% else %}<button type="submit" class="quiet tbtn" formnovalidate name="s3cert_trust" value="{{ r_.addr }} {{ s_.cert.sha256 }}">Trust this certificate</button>{% endif %}
+        {% else %}<div class="hint">Its certificate couldn't be read just now.</div>{% endif %}
+      {% elif r_.pinned %}
+        <div>The one you confirmed on {{ r_.pinned.at }}. Only its key is accepted at this address, in a certificate that names it.</div>{{ s3_lines(r_.pinned) }}
+      {% endif %}
+      <button type="submit" class="quiet tbtn" formnovalidate name="s3cert_check" value="{{ r_.addr }}">Check the certificate</button>
+    </div>{% endfor %}
+  </div>{% endif %}{% endmacro %}
 {% if step == 'business' %}
   {% if not complete %}<div class="row" style="margin-bottom:8px"><label for="imp" class="btn quiet" style="cursor:pointer">Import a settings file</label></div>{% endif %}
   <div class="two"><div><label class="l" for="f-business_name">Business name</label><input id="f-business_name" name="business_name" maxlength="200" value="{{ fv('business_name', get('business_name')) }}" required></div>
@@ -86,6 +121,7 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
   {% endmacro %}
   {{ backend('primary_', primary, 'Backups (encrypted), on a different disk from the app', hard="Moving the vault later means copying every sealed file to the new place. On a NAS with one pool, a separate dataset is fine; then the second copy, in another place, is what protects you.") }}
   {{ backend('secondary_', secondary, 'Second copy, in another place', True) }}
+  {{ s3cert_panel(s3_certs, s3cert_msg) }}
   <div class="hint">Each location is tested when you continue: a small file is written, read back and removed. Nothing is saved unless it works.</div>
   <label class="l" for="f-backup_time">Daily backup at{{ help("The app makes an encrypted backup every day at this time, while it is running and unlocked.") }}</label><input type="time" id="f-backup_time" name="backup_time" value="{{ btime }}" style="width:auto">
 
@@ -161,6 +197,7 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
     <input name="{{ p }}key_file" placeholder="Private key file inside the container, e.g. /keys/id_ed25519" value="{{ fv(p ~ 'key_file', cur.key_file if cur.type == 'sftp') }}" data-show-if="{{ p }}keymode=file">
     {{ trustbox(p, cur) }}</div>
   {{ s3_fields(p, cur) }}
+  {{ s3cert_panel(s3_certs, s3cert_msg) }}
   <div class="be" data-be="gallery_any"><div class="hint">The web host is tested when you continue: a small file is written, read back and removed. Nothing is saved unless it works.</div>
     <label class="l" for="f-gallery_base_url">Web address of that folder <b class="hardtag">hard to change later</b>{{ help("It must start with https://, so the web server needs a certificate. It is printed in every QR letter you mail. Letters already sent keep pointing at the old address.") }}</label><input id="f-gallery_base_url" name="gallery_base_url" placeholder="e.g. https://example.com/g/" value="{{ fv('gallery_base_url', get('gallery_base_url')) }}"></div>
   {% if host_caps %}<div id="hostcaps" class="be" data-be="gallery_any" style="margin-top:10px">

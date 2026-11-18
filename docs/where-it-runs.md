@@ -37,15 +37,23 @@ Docker Compose, below.
 2. **Apps, Discover,** search for Lumen Aureum, **Install.**
 3. Under Storage, for Data, Vault and Photos choose **Host Path** and pick the folders you made. (Don't choose
    ixVolume: TrueNAS deletes an ixVolume when the app is deleted.)
-4. Open the app at the address the Apps screen shows. Setup asks for a **setup code**: it is in the app's log
-   (Apps, lumenaureum, Logs).
+4. **Certificate (recommended).** Under Network, set **Certificate ID** to a certificate TrueNAS manages for you
+   (Credentials, Certificates), for example one from ACME for a name you own. The app serves HTTPS with it and
+   accepts the names on it, so browsers open it with no warning and nothing more to set. Without one, the app makes
+   its own certificate, which each browser asks you to accept once (check its fingerprint in the app's log first).
+5. Open the app at the address the Apps screen shows, or at the name on your certificate. Setup asks for a **setup
+   code**: it is in the app's log (Apps, lumenaureum, Logs).
+
+You don't need Host IPs, IPv6 or `CRM_HOSTNAMES` for a catalog install on your home network. If a browser is refused,
+see [Reaching the app](#reaching-the-app). To restore a backup on a catalog install, see
+[Restoring a backup](operations.md#on-a-truenas-catalog-install).
 
 Updates arrive on the TrueNAS Apps screen after each release. The catalog's "Version" (1.0.1, say) is the package's
 number; the app's own version shows as App Version. Settings that compose.yaml would hold, such as `CRM_ALLOW_ONLY`,
 go in the app's Edit screen under Additional Environment Variables.
 
 ## A server in the cloud
-It runs on any machine that runs Docker, including a rented server. We recommend a computer you own, for one reason.
+It runs in Docker on any 64-bit Intel, AMD or ARM machine, including a rented server. We recommend a computer you own, for one reason.
 Everything Lumen Aureum stores is encrypted, so a disk image or a snapshot taken from a provider is useless on its
 own. But while the app is unlocked, the key that opens your data is in the server's memory, and on a rented server
 the provider controls that memory: its staff, its tools, and its snapshots of a running machine. On your own
@@ -75,6 +83,21 @@ Galleries live on a web host either way, encrypted, so the one part that must be
   copy is on the same disk as the first, and saves it only when you confirm.
 - **Optional second location** for the daily backup copy: another disk or NAS, an SFTP server, or an S3-compatible
   bucket.
+
+### S3 storage
+Backups, and galleries, can go to any S3-compatible storage: AWS, another online service, or the S3 service of a
+NAS at home. Give the bucket, its endpoint (blank for AWS), an access key and its secret key. Use a key that can
+reach only that bucket, and turn bucket versioning off. **Bucket address** stays on Automatic unless your storage's
+instructions ask for path style or virtual host style.
+
+- **A self-signed certificate** (a NAS at home, say) is trusted once, the same way as the web host's certificate
+  below: Setup shows its fingerprint when you test the location, you check it against the one your NAS shows, and
+  press **Trust this certificate**. From then on only that certificate's key is accepted at that address. If the key
+  changes, backups there stop and Setup shows both certificates until you decide.
+- **Plain `http://`** is accepted only for storage on your own network (an address like `192.168.20.5`, or a name
+  that points to one), never for an address on the internet, and Setup shows a warning. Your backups are encrypted
+  before they leave, but the requests themselves cross your network unencrypted: use `https://` where your storage
+  offers it.
 
 ## Client galleries
 Galleries must be reachable by clients over the internet, so they are published (encrypted) to web space you choose:
@@ -189,7 +212,8 @@ fingerprint against the container log. Keep it on your local network; do not exp
 - **Names.** If you reach it by a name rather than an address, list the name in `CRM_HOSTNAMES`; requests for other
   names are refused (this stops malicious web pages from talking to it through DNS tricks).
 - **Your own certificate.** Mount it and set `CRM_TLS_CERT` and `CRM_TLS_KEY` to the certificate and key files, for
-  example a certificate your NAS already manages. The files must be readable by the user the container runs as.
+  example a certificate your NAS already manages. The files must be readable by the user the container runs as. The
+  names on it are accepted without listing them in `CRM_HOSTNAMES`.
 - **Fewer browser warnings.** List the address and names you use in `CRM_TLS_SAN`, so the certificate matches them;
   the browser then asks only once per device. Add an address later and the next start makes a new certificate
   that names it (the log shows its fingerprint, to check again). The app's certificate lasts two years and renews

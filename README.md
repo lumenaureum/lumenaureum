@@ -81,7 +81,7 @@ See [docs/where-it-runs.md](docs/where-it-runs.md).
 so your data stays if the app is ever removed: see
 [The easiest way: the TrueNAS app catalog](docs/where-it-runs.md#the-easiest-way-the-truenas-app-catalog).
 
-**Anywhere else, with Docker Compose:**
+**Anywhere else, with Docker Compose** (64-bit Intel, AMD or ARM):
 
 ```
 mkdir lumenaureum && cd lumenaureum
@@ -125,3 +125,11 @@ contact@lumenaureum.org, not in public.
 ## Contributing
 Issues and ideas are welcome. Code contributions are not accepted. This repository gets one commit per release; the changes in each
 release are listed in [CHANGELOG.md](CHANGELOG.md).
+
+## If the project stops
+Lumen Aureum runs on your own machine and needs nothing from this project to keep working: it doesn't check in with
+any server of ours, and the version you have keeps running as long as your machine does. Your data doesn't depend on
+the app either. Backups and the key file are standard `age` files that the stock `age` tool opens with your master
+key, and the database is SQLCipher. The photo, gallery and sealed-item formats are written down in
+[docs](docs/photo-format.md), with test vectors, so another program can read them. The license (AGPL) lets anyone
+take the code and carry it on.

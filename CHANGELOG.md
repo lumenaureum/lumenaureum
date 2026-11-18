@@ -2,6 +2,32 @@
 
 New features, behavior changes, security fixes, and other fixes in each release.
 
+## 1.4.1 (2026-11-17)
+
+### New
+- Replace a gallery link that was lost or shared: the old link stops working and the client gets a new one.
+- The app warns you if your web host changes the gallery page it published.
+- Back up to S3 storage on your own network, including over plain http:// with a warning.
+
+### Changed
+- Gallery codewords are on by default for every session type.
+- S3 uses the app's own small client: fewer packages, uploads in parts, clearer errors.
+- On TrueNAS, the certificate chosen in the app's settings is used for HTTPS.
+- Sample documents say they may be binding once signed.
+
+### Security
+- Codewords never appear in emails or texts the app drafts.
+- Self-signed S3 certificates are pinned; a changed certificate stops backups until you confirm it.
+- PDFs never load anything from the internet.
+
+### Fixed
+- Receipts mention a license only when a signed agreement is on file.
+- Phone layout fixes: Billing, Finances, session cards, the timeline.
+
+### Before you update
+- Codewords turn on for session types set up earlier too; turn them off per type in Settings if you prefer.
+- If you copied the sample compose.yaml for 1.4.0, it still named image 1.3.1; set the image to 1.4.1.
+
 ## 1.4.0 (2026-11-17)
 
 ### New

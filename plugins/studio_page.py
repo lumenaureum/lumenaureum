@@ -1063,7 +1063,7 @@ SETTINGS_PAGE = """{% extends "base.html" %}
 
 <div class="card f" style="max-width:720px" id="photos">
   <h2>Photos <span class="mute" style="font-weight:400;font-size:13px">{{ photos|length }} of up to {{ max_photos }}, shown in this order</span></h2>
-  {% if photos %}<table class="data"><tbody>{% for p in photos %}<tr>
+  {% if photos %}<table class="data sp-photos"><tbody>{% for p in photos %}<tr>
     <td style="width:110px"><img src="{{ url_for('studio_page_thumb', pid=p.id) }}" alt="" style="max-width:100px;max-height:70px;display:block"></td>
     <td><form method="post" action="{{ url_for('studio_page_photo', pid=p.id) }}" class="row" style="gap:6px">
       <input name="alt" maxlength="{{ L.alt }}" value="{{ p.alt }}" aria-label="What the photo shows (for people who can't see it)" placeholder="What it shows" class="grow">

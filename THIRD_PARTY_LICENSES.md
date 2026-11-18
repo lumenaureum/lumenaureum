@@ -25,9 +25,6 @@ AGPL. Versions are those in the published container image; each package's full l
 | paramiko (SFTP) | LGPL-2.1 |
 | bcrypt, PyNaCl | Apache-2.0 |
 | invoke | BSD-2-Clause |
-| boto3, botocore, s3transfer (S3) | Apache-2.0 |
-| jmespath, urllib3, six | MIT |
-| python-dateutil | Apache-2.0 / BSD-3-Clause |
 
 ## System packages in the container (Debian)
 Python 3.13 (PSF-2.0), Pango and HarfBuzz (LGPL-2.0+ / MIT), Liberation fonts (OFL-1.1), DejaVu fonts (Bitstream

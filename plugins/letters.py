@@ -276,7 +276,7 @@ h2 { font: bold 10.5pt/14pt Helvetica, Arial, sans-serif; margin: 10pt 0 3pt; } 
 .sig span.l { flex: 1; } .sig span.d { width: 0.85in; }
 .draftline { font: bold 9pt Helvetica, Arial, sans-serif; color: #8a5a6b; border: 1pt dashed #b86f86; padding: 4pt 8pt; margin-bottom: 10pt; }
 </style></head><body>
-{% if draft %}<div class="draftline">SAMPLE: example wording supplied with Lumen Aureum. Adapt it for your business and where you work, and have it reviewed, before you use it.</div>{% endif %}
+{% if draft %}<div class="draftline"><b>SAMPLE wording, not yet reviewed by you.</b> Once signed, this may be binding on you and your client. Read every line and make it fit your business and where you work before you use it.</div>{% endif %}
 <div class="head">{{ head }}</div><h1>{{ title }}</h1>
 <table>{% for k, v in facts %}<tr><td class="k">{{ k }}</td><td>{{ v }}</td></tr>{% endfor %}</table>
 {% for h, t in sections %}<h2>{{ h }}</h2><p>{{ t }}</p>{% endfor %}

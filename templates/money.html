@@ -11,9 +11,10 @@
 </div>
 <div class="grid">
   <div class="card"><h2>By month</h2>
-    {% set peak = (by_month|map(attribute='v')|max) if by_month else 1 %}
+    
+    {% set peak = (by_month|map(attribute='v')|map('abs')|max) if by_month else 0 %}{% set peak = peak if peak > 0.005 else 1 %}
     {% for m in by_month %}<div class="row" style="margin:6px 0"><span style="width:70px" class="sub">{{ m.mo|month }}</span>
-      <div class="grow"><div class="bar" style="width:{{ (m.v / peak * 100)|round }}%"></div></div><span style="width:80px;text-align:right">{{ money(m.v) }}</span></div>
+      <div class="grow"><div class="bar{{ ' neg' if m.v < 0 }}" style="width:{{ (m.v|abs / peak * 100)|round }}%{% if m.v < 0 %};background:var(--red){% endif %}"></div></div><span style="width:80px;text-align:right{% if m.v < 0 %};color:var(--red){% endif %}">{{ money(m.v) }}</span></div>
     {% else %}<div class="empty">Nothing received</div>{% endfor %}</div>
   <div class="card"><h2>By session type</h2>
     <table>{% for r in received %}<tr><td>{{ type_label[r.type] }}</td><td class="n">{{ money(r.v) }}</td></tr>{% else %}<tr><td class="empty">Nothing yet</td></tr>{% endfor %}</table></div>

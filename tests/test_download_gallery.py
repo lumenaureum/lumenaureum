@@ -260,19 +260,19 @@ def test_upload_sets_cache_control_per_file(env, monkeypatch):
     assert 'FilesMatch "^(index\\.html|font(-light)?\\.woff2)$"' in ht and 'Header set Cache-Control "no-cache"' in ht
 
 def test_s3_keeps_the_cache_control_with_the_file():
-    pytest.importorskip("moto")
-    from moto import mock_aws
-    with mock_aws():
-        import boto3
-        from vault import backends as B
-        boto3.client("s3", region_name="us-east-1").create_bucket(Bucket="gal-test")
-        be = B.S3Backend("gal-test", "x", "y", region="us-east-1", prefix="g")
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from fake_s3 import ACCESS, SECRET, FakeS3
+    from vault import backends as B
+    f = FakeS3(buckets=("gal-test",))
+    try:
+        be = B.S3Backend("gal-test", ACCESS, SECRET, endpoint=f.endpoint, region="us-east-1", prefix="g")
         be.put_stream("a/manifest.bin", io.BytesIO(b"x"), content_type="application/octet-stream", cache_control="no-cache")
         be.put_stream("a/plain.bin", io.BytesIO(b"y"))
-        s3 = boto3.client("s3", region_name="us-east-1")
-        head = s3.head_object(Bucket="gal-test", Key="g/a/manifest.bin")
-        assert head["CacheControl"] == "no-cache" and head["ContentType"] == "application/octet-stream"
-        assert "CacheControl" not in s3.head_object(Bucket="gal-test", Key="g/a/plain.bin")
+        head = be.s3.head_headers("g/a/manifest.bin")
+        assert head["cache-control"] == "no-cache" and head["content-type"] == "application/octet-stream"
+        assert "cache-control" not in be.s3.head_headers("g/a/plain.bin")
+    finally:
+        f.close()
 
 def test_a_type_with_no_picking_round_builds_a_download_gallery(env):
     A, c, G, tmp, src, host = env

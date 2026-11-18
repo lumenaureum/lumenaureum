@@ -367,14 +367,38 @@ class More110:
         from datetime import datetime, timedelta, timezone
         now = datetime.now(timezone.utc).replace(microsecond=0)
         stamp = lambda hours: (now - timedelta(hours=hours)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-        (folder / "seen.txt").write_text(stamp(30)[:19] + "Z")
-        (folder / "picks.bin").write_bytes(sealed(draft[:1], G.PICKS_AAD, stamp(26)))
-        (folder / "draft.bin").write_bytes(sealed(draft, G.DRAFT_AAD, stamp(2)))
+        self._seen(folder, stamp(30)[:19] + "Z", ekey)
+        self._send(folder, "picks", lambda: sealed(draft[:1], G.PICKS_AAD, stamp(26)), ekey, draft[:1], stamp(26))
+        self._send(folder, "draft", lambda: sealed(draft, G.DRAFT_AAD, stamp(2)), ekey, draft, stamp(2))
         post("/gallery/sync")
         n, at = one("SELECT draft_n, draft_at FROM galleries WHERE session_id=?", (s_lane,))
         assert n == 3 and at, (n, at)
         assert one("SELECT retouch_picks FROM sessions WHERE id=?", (s_lane,))[0]
         self.s_lane = s_lane
+
+    def _seen(self, folder, text, key=None):
+        (folder / "seen.txt").write_text(text)
+
+    def _send(self, folder, purpose, legacy, key, picks, at):
+
+        (folder / f"{purpose}.bin").write_bytes(legacy())
+
+    def _has(self, folder, plain, key=None):
+        return (folder / plain).exists()
+
+    def _path(self, folder, plain, key=None):
+        return folder / plain
+
+    def _names(self, folder, key=None):
+        return {p.name for p in folder.iterdir()}
+
+    def _picks_name(self, purpose):
+        return f"{purpose}.bin"
+
+    def _key(self, x, sid):
+
+        key, ekey = x.one("SELECT key, ekey FROM galleries WHERE session_id=?", (sid,))
+        return ekey or key
 
     def data(self, x):
 
@@ -405,6 +429,8 @@ class More110:
         assert picking == [f"Client is still picking ({g[8]} photos marked)"], (picking, tuple(g))
         issued = {}
         for number, sid, kind in rows("SELECT number, session_id, kind FROM doc_numbers WHERE issued IS NOT NULL ORDER BY number"):
+            if kind not in ("INV", "R"):
+                continue
             issued[number] = doc_text(x.get(f"/session/{sid}/{'receipt' if kind == 'R' else 'invoice'}").get_data(as_text=True))
         settings = {r[0]: r[1] for r in rows("SELECT key, value FROM settings WHERE key IN (%s)" % ",".join("?" * 7),
                                              tuple(LOOK) + ("timezone", "credit_off"))}
@@ -525,6 +551,11 @@ def doc_text_any(html):
     import re
     return " ".join(_h.unescape(re.sub(r"<[^>]+>", " ", html)).split())
 
+def page_text(html):
+
+    import re
+    return doc_text_any(re.sub(r"(?is)<(style|script)\b.*?</\1>", " ", html))
+
 def _sealed(G, ekey, picks, aad, at):
 
     import secrets as _s
@@ -618,8 +649,8 @@ class More120(More111):
         ekey = one("SELECT ekey FROM galleries WHERE session_id=?", (s_reyes,))[0]
         picks = [dict(i=0, name="reyes1.jpg", r=True, note="warmer", m=False, v=False),
                  dict(i=2, name="reyes3.jpg", r=True, note="", m=True, v=False)]
-        (folder / "seen.txt").write_text(stamp(50)[:19] + "Z")
-        (folder / "picks.bin").write_bytes(_sealed(G, ekey, picks, G.PICKS_AAD, stamp(48)))
+        self._seen(folder, stamp(50)[:19] + "Z", ekey)
+        self._send(folder, "picks", lambda: _sealed(G, ekey, picks, G.PICKS_AAD, stamp(48)), ekey, picks, stamp(48))
         post("/gallery/sync")
         assert one("SELECT retouch_picks FROM sessions WHERE id=?", (s_reyes,))[0], "the picks did not come in"
         assert "Retouched finals" in x.get(f"/c/{reyes}?s={s_reyes}").get_data(as_text=True)
@@ -631,8 +662,8 @@ class More120(More111):
         self._build(x, s_reyes, **{"from": "finals"})
         assert G.is_download(gid) and not G.online_download(gid)
         self._upload(x, s_reyes)
-        assert G.online_download(gid) and not (folder / "seen.txt").exists()
-        (folder / "seen.txt").write_text(stamp(20)[:19] + "Z")
+        assert G.online_download(gid) and not self._has(folder, "seen.txt", ekey)
+        self._seen(folder, stamp(20)[:19] + "Z", ekey)
         post("/gallery/sync")
         assert one("SELECT sd_shipped FROM sessions WHERE id=?", (s_reyes,))[0], "Files delivered was not counted"
 
@@ -674,7 +705,7 @@ class More120(More111):
             gid = one("SELECT gallery_id FROM sessions WHERE id=?", (sid,))[0]
             key, ekey = one("SELECT key, ekey FROM galleries WHERE session_id=?", (sid,))
             host = Path(x.work, self.HOST, gid)
-            blob = (host / "manifest.bin").read_bytes()
+            blob = self._path(host, "manifest.bin", ekey or key).read_bytes()
             m = json.loads(AESGCM(G.key_bytes(ekey or key)).decrypt(blob[:12], blob[12:], b"lumen-aureum-gallery:manifest.bin"))
             downloads[str(sid)] = dict(
                 gallery_id=gid, is_download=G.is_download(gid), online_download=G.online_download(gid),
@@ -744,6 +775,7 @@ INQUIRIES = (dict(v=1, name="Ada Lovelace", email="ada@example.org", phone="", t
 class More130(More120):
 
     HOST = "web/g"
+    INQUIRY_EXT = ".bin"
     EARLIER = "host"
     BASE = "https://photos.example.com/g/"
 
@@ -766,9 +798,9 @@ class More130(More120):
         assert "Lane: online" in x.get("/galleries/move").get_data(as_text=True)
         post("/galleries/move")
         gid = one("SELECT gallery_id FROM sessions WHERE id=?", (s_lane,))[0]
-        names = {p.name for p in (new / gid).iterdir()}
-        assert {"index.html", "manifest.bin", "limits.txt", "picks.bin", "draft.bin"} <= names, names
-        assert (Path(x.work, self.EARLIER, gid) / "manifest.bin").exists()
+        names = self._names(new / gid, self._key(x, s_lane))
+        assert {"index.html", "manifest.bin", "limits.txt", self._picks_name("picks"), self._picks_name("draft")} <= names, names
+        assert self._has(Path(x.work, self.EARLIER, gid), "manifest.bin", self._key(x, s_lane))
         fp, moved = one("SELECT host_fp, moved_from FROM galleries WHERE session_id=?", (s_lane,))
         assert fp == G.fingerprint_of(cfg["gallery_host"]) and moved == G.fingerprint_of(G.earlier_host_cfgs(cfg)[0])
         assert "Put 1 gallery" not in x.get("/galleries/move").get_data(as_text=True)
@@ -850,7 +882,7 @@ class More130(More120):
             self._build(x, sid, source_dir=str(src))
             self._upload(x, sid)
             gid = one("SELECT gallery_id FROM sessions WHERE id=?", (sid,))[0]
-            (Path(x.work, self.HOST, gid) / "seen.txt").write_text((now - timedelta(days=45)).strftime("%Y-%m-%dT%H:%M:%SZ"))
+            self._seen(Path(x.work, self.HOST, gid), (now - timedelta(days=45)).strftime("%Y-%m-%dT%H:%M:%SZ"), self._key(x, sid))
             gone[name] = (sid, gid)
         post("/gallery/sync")
         post("/gallery/sync")
@@ -863,7 +895,7 @@ class More130(More120):
         _wait_threads(f"gal-up-{s_ivers}")
         g = one("SELECT upload_state, removed_at, dark_at, restored_at, restore_days FROM galleries WHERE session_id=?", (s_ivers,))
         assert g[0] == "up" and g[3] and g[4] == 14, tuple(g)
-        assert (Path(x.work, self.HOST, gone["Ivers"][1]) / "manifest.bin").exists()
+        assert self._has(Path(x.work, self.HOST, gone["Ivers"][1]), "manifest.bin", self._key(x, s_ivers))
         for sid in (s_hale, s_ivers, s_ellis):
             x.get(f"/session/{sid}")
 
@@ -883,7 +915,7 @@ class More130(More120):
         assert (web / "index.html").is_file() and (web / "inquiry.php").is_file()
         pub = S.inquiry_public(one("SELECT value FROM settings WHERE key='site_inquiry_key'")[0])
         for i, f_ in enumerate(INQUIRIES):
-            (web / "inquiries" / f"{i:016x}-{os.urandom(16).hex()}.bin").write_bytes(S.seal_inquiry(pub, f_))
+            (web / "inquiries" / f"{i:016x}-{os.urandom(16).hex()}{self.INQUIRY_EXT}").write_bytes(S.seal_inquiry(pub, f_))
         post("/settings/studio-page/inquiries")
         _wait_threads("studio-page-inquiries")
         assert one("SELECT COUNT(*) FROM studio_inquiry_review")[0] == 2
@@ -1015,10 +1047,11 @@ class More131(More130):
         self._build(x, s_moss, source_dir=str(src))
         self._upload(x, s_moss)
         gid = x.one("SELECT gallery_id FROM sessions WHERE id=?", (s_moss,))[0]
-        assert (Path(x.work, self.EARLIER, gid) / "manifest.bin").exists()
+        k_ = self._key(x, s_moss)
+        assert self._has(Path(x.work, self.EARLIER, gid), "manifest.bin", k_)
         self._move(x, s_lane)
-        assert (Path(x.work, self.HOST, gid) / "manifest.bin").exists()
-        assert (Path(x.work, self.EARLIER, gid) / "manifest.bin").exists()
+        assert self._has(Path(x.work, self.HOST, gid), "manifest.bin", k_)
+        assert self._has(Path(x.work, self.EARLIER, gid), "manifest.bin", k_)
         self.s_moss = s_moss
 
     def data(self, x):
@@ -1035,7 +1068,7 @@ class More131(More130):
         s_moss = self.s_moss
         gid = one("SELECT gallery_id FROM sessions WHERE id=?", (s_moss,))[0]
         now = datetime.now(timezone.utc).replace(microsecond=0)
-        (Path(x.work, self.HOST, gid) / "seen.txt").write_text((now - timedelta(days=45)).strftime("%Y-%m-%dT%H:%M:%SZ"))
+        self._seen(Path(x.work, self.HOST, gid), (now - timedelta(days=45)).strftime("%Y-%m-%dT%H:%M:%SZ"), self._key(x, s_moss))
         post("/gallery/sync")
         post("/gallery/sync")
         g = one("SELECT upload_state, dark_at, moved_from FROM galleries WHERE session_id=?", (s_moss,))
@@ -1069,7 +1102,7 @@ class More131(More130):
         g = one("SELECT upload_state, uploaded_at, host_fp FROM galleries WHERE session_id=?", (s_nash,))
         assert g[0] == "error" and g[1] is None and g[2] == G.fingerprint_of(VW.config()["gallery_host"]), tuple(g)
         gid_n = one("SELECT gallery_id FROM sessions WHERE id=?", (s_nash,))[0]
-        assert (Path(x.work, self.HOST, gid_n) / "manifest.bin").exists()
+        assert self._has(Path(x.work, self.HOST, gid_n), "manifest.bin", self._key(x, s_nash))
 
         root = Path(x.work, self.EARLIER, ".vault-root")
         root.rename(root.with_name(".vault-root-off"))
@@ -1104,6 +1137,354 @@ class More131(More130):
 def scenario_131(x, made_with):
     return scenario_101(x, made_with, more=More131())
 
+class More140(More131):
+
+    def _seen(self, folder, text, key=None):
+        from helpers import host_write
+        host_write(folder, "seen.txt", text, key)
+
+    def _send(self, folder, purpose, legacy, key, picks, at):
+        from helpers import host_write, seal_picks
+        host_write(folder, f"{purpose}.las", seal_picks(key, folder.name, picks, purpose, at), key)
+
+    def _has(self, folder, plain, key=None):
+        from helpers import host_has
+        return host_has(folder, plain, key)
+
+    def _path(self, folder, plain, key=None):
+        from helpers import hosted
+        return hosted(folder, plain, key)
+
+    def _names(self, folder, key=None):
+        from helpers import host_names
+        return host_names(folder, key)
+
+    def _picks_name(self, purpose):
+        return f"{purpose}.las"
+
+    INQUIRY_EXT = ".las"
+
+    PUBLIC = "photos.example.com"
+
+    def _serve(self, x):
+
+        import atexit
+        import socket
+        import time
+        import urllib.error
+        import urllib.request
+        import hostcheck
+        import webtls
+        from test_web_cert_pin import Front, make_cert
+        certs = Path(tempfile.mkdtemp(prefix="lumenaureum-140-cert-"))
+        self.cert = make_cert(certs, "web", names=(self.PUBLIC,))
+        s_ = socket.socket()
+        s_.bind(("127.0.0.1", 0))
+        port = s_.getsockname()[1]
+        s_.close()
+        self.php = subprocess.Popen(["php", "-S", f"127.0.0.1:{port}", "-t", str(Path(x.work, self.HOST).parent)],
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        atexit.register(self._stop)
+        for _ in range(100):
+            try:
+                socket.create_connection(("127.0.0.1", port), timeout=0.2).close()
+                break
+            except OSError:
+                time.sleep(0.05)
+        self.front = Front(self.cert[2], self.cert[3], backend=port)
+        real_connect = socket.create_connection
+
+        def resolve(addr, *a, **kw):
+            if addr[0] == self.PUBLIC and int(addr[1]) == 443:
+                addr = ("127.0.0.1", self.front.port)
+            return real_connect(addr, *a, **kw)
+        socket.create_connection = resolve
+        real_http = hostcheck.HTTP
+
+        def http(method, url, headers=None, data=None, timeout=20):
+
+            from urllib.parse import urlsplit
+            if (urlsplit(url).hostname or "") != self.PUBLIC:
+                return real_http(method, url, headers=headers, data=data, timeout=timeout)
+            req = urllib.request.Request(url, data=data, method=method,
+                                         headers=dict(headers or {}, **{"User-Agent": "Lumen Aureum"}))
+            deadline = time.monotonic() + 2 * timeout
+            try:
+                with webtls.open_request(req, timeout=timeout) as r:
+                    return r.status, {k.lower(): v for k, v in r.headers.items()}, webtls.read(r, 2_000_000, deadline)
+            except urllib.error.HTTPError as e:
+                try:
+                    body = webtls.read(e, 2_000_000, deadline)
+                except Exception:
+                    body = b""
+                return e.code, {k.lower(): v for k, v in (e.headers or {}).items()}, body
+        hostcheck.HTTP = http
+
+    def _stop(self):
+        if getattr(self, "front", None):
+            self.front.close()
+            self.front = None
+        if getattr(self, "php", None):
+            self.php.terminate()
+            self.php.wait(timeout=10)
+            self.php = None
+
+    def _photo(self, path, size, color):
+
+        from PIL import Image
+        im = Image.new("RGB", size, color)
+        for x_ in range(0, size[0], 37):
+            im.putpixel((x_, x_ % size[1]), (255, 255, 255))
+        im.save(path, "JPEG")
+
+    def _offer(self, x, sid):
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from helpers import hosted
+        G = x.A.app.config["gallery_module"]
+        gid, key = x.one("SELECT gallery_id FROM sessions WHERE id=?", (sid,))[0], self._key(x, sid)
+        blob = hosted(Path(x.work, self.HOST, gid), "offer.bin", key).read_bytes()
+        return json.loads(AESGCM(G.key_bytes(key)).decrypt(blob[:12], blob[12:], b"lumen-aureum-gallery:offer.bin"))
+
+    def _order(self, x, sid, oid, who, ship, lines):
+
+        import base64
+        from datetime import datetime, timezone
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        import printorders as P
+        G = x.A.app.config["gallery_module"]
+        gid, key = x.one("SELECT gallery_id FROM sessions WHERE id=?", (sid,))[0], self._key(x, sid)
+        off = self._offer(x, sid)
+        blob = (G.OUT_ROOT / gid / "manifest.bin").read_bytes()
+        m = json.loads(AESGCM(G.key_bytes(key)).decrypt(blob[:12], blob[12:], b"lumen-aureum-gallery:manifest.bin"))
+        by_n = {it["n"]: it for it in m["items"]}
+        item = {i["label"].split(" ")[0]: i for i in off["items"]}
+        out = []
+        for name, size, qty in lines:
+            it = by_n[name]
+            w, h = (float(v) for v in size.split("x"))
+            crop = P.full_crop(it["ow"], it["oh"], w, h)
+            out.append(dict(p=it["o"], n=name, item=item[size]["id"], qty=qty, crop=crop, turn=0, each=item[size]["each"],
+                            ppi=P.effective_ppi(crop, it["ow"], it["oh"], w, h, 0)))
+        at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        data = dict(v=1, oid=oid, at=at, plv=off["plv"], cur="USD", who=who, ship=ship, lines=out,
+                    sub=sum(l_["each"] * l_["qty"] for l_ in out), ack=True, rel=dict(kind="new", prev=None), note="")
+        spk = base64.urlsafe_b64decode(off["spk"] + "=" * (-len(off["spk"]) % 4))
+        env = P.seal_order(data, spk, gid, G.key_bytes(key))
+        d = Path(x.work, self.HOST, gid, "orders")
+        d.mkdir(exist_ok=True)
+        (d / P.host_name(env)).write_bytes(env)
+
+    def data(self, x):
+        super().data(x)
+        post, one, A = x.post, x.one, x.A
+        import webtls
+        from vault import web as VW
+
+        self._serve(x)
+        addr = webtls.address(self.BASE)
+        post("/setup/web-cert/check", addr=addr)
+        seen = json.loads(one("SELECT value FROM settings WHERE key=?", (webtls.SEEN_KEY + addr,))[0])
+        assert seen["kind"] == "untrusted" and seen["cert"]["self_signed"], seen
+        page = x.get("/setup/galleries").get_data(as_text=True)
+        assert seen["cert"]["fp"] in page, "Setup does not show the certificate"
+        post("/setup/web-cert/trust", cert=f"{addr} {seen['cert']['sha256']}")
+        pin = (VW.config().get(webtls.STORE) or {}).get(addr)
+        assert pin and pin["sha256"] == seen["cert"]["sha256"] and len(pin["spki"]) == 64, pin
+        caps = json.loads(one("SELECT value FROM settings WHERE key='gallery_host_caps'")[0])
+        assert caps["now"]["kind"] == "ok", caps
+        post("/gallery/sync")
+        _wait_threads("gal-")
+
+        h_wren, s_wren = self._client(x, "Wren", "Harper Wren", "harper@example.com", "Wren family", f"{YEAR}-10-17", 350)
+        post(f"/session/{s_wren}/delivery", delivery_method="link")
+        post(f"/session/{s_wren}/stage", stage="booked")
+        self._pay(x, s_wren, "balance", self._due(x, s_wren), f"{YEAR}-10-17")
+        post(f"/session/{s_wren}/stage", stage="shot")
+        src = Path(x.work, "photos", "export", "wren")
+        src.mkdir(parents=True)
+        self._photo(src / "Wren-01.jpg", (3000, 2000), "darkolivegreen")
+        self._photo(src / "Wren-02.jpg", (2000, 3000), "slateblue")
+        self._build(x, s_wren, source_dir=str(src))
+        self._upload(x, s_wren)
+        post(f"/session/{s_wren}/gallery/no-picks")
+        self._build(x, s_wren, source_dir=str(src))
+        self._upload(x, s_wren)
+        G = A.app.config["gallery_module"]
+        assert G.online_download(one("SELECT gallery_id FROM sessions WHERE id=?", (s_wren,))[0])
+
+        assert one("SELECT value FROM settings WHERE key='plugin_on_prints'") is None
+        post("/settings/plugins", name="prints", turn="on")
+        assert one("SELECT value FROM settings WHERE key='plugin_on_prints'")[0] == "1"
+        x.get("/settings/prints")
+        cols = ("id", "label", "w", "h", "finish", "each_cents", "cost_cents", "ppi_hide", "ppi_mark", "offered")
+        rows_ = [dict(zip(cols, r)) for r in x.rows(f"SELECT {', '.join(cols)} FROM price_list_items ORDER BY sort")]
+        assert rows_, "no SAMPLE price list"
+        form = {"id": [r["id"] for r in rows_], "markup": "3", "invoice_days": "3", "large_n": "25", "large_c": "250",
+                "arrive": "Prints come straight from our lab."}
+        for r in rows_:
+            i = r["id"]
+            form.update({f"label_{i}": r["label"], f"w_{i}": f"{r['w']:g}", f"h_{i}": f"{r['h']:g}", f"finish_{i}": r["finish"],
+                         f"each_{i}": f"{r['each_cents'] / 100:.2f}", f"hide_{i}": str(r["ppi_hide"]),
+                         f"mark_{i}": str(r["ppi_mark"]), f"on_{i}": "1"})
+            if r["label"].startswith(("4x6", "8x10")):
+                form[f"cost_{i}"] = "0.95" if r["label"].startswith("4x6") else "3.40"
+            if r["label"].startswith("16x20"):
+                form[f"each_{i}"] = "165.00"
+        for d_ in ("us", "akhi", "pickup"):
+            form.update({f"ship_on_{d_}": "1", f"ship_rule_{d_}": "cost"})
+        form["ship_rule_ca"] = "cost"
+        r_ = x.c.post("/settings/prints", data=form, environ_base=x.E)
+        assert r_.status_code == 302 and one("SELECT value FROM settings WHERE key='prints_saved'")[0] == "1"
+        post("/settings/prints/fill")
+        post("/settings/prints/switch", offer="1")
+        post("/gallery/sync")
+        off = self._offer(x, s_wren)
+        assert {"4x6", "5x7", "8x10"} <= {i["label"].split(" ")[0] for i in off["items"]}, off
+
+        me = dict(how="me", name="", addr1="12 Elm St", addr2="", city="Springfield", state="IL", zip="62704",
+                  country="US", phone="")
+        harper = dict(name="Harper Wren", email="harper@example.com", phone="")
+        oids = [f"{n:x}" * 32 for n in range(10, 16)]
+        for oid in oids[:5]:
+            self._order(x, s_wren, oid, harper, me, [("Wren-01.jpg", "8x10", 2), ("Wren-02.jpg", "4x6", 1)])
+        self._order(x, s_wren, oids[5], dict(name="Dale Rivers", email="dale@example.org", phone=""),
+                    dict(how="other", name="Dale Rivers", addr1="9 Oak Ln", addr2="", city="Peoria", state="IL",
+                         zip="61602", country="US", phone=""), [("Wren-02.jpg", "5x7", 1)])
+        post("/gallery/sync")
+        got = {r[0]: r[1] for r in x.rows("SELECT oid, id FROM print_orders")}
+        assert set(got) == set(oids), got
+        o_new, o_part, o_paid, o_ship, o_cancel, o_guest = (got[o] for o in oids)
+        assert one("SELECT state FROM print_orders WHERE id=?", (o_guest,))[0] == "unmatched"
+
+        def invoice(oid_):
+            post(f"/prints/order/{oid_}/shipping", lab_ship="8.00")
+            post(f"/prints/order/{oid_}/invoice")
+            return json.loads(one("SELECT invoice_data FROM print_orders WHERE id=?", (oid_,))[0])["total"]
+
+        def pay(oid_, cents, day, kind="payment"):
+            post(f"/prints/order/{oid_}/payment", kind=kind, amount=f"{cents / 100:.2f}", received=day, method="card")
+
+        def looks_right(oid_):
+            for (lid,) in x.rows("SELECT id FROM print_order_lines WHERE order_id=? AND crop_confirmed=0", (oid_,)):
+                post(f"/prints/order/{oid_}/line/{lid}", do="confirm")
+
+        invoice(o_part)
+        pay(o_part, 1000, f"{YEAR}-11-03")
+        total = invoice(o_paid)
+        pay(o_paid, total + 500, f"{YEAR}-11-04")
+        looks_right(o_paid)
+        total = invoice(o_ship)
+        pay(o_ship, total, f"{YEAR}-11-05")
+        looks_right(o_ship)
+        post(f"/prints/order/{o_ship}/ordered", lab_name="Sample Lab", lab_number="L-1001", cost_products="12.40",
+             cost_shipping="6.75", cost_tax="0.80")
+        r_ = x.c.post(f"/prints/order/{o_ship}/shipped", environ_base=x.E, data=dict(
+            carrier="UPS", tracking="1Z999AA10123456784", url="https://track.example.com/1Z999AA10123456784"))
+        assert r_.status_code == 302
+        total = invoice(o_cancel)
+        pay(o_cancel, total, f"{YEAR}-11-06")
+        post(f"/prints/order/{o_cancel}/cancel")
+        pay(o_cancel, total, f"{YEAR}-11-07", kind="refund")
+        states = {r[0]: r[1] for r in x.rows("SELECT id, state FROM print_orders")}
+        assert states == {o_new: "new", o_part: "invoiced", o_paid: "paid", o_ship: "shipped", o_cancel: "canceled",
+                          o_guest: "unmatched"}, states
+        assert one("SELECT COUNT(*) FROM print_lab_costs WHERE order_id=?", (o_ship,))[0] == 1
+
+        _, s_olsen = self._client(x, "Olsen", "Taylor Olsen", "taylor@example.com", "Olsen family", f"{YEAR}-10-31", 200)
+        self._pay(x, s_olsen, "deposit", 100, f"{YEAR}-10-02")
+        post(f"/session/{s_olsen}/stage", stage="booked")
+        post(f"/session/{s_olsen}/stage", stage="shot")
+        self._pay(x, s_olsen, "balance", self._due(x, s_olsen), f"{YEAR}-10-31")
+        post(f"/session/{s_olsen}/money", what="payment", kind="refund", amount="30.00", method="card",
+             received=f"{YEAR}-11-02", after_refund="hold")
+        assert one("SELECT refund_release FROM sessions WHERE id=?", (s_olsen,))[0] == "hold"
+
+        import io
+        lane = one("SELECT household_id FROM sessions WHERE id=?", (self.s_lane,))[0]
+        r_ = x.c.post(f"/client/{lane}/face", data={"photo": (io.BytesIO(_jpeg("#b08060", (480, 640))), "face.jpg")},
+                      content_type="multipart/form-data", environ_base=x.E)
+        assert r_.status_code in (302, 303)
+        assert Path(x.work, "faces", f"{lane}.jpg").is_file()
+        self.s140 = dict(wren=s_wren, olsen=s_olsen)
+        self.h140 = dict(wren=h_wren, lane=lane)
+        self.orders = dict(new=o_new, invoiced=o_part, paid=o_paid, shipped=o_ship, canceled=o_cancel, unmatched=o_guest)
+
+    def measure(self, x, expected):
+        try:
+            out = super().measure(x, expected)
+            return dict(out, **self._measure140(x, out))
+        finally:
+            self._stop()
+
+    def _measure140(self, x, out):
+        import hashlib
+        import webtls
+        from vault import web as VW
+        A, one, rows, in_request = x.A, x.one, x.rows, x.in_request
+        G = A.app.config["gallery_module"]
+
+        def table(name, order="id"):
+
+            con = A.connect()
+            try:
+                cur = con.execute(f"SELECT * FROM {name} ORDER BY {order}")
+                cols = [d[0] for d in cur.description]
+                got = cur.fetchall()
+            finally:
+                con.close()
+            fix = lambda v: (hashlib.sha256(v if isinstance(v, bytes) else v.encode()).hexdigest()
+                             if isinstance(v, bytes) or (isinstance(v, str) and len(v) > 400) else v)
+            return [{c: fix(v) for c, v in zip(cols, r)} for r in got]
+        prints_tables = {t: table(t, o) for t, o in (
+            ("print_orders", "id"), ("print_order_lines", "id"), ("print_payments", "id"), ("print_lab_costs", "id"),
+            ("print_galleries", "session_id"), ("print_order_oids", "oid"), ("price_list_items", "sort, id"),
+            ("price_list_versions", "plv"))}
+        print_invoices = {}
+        for oid_, number in rows("SELECT id, invoice_number FROM print_orders WHERE invoice_number IS NOT NULL ORDER BY id"):
+            print_invoices[str(oid_)] = dict(number=number, text=page_text(
+                x.get(f"/prints/order/{oid_}/invoice").get_data(as_text=True)))
+        year = in_request(lambda: A.app.config["prints_year"](YEAR))
+        heads = {}
+        for sid in (self.s130["grant"], self.s140["olsen"], self.s140["wren"]):
+            page = x.get(f"/session/{sid}").get_data(as_text=True)
+            heads[str(sid)] = doc_text_any(page.split('<div class="surface highlights">', 1)[1].split("<section", 1)[0])
+        assert "Deposit kept $100" in heads[str(self.s130["grant"])], heads
+        face = x.get(f"/face/{self.h140['lane']}").data
+        addr = webtls.address(self.BASE)
+        caps = json.loads(one("SELECT value FROM settings WHERE key='gallery_host_caps'")[0])
+        links = {str(r[0]): dict(gallery_id=r[1], link_was=r[2], sealed_gen=r[3], page_set=r[4])
+                 for r in rows("""SELECT s.id, s.gallery_id, g.link_was, g.sealed_gen, g.page_set FROM galleries g
+                                  JOIN sessions s ON s.id=g.session_id ORDER BY s.id""")}
+        assert all(v["gallery_id"].startswith("g-") for v in links.values()), links
+        kept = G.KEPT_ROOT / links[str(self.s_lane)]["gallery_id"]
+        prints_settings = {r[0]: r[1] for r in rows(
+            "SELECT key, value FROM settings WHERE key LIKE 'prints\\_%' ESCAPE '\\' OR key LIKE 'plugin\\_%' ESCAPE '\\' "
+            "OR key IN ('tax_prints', 'tax_print_shipping') ORDER BY key")}
+        return dict(
+            sessions_by_name=dict(out["sessions_by_name"], **self.s140),
+            print_orders=self.orders, prints_tables=prints_tables, print_invoices=print_invoices,
+            prints_year=year, prints_settings=prints_settings,
+            headers=heads,
+            refund_release={str(r[0]): r[1] for r in rows(
+                "SELECT id, refund_release FROM sessions WHERE refund_release IS NOT NULL ORDER BY id")},
+            release_blocked={str(r[0]): round(in_request(lambda: A.release_blocked(r[0])), 2)
+                             for r in rows("SELECT id FROM sessions ORDER BY id")},
+            face=dict(household=self.h140["lane"], sha256=hashlib.sha256(face).hexdigest(), size=len(face)),
+            web_cert=dict(address=addr, pins=VW.config().get(webtls.STORE) or {},
+                          seen={r[0]: r[1] for r in rows(
+                              "SELECT key, value FROM settings WHERE key LIKE 'web\\_cert\\_%' ESCAPE '\\'")}),
+            host_caps=dict(fp=caps.get("fp"), setup_kind=caps["setup"]["kind"], now_kind=caps["now"]["kind"],
+                           features=caps["now"].get("features")),
+            links=links,
+            kept_picks=sorted(p.name for p in kept.iterdir()) if kept.is_dir() else [],
+            upgrade_140=json.loads((one("SELECT value FROM settings WHERE key='upgrade_140'") or ["{}"])[0]),
+
+            studio_files=[[n_, fp_, sha_] for n_, fp_, _size, sha_ in out["studio_files"]],
+        )
+
+def scenario_140(x, made_with):
+    return scenario_101(x, made_with, more=More140())
+
 VERSIONS = {
     "1.0.0": dict(commit="a0966c9", scenario=scenario_100, files=("crm-before-delete.db",), env={}),
     "1.0.1": dict(commit="v1.0.1", scenario=scenario_101, files=(),
@@ -1121,6 +1502,10 @@ VERSIONS = {
                   env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
 
     "1.3.1": dict(commit="40adae6", scenario=scenario_131, files=(), dirs=("galleries", "galleries-kept", "host", "web", "photos"),
+                  env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
+
+    "1.4.0": dict(commit="c45ce75", scenario=scenario_140, files=(),
+                  dirs=("galleries", "galleries-kept", "host", "web", "photos", "faces"),
                   env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
 }
 

@@ -117,7 +117,8 @@ Backups from before settings were included have only `crm.db` and `keyring.json`
    app sees it). The files appear in a folder named `restored` inside your data folder.
 3. **Stop the app.** `docker compose stop`.
 4. **Move three files.** Move `crm.db`, `keyring.json`, and `storage.json` from `restored` into the data folder,
-   replacing the ones there.
+   replacing the ones there. If the data folder has `crm.db-wal` or `crm.db-shm`, delete them: they belong to the
+   database you are replacing.
 5. **Leave `settings.json`** in `restored`. You need it only for a settings-only restore (below).
 6. **`deletions.restored.json` and `doc-numbers.restored.json`.** Move them into the data folder too, and keep the
    data folder's own `deletions.json` and `doc-numbers.json` if it still has them. At the next sign-in the two are
@@ -154,6 +155,23 @@ Settings (Import settings). Your clients and money are not touched.
 
 **Data, keeping today's settings.** Export your settings first (Settings, Export settings), restore everything as
 above, then import the file you exported.
+
+### On a TrueNAS catalog install
+The same steps, with the app's shell in place of `docker compose exec lumenaureum`, the Apps screen in place of
+`docker compose stop` and `up -d`, and the TrueNAS shell for moving files.
+1. Open the app's shell: Apps, lumenaureum, then in **Workloads** the shell button beside the container. Type the
+   commands of steps 1 and 2 above without `docker compose exec lumenaureum`, for example
+   `python -m vault.cli backups`, then `python -m vault.cli restore db/3f9c...6b.age /data/restored` (on a new install,
+   add `--from /vault`). The files appear in a folder named `restored` inside your data dataset.
+2. Stop the app: Apps, lumenaureum, **Stop**.
+3. Move the files in the TrueNAS shell (System, Shell). Go to the data dataset you chose under Storage, for
+   example `cd /mnt/tank/lumenaureum/data`, then:
+   `mv restored/crm.db restored/keyring.json restored/storage.json .` and, if they are there,
+   `mv restored/deletions.restored.json restored/doc-numbers.restored.json .` (step 6 above explains them). Delete
+   `crm.db-wal` and `crm.db-shm` if they are there. The restored files already belong to the app's user (568); check
+   with `ls -ln`, and if any shows another owner, `chown 568:568` it.
+4. Start the app (Apps, lumenaureum, **Start**), sign in, and delete the `restored` folder
+   (`rm -r restored` in the TrueNAS shell).
 
 ## If you suspect a compromise
 Signs: sign-in attempts you didn't make (you are told at sign-in), devices you don't recognize, settings you didn't

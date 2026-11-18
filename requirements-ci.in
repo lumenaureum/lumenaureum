@@ -1,5 +1,4 @@
 -c requirements.lock
 pytest==9.2.0
-moto[s3]==5.2.5
 pip-audit==2.10.1
 pytest-xdist==3.8.0

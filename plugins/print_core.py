@@ -107,6 +107,23 @@ CREATE TABLE IF NOT EXISTS print_lab_costs (id INTEGER PRIMARY KEY,
 CREATE INDEX IF NOT EXISTS print_lab_costs_order ON print_lab_costs(order_id);
 """)
 
+    def _off_n_from_1_4_0(con):
+
+        st = {r_[0]: r_[1] for r_ in con.execute("SELECT key, value FROM settings WHERE key IN ('plugin_on_prints', "
+                                                 "'plugin_off_at_prints', 'plugin_off_n_prints')")}
+        if st.get("plugin_on_prints") != "0" or not st.get("plugin_off_at_prints") or st.get("plugin_off_n_prints"):
+            return False
+        con.execute("INSERT INTO settings (key, value) VALUES ('plugin_off_n_prints', '1')")
+        for id_, fl_ in con.execute("SELECT id, flags FROM print_orders WHERE COALESCE(collected_at, '') >= ?",
+                                    (st["plugin_off_at_prints"],)).fetchall():
+            try:
+                d_ = json.loads(fl_ or "{}")
+            except ValueError:
+                d_ = {}
+            d_["off_n"] = 1
+            con.execute("UPDATE print_orders SET flags=? WHERE id=?", (json.dumps(d_), id_))
+        return True
+
     @ctx.on_unlock
     def _later_columns():
 
@@ -117,6 +134,8 @@ CREATE INDEX IF NOT EXISTS print_lab_costs_order ON print_lab_costs(order_id);
                 if col_ not in [r_[1] for r_ in con.execute(f"PRAGMA table_info({table_})")]:
                     ctx.add_column(con, table_, col_, decl_)
                     con.commit()
+            if _off_n_from_1_4_0(con):
+                con.commit()
         finally:
             con.close()
 
@@ -262,17 +281,21 @@ CREATE INDEX IF NOT EXISTS print_lab_costs_order ON print_lab_costs(order_id);
                     return False
                 now_ = datetime.now().isoformat(timespec="seconds")
                 con.execute("INSERT INTO print_order_oids (oid, gid, first_seen) VALUES (?,?,?)", (oid, gid, now_))
+
+                off_ = con.execute("SELECT value FROM settings WHERE key='plugin_off_n_prints'").fetchone()
+                off_n = 0 if prints_on_now() else int((off_[0] if off_ else 0) or 0)
                 if refused:
                     con.execute("""INSERT INTO print_orders (oid, gid, session_id, state, payload, env_sha256, host_mtime,
                                    collected_at, flags) VALUES (?,?,?,?,?,?,?,?,?)""",
                                 (oid, gid, sid, "unreadable", json.dumps(data) if not isinstance(data, str) else data, sha,
-                                 mtime, now_, json.dumps({"why": refused})))
+                                 mtime, now_, json.dumps({"why": refused, **({"off_n": off_n} if off_n else {})})))
                 else:
                     cur = con.execute("""INSERT INTO print_orders (oid, gid, session_id, state, contact_id, bill_name,
-                                         bill_email, payload, env_sha256, plv, browser_at, host_mtime, collected_at)
-                                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                                         bill_email, payload, env_sha256, plv, browser_at, host_mtime, collected_at, flags)
+                                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                                       (oid, gid, sid, "new" if cid else "unmatched", cid, data["who"]["name"],
-                                       data["who"]["email"], json.dumps(data), sha, data["plv"], data["at"], mtime, now_))
+                                       data["who"]["email"], json.dumps(data), sha, data["plv"], data["at"], mtime, now_,
+                                       json.dumps({"off_n": off_n}) if off_n else "{}"))
                     order_id = cur.lastrowid
                     for n_, ln in enumerate(data["lines"], 1):
                         it = known.get(ln["item"]) or old.get(ln["item"]) or {}
@@ -612,9 +635,10 @@ CREATE INDEX IF NOT EXISTS print_lab_costs_order ON print_lab_costs(order_id);
         if prints_on_now():
             return []
         out = []
-        since = setting("plugin_off_at_prints")
+        spell = int(setting("plugin_off_n_prints") or 0)
         n = (q("""SELECT COUNT(*) n FROM print_orders WHERE state IN ('new', 'unmatched', 'unreadable')
-                  AND COALESCE(collected_at, '') >= ?""", (since,), one=True) or {"n": 0})["n"]
+                  AND ? > 0 AND CAST(json_extract(COALESCE(NULLIF(flags, ''), '{}'), '$.off_n') AS INTEGER) = ?""",
+                  (spell, spell), one=True) or {"n": 0})["n"]
         if n:
             out.append(dict(text=f"{n} print order{'' if n == 1 else 's'} arrived while print orders are off (kept: "
                                  "turn print orders on to review them)", link=url_for("plugins_settings")))
