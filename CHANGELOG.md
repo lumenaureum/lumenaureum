@@ -4,198 +4,44 @@ New features, behavior changes, security fixes, and other fixes in each release.
 
 ## 1.4.0 (2026-11-17)
 
-### Features
+### New
+- Print orders, optional and off until you turn them on: clients order prints from their download gallery and choose the crop.
+- You review each print order, invoice whoever ordered, then download lab-ready files and an order sheet for any lab.
+- Settings, Print prices: your sizes and prices, optional lab costs and markup, shipping, and tax on prints.
+- Orders from someone who isn't your client wait for you to bill them as a guest or add them as a client.
+- Today and Finances show print orders and print money, kept apart from sessions.
+- Settings, Plugins: every plugin, with an on/off switch for the optional ones.
+- Setup checks your web host and shows what works there; Today tells you if that changes.
+- A gallery online updates itself when a new version changes the gallery page.
 
-- Settings, Plugins: every plugin and whether it is on, with an on/off switch for the ones that have one (print orders
-  so far). CRM_PLUGINS_OFF still wins: a plugin it names stays off whatever the switch says.
-- Print orders are optional and off until you turn them on in Settings, Plugins (new installs and updates alike).
-  Turning them off asks first when orders are still open, hides the print pages, and takes each gallery's print offer
-  off your web host at the next gallery check; every order, payment and lab cost is kept and comes back when you turn
-  them on again. Orders a client sends anyway are collected and kept (Today says how many), and print money always
-  stays in Finances, statements and the accountant export.
-- Print orders: clients order prints from their download gallery, choosing sizes and the crop on each photo. Each
-  order is sealed in their browser so only your app can read it, comes to you to review (each print shown as it will
-  be cut), and gets its own invoice billed to whoever ordered. Once it is paid, Prepare for the lab downloads the
-  print-ready files and an order sheet to your browser, and you order the prints at any lab you like
-  ([Print orders](docs/print-orders.md)).
-- Settings, Print prices: your sizes and prices (a sample list to start from), an optional lab cost that shows your
-  margin and never changes a price by itself, a Fill prices from costs button that sets prices at your markup (3
-  times by default, rounded up to the whole dollar) when you press it and lists what it will change first, shipping per destination (at cost, cost plus handling, or a
-  flat amount), and tax on prints and on shipping in Settings, Sales tax.
-- Orders from someone who isn't your client wait on a review list: bill them as a guest, add them to the client, or
-  make a new client. Nothing becomes a client by itself. Make a new client makes them a client of their own (their
-  own record and statement, with a note naming the family whose gallery they ordered from).
-- Today lists new print orders, orders waiting for payment (after 7 days), paid orders ready for the lab, and orders
-  not shipped after 14 days. Finances shows print sales, shipping, sales tax collected, lab cost and profit, kept apart
-  from your sessions; the accountant export adds them.
-- A lab can be connected by a plugin (plugins/README.md, The lab hook); ordering by hand always stays available.
-- Setup's Online galleries step checks your web host (where your galleries, client links and studio page are published) and
-  shows what works there: galleries closing on time,
-  picks coming back by themselves, the inquiry form, print ordering. Today tells you if that changes later (PHP turned
-  off, say).
-- When a new version changes the gallery page, every gallery online gets the new page by itself, one at a time. A
-  gallery whose client is picking right now waits until they are done (its session says so, with Do it now).
-- Every refund asks "After this refund, the gallery:" with two choices, "releases once nothing is owed" and "stays
-  held until paid again". A partial refund (some money still paid toward the price after it) starts on the first, a
-  refund of everything paid on the second; pick either. The gallery panel shows a gallery held after a refund, with
-  Release now, and one that will release, with Hold again. History records the choice with the refund, and every
-  change.
-
-### Behavior changes
-- Today no longer repeats a Finances link in its row of figures; Finances stays one tap away in the menu.
-
-- Setup's Backups and Online galleries steps have one test: Test and continue (Test and save in Settings). The
-  separate Test connection and Test upload buttons are gone.
-- Setup, Who can reach this: the address shown is "the address this request came from" (devices behind a router or
-  VPN can share one), and the hint says where CRM_ALLOW_ONLY goes on a TrueNAS app as well as in compose.yaml.
-- Setup's example values (e.g. /vault, e.g. https://example.com/g/) say "e.g." and look lighter, so they can't be
-  mistaken for filled-in values. When the app's container has a /vault folder, the Backups step fills it in.
-- The sample agreement's "Your information" section now says "my web host" (it said "my gallery host"). Only new
-  installs get the new sample: an agreement you edited keeps your words, and one you reviewed and kept as the sample
-  keeps the words you approved (they become your own wording at the update).
-- Recording a print order payment over its balance asks first, as a session payment does ("That is $5.00 more than
-  the balance. Record it anyway?"); once recorded, the order says how much to give back.
-- A client who sends a sixth print order within an hour is told it is a limit and when to try again ("You've sent
-  several orders in the last hour. Please try again after 3:40 PM."), not that the order couldn't be taken.
-- A reopened print order whose ship-to was already reduced to city, state and ZIP says "Shipping address incomplete"
-  and asks for the full address; Prepare for the lab and any lab hand-off wait until it is entered.
-- A print order paid in parts: Finances splits each payment into prints, shipping and tax from the running total, so
-  the last payment takes any leftover cent and the parts add up exactly to the order's invoice.
-- Print lab costs are recorded when and as they are paid, and never rewritten: canceling an order keeps its lab cost
-  unless the lab order itself was canceled or refunded (a new "The lab canceled or refunded this" records that, on the
-  day the money came back); a remake's cost is recorded on its own (a free remake is $0) and never replaces the first
-  order's; each cost stays in the year it was paid. Finances and the accountant export's print-lab-costs.csv (now
-  "date paid", with "what" and "lab order" columns) follow.
-- Print orders: after Change the order, the shipping charge is worked out again from your shipping rules, unless you
-  set it by hand; a hand-set charge is kept and the order's review says "Shipping set by hand: $X (rules now say $Y)".
-- Every email draft the app writes (invoice, receipt, quote, session details, agreement, release, price list, and the
-  print order mails) now gives the document's key facts in the email itself: its number, total, what it is for, and
-  how to pay or where it stands. A mail link can't attach a file, so the draft no longer says anything is attached;
-  attaching the PDF for their records is up to you. Text it sends the same first line, without promising a PDF.
-- While a download gallery offers prints, or one of its orders is open, the gallery's copy at home is kept: the
-  scheduled deletion of the shoot's files waits, and Today says so.
-- An invoice not paid in 30 days expires (its number is never reused); you can reopen the order if they pay later.
-- A session that holds print payments can't be deleted until they are refunded or voided.
-- Only two kinds of print ship-to address are reduced to city, state and ZIP, a year after the order closes: an
-  address sent to someone else, and a guest's address when the guest was never accepted as a client. Your clients'
-  own addresses are never reduced, and issued invoices never change.
-- A print order billed to a client of another family (matched by email) is on that client's own statement.
-- Galleries and the studio page's form need a web host with PHP 7.4 or later for anything beyond showing photos. On
-  an older PHP, galleries keep working as they are and Today names the host.
-- Every gallery gets a new address. Each gallery's folder on your web host now has a longer name, starting with
-  "g-" (later, other kinds of links get their own letter). The update moves every gallery to its new folder. The link
-  your client already has keeps working for the gallery's whole life: it opens a page that sends them straight on to
-  the new address, key and all. Copy link and Email link give the new address. A gallery's old folder comes down
-  when the gallery does.
-- A client page left open from before the update can't send picks until it is reloaded; after a reload it opens at
-  the new address with the picks they made on that device.
-- Setup, Settings, Today, History and the guides all call it the "web host": the one place your galleries, client
-  links and studio page are published (earlier versions said "gallery host"). History lines written before the update
-  keep their words.
+### Changed
+- Every gallery gets a new address; old links lead to the new one.
+- Galleries and the studio page's inquiry form need a web host with PHP 7.4 or later.
+- Setup, Settings, Today and the guides all say "web host".
+- A print order invoice not paid in 30 days expires; reopen the order if they pay later.
+- Every refund asks whether the gallery should stay held until paid again.
+- Email drafts the app writes give the document's key facts in the email and no longer say a file is attached.
+- A client page left open from before the update needs a reload before it can send picks.
 
 ### Security
-- Each published image now carries a signed record of how it was built and a signed list of everything inside it. See Operations for how to check both.
-
-- Picks, drafts and website inquiries are sealed in one new format: each is bound to what it is and to its gallery
-  (the kind of link included), so a draft can't pass as sent picks, one gallery's picks as another's, or anything as
-  something the link can't carry, and an inquiry names the studio key it is sealed to. The formats are published with
-  test vectors ([Sealed formats](docs/sealed-format.md)).
-- Each picks list, draft and inquiry a browser sends has its own ID: the app takes each in once, and a web host that
-  hands back an older one can never replace a newer one.
-- No gallery folder is removed from a host (going dark, a take-down, an update, a move) before every print order,
-  pick and draft waiting there has been collected.
-- The web host's certificate is checked every time the app checks the host over its https address. A certificate
-  from a public authority works as it is. Any other (self-signed, or from your own authority) is shown in Setup with
-  its SHA-256 fingerprint, issuer and end date, and accepted only once you confirm it; from then on only that
-  certificate's key is accepted at that address (a renewal with the same key keeps working), and the certificate must
-  name the address. A new key stops every check of the host until you confirm or refuse it in Setup. The checks never
-  follow a redirect and never wait without a time limit. Certificate checks are never turned off: there is no setting
-  for it.
-- A gallery's sealed files (its photo list, print offer, and the client's picks and draft) are kept on your web host
-  under names only the gallery's key gives, and its own small files (the dates it closes, the first visit, a one-time
-  download) print nothing when fetched. So nobody without the key can download them, on any web server, whether or
-  not it reads `.htaccess` files, and someone holding only the link can't test codewords offline. Galleries already
-  online get the new names when the 1.4 update reaches them.
-- Setup's host check now fetches a real gallery's files without the key, the way a stranger would. A web host that
-  hands them out anyway (or runs no PHP) can't take galleries with a codeword, and Setup and the gallery say so in
-  plain words: someone with only the link could try codewords there as fast as their computer allows.
-- Nobody is locked out of a gallery any more because someone else on the same address sent wrong keys. A right key
-  always opens it. After 10 wrong tries at a codeword in an hour, every try takes about a second of work in the
-  browser first, so guessing gets slow and a client sharing a network or a proxy with someone guessing still gets in.
-- The studio page's inquiry form never turns a visitor away because others share their address (an office, a phone
-  network, a proxy): past a few inquiries from one address, the next one takes a few seconds of work in the browser
-  instead of being refused. The host check also tells you when a proxy or CDN sits in front of your web host; the
-  inquiry form and print orders then stop counting visitors by address (behind a proxy everyone shares one), and a
-  full inquiries folder there refuses more rather than drop an inquiry already waiting.
-- What the gallery page keeps in the client's browser (their picks and notes, the print cart, the gallery's colors)
-  is sealed under the gallery's key, under names that don't say which gallery it is. Other scripts on the same website
-  can't read it, and nothing readable about a client stays on their device. Older entries are sealed the first time
-  the gallery opens.
-- The inquiries folder's rate list prints nothing when fetched, and the inquiries and print orders folders hold an
-  empty page, so a web server that lists folders shows nothing there.
-- Changing your password, using your master key to set a new one, making new recovery codes or signing out every
-  other device now also stops any sign-in that was waiting for its two-factor code.
-- The app never writes its memory to disk if it crashes: core dumps are turned off in the app and in `compose.yaml`
-  (`ulimits: core: 0`), so no key or client data can end up in a crash file.
+- Picks, drafts and website inquiries are sealed in one new format, each with its own ID.
+- The web host's certificate is checked every time the app reaches the host.
+- Setup checks that a gallery's files can't be opened without its key.
+- Published images carry a signed record of how they were built and what they contain.
+- Changing your password or recovery codes, or signing out other devices, also stops sign-ins waiting for two-factor.
+- The app never writes its memory to disk if it crashes.
 
 ### Fixed
+- Setup: failed tests keep what you typed, and SFTP and S3 connection messages are clearer.
+- Refunds now show correctly on invoices, receipts and canceled bookings.
+- Changing the time zone no longer pauses automatic deletions.
 
-- Test and continue on an SFTP server the app hadn't connected to before said "Add it to known_hosts first", which a
-  photographer can't do. It now shows the server's key fingerprint and a Trust this server box on the step itself, for
-  the web host and both backup locations; tick it and continue. A server whose key changed says so in plain words and
-  offers the new key the same way. No message mentions known_hosts any more.
-- A failed test on a setup step no longer clears what you typed: every field, choice and tick stays. A secret key you
-  typed is kept by the app for the next try (never shown back), so you don't type it again.
-- An S3 address that doesn't answer with HTTPS, or has a self-signed certificate, is explained in plain words instead
-  of a raw SSL error.
-- A web host with a self-signed certificate, or one from your own authority (a web server on your home network, say),
-  no longer keeps the update of your galleries and the studio page's inquiry form waiting forever. Its checks
-  stopped on the certificate, and Today said only that the host "cannot be reached". Setup now shows the certificate
-  to confirm once (on the Online galleries step, first-run setup included: Trust this certificate goes on to the next
-  step, like Trust this server), and Today names the reason: "The web host's certificate isn't trusted. Check it in
-  Setup." Other network problems keep their words.
-- An invoice or receipt numbered by 1.0.0 on a session with a refund, opened for the first time after updating, now
-  keeps the Refund line 1.0.0 showed (for example: 300 + 50, Refund -40, Total 310), so it matches the copy your
-  client may have and adds up. Before, it was kept without that line (Total 350 against 310 paid, Balance due 0). The
-  money in your records was never affected.
-- Choosing your time zone in setup or Settings no longer pauses automatic deletions and asks you to confirm the date
-  when the change only moves today by a day (an evening setup on a machine set to UTC did this).
-- A session paid in full and then partly refunded (Balance $0, "$40 refunded, not owed again") can put its gallery
-  online again (put back online, Rebuild, Move galleries). Since 1.3.0 it said "$40 still due" and the client's link
-  stayed dark. After a refund, delivery now does what you chose on the refund: release once nothing is owed (the
-  balance the session shows, so a refund that leaves money owed still holds the photos for that), or stay held until
-  the full price is paid again. A tip still never counts as paying for the photos. Sessions with no refund are held
-  and released exactly as before.
-- An invoice or receipt issued after a refund now has a line "Refunded, not owed again", so it adds up (Total $375,
-  payments $350, refunded $25). Documents already issued keep the copy they were given.
-- A canceled booking's summary at the top of its page shows what its Billing section shows (Refund due, or Deposit
-  kept) instead of a balance it no longer owes. A session paid beyond its quote shows Credit there, as Billing does.
-- Setup no longer accepts a galleries' folder with a name the studio page uses for its own files (photos/, assets/,
-  about/, contact/, inquiries/); the studio page couldn't be uploaded beside it. Move galleries won't move galleries
-  into such a folder either and says why. A folder you already use is never renamed.
-
-### Upgrading
-
-- If you updated from 1.0.0 to 1.0.1 or later before this release and have already opened such an invoice, it keeps
-  the copy it was given then, without the Refund line (an issued document never changes). Payments, balances and
-  Finances are right either way; the copy you sent your client before updating is the one that shows the refund.
-- At the first sign-in, after the usual upgrade backup, the app moves every gallery to its new address and the new
-  format, and the inquiry form to the new format (with everything a new studio page has, such as the empty page in its
-  inquiries folder). Each gallery's new folder is built and checked before anyone is sent
-  to it; its days, first visit, codeword and one-time download carry over. Today shows the progress. Picks, drafts,
-  print orders and inquiries sent before or during the update are all kept, once each.
-- A gallery whose host can't be reached stays as it was until it can; Today names the host.
-- A gallery whose web host's certificate isn't publicly trusted also stays as it was until you confirm the
-  certificate in Setup, Online galleries (Today's line links there); the update then goes on by itself.
-- Going back to 1.3.1 afterwards needs the backup made before the update.
-- If you keep your own `compose.yaml`, add `ulimits:` with `core: 0` under the service (as the new one has); the app
-  turns core dumps off by itself either way.
-- A gallery with a codeword that is already on a web host which hands out gallery files without the key stays online,
-  but someone with its link could try codewords there much faster. Setup and Today say so; take it down or move to a
-  web host that passes the check. A new gallery with a codeword can't go there.
-- Sessions refunded before this update get the choice the refund form would have started on, so nothing changes
-  by itself: a session with money still paid toward the price after its refund releases once nothing is owed; a
-  session refunded everything it paid stays held until paid again. Change either on the session's gallery panel.
+### Before you update
+- The first sign-in after updating makes a backup, then moves every gallery to its new address. Today shows progress.
+- Galleries on an unreachable host, or one with an untrusted certificate, wait until you fix the host or confirm the certificate.
+- Going back to 1.3.1 needs the backup made before the update.
+- If you keep your own `compose.yaml`, add `ulimits:` with `core: 0` under the service.
+- A codeword gallery on a host that serves files without the key is easier to guess; Setup and Today say so.
 
 ## 1.3.1 (2026-11-16)
 
