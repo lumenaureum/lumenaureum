@@ -11,7 +11,6 @@ New features, behavior changes, security fixes, and other fixes in each release.
 
 ### Changed
 - Gallery codewords are on by default for every session type.
-- S3 uses the app's own small client: fewer packages, uploads in parts, clearer errors.
 - On TrueNAS, the certificate chosen in the app's settings is used for HTTPS.
 - Sample documents say they may be binding once signed.
 
