@@ -1,8 +1,8 @@
 
 {% set ep_ = request.endpoint %}{% set va_ = request.view_args or {} %}{% set tab_ = request.args.get('tab', 'general') %}
 {% set home_ = ep_ == 'settings_view' and not request.args.get('tab') %}
-{% macro tab(href, label, on, sub='') -%}<a href="{{ href }}" class="ui-row{{ ' on' if on }}"{% if on %} aria-current="page"{% endif %}><span class="ui-row-main"><b>{{ label }}</b>{% if sub %}<small>{{ sub }}</small>{% endif %}</span><span class="ui-row-right"><span class="ui-row-chev" aria-hidden="true">&rsaquo;</span></span></a>{%- endmacro %}
-{% import "_ui_pages.html" as pg_ with context %}
+{% macro tab(href, label, on, sub='', lead='') -%}<a href="{{ href }}" class="ui-row{{ ' on' if on }}"{% if on %} aria-current="page"{% endif %}>{{ lead }}<span class="ui-row-main"><b>{{ label }}</b>{% if sub %}<small>{{ sub }}</small>{% endif %}</span><span class="ui-row-right"><span class="ui-row-chev" aria-hidden="true">&rsaquo;</span></span></a>{%- endmacro %}
+{% import "_ui_pages.html" as pg_ with context %}{% import "_ui.html" as ui_ with context %}
 <nav class="settabs{{ ' set-home' if home_ }}" aria-label="Settings">
   {% if home_ %}<h1 class="set-title">Settings</h1>{% else %}<a class="ui-go set-back" href="{{ url_for('settings_view') }}">&lsaquo; Settings</a>{% endif %}
   
@@ -10,9 +10,10 @@
   {{ pg_.settings_find(settings_find_entries(), find_, settings_find(find_) if find_ else None) }}
   <div class="sg"><h2 class="ui-sec-title">Business</h2>
     {{ tab(url_for('settings_view', tab='general'), 'General', ep_ == 'settings_view' and tab_ == 'general', 'names, contact, logo') }}
-    {{ tab(url_for('setup_step', step='business'), 'Business and time zone', ep_ == 'setup_step' and va_.get('step') == 'business') }}
-    {{ tab(url_for('setup_step', step='shoot'), 'What you shoot', ep_ == 'setup_step' and va_.get('step') == 'shoot') }}
-    {{ tab(url_for('setup_step', step='money'), 'Payments and terms', ep_ == 'setup_step' and va_.get('step') == 'money') }}
+    {{ tab(url_for('settings_view', tab='gallery'), 'Gallery look', ep_ == 'settings_view' and tab_ == 'gallery', 'font, background, proof mark') }}
+    {{ tab(url_for('setup_step', step='business'), 'Business and time zone', ep_ == 'setup_step' and va_.get('step') == 'business', 'time zone, sunset location') }}
+    {{ tab(url_for('setup_step', step='shoot'), 'What you shoot', ep_ == 'setup_step' and va_.get('step') == 'shoot', 'the kinds of sessions you offer') }}
+    {{ tab(url_for('setup_step', step='money'), 'Payments and terms', ep_ == 'setup_step' and va_.get('step') == 'money', 'deposits, due dates, travel, ways to pay') }}
     {{ tab(url_for('settings_view', tab='fees'), 'Prices', ep_ == 'settings_view' and tab_ == 'fees') }}
     {% if 'prints_settings' in SETTINGS_ENDPOINTS and plugin_on('prints') %}{{ tab(url_for('prints_settings'), 'Print prices', ep_ == 'prints_settings', 'prints from download galleries') }}{% endif %}
     {{ tab(url_for('setup_step', step='tax'), 'Sales tax', ep_ == 'setup_step' and va_.get('step') == 'tax') }}</div>
@@ -24,7 +25,7 @@
     {% if C.SESSION_TYPES|reject('in', C.LICENSE_TYPES)|list or va_.get('doc') == 'transfer' %}{{ tab(url_for('wording_edit', doc='transfer'), 'Copyright transfer wording', ep_ == 'wording_edit' and va_.get('doc') == 'transfer') }}{% endif %}
     {{ tab(url_for('wording_edit', doc='license'), 'Photo license wording', ep_ == 'wording_edit' and va_.get('doc') == 'license') }}</div>
   <div class="sg"><h2 class="ui-sec-title">Session types</h2>
-    {% for k_, lab_ in C.SESSION_TYPES.items() %}{{ tab(url_for('type_edit', key=k_), lab_, ep_ in ('type_edit', 'type_walk') and va_.get('key') == k_) }}{% endfor %}</div>
+    {% for k_, lab_ in C.SESSION_TYPES.items() %}{{ tab(url_for('type_edit', key=k_), lab_, ep_ in ('type_edit', 'type_walk') and va_.get('key') == k_, lead=ui_.type_mark(k_, 'ui-type-nav')) }}{% endfor %}</div>
   <div class="sg"><h2 class="ui-sec-title">Storage</h2>
     {{ tab(url_for('vault_view'), 'Backups', ep_ == 'vault_view', 'back up now, list, restore check') }}
     {{ tab(url_for('setup_step', step='storage'), 'Where backups go', ep_ == 'setup_step' and va_.get('step') == 'storage', 'the vault and a second copy') }}
@@ -36,7 +37,7 @@
     {{ tab(url_for('setup_step', step='network'), 'Who can reach this', ep_ == 'setup_step' and va_.get('step') == 'network') }}
     {{ tab(url_for('settings_view', tab='file'), 'Settings file', ep_ == 'settings_view' and tab_ == 'file', 'export, import') }}
     {{ tab(url_for('plugins_settings'), 'Plugins', ep_ == 'plugins_settings', 'turn parts on or off, like print orders') }}
-    {{ tab(url_for('settings_view', tab='system'), 'System', ep_ == 'settings_view' and tab_ == 'system', 'plugins, reset') }}
+    {{ tab(url_for('settings_view', tab='system'), 'System', ep_ == 'settings_view' and tab_ == 'system', 'database, reset') }}
     {{ tab(url_for('about'), 'About', ep_ == 'about') }}</div>
 </nav>
 

@@ -1496,6 +1496,8 @@ html.ui-viewer-on { overflow: hidden; }
 .ui-find-out { flex: 1 1 100%; display: flex; flex-direction: column; }
 .ui-find-out:empty { display: none; }
 
+.settabs:has(.ui-find-out:not(:empty)) > .sg { display: none; }
+
 .ui-found { outline: 2px solid var(--gold); outline-offset: 4px; border-radius: 6px; animation: ui-found 4s ease-out forwards; }
 @keyframes ui-found { 0%, 60% { outline-color: var(--gold); } 100% { outline-color: transparent; } }
 
@@ -1647,4 +1649,13 @@ a.ui-thumb-file .ms { font-size: 36px; }
 .ui-photos-sum { margin: 0 0 6px; overflow-wrap: anywhere; }
 .ui-photos-find { margin: 8px 0 4px; }
 .ui-photos .ui-sub-title { margin-top: 10px; }
+
+
+.ms.ui-type { font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24; }
+.ui-type-svg { width: 1em; height: 1em; display: inline-block; vertical-align: middle; flex: none; }
+.ui-type-kick { font-size: 30px; margin: -8px 8px -6px 0; vertical-align: -9px; color: var(--ink); opacity: .85; }
+.ui-type-face { font-size: 44px; color: var(--ink); opacity: .85; }
+.ui-type-row { font-size: 26px; color: var(--mute); }
+.ui-type-nav { font-size: 18px; color: var(--mute); }
+.settabs a.on .ui-type-nav { color: var(--ink); }
 

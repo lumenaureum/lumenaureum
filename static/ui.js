@@ -240,7 +240,13 @@ document.addEventListener('submit', e => {
   const f = e.target; if ((f.getAttribute('method') || '').toLowerCase() !== 'post' || f.target === '_blank') return;
   try { sessionStorage.setItem('scrollAt', JSON.stringify({p: location.pathname, y: scrollY, t: Date.now()})); } catch (_) {} });
 try { const s = JSON.parse(sessionStorage.getItem('scrollAt') || 'null'); sessionStorage.removeItem('scrollAt');
-  if (s && s.p === location.pathname && Date.now() - s.t < 15 * 1000 && !location.hash) scrollTo(0, s.y); } catch (_) {}
+  if (s && s.p === location.pathname && Date.now() - s.t < 15 * 1000 && !location.hash) {
+    scrollTo(0, s.y);
+    const show = () => { const note = document.querySelector('main .ok-msg, main .err');
+      if (note && note.getBoundingClientRect().top < 8)
+        scrollTo({ top: Math.max(0, scrollY + note.getBoundingClientRect().top - 80), behavior: 'instant' }); };
+    show(); addEventListener('load', () => setTimeout(show, 0), { once: true });
+  } } catch (_) {}
 const keptKinds = el => el.name && !['hidden', 'password', 'file', 'submit', 'button', 'reset'].includes(el.type);
 document.addEventListener('submit', e => {
   const f = e.target; if ((f.getAttribute('method') || '').toLowerCase() !== 'post' || f.target === '_blank') return;

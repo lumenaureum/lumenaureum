@@ -161,7 +161,7 @@ def test_after_the_page_learns_it_was_signed_out_the_sign_in_page_says_why(env):
 def test_a_general_setting_found_by_search_opens_the_general_page(env):
     A, c = env
     page = c.get("/settings?find=proof", environ_base=E).get_data(as_text=True)
-    assert 'href="/settings?tab=general#gallery-look"' in page
+    assert 'href="/settings?tab=gallery#gallery-look"' in page
     page = c.get("/settings?find=idle", environ_base=E).get_data(as_text=True)
     assert 'href="/settings?tab=general#f-idle_signout_hours"' in page
     with A.app.test_request_context():

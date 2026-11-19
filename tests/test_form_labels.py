@@ -146,7 +146,7 @@ def test_back_office_forms_name_every_field(tmp_path, monkeypatch):
     urls = [f"/setup/{s}" for s in ("business", "storage", "shoot", "money", "tax", "documents", "galleries", "network")]
     urls += ["/settings", "/contact/new", "/inquiry", "/inquiry?hid=1"] + [f"/settings/type/{t}" for t in C.SESSION_TYPES]
     urls += [f"/inquiry?hid=1&type={t}" for t in C.SESSION_TYPES]
-    urls += [f"/settings?tab={t}" for t in ("fees", "documents", "file", "system")]
+    urls += [f"/settings?tab={t}" for t in ("gallery", "fees", "documents", "file", "system")]
     urls += ["/", "/sessions", "/events", "/vault"]
     urls += [f"/client/{h}" for h in hids] + [f"/event/{e}" for e in eids]
     for sid in sorted(set(stages.values()) | set(sids[:12])):

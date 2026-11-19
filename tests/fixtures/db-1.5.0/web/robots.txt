@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+Disallow: /inquiries/
+Sitemap: https://photos.example.com/sitemap.xml

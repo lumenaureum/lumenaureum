@@ -5,7 +5,7 @@
 {% set here = url_for('session_edit', sid=s.id) %}
 {% set client_page = url_for('client_stage', hid=s.household_id, s=s.id) %}
 <div class="ui-page" data-ui-layout="session-edit">
-{{ ui.page_head(s.household ~ (' - ' ~ s.title if s.title else ''), kicker=type_label[s.type] ~ ' session: edit details',
+{{ ui.page_head(s.household ~ (' - ' ~ s.title if s.title else ''), kicker=ui.type_mark(s.type, 'ui-type-kick') ~ type_label[s.type] ~ ' session: edit details',
    status=(('Lost' ~ (': ' ~ s.lost_reason if s.lost_reason else '')) if s.stage == 'lost' else stage_label[s.stage]),
    face=avatar(s.household_id, 56), sub=ui.go(client_page, 'Back to ' ~ s.household)) }}
 

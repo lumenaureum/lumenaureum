@@ -888,7 +888,8 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
 
     def save(step, f):
         if step == "business":
-            if not f.get("business_name", "").strip() or not f.get("photographer_name", "").strip():
+            names_ = "business_name" in f or not complete()
+            if names_ and (not f.get("business_name", "").strip() or not f.get("photographer_name", "").strip()):
                 return "Your business name and your own name, please."
             tz = f.get("timezone", "") or f.get("browser_tz", "")
             if tz not in zoneinfo.available_timezones():
@@ -906,9 +907,11 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
                     assert -90 <= lat <= 90 and -180 <= lon <= 180
                 except (ValueError, AssertionError):
                     return "Latitude and longitude should be numbers, like 39.83 and -98.58."
-            put(business_name=f["business_name"].strip(), photographer_name=f["photographer_name"].strip(),
-                studio_name=f.get("studio_name", "").strip(), business_email=f.get("business_email", "").strip(),
-                business_phone=f.get("business_phone", "").strip()[:40], business_address=f.get("business_address", "").strip(), timezone=tz, home_zip=z, home_lat=lat, home_lon=lon)
+            if names_:
+                put(business_name=f["business_name"].strip(), photographer_name=f["photographer_name"].strip(),
+                    studio_name=f.get("studio_name", "").strip(), business_email=f.get("business_email", "").strip(),
+                    business_phone=f.get("business_phone", "").strip()[:40], business_address=f.get("business_address", "").strip())
+            put(timezone=tz, home_zip=z, home_lat=lat, home_lon=lon)
             apply_settings()
             app.config["clock_rezone"](lambda k_, v_: put(**{k_: v_}))
             return None
@@ -961,7 +964,7 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
                 term = int(f.get("quote_term_days") or C.QUOTE_TERM_DAYS)
             except (KeyError, ValueError):
                 return "Whole numbers, please (the mileage rate may have cents)."
-            if any(v < 0 for v in kv.values()) or kv["EVENT_DEPOSIT_PCT"] > 100:
+            if any(v < 0 for v in kv.values()) or rate < 0 or term < 0 or kv["EVENT_DEPOSIT_PCT"] > 100:
                 return "Amounts can't be negative, and the event deposit is a percentage up to 100."
             methods = [m for m in PAYMENT_CHOICES if f.get("pay_" + m)] + \
                       [m.strip() for m in f.get("pay_other", "").split(",") if m.strip()]

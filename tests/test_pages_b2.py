@@ -119,7 +119,7 @@ def test_settings_search_finds_the_setting_itself_by_label_help_and_common_words
             r = A.settings_find(term)
             assert r, term
             return r[0]["link"]
-        assert first("mileage") == "/settings?tab=general#f-mileage_rate"
+        assert first("mileage") == "/setup/money#f-mileage_rate"
         assert first("checks").startswith("/settings?tab=general#f-business_address") or any(
             r_["link"] == "/setup/money#pay-methods" for r_ in A.settings_find("checks"))
         assert any(r_["link"].endswith("#f-sales_tax_pct") for r_ in A.settings_find("tax"))
@@ -137,7 +137,7 @@ def test_settings_search_finds_the_setting_itself_by_label_help_and_common_words
 
     html = _page(c, "/settings?find=mileage")
     out = html.split('class="ui-find-out"', 1)[1].split("</div>", 1)[0]
-    assert 'href="/settings?tab=general#f-mileage_rate"' in out and "Mileage rate" in out
+    assert 'href="/setup/money#f-mileage_rate"' in out and "Mileage rate" in out
     assert "No setting matches" in _page(c, "/settings?find=zzzz")
 
 def test_every_searched_anchor_is_on_its_page(tmp_path, monkeypatch):

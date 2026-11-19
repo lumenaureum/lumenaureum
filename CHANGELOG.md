@@ -2,6 +2,15 @@
 
 New features, behavior changes, security fixes, and other fixes in each release.
 
+## 1.5.1 (2026-11-19)
+
+### New
+- Each session type has its own icon on its sessions, its settings page and in session lists.
+
+### Changed
+- Settings: the client gallery look has its own page.
+- Mileage rate is now set on Payments and terms.
+
 ## 1.5.0 (2026-11-18)
 
 ### Changed

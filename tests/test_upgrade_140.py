@@ -7,7 +7,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -24,6 +24,8 @@ GID = "galUpgrade140"
 PUBLIC = "https://www.example.com/"
 OLD = ROOT / "tests" / "compat"
 T1, T2, T3 = "2026-11-01T10:00:00.000Z", "2026-11-05T10:00:00.000Z", "2026-11-09T10:00:00.000Z"
+
+SEEN = (datetime.now(timezone.utc) - timedelta(days=5)).strftime("%Y-%m-%dT09:00:00Z")
 PICKS_1 = [{"i": 0, "name": "a.jpg", "k": "n:a.jpg", "r": True, "note": "soften", "m": False, "v": False}]
 PICKS_2 = PICKS_1 + [{"i": 1, "name": "b.jpg", "k": "n:b.jpg", "r": False, "note": "", "m": True, "v": False}]
 DRAFT = PICKS_2 + [{"i": 2, "name": "c.jpg", "k": "n:c.jpg", "r": False, "note": "", "m": False, "v": True}]
@@ -104,7 +106,7 @@ def site(tmp_path, monkeypatch):
             shutil.copyfile(p, host / p.name)
     (host / "limits.txt").write_text("days=30\nunopened_until=2099-01-01\nunopened_ts=4070908799\nwarn_days=7\n"
                                      'contact="hello@studio.example"\nproof=1\n')
-    (host / "seen.txt").write_text("2026-10-20T09:00:00Z")
+    (host / "seen.txt").write_text(SEEN)
     G.mark_online(GID)
 
     kept = legacy_picks(key, PICKS_1, "picks.bin", T1)
@@ -204,7 +206,7 @@ def assert_done(s, picks_payload, draft_payload=None):
         assert hosted(nh, p, row[4] or row[5]).read_bytes() == (G.OUT_ROOT / new / p).read_bytes(), p
     lim = host_bytes(nh, "limits.txt")
     assert b"proof=1" in lim and b"moved=" not in lim and b"days=30" in lim
-    assert host_text(nh, "seen.txt") == "2026-10-20T09:00:00Z"
+    assert host_text(nh, "seen.txt") == SEEN
     assert (nh / "seen-key.php").read_bytes() == (G.OUT_ROOT / new / "seen-key.php").read_bytes()
 
     assert sorted(p.name for p in s.host.iterdir()) == ["index.html"]

@@ -32,7 +32,7 @@
   <div class="ui-fitem" {{ uf.item(r.f.status, r.f.due, dict(stage=stage_label[s.stage], type=type_label[s.type] if not s.event_name else 'Group event', money='Owing' if r.f.owing else '', label=r.f.labels)) }}>
   {{ ui.list_row(url_for('client_stage', hid=s.household_id, s=s.id), s.household,
                  sub_|join(', ') ~ (' · ' ~ item_ if item_ else ''),
-                 ui.chip(stage_label[s.stage], tone_, tip=item_)) }}</div>
+                 ui.chip(stage_label[s.stage], tone_, tip=item_), lead=ui.type_mark('event' if s.event_name else s.type, 'ui-type-row')) }}</div>
 {% else %}<p class="ui-mute">Nothing in this view.</p>{% endfor %}
 {% endcall %}
 </div>

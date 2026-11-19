@@ -49,7 +49,7 @@ def test_upload_picks_it_and_the_gallery_carries_it(env):
     upload(c, regular=ttf_bytes(), light=font_bytes())
     assert base64.b64decode(setting(A, "brand_font_400"))[:4] == b"wOF2"
     assert setting(A, "gallery_font") == "own" and setting(A, "brand_font_name").startswith("Cormorant Garamond")
-    page = c.get("/settings", environ_base=E).get_data(as_text=True)
+    page = c.get("/settings?tab=gallery", environ_base=E).get_data(as_text=True)
     assert 'value="own" checked' in page and "Cormorant Garamond" in page
     assert c.get("/settings/gallery-font/own.woff2", environ_base=E).data[:4] == b"wOF2"
     out, key = build(A, c, G)

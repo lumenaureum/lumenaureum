@@ -12,7 +12,7 @@
 <form class="ui-find" method="get" action="{{ url_for('settings_view') }}" role="search" data-ui-find>
   <label class="vh" for="ui-find-q">Find a setting</label>
   <input id="ui-find-q" type="search" name="find" value="{{ term }}" placeholder="Find a setting" autocomplete="off" data-no-keep>
-  <button class="ui-btn ui-btn-quiet">Find the setting</button>
+  <button class="ui-btn ui-btn-quiet">Find</button>
   <span hidden class="ui-find-index" data-index="{{ entries|tojson|forceescape }}"></span>
   <div class="ui-find-out" role="status" aria-live="polite">
     {%- if term %}{% for r in results or [] %}<a class="ui-row" href="{{ r.link }}"><span class="ui-row-main"><b>{{ r.text }}</b><small>{{ r.sub }}</small></span><span class="ui-row-right"><span class="ui-row-chev" aria-hidden="true">&rsaquo;</span></span></a>

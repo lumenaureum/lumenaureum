@@ -322,6 +322,16 @@ PRESETS = {
 }
 PERSONAL_TYPE = dict(key="portfolio", label="Personal project", kind="personal", minutes=120)
 PRESETS["personal"] = dict(label="Personal projects", types=[PERSONAL_TYPE], fees=[])
+
+TYPE_ICONS = {"portrait": "face", "senior": "school", "family": "family_restroom", "wedding": "rings",
+              "engagement": "diamond", "sports": "sports_soccer", "newborn": "stroller", "headshot": "badge", "pet": "pets",
+              "event": "groups", "realestate": "house", "product": "shopping_bag", "food": "restaurant",
+              "portfolio": "photo_camera"}
+KIND_ICONS = {"event": "groups", "property": "house"}
+
+def type_icon(stype):
+
+    return TYPE_ICONS.get(stype) or KIND_ICONS.get(TYPE_KIND.get(stype)) or "photo_camera"
 BASIC_PRESETS = ("portraits", "families", "events")
 
 def shipped_type(key):

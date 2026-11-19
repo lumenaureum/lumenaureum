@@ -13,7 +13,7 @@
   {% for s in sessions %}{% set bh_ = booked_hint(s.id) %}
     {{ ui.list_row(url_for('client_stage', hid=h.id, s=s.id), s.title or type_label[s.type],
                    [type_label[s.type] if s.title else '', nice(s.shoot_date) or 'No date']|select|join(', ') ~ (' · ' ~ bh_ if bh_ else ''),
-                   ui.chip(stage_label[s.stage], 'done' if s.stage in ('closed', 'lost') else 'neutral')) }}
+                   ui.chip(stage_label[s.stage], 'done' if s.stage in ('closed', 'lost') else 'neutral'), lead=ui.type_mark(s.type, 'ui-type-row')) }}
   {% else %}<p class="ui-mute">No sessions yet.</p>{% endfor %}
   <div class="ui-btnrow">{{ ui.button_link(url_for('inquiry', hid=h.id), '+ New inquiry for ' ~ h.name, 'quiet' if sessions else 'primary') }}</div>
 {% endcall %}

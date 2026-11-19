@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% from "_macros.html" import help with context %}{% import "_ui.html" as ui with context %}
 {% block title %}{{ t.label }} - Lumen Aureum{% endblock %}
 {% block body %}
-{{ ui.page_head(t.label, kicker='Session type') }}
+{{ ui.page_head(t.label, kicker='Session type', face=ui.type_mark(t.key, 'ui-type-face')) }}
 <div class="ui-btnrow">{{ ui.button_link(url_for('type_walk', key=t.key, n=0), 'Walk me through this') }}</div>
 {% if saved %}<p class="ok-msg" style="color:var(--gold)">Saved.</p>{% endif %}
 <form method="post" class="ui-sec f" style="max-width:720px">

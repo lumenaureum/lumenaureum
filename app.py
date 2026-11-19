@@ -1007,7 +1007,7 @@ def globals_():
             _fs.pop("import_result", None)
         return r
     return dict(take_notice=take_notice, take_refill=take_refill, import_result=import_result, C=C, hooks=hooks, today=today(), stage_label=C.STAGE_LABELS,
-                type_label=C.SESSION_TYPES, money=money, nice=nice, light=light, face=face, clock=clock, month_label=month_label, OUTCOMES=OUTCOMES, sym_group=sym_group, delta3=timedelta(days=3),
+                type_label=C.SESSION_TYPES, type_icon=C.type_icon, money=money, nice=nice, light=light, face=face, clock=clock, month_label=month_label, OUTCOMES=OUTCOMES, sym_group=sym_group, delta3=timedelta(days=3),
                 who_is=who_is, age_of=age_of, age_label=age_label, RELATIONS=RELATIONS, edit_stamp=edit_stamp,
                 DOC_DISCLAIMER=__import__("wording").DISCLAIMER)
 
@@ -9820,7 +9820,7 @@ def settings_view():
     look = settings_io.clean_look(setting("gallery_font"), setting("gallery_bg"), setting("proof_mark"),
                                   setting("proof_mark_text"), setting("proof_mark_strength"))
     logo_, dlogo_ = setting("logo_png"), setting("logo_dark_png")
-    look_logos = dict(light=logo_, dark=dlogo_ or (settings_io.white_logo(logo_) if logo_ and request.args.get("tab", "general") == "general" else ""))
+    look_logos = dict(light=logo_, dark=dlogo_ or (settings_io.white_logo(logo_) if logo_ and request.args.get("tab") == "gallery" else ""))
     own_font_ = dict(name=setting("brand_font_name") or "Your font", light=bool(setting("brand_font_300"))) if setting("brand_font_400") else None
     return render_template("settings.html", plugin_errors=PLUGIN_ERRORS, look=look, look_logos=look_logos, own_font=own_font_,
                            look_pal=settings_io.palette(look["gallery_bg"]), palettes=settings_io.PALETTES, rate=setting("mileage_rate"), home_base=setting("home_base"),
@@ -9854,7 +9854,7 @@ def brand_font_upload():
 
     import base64
     import settings_io as _sio
-    back_ = url_for("settings_view") + "#gallery-look"
+    back_ = url_for("settings_view", tab="gallery") + "#gallery-look"
     if request.form.get("look_posted"):
         save_look(request.form)
     if request.form.get("remove"):
@@ -9979,7 +9979,7 @@ def logo_upload():
     import io as _io
     dark = request.form.get("which") == "dark"
     key_, what_ = ("logo_dark_png", "the logo for dark gallery backgrounds") if dark else ("logo_png", "the logo")
-    back_ = url_for("settings_view") + ("#gallery-look" if dark else "")
+    back_ = url_for("settings_view", tab="gallery") + "#gallery-look" if dark else url_for("settings_view", tab="general") + "#logo"
     if dark and request.form.get("look_posted"):
         save_look(request.form)
     if request.form.get("remove"):

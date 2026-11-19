@@ -31,7 +31,7 @@
   {%- if s.event_id %} {{ ui.go(url_for('event_view', eid=s.event_id), s.event_name) }}{% endif %}
   {%- if others %}<span class="ui-also">Also {% for o in others %}{{ ui.go(url_for('client_stage', hid=h.id, s=o.id), (o.title or type_label[o.type]) ~ (', ' ~ nice(o.shoot_date) if o.shoot_date else '') ~ ', ' ~ stage_label[o.stage]) }} {% endfor %}</span>{% endif %}{% endset %}
 {% import "_client_labels.html" as cl with context %}{% set sub_ = sub_ ~ cl.labels_chips(h.id) %}
-{{ ui.page_head(h.name ~ (' (sample)' if h.demo else ''), status=status_, kicker=type_label[s.type], face=avatar(h.id, 64), sub=sub_) }}
+{{ ui.page_head(h.name ~ (' (sample)' if h.demo else ''), status=status_, kicker=ui.type_mark(s.type, 'ui-type-kick') ~ type_label[s.type], face=avatar(h.id, 64), sub=sub_) }}
 
 {% set message_ %}{% if x_.message %}{% set m_ = x_.message %}{{ ui.message(m_.who or (contact.name if contact else '') or h.name, m_.how, m_.when,
     [('Preferred date', m_.preferred)] if m_.preferred else [], m_.body,

@@ -21,6 +21,14 @@
 {%- endmacro %}
 
 
+{% macro type_mark(stype, cls='') -%}
+{%- set ic_ = type_icon(stype) -%}
+{%- if ic_ == 'rings' -%}
+<svg class="ui-type ui-type-svg {{ cls }}" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><circle cx="8.6" cy="14.6" r="5.6"/><circle cx="15.4" cy="14.6" r="5.6"/><path d="M8.6 8.4 6.9 6.3 8.6 4.2 10.3 6.3Z"/></g></svg>
+{%- else -%}<span class="ms ui-type {{ cls }}" aria-hidden="true">{{ ic_ }}</span>{%- endif -%}
+{%- endmacro %}
+
+
 
 
 {% macro page_head(title, status='', kicker='', face='', id='ui-head', sub='') -%}
@@ -120,8 +128,8 @@
 
 
 
-{% macro list_row(href, title, sub='', right='') -%}
-<a class="ui-row" href="{{ href }}"><span class="ui-row-main"><b>{{ title }}</b>{% if sub %}<small>{{ sub }}</small>{% endif %}</span>
+{% macro list_row(href, title, sub='', right='', lead='') -%}
+<a class="ui-row" href="{{ href }}">{{ lead }}<span class="ui-row-main"><b>{{ title }}</b>{% if sub %}<small>{{ sub }}</small>{% endif %}</span>
 <span class="ui-row-right">{% if right %}{{ right }}{% else %}<span class="ui-row-chev" aria-hidden="true">&rsaquo;</span>{% endif %}</span></a>
 {%- endmacro %}
 

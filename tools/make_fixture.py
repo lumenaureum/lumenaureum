@@ -16,6 +16,7 @@ class Ctx:
     def __init__(self, A, c, work):
         self.A, self.c, self.work = A, c, work
         self.E = {"REMOTE_ADDR": "127.0.0.1"}
+        self.v15 = False
 
     def post(self, url, **data):
         r = self.c.post(url, data=data, environ_base=self.E)
@@ -24,8 +25,14 @@ class Ctx:
 
     def get(self, url):
         r = self.c.get(url, environ_base=self.E)
+        if self.v15 and r.status_code == 302 and url.startswith("/session/") and url.count("/") == 2:
+            r = self.c.get(r.headers["Location"], environ_base=self.E)
         assert r.status_code == 200, (url, r.status_code)
         return r
+
+    def text(self, old, new):
+
+        return new if self.v15 else old
 
     def one(self, sql, args=()):
         con = self.A.connect()
@@ -71,7 +78,8 @@ class Ctx:
         return dict(total=round(seen["total"], 2), refunds=round(seen["refunds"], 2), tax_due=round(seen["tax_due"], 2),
                     received={r["type"]: round(r["v"], 2) for r in seen["received"]},
                     by_month={r["mo"]: round(r["v"], 2) for r in seen["by_month"]},
-                    outstanding={str(o["s"]["id"]): round(o["t"]["due"], 2) for o in seen["outstanding"]},
+                    outstanding={str(o["s"]["id"]): round(o["t"]["due"], 2)
+                                 for o in seen["outstanding"] + seen.get("to_invoice", [])},
                     upcoming={str(o["s"]["id"]): round(o["t"]["due"], 2) for o in seen["upcoming"]})
 
 def scenario_100(x, made_with):
@@ -653,7 +661,7 @@ class More120(More111):
         self._send(folder, "picks", lambda: _sealed(G, ekey, picks, G.PICKS_AAD, stamp(48)), ekey, picks, stamp(48))
         post("/gallery/sync")
         assert one("SELECT retouch_picks FROM sessions WHERE id=?", (s_reyes,))[0], "the picks did not come in"
-        assert "Retouched finals" in x.get(f"/c/{reyes}?s={s_reyes}").get_data(as_text=True)
+        assert x.text("Retouched finals", "Picks: 2 to retouch") in x.get(f"/c/{reyes}?s={s_reyes}").get_data(as_text=True)
         for i in (1, 2, 3):
             p_ = Path(x.work, f"final-{i}.jpg")
             _noisy_jpeg(p_, (160, 120), i)
@@ -1446,6 +1454,11 @@ class More140(More131):
         year = in_request(lambda: A.app.config["prints_year"](YEAR))
         heads = {}
         for sid in (self.s130["grant"], self.s140["olsen"], self.s140["wren"]):
+            if x.v15:
+                page = x.get(f"/session/{sid}/edit").get_data(as_text=True)
+                heads[str(sid)] = doc_text_any(page.split('<table class="ui-money" aria-label="Summary">', 1)[1]
+                                               .split("</table>", 1)[0])
+                continue
             page = x.get(f"/session/{sid}").get_data(as_text=True)
             heads[str(sid)] = doc_text_any(page.split('<div class="surface highlights">', 1)[1].split("<section", 1)[0])
         assert "Deposit kept $100" in heads[str(self.s130["grant"])], heads
@@ -1774,6 +1787,164 @@ class More141(More140):
 def scenario_141(x, made_with):
     return scenario_101(x, made_with, more=More141())
 
+class More150(More141):
+
+    IDLE_HOURS, CHECK_IN_MONTHS, MILEAGE_RATE, HOME_BASE = "4", "9", "0.70", "12 River Road, Lark Falls"
+    NTFY = dict(server="https://ntfy.example.com", topic="lark-pine-studio-7f3k2q", token="tk_fixture150example")
+    RELEASE_ADDED = "Photos of guests are never posted without their consent."
+    LABELS = (("ellis", "Slow to pay"), ("ellis", "Prefers text"), ("zeller", "Referral"))
+
+    def data(self, x):
+        super().data(x)
+        self.s150, self.h150 = {}, {}
+        self._settings150(x)
+        self._zeller(x)
+        self._not_booked(x)
+        self._clients150(x)
+
+    def _settings150(self, x):
+        post, one = x.post, x.one
+        fields = form_fields(x.get("/settings").get_data(as_text=True))
+        assert fields.get("main_posted") == ["1"] and "idle_signout_hours" in fields and "mileage_rate" in fields, fields
+        fields.update(idle_signout_hours=[self.IDLE_HOURS], check_in_snooze_months=[self.CHECK_IN_MONTHS],
+                      mileage_rate=[self.MILEAGE_RATE], home_base=[self.HOME_BASE])
+        r = x.c.post("/settings", data=fields, environ_base=x.E)
+        assert r.status_code == 302 and "saved=1" in r.headers["Location"], r.headers.get("Location")
+        for k, v in (("idle_signout_hours", self.IDLE_HOURS), ("check_in_snooze_months", self.CHECK_IN_MONTHS),
+                     ("mileage_rate", self.MILEAGE_RATE), ("home_base", self.HOME_BASE)):
+            assert one("SELECT value FROM settings WHERE key=?", (k,))[0] == v, k
+        assert x.in_request(x.A.app.config["idle_seconds"]) == int(self.IDLE_HOURS) * 3600
+
+        post("/security/notice", act="save", **self.NTFY)
+        assert {k: one("SELECT value FROM settings WHERE key=?", ("ntfy_" + k,))[0] for k in self.NTFY} == self.NTFY
+        plain = json.loads(Path(x.work, "ntfy.json").read_text())
+        assert {k: plain[k] for k in self.NTFY} == self.NTFY and plain["tz"] == TIME_ZONE, plain
+        assert "Set up the locked-studio notice" in x.get("/security").get_data(as_text=True)
+
+        import wording
+        self.release_text = wording.STANDARD["release"].rstrip() + "\n\n" + self.RELEASE_ADDED
+        post("/settings/wording/release/here", text=self.release_text, back="/settings?tab=documents")
+        saved = one("SELECT value FROM settings WHERE key='release_text'")[0]
+        assert self.RELEASE_ADDED in saved, saved[-200:]
+        assert "release:*" in json.loads(one("SELECT value FROM settings WHERE key='doc_reviews'")[0])
+
+        cur = x.in_request(lambda: x.A.current_schedule()["id"])
+        post(f"/fees/{cur}/approve")
+        assert str(cur) in json.loads(one("SELECT value FROM settings WHERE key='price_approvals'")[0])
+
+    def _zeller(self, x):
+        post, one = x.post, x.one
+        post("/contact/new", contact_name="Jo Zeller", household_name="Zeller", email="zeller@example.com")
+        hid = one("SELECT id FROM households WHERE name='Zeller'")[0]
+        post(f"/client/{hid}/session", type="family", stage="inquiry", title="Zeller family", shoot_date=f"{YEAR}-10-24")
+        sid = one("SELECT MAX(id) FROM sessions")[0]
+        stage = lambda: one("SELECT stage FROM sessions WHERE id=?", (sid,))[0]
+        post(f"/session/{sid}/money", what="line", label="Family session", amount="300")
+        post(f"/session/{sid}/quote/send")
+        assert stage() == "inquiry", stage()
+        vid = one("SELECT MAX(id) FROM quote_versions WHERE session_id=?", (sid,))[0]
+        post(f"/quote/{vid}/sent")
+        assert stage() == "quoted", stage()
+        post(f"/session/{sid}/quick", act="book")
+        assert stage() == "booked", stage()
+        post(f"/session/{sid}/money", what="payment", kind="deposit", amount="100", method="other",
+             note="Two framed prints in trade", received=f"{YEAR}-10-01")
+        assert one("SELECT note FROM payments WHERE session_id=?", (sid,))[0] == "Two framed prints in trade"
+        post(f"/session/{sid}/quote/replace")
+        assert one("SELECT 1 FROM quote_replacements WHERE session_id=? AND booked_at IS NULL", (sid,))
+        post(f"/session/{sid}/money", what="line", label="Extra half hour", amount="75")
+        post(f"/session/{sid}/quick", act="rebook")
+        assert one("SELECT booked_at FROM quote_replacements WHERE session_id=?", (sid,))[0]
+        post(f"/session/{sid}/quick", act="shot")
+        assert stage() == "shot", stage()
+        post(f"/session/{sid}/money", what="expense", label="Drive to the river park", miles="18", amount="",
+             date=f"{YEAR}-10-24")
+        trip = one("SELECT miles, rate FROM expenses WHERE session_id=?", (sid,))
+        assert trip and tuple(trip) == (18, float(self.MILEAGE_RATE)), (trip and tuple(trip), x.rows("SELECT * FROM expenses"))
+        self.s150["zeller"], self.h150["zeller"] = sid, hid
+
+    def _not_booked(self, x):
+
+        post, one = x.post, x.one
+        post("/contact/new", contact_name="Pat Quinn", household_name="Quinn", email="quinn@example.com")
+        hid = one("SELECT id FROM households WHERE name='Quinn'")[0]
+        post(f"/client/{hid}/session", type="family", stage="inquiry", title="Quinn family", shoot_date=f"{YEAR}-12-19")
+        s_quinn = one("SELECT MAX(id) FROM sessions")[0]
+        post(f"/session/{s_quinn}/stage", stage="lost", need_reason="1", lost_reason="They went elsewhere")
+        assert tuple(one("SELECT stage, lost_reason FROM sessions WHERE id=?", (s_quinn,))) == ("lost", "They went elsewhere")
+        post("/contact/new", contact_name="Lee Abbott", household_name="Abbott", email="abbott@example.com")
+        hid = one("SELECT id FROM households WHERE name='Abbott'")[0]
+        post(f"/client/{hid}/session", type="headshot", stage="inquiry", title="Abbott headshots", shoot_date=f"{YEAR}-12-03")
+        s_abbott = one("SELECT MAX(id) FROM sessions")[0]
+        post(f"/session/{s_abbott}/money", what="line", label="Headshot session", amount="150")
+        post(f"/session/{s_abbott}/quote/send")
+        post(f"/quote/{one('SELECT MAX(id) FROM quote_versions WHERE session_id=?', (s_abbott,))[0]}/sent")
+        post(f"/session/{s_abbott}/quick", act="book")
+        assert one("SELECT stage FROM sessions WHERE id=?", (s_abbott,))[0] == "booked"
+        post(f"/session/{s_abbott}/stage", stage="lost", need_reason="1", lost_reason="Other", lost_note="Moved out of state")
+        assert tuple(one("SELECT stage, lost_reason FROM sessions WHERE id=?", (s_abbott,))) == ("lost", "Other")
+        self.s150.update(quinn=s_quinn, abbott=s_abbott)
+
+    def _clients150(self, x):
+        post, one = x.post, x.one
+        hids = dict(ellis=one("SELECT household_id FROM sessions WHERE id=?", (self.s130["ellis"],))[0],
+                    foster=one("SELECT household_id FROM sessions WHERE id=?", (self.s130["foster"],))[0],
+                    kim=one("SELECT id FROM households WHERE name='Kim'")[0],
+                    vance=one("SELECT household_id FROM sessions WHERE id=?", (self.s141["vance"],))[0],
+                    zeller=self.h150["zeller"])
+        for who, label in self.LABELS:
+            post(f"/client/{hids[who]}/labels", label=label)
+        post(f"/client/{hids['foster']}/end-contact")
+        post(f"/client/{hids['kim']}/check-in")
+        assert one("SELECT 1 FROM log WHERE household_id=? AND summary='Checked in by email'", (hids["kim"],))
+        page = x.get(f"/client/{hids['vance']}").get_data(as_text=True)
+        fields = form_fields(page, f"/client/{hids['vance']}")
+        assert "business_posted" in fields, sorted(fields)
+        fields["business"] = ["1"]
+        r = x.c.post(f"/client/{hids['vance']}", data=fields, environ_base=x.E)
+        assert r.status_code == 302, r.status_code
+        assert x.in_request(lambda: x.A.is_business_client(hids["vance"]))
+        self.h150.update(hids)
+
+    def _measure140(self, x, out):
+        got = super()._measure140(x, out)
+        return dict(got, **self._measure150(x, dict(out, **got)))
+
+    def _measure150(self, x, out):
+        import hashlib
+        A, one, rows, in_request = x.A, x.one, x.rows, x.in_request
+        keys = ("idle_signout_hours", "check_in_snooze_months", "mileage_rate", "home_base", "ntfy_server", "ntfy_topic",
+                "ntfy_token", "doc_reviews", "price_approvals")
+        new_sids = sorted(self.s150.values())
+        history = {str(sid): [r[0] for r in rows("SELECT action FROM audit WHERE session_id=? ORDER BY id", (sid,))]
+                   for sid in new_sids}
+        return dict(
+            sessions_by_name=dict(out["sessions_by_name"], **self.s150),
+            settings_150={k: (one("SELECT value FROM settings WHERE key=?", (k,)) or [None])[0] for k in keys},
+            release_text_sha256=hashlib.sha256(one("SELECT value FROM settings WHERE key='release_text'")[0].encode()).hexdigest(),
+            release_added=self.RELEASE_ADDED,
+            ntfy_json=json.loads(Path(x.work, "ntfy.json").read_text()),
+            account_activity=[dict(text=r_["text"], who=r_["who"]) for r_ in in_request(A.account_activity)],
+            labels=sorted([r[0], r[1]] for r in rows("SELECT household_id, label FROM client_labels")),
+            end_contact=[list(r) for r in rows("SELECT household_id, since FROM client_end_contact ORDER BY household_id")],
+            check_ins=[list(r) for r in rows("SELECT household_id, channel, summary FROM log WHERE summary='Checked in by email'"
+                                             " ORDER BY id")],
+            business_clients={str(r[0]): r[1] for r in rows("SELECT id, business FROM households WHERE business IS NOT NULL")},
+            clients_150={k: v for k, v in self.h150.items()},
+            lost_150={str(r[0]): [r[1], r[2]] for r in rows(
+                "SELECT id, stage, lost_reason FROM sessions WHERE id IN (?, ?)", (self.s150["quinn"], self.s150["abbott"]))},
+            history_150=history,
+            quote_replacements=[dict(session=r[0], old_total=r[1], old_vid=r[2], new_vid=r[3], booked=bool(r[4]))
+                                for r in rows("SELECT session_id, old_total, old_vid, new_vid, booked_at FROM quote_replacements"
+                                              " ORDER BY id")],
+            payment_notes={str(r[0]): r[1] for r in rows("SELECT id, note FROM payments WHERE note != '' ORDER BY id")},
+            expenses=[list(r) for r in rows("SELECT session_id, date, label, amount, miles, rate FROM expenses ORDER BY id")],
+        )
+
+def scenario_150(x, made_with):
+    x.v15 = True
+    return scenario_101(x, made_with, more=More150())
+
 VERSIONS = {
     "1.0.0": dict(commit="a0966c9", scenario=scenario_100, files=("crm-before-delete.db",), env={}),
     "1.0.1": dict(commit="v1.0.1", scenario=scenario_101, files=(),
@@ -1798,6 +1969,9 @@ VERSIONS = {
                   env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
 
     "1.4.1": dict(commit="879c2b0", scenario=scenario_141, files=(),
+                  dirs=("galleries", "galleries-kept", "host", "web", "photos", "faces"),
+                  env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
+    "1.5.0": dict(commit="48507a6", scenario=scenario_150, files=("ntfy.json",),
                   dirs=("galleries", "galleries-kept", "host", "web", "photos", "faces"),
                   env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
 }

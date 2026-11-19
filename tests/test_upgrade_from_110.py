@@ -243,7 +243,7 @@ def test_the_gallery_look_logos_and_time_zone_are_kept(upgraded):
     look = settings_io.clean_look(*(EXPECTED["settings"][k] for k in ("gallery_font", "gallery_bg", "proof_mark",
                                                                      "proof_mark_text", "proof_mark_strength")))
     assert {k: look[k] for k in look} == {k: EXPECTED["settings"][k] for k in look}
-    page = _page(c, "/settings")
+    page = _page(c, "/settings?tab=gallery")
     assert 'value="elegant"' in page and EXPECTED["settings"]["proof_mark_text"] in page
     assert getattr(A.TZ, "key", None) == EXPECTED["settings"]["timezone"]
 
