@@ -181,13 +181,13 @@ def test_the_session_delivery_checklist_has_its_own_layout(done):
         con.commit()
     finally:
         con.close()
-    page = c.get(f"/session/{sid}", environ_base=E).get_data(as_text=True)
+    page = c.get(f"/session/{sid}/edit", environ_base=E).get_data(as_text=True)
     sec = page[page.index('id="delivery"'):]
     sec = sec[:sec.index("</section>")]
-    assert '<ul class="dtrack">' in sec and 'class="track"' not in sec
-    assert '<span class="dlab">Files delivered by</span>' in sec
-    ul = sec[sec.index('<ul class="dtrack">'):sec.index("</ul>")]
-    assert 'type="hidden"' not in ul
+
+    assert 'class="track"' not in sec and '<ul class="dtrack">' not in sec
+    assert '<label><span>Files delivered by</span><select name="delivery_method"' in sec
+    assert '<label><span>Files delivered on</span><input type="date" name="sd_shipped"' in sec
     css = (Path(ROOT) / "static" / "style.css").read_text()
     assert ".dtrack li { display: flex" in css
     assert not re.search(r"^\s*\.track li \{", css, re.M)

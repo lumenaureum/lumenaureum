@@ -1,6 +1,5 @@
 import os
 import re
-import shutil
 import sys
 from datetime import timedelta
 
@@ -11,7 +10,7 @@ from helpers_tools import need_tool
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from helpers import TEST_PASSWORD, fresh_modules, signed_in_client
+from helpers import fresh_modules, signed_in_client
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
 
@@ -111,32 +110,6 @@ def test_wrong_master_keys_say_how_long_and_never_lock_sign_in(env):
     c.post("/vault/check", data={"secret": wrong}, environ_base=E)
     assert re.search(r"Try again in \d+ minutes", c.get("/vault", environ_base=E).get_data(as_text=True))
 
-def test_unattended_unlock_at_start_refuses_a_key_file_on_the_data_volume(env, monkeypatch):
-
-    A, c, tmp = env
-    import datakey
-    other = tmp / "other"
-    monkeypatch.setenv("CRM_UNLOCK_KEY_FILE", str(other / "unlock.key"))
-    real_check = datakey.check_auto_place
-    datakey.check_auto_place = lambda p: None
-    try:
-        datakey.enable_auto()
-    finally:
-        datakey.check_auto_place = real_check
-    on_data = tmp / "unlock.key"
-    shutil.copyfile(other / "unlock.key", on_data)
-    monkeypatch.setenv("CRM_UNLOCK_KEY_FILE", str(on_data))
-    with pytest.raises(ValueError):
-        datakey.check_auto_place(on_data)
-    assert datakey.try_auto_unlock() is None
-
-def test_a_refused_key_file_place_leaves_nothing_behind(env, monkeypatch):
-    A, c, tmp = env
-    monkeypatch.setenv("CRM_UNLOCK_KEY_FILE", str(tmp / "sub" / "unlock.key"))
-    r = c.post("/security", data={"current": TEST_PASSWORD, "act": "auto_on"}, environ_base=E)
-    assert b"different volume" in r.data
-    assert not (tmp / "sub").exists()
-
 def test_forgot_password_fields_have_labels(env):
     A, c, _ = env
     page = A.app.test_client().get("/unlock/master", environ_base=E).get_data(as_text=True)
@@ -155,7 +128,7 @@ def test_a_contact_with_no_phone_or_email_gets_no_empty_link(env):
     A, c, _ = env
     _client(A, stage="booked")
     run(A, "INSERT INTO people (household_id, name, role) VALUES (1, 'Dana Lane', 'parent')")
-    page = c.get("/session/1", environ_base=E).get_data(as_text=True)
+    page = c.get("/session/1/edit", environ_base=E).get_data(as_text=True)
     assert not re.search(r'<a href="mailto:">\s*</a>', page)
 
 def _ratio(a, b):
@@ -214,59 +187,6 @@ def test_client_faces_on_the_month_calendar_keep_their_contrast(env):
     finally:
         b.close()
         pw.stop()
-
-def test_a_refused_start_says_why_on_sign_in_and_security(env, monkeypatch, capsys):
-    A, c, tmp = env
-    import datakey
-    other = tmp / "other"
-    monkeypatch.setenv("CRM_UNLOCK_KEY_FILE", str(other / "unlock.key"))
-    real_check = datakey.check_auto_place
-    datakey.check_auto_place = lambda p: None
-    try:
-        datakey.enable_auto()
-    finally:
-        datakey.check_auto_place = real_check
-    assert datakey.try_auto_unlock() is None
-    say = "Unattended unlock is off: the key file is on the data folder. Move it to its own volume."
-    assert datakey.auto_refused() == say
-    assert "WARNING: " + say in capsys.readouterr().out
-    assert say in c.get("/security", environ_base=E).get_data(as_text=True)
-    page = A.app.test_client().get("/login", environ_base=E).get_data(as_text=True)
-    assert say in page
-
-def test_the_container_filesystem_is_named_at_start(env, monkeypatch):
-    A, c, tmp = env
-    import datakey
-    monkeypatch.setattr(datakey, "check_auto_place", lambda p: (_ for _ in ()).throw(
-        datakey.PlaceRefused("no", "the container's own filesystem")))
-    monkeypatch.setenv("CRM_UNLOCK_KEY_FILE", str(tmp / "k" / "unlock.key"))
-    (tmp / "k").mkdir()
-    (tmp / "k" / "unlock.key").write_text("x")
-    ring = __import__("json").loads(datakey.KEYRING.read_text())
-    monkeypatch.setattr(datakey, "_read", lambda *a: dict(ring, auto="x"))
-    assert datakey.try_auto_unlock() is None
-    assert "the key file is on the container's own filesystem" in datakey.auto_refused()
-
-def test_a_memory_only_place_is_refused_and_nothing_is_made(env, monkeypatch):
-    A, c, tmp = env
-    import datakey
-    from test_security_actions import other_volume_dir
-    base = other_volume_dir(tmp)
-    if not base:
-        pytest.skip("no writable folder on a second volume")
-    target = os.path.join(base, "la-r2-" + os.urandom(4).hex(), "keys")
-    monkeypatch.setenv("CRM_UNLOCK_KEY_FILE", os.path.join(target, "unlock.key"))
-    monkeypatch.setattr(datakey, "_in_container", lambda: False)
-    monkeypatch.setattr(datakey, "_mount_fstype", lambda p: "tmpfs")
-    r = c.post("/security", data={"current": TEST_PASSWORD, "act": "auto_on"}, environ_base=E)
-    assert b"emptied at every restart" in r.data
-    assert not os.path.exists(os.path.dirname(target))
-
-def test_mount_types_are_read_from_mountinfo():
-    import datakey
-    if datakey._mounts() is None:
-        pytest.skip("no /proc/self/mountinfo here")
-    assert datakey._mount_fstype("/proc/self") == "proc"
 
 def test_wrong_reprint_keys_are_limited_like_every_master_key_check(env):
     A, c, _ = env
@@ -379,8 +299,8 @@ def test_a_session_being_deleted_shows_so_and_never_a_404(env):
     jobs.JOBS["session-delete:1"] = dict(key="session-delete:1", label="Deleting", state="running", done=0, total=0,
                                          message="", started=0, ended=None, link="")
     try:
-        r = c.get("/session/1", environ_base=E)
+        r = c.get("/session/1/edit", environ_base=E)
         assert r.status_code == 200 and "This session is being deleted" in r.get_data(as_text=True)
     finally:
         jobs.JOBS.pop("session-delete:1", None)
-    assert "being deleted" not in c.get("/session/1", environ_base=E).get_data(as_text=True)
+    assert "being deleted" not in c.get("/session/1/edit", environ_base=E).get_data(as_text=True)

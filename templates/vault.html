@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Vault - Lumen Aureum{% endblock %}
+{% block title %}Backups - Lumen Aureum{% endblock %}
 {% block body %}
-<h1>Vault</h1>
+<h1>Backups</h1>
 {% if master_mismatch %}<div class="err" style="max-width:760px;margin-top:12px">The master key recorded for backups and the one in the keyring don't match (a master key change was interrupted). Run the master key change again with the current key before relying on new backups.</div>{% endif %}
 {% if setting('photo_mirror_error') %}<div class="err" style="max-width:760px;margin-top:12px">The last photo mirror copy failed: {{ setting('photo_mirror_error') }}. Your photos are still here; the copy is tried again every 15 minutes.</div>{% endif %}
 {% if second_err %}<div class="err" style="max-width:760px;margin-top:12px">Your second backup copy couldn't be checked, so it isn't counted yet. Your main backup is fine. The second copy is tried again at the next backup{% if btime %} ({{ btime }}){% endif %}, or press Back up now to try it now. <details style="display:inline"><summary style="display:inline;cursor:pointer;text-decoration:underline">Details</summary> {{ second_err }}</details></div>{% endif %}
@@ -20,7 +20,7 @@
     <tr><td>Daily backup at</td><td><form method="post" action="{{ url_for('vault_schedule') }}" class="row" style="gap:8px">
       <input type="time" name="backup_time" value="{{ btime }}" aria-label="Daily backup at" style="width:auto" data-autosubmit>{% if blast %}<span class="mute" style="font-size:12px">last ran {{ nice(blast[:10]) }}, {{ clock(blast[11:16]) }}</span>{% endif %}</form></td></tr>
     <tr><td>Last database backup</td><td>{{ nice(last_db[:10]) if last_db else '-' }}</td></tr>
-    {% for o in objs %}<tr><td class="mute">{{ o.kind }} on {{ o.backend }}</td><td>{{ o.n }} objects, {{ '%.1f'|format(o.b / 1048576) }} MB</td></tr>{% endfor %}
+    {% for o in objs %}<tr><td class="mute">{{ obj_words.get(o.kind, o.kind) }} on {{ o.backend }}</td><td>{{ o.n }} objects, {{ '%.1f'|format(o.b / 1048576) }} MB</td></tr>{% endfor %}
   </tbody></table>
   {% if result %}{% for where, ok, words in result %}<div class="{{ 'ok-msg' if ok else 'err' }}" style="color:{{ 'var(--gold)' if ok else 'var(--crit)' }}">{% if where %}{{ where }}: {% endif %}{{ words }}</div>{% endfor %}{% endif %}
   {% if master %}<div class="row" style="gap:8px;margin-top:8px">
@@ -29,9 +29,9 @@
     <input name="secret" type="password" placeholder="Master key" class="grow" style="width:auto;margin:0" spellcheck="false" required>
     <button class="quiet">Check the newest backup opens</button></form>{% endif %}
 </div>
-{% if backups %}<h2 style="margin-top:20px">Backups</h2>
-<table class="data" style="max-width:760px"><thead><tr><th>When</th><th>Size</th><th>Where</th></tr></thead><tbody>
-  {% for b in backups %}<tr><td>{{ nice(b.created[:10]) }} {{ clock(b.created[11:16]) }}</td><td>{{ '%.1f'|format(b.size / 1048576) }} MB</td>
+{% if backups %}<h2 style="margin-top:20px">Database backups</h2>
+<table class="data" style="max-width:760px"><thead><tr><th>When</th><th>Kind</th><th>Size</th><th>Where</th></tr></thead><tbody>
+  {% for b in backups %}<tr><td>{{ nice(b.created[:10]) }} {{ clock(b.created[11:16]) }}</td><td>{% if b.kind == 'upgrade' %}<b>{{ b.what }}</b>{% else %}{{ b.what }}{% endif %}</td><td>{{ '%.1f'|format(b.size / 1048576) }} MB</td>
     <td>{{ primary }}{% if b.second %}; also {{ offsite }}{% endif %}</td></tr>{% endfor %}
 </tbody></table>{% endif %}
 {% endblock %}

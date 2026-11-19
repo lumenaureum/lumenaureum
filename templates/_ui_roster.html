@@ -1,0 +1,32 @@
+
+{% import "_ui.html" as ui with context %}
+
+{% macro roster(id, cols, rows, sort, desc, term, url, placeholder='Find', empty='Nothing matches.') -%}
+<div class="ui-roster-wrap" data-ui-roster="{{ id }}">
+  <form method="get" action="{{ url }}" class="ui-filter-find ui-roster-find" role="search">
+    <input type="search" name="q" value="{{ term }}" placeholder="{{ placeholder }}" aria-label="{{ placeholder }}" class="ui-grow" data-r-q autocomplete="off">
+    <input type="hidden" name="sort" value="{{ sort }}">{% if desc %}<input type="hidden" name="dir" value="desc">{% endif %}
+    <button class="ui-btn ui-btn-quiet" data-r-noscript>Find</button>
+  </form>
+  <table class="ui-roster" id="{{ id }}">
+    <thead><tr>{% for k_, h_ in cols %}{% set on_ = k_ == sort %}
+      <th scope="col" class="ui-roster-{{ k_ }}"{% if on_ %} aria-sort="{{ 'descending' if desc else 'ascending' }}"{% endif %}><a class="ui-roster-sort" href="{{ url }}?sort={{ k_ }}{{ '&dir=desc' if on_ and not desc }}{{ ('&q=' ~ term|urlencode) if term }}" data-r-sort="{{ k_ }}"{% if k_ in ('owed', 'toinv') %} data-r-num="1"{% endif %} title="Sort by {{ h_|lower }}">{{ h_ }}</a></th>
+    {%- endfor %}</tr></thead>
+    <tbody>{% for r in rows %}
+      <tr data-ui-href="{{ url_for('client_stage', hid=r.hid) }}" data-r-find="{{ r.find }}"{% for k_, v_ in r.sort.items() %} data-r-{{ k_ }}="{{ v_ }}"{% endfor %}>
+        {%- for k_, h_ in cols %}
+        <td class="ui-roster-{{ k_ }}">
+          {%- if k_ == 'name' %}<a class="ui-roster-name" href="{{ url_for('client_stage', hid=r.hid) }}">{{ r.name }}</a>
+          {%- elif k_ == 'phone' %}{% if r.phone %}<a href="tel:{{ r.phone|replace(' ', '')|replace('-', '')|replace('(', '')|replace(')', '')|replace('.', '') }}">{{ r.phone }}</a>{% endif %}
+          {%- elif k_ == 'email' %}{% if r.email %}<a href="mailto:{{ r.email }}">{{ r.email }}</a>{% endif %}
+          {%- elif k_ == 'owed' %}{% if r.late and r.owes %}<span class="ui-late" data-tip="Overdue">{{ r.owes }}</span>{% else %}{{ r.owes }}{% endif %}
+          {%- elif k_ == 'toinv' %}{{ r.to_invoice }}
+          {%- else %}{{ r[k_] }}{% endif %}</td>
+        {%- endfor %}
+      </tr>{% endfor %}
+    </tbody>
+  </table>
+  <p class="ui-mute" data-r-none{% if rows %} hidden{% endif %}>{{ empty }}</p>
+</div>
+{%- endmacro %}
+

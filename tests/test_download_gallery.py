@@ -1,3 +1,4 @@
+import html
 import io
 import json
 import os
@@ -278,14 +279,15 @@ def test_a_type_with_no_picking_round_builds_a_download_gallery(env):
     A, c, G, tmp, src, host = env
     sid = session(A, "realestate")
     page = c.get(f"/c/1?s={sid}", environ_base=E).get_data(as_text=True)
-    assert "Build download gallery" in page
+
+    assert "Upload the edited photos on the Edit row first" in page
     build(c, sid, src)
     gid = row(A, "SELECT gallery_id FROM sessions WHERE id=?", (sid,))[0]
     g = row(A, "SELECT key, ekey, proof FROM galleries WHERE session_id=?", (sid,))
     m = manifest(G, gid, g[1] or g[0])
     assert m["dl"] == 1 and set(m["picks"]) <= {"post"} and g[2] == 0
     page = c.get(f"/c/1?s={sid}", environ_base=E).get_data(as_text=True)
-    assert "<b>3</b> photos to download" in page
+    assert "3 photos to download · made" in html.unescape(page)
 
 def test_first_open_of_a_download_gallery_is_files_delivered(env):
     A, c, G, tmp, src, host = env
@@ -323,6 +325,8 @@ def test_portrait_proofs_first_then_the_download_gallery_in_their_place(env):
     con = A.connect()
     con.execute("INSERT INTO lines (session_id, label, amount, kind) VALUES (?, 'Session', 300, 'custom')", (sid,))
     con.execute("UPDATE galleries SET proof=1 WHERE session_id=?", (sid,))
+
+    con.execute("INSERT INTO step_closes (session_id, step, outcome) VALUES (?, 'deposit_paid', 'waived')", (sid,))
     con.commit(); con.close()
     c.post(f"/session/{sid}/gallery/upload", environ_base=E)
     join("gal-up", sid)
@@ -374,7 +378,8 @@ def test_portrait_proofs_first_then_the_download_gallery_in_their_place(env):
     host_write(host / gid, "seen.txt", date.today().isoformat() + "T08:00:00Z")
     c.post("/gallery/sync", environ_base=E)
     assert row(A, "SELECT sd_shipped FROM sessions WHERE id=?", (sid,))[0]
-    assert row(A, "SELECT done FROM tasks WHERE id=9001")[0]
+
+    assert not row(A, "SELECT done FROM tasks WHERE id=9001")[0]
     assert row(A, "SELECT upload_state FROM galleries WHERE session_id=?", (sid,))[0] == "up"
 
 def test_deliver_without_picks(env):
@@ -421,9 +426,9 @@ def test_after_proofs_the_download_gallery_is_built_from_the_retouched_finals(en
     for p_ in sorted(src.iterdir())[:2]:
         upload(c, sid, p_.name, p_.read_bytes(), "export")
     p = c.get(f"/c/1?s={sid}", environ_base=E).get_data(as_text=True)
-    assert "Retouched finals" in p and "Upload the retouched finals in Photos" in p and ">Use the proofs</button>" in p
+    assert "Retouched finals" in p and "Upload the retouched finals on the Retouch row" in p and ">Use the proofs</button>" in p
     c.post(f"/session/{sid}/gallery/build", data={"from": "uploads"}, environ_base=E)
-    assert c.get(f"/session/{sid}/gallery/status", environ_base=E).get_json()["error"] == "Upload the retouched finals in Photos first."
+    assert c.get(f"/session/{sid}/gallery/status", environ_base=E).get_json()["error"] == "Upload the retouched finals on the Retouch row first."
     import io as _io
     from PIL import Image
     for n_ in ("final-1.jpg", "final-2.jpg", "final-3.jpg"):
@@ -437,7 +442,8 @@ def test_after_proofs_the_download_gallery_is_built_from_the_retouched_finals(en
     gid, = row(A, "SELECT gallery_id FROM sessions WHERE id=?", (sid,))
     k = row(A, "SELECT key, ekey FROM galleries WHERE session_id=?", (sid,))
     m = manifest(G, gid, k[1] or k[0])
-    assert m["dl"] == 1 and [it["n"] for it in m["items"]] == ["final-1.jpg", "final-2.jpg", "final-3.jpg"]
+
+    assert m["dl"] == 1 and [it["n"] for it in m["items"]] == ["Café front.jpg", "Kitchen.jpg", "final-1.jpg", "final-2.jpg", "final-3.jpg"]
 
     sid2 = session(A, "family", delivery_method="link")
     c.post(f"/session/{sid2}/gallery/no-picks", environ_base=E)
@@ -466,19 +472,50 @@ def test_without_picks_the_block_counts_and_builds_the_same_set(env):
     for i in range(2):
         upload(c, sid, f"export-{i}.jpg", jpeg("black"), "export")
     p = c.get(f"/c/1?s={sid}", environ_base=E).get_data(as_text=True)
-    assert "3 retouched finals uploaded" in p and "2 edited JPEGs uploaded" not in p
+    assert "3 retouched finals uploaded" in p and "2 edited photos uploaded" not in p
     c.post(f"/session/{sid}/gallery/build", data={"from": "finals"}, environ_base=E)
     join("gallery", sid)
     gid, = row(A, "SELECT gallery_id FROM sessions WHERE id=?", (sid,))
     k = row(A, "SELECT key, ekey FROM galleries WHERE session_id=?", (sid,))
-    assert [it["n"] for it in manifest(G, gid, k[1] or k[0])["items"]] == ["final-0.jpg", "final-1.jpg", "final-2.jpg"]
-    assert "<b>3</b> photos to download" in c.get(f"/c/1?s={sid}", environ_base=E).get_data(as_text=True)
+
+    assert [it["n"] for it in manifest(G, gid, k[1] or k[0])["items"]] == ["export-0.jpg", "export-1.jpg", "final-0.jpg", "final-1.jpg", "final-2.jpg"]
+    assert "5 photos to download · made" in html.unescape(c.get(f"/c/1?s={sid}", environ_base=E).get_data(as_text=True))
 
     sid2 = session(A, "senior", delivery_method="link")
     c.post(f"/session/{sid2}/gallery/no-picks", environ_base=E)
     upload(c, sid2, "export-a.jpg", jpeg("gray"), "export")
     p = c.get(f"/c/1?s={sid2}", environ_base=E).get_data(as_text=True)
-    assert "1 edited JPEG uploaded" in p and "retouched finals uploaded" not in p
+    assert "1 edited photo uploaded" in p and "retouched finals uploaded" not in p
+
+def test_the_download_gallery_after_picks_holds_every_photo_with_the_retouched_ones_in_place(env):
+
+    A, c, G, tmp, src, host = env
+    import io as _io
+    from PIL import Image
+
+    def jpeg(color):
+        b_ = _io.BytesIO()
+        Image.new("RGB", (200, 150), color).save(b_, "JPEG")
+        return b_.getvalue()
+    sid = session(A, "family", delivery_method="link", retouch_picks="IMG_2.jpg: warmer\nIMG_10.jpg: crop")
+    for i in range(1, 13):
+        upload(c, sid, f"IMG_{i}.jpg", jpeg("black"), "export")
+    upload(c, sid, "IMG_2-Edit.jpg", jpeg("white"), "final")
+    upload(c, sid, "img_10.jpg", jpeg("white"), "final")
+    upload(c, sid, "extra.jpg", jpeg("white"), "final")
+    p = html.unescape(c.get(f"/c/1?s={sid}", environ_base=E).get_data(as_text=True))
+    assert "3 retouched finals uploaded · 13 photos in the download gallery" in p
+    c.post(f"/session/{sid}/gallery/build", data={"from": "finals"}, environ_base=E)
+    join("gallery", sid)
+    assert c.get(f"/session/{sid}/gallery/status", environ_base=E).get_json()["state"] == "done"
+    gid, = row(A, "SELECT gallery_id FROM sessions WHERE id=?", (sid,))
+    k = row(A, "SELECT key, ekey FROM galleries WHERE session_id=?", (sid,))
+    names = [it["n"] for it in manifest(G, gid, k[1] or k[0])["items"]]
+    assert names == ["IMG_1.jpg", "IMG_2-Edit.jpg"] + [f"IMG_{i}.jpg" for i in range(3, 10)] + ["img_10.jpg", "IMG_11.jpg",
+                                                                                                "IMG_12.jpg", "extra.jpg"]
+    assert "13 photos to download · made" in html.unescape(c.get(f"/c/1?s={sid}", environ_base=E).get_data(as_text=True))
+    with A.app.app_context():
+        assert [n_ for n_, _ in A.app.config["gallery_delivery_set"](sid)][:2] == ["IMG_1.jpg", "IMG_2-Edit.jpg"]
 
 def test_usb_delivery_keeps_proofing(env):
     A, c, G, tmp, src, host = env
@@ -552,3 +589,22 @@ def test_website_export_and_import(env):
         A.db()
         out = settings_io.export(A.setting, [], {})
     assert out["settings"]["business_website"] == "https://studio.example.com"
+
+def test_uploading_refreshes_the_block_in_place_when_it_is_done(env):
+
+    A, c, G, tmp, src, host = env
+    sid = session(A, "realestate", delivery_method="link")
+    build(c, sid, src)
+    con = A.connect()
+    con.execute("UPDATE galleries SET upload_state='uploading' WHERE session_id=?", (sid,))
+    con.commit(); con.close()
+    p = c.get(f"/c/1?s={sid}", environ_base=E).get_data(as_text=True)
+    assert f'data-poll-up="/session/{sid}/gallery/status"' in p
+    assert c.get(f"/session/{sid}/gallery/status", environ_base=E).get_json()["upload"] == "uploading"
+    con = A.connect()
+    con.execute("UPDATE galleries SET upload_state='up' WHERE session_id=?", (sid,))
+    con.commit(); con.close()
+    assert c.get(f"/session/{sid}/gallery/status", environ_base=E).get_json()["upload"] == "up"
+    assert "data-poll-up" not in c.get(f"/c/1?s={sid}", environ_base=E).get_data(as_text=True)
+    js = (Path(ROOT) / "static" / "ui.js").read_text()
+    assert "[data-poll-up]:not([data-poll-up-done])" in js and "r.upload !== 'uploading'" in js and "refreshParts();" in js

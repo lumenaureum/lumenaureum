@@ -134,9 +134,9 @@ def test_tip_back_is_offered_only_with_tips_and_moves_tips_only(env):
     session(A, 1, 1, "shot", "2026-05-01")
     line(c, 1, "Session", 500)
     pay(c, 1, "balance", 540, "2026-05-02")
-    assert 'value="tip_back"' not in c.get("/session/1", environ_base=E).get_data(as_text=True)
+    assert 'value="tip_back"' not in c.get("/session/1/edit", environ_base=E).get_data(as_text=True)
     pay(c, 1, "tip", 60, "2026-05-02")
-    assert 'value="tip_back"' in c.get("/session/1", environ_base=E).get_data(as_text=True)
+    assert 'value="tip_back"' in c.get("/session/1/edit", environ_base=E).get_data(as_text=True)
     before = dict(tot(A, 1)), stmt(A, 1, "2026-05")["closing"]
     pay(c, 1, "tip_back", 80, "2026-05-20")
     assert one(A, "SELECT COUNT(*) FROM payments")[0] == 2
@@ -168,7 +168,7 @@ def test_a_booking_lost_for_price_keeps_its_deposit_and_owes_back_the_rest(env):
         assert A.q("SELECT label FROM charges WHERE amount > 0")[-1]["label"] == "Lost, deposit kept"
     assert stmt(A, 1, "2026-03")["closing"] == -200
     page = c.get("/c/1?s=1", environ_base=E).get_data(as_text=True)
-    assert "You keep the deposit, $100, per the Terms, whatever the reason it was lost" in page and "Refund due: $200<" in page
+    assert "You keep the deposit, $100.00, per the Terms, whatever the reason it was lost" in page and "Refund due: $200.00<" in page
     pay(c, 1, "refund", 200, "2026-03-02")
     assert stmt(A, 1, "2026-03")["closing"] == 0 and tot(A, 1)["kept"] == 100
     post(c, "/session/1/stage", stage="lost", lost_reason="Chose someone else")

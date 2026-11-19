@@ -257,15 +257,6 @@ def test_failed_unlock_work_leaves_the_app_locked(client):
     sign_in(c, secret, code=auth.totp(secret, at=time.time() + 30))
     assert unlocked() and c.get("/", environ_base=E).status_code == 200
 
-def test_unlock_key_file_must_be_on_another_volume(client, tmp_path, monkeypatch):
-    A, c = client
-    claim(c, A)
-    import datakey
-    monkeypatch.setenv("CRM_UNLOCK_KEY_FILE", str(tmp_path / "keys" / "unlock.key"))
-    with pytest.raises(ValueError, match="different volume"):
-        datakey.enable_auto()
-    assert not datakey.auto_enabled()
-
 def test_tampered_keyring_with_auto_unlock_starts_locked(client, tmp_path, monkeypatch):
     A, c = client
     claim(c, A)

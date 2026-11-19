@@ -32,8 +32,6 @@ RULE_LABEL = {"cost": "At cost", "cost_plus": "At cost plus handling", "flat": "
 ARRIVE_DEFAULT = "Prints come straight from our lab."
 POLICY_LINE = ("Prints are made by our lab after this invoice is paid in full. Prints damaged in shipping, lost or "
                "defective are remade by the lab at no cost to you; a crop, size or address you chose is a new order.")
-ACCOUNTANT = ("Whether to charge tax on prints and shipping, and at what rate, is your decision with your accountant; "
-              "Lumen Aureum applies what you choose.")
 
 class ModuleView:
 
@@ -202,6 +200,8 @@ def register(ctx):
 
         if not prints_on():
             return "Prints are off (Settings, Print prices)."
+        if "adopted" in r.keys() and r["adopted"]:
+            return "This gallery was adopted from your web host with its own link, so it offers no prints."
         if r["type"] in type_off():
             return "This kind of session does not offer prints."
         if not gallery_switch(r["sid"]):
@@ -615,7 +615,8 @@ def register(ctx):
 
             def make(l_=l_, rect=rect):
                 src, _sz = full_size(o, l_)
-                data, qv = P.cut_jpeg(src, rect, quality=int(rules.get("quality") or 95), max_bytes=rules.get("max_bytes"))
+                data, qv = P.cut_jpeg(src, rect, quality=int(rules.get("quality") or 95), max_bytes=rules.get("max_bytes"),
+                                      ppi=P.print_ppi(rect, w, h))
                 return data, qv
             data, qv = make()
             yield f"{o['id']}-{l_['n']}", name, [l_["n"]], data
@@ -855,27 +856,28 @@ td.r,th.r{text-align:right}.mute{color:#6b6157}.tot td{font-weight:700;border-bo
             due_now = date.today().isoformat()
             st = r_["state"]
             if st == "needs_files":
-                out.append(dict(text=f"{nm}: needs the photo files", link=link, who=who, when=due_now))
+                out.append(dict(text=f"Print order from {nm}: needs the photo files", link=link, who=who, verb="Open the print order", when=due_now))
             elif st == "paid":
-                out.append(dict(text=f"{nm}: paid, ready for the lab", link=link, who=who, when=due_now))
+                out.append(dict(text=f"Print order from {nm}: paid, ready for the lab", link=link, who=who, verb="Open the print order", when=due_now))
             elif st == "prepared" and age("prepared_at", r_) >= 2:
-                out.append(dict(text=f"{nm}: files ready, order it at the lab", link=link, who=who, when=due_now))
+                out.append(dict(text=f"Print order from {nm}: files ready, order it at the lab", link=link, who=who, verb="Open the print order", when=due_now))
             elif st == "invoiced" and age("invoice_issued", r_) >= P.UNPAID_EXPIRE_DAYS and figures(r_)["paid"] > 0:
-                out.append(dict(text=f"{nm}: part paid, the rest unpaid after {P.UNPAID_EXPIRE_DAYS} days (a part payment "
-                                     "keeps the invoice from expiring)", link=link, who=who, when=due_now))
+                out.append(dict(text=f"Print order from {nm}: partially paid, the rest unpaid after {P.UNPAID_EXPIRE_DAYS} days",
+                                help="A partial payment keeps the invoice from expiring.",
+                                link=link, who=who, verb="Open the print order", when=due_now))
             elif st == "invoiced" and age("invoice_issued", r_) >= P.UNPAID_REMIND_DAYS:
-                out.append(dict(text=f"{nm}: waiting for payment since {ctx.nice(r_['invoice_issued'])}", link=link, who=who, when=due_now))
+                out.append(dict(text=f"Print order from {nm}: waiting for payment since {ctx.nice(r_['invoice_issued'])}", link=link, who=who, verb="Open the print order", when=due_now))
             elif st in ("new", "unmatched") and age("collected_at", r_) >= 2:
-                out.append(dict(text=f"{nm}: not answered for 2 days", link=link, who=who, when=due_now))
+                out.append(dict(text=f"Print order from {nm}: not answered for 2 days", link=link, who=who, verb="Open the print order", when=due_now))
             elif st == "ordered" and age("ordered_at", r_) >= 14:
-                out.append(dict(text=f"{nm}: ordered at {lab_name(r_)}, not shipped after 14 days", link=link, who=who, when=due_now))
+                out.append(dict(text=f"Print order from {nm}: ordered at {lab_name(r_)}, not shipped after 14 days", link=link, who=who, verb="Open the print order", when=due_now))
             elif st == "shipped" and (r_["shipped_at"] or "")[:10] == date.today().isoformat() and not r_["told_shipped"]:
-                out.append(dict(text=f"{nm}: shipped. Tell {first_word(r_)}", link=link, who=who, when=due_now))
+                out.append(dict(text=f"Print order from {nm}: shipped. Tell {first_word(r_)}", link=link, who=who, verb="Open the print order", when=due_now))
             if r_["before_payment"] and st != "invoiced" and owed(r_) > 0:
-                out.append(dict(text=f"{nm}: ordered before payment, {P.dollars(owed(r_))} still owed", link=link, who=who,
+                out.append(dict(text=f"Print order from {nm}: ordered before payment, {P.dollars(owed(r_))} still owed", link=link, who=who, verb="Open the print order",
                                 when=due_now))
             if r_["lab_problem"]:
-                out.append(dict(text=f"{r_['lab_problem']} had a problem with {nm}'s order", link=link))
+                out.append(dict(text=f"{r_['lab_problem']} had a problem with {nm}'s print order", link=link, verb="Open the print order"))
         aside = sum(1 for d_ in G.KEPT_ROOT.glob("*/orders-unopened") for _f in d_.iterdir()) if G.KEPT_ROOT.is_dir() else 0
         if aside:
             out.append(dict(text=f"{aside} file{'s' if aside != 1 else ''} from a gallery's orders folder could not be "
@@ -907,7 +909,7 @@ td.r,th.r{text-align:right}.mute{color:#6b6157}.tot td{font-weight:700;border-bo
 
     ctx.hooks.today.append(today_items)
 
-    SETTINGS = """{% extends "base.html" %}{% block title %}Print prices - Lumen Aureum{% endblock %}{% block body %}
+    SETTINGS = """{% extends "base.html" %}{% from "_macros.html" import help with context %}{% block title %}Print prices - Lumen Aureum{% endblock %}{% block body %}
 <h1>Print prices</h1>
 <p class="mute" style="max-width:760px">Clients order prints from their download gallery. Each order is sealed in their
 browser so only your Lumen Aureum can open it, comes to you for review, and is invoiced to whoever ordered. Once it is
@@ -924,21 +926,21 @@ paid, Prepare for the lab gives you the print-ready files and an order sheet, an
   <p class="sub" style="font-size:13px;margin:0">Sizes are in inches. "Your lab cost" is what one print costs you: it shows your margin and never changes a price. To set prices from your costs, press Fill prices from costs below. Sizes too small for a photo's pixels are hidden on the page (below "hide") or marked "May look soft" (below "mark").</p>
   <style>table.prices th { white-space: normal; font-size: 12px; } table.prices td, table.prices th { padding: 4px 3px; }
   table.prices input[type=checkbox] { width: auto; }</style>
-  <div style="overflow-x:auto"><table class="r prices"><thead><tr><th>Shown as</th><th>Short</th><th>Long</th><th>Finish</th><th>Price</th><th>Your lab cost</th><th>Margin</th><th>Hide below ppi</th><th>Mark below ppi</th><th>Offered</th><th>Remove</th></tr></thead><tbody>
-  {% for it in items %}<tr><td><input type="hidden" name="id" value="{{ it.id }}"><input name="label_{{ it.id }}" value="{{ it.label }}" maxlength="80" style="width:170px" aria-label="Shown as"></td>
-    <td><input name="w_{{ it.id }}" value="{{ num(it.w) }}" style="width:60px" aria-label="Short side, inches"></td><td><input name="h_{{ it.id }}" value="{{ num(it.h) }}" style="width:60px" aria-label="Long side, inches"></td>
-    <td><input name="finish_{{ it.id }}" value="{{ it.finish }}" maxlength="40" style="width:100px" aria-label="Finish"></td>
-    <td><input name="each_{{ it.id }}" value="{{ cents(it.each_cents) }}" style="width:80px" aria-label="Price"></td>
-    <td><input name="cost_{{ it.id }}" value="{{ cents(it.cost_cents) }}" style="width:80px" aria-label="Your lab cost">{% if it.cost_from and it.cost_from != 'you' %}<div class="sub" style="font-size:11px">from {{ it.cost_from }}{% if it.cost_date %}, {{ nice(it.cost_date) }}{% endif %}</div>{% endif %}</td>
-    <td>{% set m = margin(it) %}{% if m %}<span {% if low(it) %}style="color:var(--warn)" data-tip="Below 1.5 times your cost"{% endif %}>{{ dollars(m[0]) }}, {{ m[1] }}x</span>{% endif %}</td>
-    <td><input name="hide_{{ it.id }}" value="{{ it.ppi_hide }}" style="width:52px" aria-label="Hide below pixels per inch"></td><td><input name="mark_{{ it.id }}" value="{{ it.ppi_mark }}" style="width:52px" aria-label="Mark below pixels per inch"></td>
-    <td><input type="checkbox" name="on_{{ it.id }}" value="1" {{ 'checked' if it.offered }} aria-label="Offered"></td>
-    <td><input type="checkbox" name="drop_{{ it.id }}" value="1" aria-label="Remove"></td></tr>
-    {% for f in lab_fields(it) %}<tr><td colspan="11">{{ f }}</td></tr>{% endfor %}{% endfor %}
-  <tr><td><input name="label_new" placeholder="New size, e.g. 5x5 print, Lustre" maxlength="80" style="width:170px" aria-label="New size: shown as"></td><td><input name="w_new" style="width:60px" aria-label="New size: short side"></td><td><input name="h_new" style="width:60px" aria-label="New size: long side"></td><td><input name="finish_new" style="width:100px" aria-label="New size: finish"></td><td><input name="each_new" style="width:80px" aria-label="New size: price"></td><td><input name="cost_new" style="width:80px" aria-label="New size: your lab cost"></td><td colspan="5"></td></tr>
+  <div class="ui-stack-wrap"><table class="r prices ui-stack"><thead><tr><th>Shown as</th><th>Short</th><th>Long</th><th>Finish</th><th>Price</th><th>Your lab cost</th><th>Margin</th><th>Hide below ppi</th><th>Mark below ppi</th><th>Offered</th><th>Remove</th></tr></thead><tbody>
+  {% for it in items %}<tr><td data-label="Shown as"><input type="hidden" name="id" value="{{ it.id }}"><input name="label_{{ it.id }}" value="{{ it.label }}" maxlength="80" style="width:170px" aria-label="Shown as"></td>
+    <td data-label="Short"><input name="w_{{ it.id }}" value="{{ num(it.w) }}" style="width:60px" aria-label="Short side, inches"></td><td data-label="Long"><input name="h_{{ it.id }}" value="{{ num(it.h) }}" style="width:60px" aria-label="Long side, inches"></td>
+    <td data-label="Finish"><input name="finish_{{ it.id }}" value="{{ it.finish }}" maxlength="40" style="width:100px" aria-label="Finish"></td>
+    <td data-label="Price"><input name="each_{{ it.id }}" value="{{ cents(it.each_cents) }}" style="width:80px" aria-label="Price"></td>
+    <td data-label="Your lab cost"><input name="cost_{{ it.id }}" value="{{ cents(it.cost_cents) }}" style="width:80px" aria-label="Your lab cost">{% if it.cost_from and it.cost_from != 'you' %}<div class="sub" style="font-size:11px">from {{ it.cost_from }}{% if it.cost_date %}, {{ nice(it.cost_date) }}{% endif %}</div>{% endif %}</td>
+    <td data-label="Margin">{% set m = margin(it) %}{% if m %}<span {% if low(it) %}style="color:var(--warn)" data-tip="Below 1.5 times your cost"{% endif %}>{{ dollars(m[0]) }}, {{ m[1] }}x</span>{% endif %}</td>
+    <td data-label="Hide below ppi"><input name="hide_{{ it.id }}" value="{{ it.ppi_hide }}" style="width:52px" aria-label="Hide below pixels per inch"></td><td data-label="Mark below ppi"><input name="mark_{{ it.id }}" value="{{ it.ppi_mark }}" style="width:52px" aria-label="Mark below pixels per inch"></td>
+    <td data-label="Offered"><input type="checkbox" name="on_{{ it.id }}" value="1" {{ 'checked' if it.offered }} aria-label="Offered"></td>
+    <td data-label="Remove"><input type="checkbox" name="drop_{{ it.id }}" value="1" aria-label="Remove"></td></tr>
+    {% for f in lab_fields(it) %}<tr class="ui-stack-more"><td colspan="11">{{ f }}</td></tr>{% endfor %}{% endfor %}
+  <tr class="ui-stack-new"><td data-label="New size: shown as"><input name="label_new" placeholder="New size, e.g. 5x5 print, Lustre" maxlength="80" style="width:170px" aria-label="New size: shown as"></td><td data-label="Short"><input name="w_new" style="width:60px" aria-label="New size: short side"></td><td data-label="Long"><input name="h_new" style="width:60px" aria-label="New size: long side"></td><td data-label="Finish"><input name="finish_new" style="width:100px" aria-label="New size: finish"></td><td data-label="Price"><input name="each_new" style="width:80px" aria-label="New size: price"></td><td data-label="Your lab cost"><input name="cost_new" style="width:80px" aria-label="New size: your lab cost"></td><td colspan="5" class="ui-stack-skip"></td></tr>
   </tbody></table></div>
-  <div class="f2"><div><label class="l" for="pr-markup">Markup (times your lab cost)</label><input id="pr-markup" name="markup" value="{{ markup }}" style="width:80px"></div>
-    <div><label class="l" for="pr-days">Invoice within (days, as the page says)</label><input id="pr-days" name="invoice_days" value="{{ invoice_days }}" style="width:80px"></div></div>
+  <div class="f2"><div><label class="l" for="pr-markup">Markup{{ help("Times your lab cost.") }}</label><input id="pr-markup" name="markup" value="{{ markup }}" style="width:80px"></div>
+    <div><label class="l" for="pr-days">Invoice within, in days{{ help("The gallery page tells the client this.") }}</label><input id="pr-days" name="invoice_days" value="{{ invoice_days }}" style="width:80px"></div></div>
   <div class="f2"><div><label class="l" for="pr-ln">A large order: more prints than</label><input id="pr-ln" name="large_n" value="{{ large_n }}" style="width:80px"></div>
     <div><label class="l" for="pr-lc">or more dollars than</label><input id="pr-lc" name="large_c" value="{{ cents(large_c) }}" style="width:100px"></div></div>
   <h2 id="shipping">Shipping</h2>
@@ -951,7 +953,7 @@ paid, Prepare for the lab gives you the print-ready files and an order sheet, an
     <span class="grow"><label class="l" for="ss-{{ d }}">What the page says</label><input id="ss-{{ d }}" name="ship_say_{{ d }}" value="{{ r.say }}" maxlength="160" placeholder="{{ 'Pick up from ' ~ studio if d == 'pickup' else '' }}"></span>
     {% if ranges[d] %}<span class="sub" style="font-size:12px">{{ ranges[d] }}</span>{% endif %}</div>{% endfor %}
   {% if not ship.ca.on %}<p class="sub" style="font-size:12.5px">Canada: before you turn it on, write the page's line; labs often add duties or a surcharge across the border.</p>{% endif %}
-  <div><label class="l" for="pr-arrive">How prints arrive (on the page and the invoice)</label><input id="pr-arrive" name="arrive" value="{{ arrive }}" maxlength="200"></div>
+  <div><label class="l" for="pr-arrive">How prints arrive{{ help("Shown on the gallery page and the invoice.") }}</label><input id="pr-arrive" name="arrive" value="{{ arrive }}" maxlength="200"></div>
   <div class="row" style="gap:8px;margin-top:10px"><button class="primary">Save</button></div>
 </form>
 {% if costed %}<form method="post" action="{{ url_for('prints_fill') }}" class="card f" style="max-width:760px" data-confirm="{% if plan %}Change {{ plan|length }} price{{ '' if plan|length == 1 else 's' }} to {{ markup }} times your lab cost, rounded up to the whole dollar? {{ fill_words(plan) }}. Nothing else changes.{% else %}Every price with a lab cost already matches {{ markup }} times it. Nothing would change.{% endif %}">
@@ -967,8 +969,7 @@ paid, Prepare for the lab gives you the print-ready files and an order sheet, an
   {% if l.starter and not saved %}<form method="post" action="{{ url_for('prints_lab_starter', lab=l.id) }}" class="inline" data-confirm="Replace the SAMPLE list with {{ l.name }}'s starter list?"><button class="quiet">Use {{ l.name }}'s starter list</button></form>{% endif %}
 </div></div>{% endfor %}
 <div class="card f" style="max-width:760px"><h2>Sales tax on prints</h2>
-  <p style="margin:0">{{ accountant }}</p>
-  <p class="sub" style="margin:4px 0 0">Tax on prints: {{ 'yes' if tax[0] else 'no' }}. Tax on shipping: {{ 'yes' if tax[1] else 'no' }}. <a class="go" href="{{ url_for('setup_step', step='tax') }}">Sales tax &rsaquo;</a></p></div>
+  <p class="sub" style="margin:0">Tax on prints: {{ 'yes' if tax[0] else 'no' }}. Tax on shipping: {{ 'yes' if tax[1] else 'no' }}. <a class="go" href="{{ url_for('setup_step', step='tax') }}">Sales tax &rsaquo;</a></p></div>
 {% endblock %}"""
 
     def ship_ranges():
@@ -1017,7 +1018,7 @@ paid, Prepare for the lab gives you the print-ready files and an order sheet, an
             SETTINGS, items=its, saved=saved_once(), on=prints_on(), types=C.SESSION_TYPES, off=type_off(),
             markup=markup(), invoice_days=setting("prints_invoice_days") or 3, ship=ship_rules(), dest_label=DEST_LABEL,
             rule_label=RULE_LABEL, ranges=ship_ranges(), arrive=setting("prints_arrive", ARRIVE_DEFAULT), studio=studio_name(),
-            labs=lab_list(), lab=setting("prints_lab") or "hand", tax=tax_flags(), accountant=ACCOUNTANT,
+            labs=lab_list(), lab=setting("prints_lab") or "hand", tax=tax_flags(),
             cents=cents_s, dollars=P.dollars, num=P.num, nice=ctx.nice, lab_fields=lab_fields,
             margin=lambda it: P.margin(it["each_cents"], it["cost_cents"]),
             low=lambda it: P.low_margin(it["each_cents"], it["cost_cents"]),
@@ -1266,9 +1267,9 @@ paid, Prepare for the lab gives you the print-ready files and an order sheet, an
                              why=fl.get("why", ""), raw=o["payload"][:20000]))
         return render_template_string(REVIEW, rows=rows, dollars=P.dollars)
 
-    ORDER = """{% extends "base.html" %}{% block title %}Print order - Lumen Aureum{% endblock %}{% block body %}
+    ORDER = """{% extends "base.html" %}{% from "_macros.html" import help with context %}{% block title %}Print order - Lumen Aureum{% endblock %}{% block body %}
 <p><a class="go" href="{{ back }}">&lsaquo; {{ client }}</a></p>
-<h1>Print order <span class="mute" style="font-weight:400;font-size:16px">{{ words }}{% if o.lab_name and o.state in ('ordered','shipped','delivered','remake') %} at {{ o.lab_name }}{% endif %}{% if lab_numbers %}, no. {{ lab_numbers }}{% endif %}</span></h1>
+<h1>Print order <span class="mute" style="font-weight:400;font-size:16px">{{ words }}{% if o.lab_name and o.state in ('ordered','shipped','delivered','remake','closed') %} at {{ o.lab_name }}{% endif %}{% if lab_numbers %}, no. {{ lab_numbers }}{% endif %}</span></h1>
 <div class="card f" style="max-width:980px">
   <div><b>{{ who[0] }}</b> {{ who[1] }} {% if not who[2] %}<span class="mute">(not on file)</span>{% endif %}{% if p.who and p.who.phone %} &middot; {{ p.who.phone }}{% endif %}</div>
   <div class="sub">{% if rel %}{{ rel }} &middot; {% endif %}Collected {{ (o.collected_at or '')[:16].replace('T', ' ') }}{% if o.browser_at %} (the client's device said {{ local_time(o.browser_at) }}){% endif %} &middot; Prints made {{ lab_label }}</div>
@@ -1318,7 +1319,7 @@ paid, Prepare for the lab gives you the print-ready files and an order sheet, an
   <tr><td>Paid</td><td class="r">{{ dollars(f.paid) }}</td><td></td></tr><tr><td>Balance</td><td class="r">{{ dollars(f.balance) }}</td><td></td></tr></tbody></table>
   {% if editable %}<form method="post" action="{{ url_for('prints_act', oid_=o.id, do='shipping') }}" class="row" style="gap:6px;flex-wrap:wrap;align-items:end">
     <span><label class="l" for="labship">The lab's shipping for this order</label><input id="labship" name="lab_ship" value="{{ cents(o.ship_lab_cents) }}" style="width:90px"></span>
-    <span><label class="l" for="chship">Charge the client (blank: by the rule)</label><input id="chship" name="ship" value="{{ cents(o.ship_cents) }}" style="width:90px"></span>
+    <span><label class="l" for="chship">Charge the client{{ help("Left blank, the shipping rule sets it.") }}</label><input id="chship" name="ship" value="{{ cents(o.ship_cents) }}" style="width:90px"></span>
     {% if areas %}<span><label class="l" for="area">Taxed for</label><select id="area" name="area">{% for k, lab in areas %}<option value="{{ k }}" {{ 'selected' if k == area }}>{{ lab }}</option>{% endfor %}</select></span>{% endif %}
     <button class="quiet">Save</button></form>
     {% if quote_lab %}<form method="post" action="{{ url_for('prints_act', oid_=o.id, do='quote') }}" class="inline"><button class="quiet">Shipping from {{ quote_lab }}</button></form>{% endif %}{% endif %}
@@ -1337,7 +1338,7 @@ paid, Prepare for the lab gives you the print-ready files and an order sheet, an
   {% elif o.state in ('ordered','shipped','delivered','closed','remake') %}<div class="sub" style="margin-top:6px">Lab cost recorded: none typed</div>{% endif %}
 </div>
 <div class="card f" style="max-width:980px"><h2 style="margin:0">Next</h2>
-  {% if o.invoice_number %}<div class="row" style="gap:8px;flex-wrap:wrap">Invoice {{ o.invoice_number }}: <a class="go" href="{{ url_for('prints_invoice', oid_=o.id) }}">Open &rsaquo;</a> <a class="go" href="{{ mail_invoice }}" title="Opens a draft in your mail app with the invoice's number, total and how to pay.">Email it &rsaquo;</a> <span class="mute">The email gives the invoice's number, total and how to pay. Save the invoice as a PDF and attach it for their records, if you like.</span></div>{% endif %}
+  {% if o.invoice_number %}<div class="row" style="gap:8px;flex-wrap:wrap">Invoice {{ o.invoice_number }}: <a class="go" href="{{ url_for('prints_invoice', oid_=o.id) }}">Open &rsaquo;</a> <a class="go" href="{{ mail_invoice }}" title="Opens a draft in your mail app with the invoice's number, total and how to pay.">Email it &rsaquo;</a> <span class="mute">The email gives the invoice's number, total and how to pay.</span></div>{% endif %}
   {% for v in voided %}<div class="sub">Invoice {{ v.number }} voided {{ nice(v.at) }} ({{ v.why }})</div>{% endfor %}
   <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:8px">
   {% if o.state == 'new' %}<form method="post" action="{{ url_for('prints_act', oid_=o.id, do='invoice') }}" class="inline"><button class="primary">Make invoice</button></form>{% endif %}
@@ -2306,24 +2307,33 @@ paid, Prepare for the lab gives you the print-ready files and an order sheet, an
     type(ctx).prints = Prints
     app.config["prints_api"] = Prints
 
-    BLOCK = """<div id="prints">{% if why %}<p class="sub" style="font-size:13px;margin:0">{{ why }}</p>{% elif email_only %}<p class="sub" style="font-size:13px;margin:0">This host runs no PHP: the gallery says "For prints, email the studio".</p>{% else %}<p class="sub" style="font-size:13px;margin:0">Clients can order prints from this gallery.</p>{% endif %}
-{% if can_switch %}<form method="post" action="{{ url_for('prints_gallery_switch', sid=sid) }}" class="inline"><label class="row" style="gap:6px"><input type="checkbox" name="offer" value="1" data-autosubmit {{ 'checked' if switch }}>Offer prints from this gallery</label><noscript><button class="quiet">Save</button></noscript></form>{% endif %}
-{% for o in orders %}<div class="row" style="gap:8px;font-size:13px"><span class="grow">{{ o.when }} &middot; {{ o.who }}: {{ o.words }}</span><a class="go" href="{{ url_for('prints_order', oid_=o.id) }}">Open &rsaquo;</a></div>{% endfor %}</div>"""
+    BLOCK = """{% import "_ui.html" as ui with context %}<div id="prints">
+{% for o in orders %}<div class="ui-form-row"><span class="ui-grow">{{ o.when }} &middot; {{ o.who }}: {{ o.words }}</span>{{ ui.go(url_for('prints_order', oid_=o.id), 'See the order') }}</div>{% endfor %}</div>"""
+
+    def offer(s):
+
+        if not active():
+            return None
+        r_ = gallery_row(sid=s["id"])
+        if not (r_ and G.is_download(r_["gallery_id"] or "") and prints_on()) or G.is_adopted(r_):
+            return None
+        why = why_no_prints(dict(r_))
+        note = ('This host runs no PHP: the gallery says "For prints, email the studio".' if host_kind() == "none"
+                else why if why and why != "Prints are turned off for this gallery." else "")
+        return dict(can_switch=True, switch=gallery_switch(s["id"]), note=note)
+
+    app.config["prints_offer"] = offer
 
     def block(s):
+
         if not active():
             return []
-        r_ = gallery_row(sid=s["id"])
         orders = q("SELECT * FROM print_orders WHERE session_id=? ORDER BY collected_at DESC, id DESC", (s["id"],))
-        if not orders and not (r_ and G.is_download(r_["gallery_id"] or "") and prints_on()):
+        if not orders:
             return []
-        why = why_no_prints(dict(r_)) if r_ else "No gallery yet."
         view = [dict(id=o["id"], when=ctx.nice((o["collected_at"] or "")[:10]), who=who_of(dict(o))[0],
                      words=P.WORDS.get(o["state"], o["state"])) for o in orders]
-        html = render_template_string(BLOCK, why=why if why not in ("Prints are turned off for this gallery.",) else "",
-                                      email_only=host_kind() == "none", orders=view, sid=s["id"], switch=gallery_switch(s["id"]),
-                                      can_switch=bool(r_) and prints_on())
-        return [("Print orders", html)]
+        return [("Print orders", render_template_string(BLOCK, orders=view))]
 
     ctx.hooks.stage_blocks.append(block)
 

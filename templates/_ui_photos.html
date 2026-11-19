@@ -1,0 +1,133 @@
+
+{% import "_ui.html" as ui with context %}
+{% import "_ui_mail.html" as uim with context %}
+
+{% set DROP_WORDS = {'raw': ('Drop your RAW files here, or', 'RAW files'), 'export': ('Drop the edited photos here, or', 'edited photos'),
+                     'final': ('Drop the retouched photos here, or', 'retouched photos')} %}
+
+{% macro drop_zone(sid, kind, id) -%}
+{%- set w_ = DROP_WORDS.get(kind, ('Drop the files here, or', 'files')) -%}
+<div class="dropzone ui-drop" id="{{ id }}" data-upload="{{ url_for('photos_upload', sid=sid) }}" data-status="{{ url_for('photos_status', sid=sid) }}" data-kind="{{ kind }}">
+  <label class="ui-drop-pick">{{ w_[0] }} <u>Browse</u><input type="file" multiple id="{{ id }}-in"{% if kind in ('export', 'final') %} accept="image/jpeg,image/png,.jpg,.jpeg,.png"{% endif %} class="vh" aria-label="Browse {{ w_[1] }} to upload"></label>
+  <div class="dz-list"></div>
+</div>
+{%- endmacro %}
+
+
+{% macro fact_row(text, id='', tone='') -%}
+<div class="ui-factrow{{ ' ui-factrow-' ~ tone if tone }}"{% if id %} id="{{ id }}"{% endif %}><p class="ui-factrow-text">{{ text }}</p>
+{%- if caller %}{% set b_ = caller() %}{% if b_|trim %}<div class="ui-btnrow">{{ b_ }}</div>{% endif %}{% endif %}</div>
+{%- endmacro %}
+
+{% macro chooser(id, label, kind='quiet') -%}
+<label class="ui-btn ui-btn-{{ kind }}" for="{{ id }}-in" tabindex="0" role="button" data-ui-choose>{{ label }}</label>
+{%- endmacro %}
+
+{% macro thumbs(files, back, label='Photos') -%}
+<ul class="ui-thumbs" data-ui-viewer aria-label="{{ label }}">
+{%- for r_ in files %}{{ thumb(r_, back) }}{%- endfor %}
+</ul>
+{%- endmacro %}
+
+
+{% macro file_tile(name, href) -%}
+<a class="ui-thumb-file" href="{{ href }}" title="Download {{ name }}" aria-label="Download {{ name }}"><span class="ms" aria-hidden="true">description</span><span class="ui-thumb-ext">{{ (name.rsplit('.', 1)[-1] if '.' in name else 'file')|upper|truncate(5, true, '') }}</span></a>
+{%- endmacro %}
+
+
+{% macro kind_line(g_) -%}
+{{ g_.done|length }} file{{ '' if g_.done|length == 1 else 's' }}, {{ g_.bytes|size }}, sealed
+{%- endmacro %}
+
+
+
+{% macro photos_section(sid, photos, back, zones=[], find='', find_url='') -%}
+{%- set batch_ = latest_upload(photos) -%}
+<div class="vh" id="photos-status" role="status"></div><div class="vh" id="photos-alert" role="alert"></div>
+<div class="ui-photos" id="photos" data-refresh>
+  {%- set kinds_ = [] %}{% for k, g_ in photos.items() if g_.done %}{% set _ = kinds_.append((k, g_)) %}{% endfor %}
+  {% if kinds_ %}<p class="ui-photos-sum">{% for k, g_ in kinds_ %}{% if not loop.first %} &middot; {% endif %}<b>{{ g_.label }}</b> <span class="ui-mute ui-photokind-n" data-photo-n="{{ k }}" data-n="{{ g_.done|length }}" data-bytes="{{ g_.bytes }}">{{ kind_line(g_) }}</span>{% endfor %}</p>{% endif %}
+  {% for k, g_ in photos.items() %}<div class="ui-photokind" id="photos-{{ k }}">
+    {%- if g_.sealed %}<p class="ui-mute">{{ g_.label }}: {{ g_.sealed|length }} file{{ '' if g_.sealed|length == 1 else 's' }} sealed in the vault (open them for a reprint from Photo storage).</p>{% endif %}
+    {%- if g_.partial %}<p class="ui-mute">Unfinished {{ g_.label|lower }}: {{ g_.partial|map(attribute='name')|join(', ') }}. Drop the same file again to finish it.</p>{% endif %}
+    {%- if k in zones %}<p class="ui-photokind-head"><b>{{ g_.label }}</b>{% if not g_.done %} <span class="ui-mute">none yet</span>{% endif %}</p>{{ drop_zone(sid, k, 'dz-' ~ k ~ '-' ~ sid) }}{% endif -%}
+  </div>{% endfor %}
+  {% if kinds_ %}<form method="get" action="{{ find_url }}#photos-sec" class="ui-form-row ui-photos-find" role="search" data-photo-find>
+    <input type="hidden" name="s" value="{{ sid }}"><input type="search" name="find" value="{{ find }}" class="ui-grow" placeholder="Find a file by name" aria-label="Find a file by name" autocomplete="off">
+    <button class="ui-btn ui-btn-quiet" data-photo-find-go>Find a file</button></form>{% endif %}
+  <div id="photo-hits" data-photo-hits>
+  {% if find|trim %}{% set hits_, n_ = find_files(photos, find) %}
+    <p class="ui-mute">{% if not n_ %}No file name holds "{{ find }}".{% elif n_ > hits_|length %}{{ n_ }} files match; the first {{ hits_|length }} are shown. Type more of the name.{% else %}{{ n_ }} file{{ '' if n_ == 1 else 's' }} match.{% endif %}</p>
+    {% if hits_ %}{{ thumbs(hits_, back, 'Files that match') }}{% endif %}
+  {% elif batch_ %}{% set shown_ = batch_[:PHOTO_SHOWN] %}{% set rest_ = batch_[PHOTO_SHOWN:] %}
+    <p class="ui-sub-title">Latest upload: {{ (photos[batch_[0].kind].label ~ ', ') if batch_[0].kind in photos }}{{ batch_|length }} file{{ '' if batch_|length == 1 else 's' }}</p>
+    <ul class="ui-thumbs" data-ui-viewer aria-label="Latest upload">
+    {%- for r_ in shown_ %}{{ thumb(r_, back) }}{% endfor %}
+    {%- for r_ in rest_ if previewable(r_.name) %}<li class="ui-thumb" hidden><a class="ui-thumb-pic" href="{{ url_for('photo_thumb_view', fid=r_.id, size='l') }}" data-name="{{ r_.name }}" data-download="{{ url_for('photo_download', fid=r_.id) }}"></a></li>{% endfor %}
+    </ul>
+    {% if rest_ %}<p><a class="ui-go" href="{{ url_for('photo_thumb_view', fid=rest_[0].id, size='l') }}" data-ui-viewer-more>+ {{ rest_|length }} more from this upload &rsaquo;</a></p>{% endif %}
+  {% endif %}
+  </div>
+</div>
+{%- endmacro %}
+
+
+{% macro thumb(r_, back) -%}
+  <li class="ui-thumb" data-size="{{ r_.size }}" data-kind="{{ r_.kind }}">{% if previewable(r_.name) %}<a class="ui-thumb-pic" href="{{ url_for('photo_thumb_view', fid=r_.id, size='l') }}" data-name="{{ r_.name }}" data-download="{{ url_for('photo_download', fid=r_.id) }}"><img src="{{ url_for('photo_thumb_view', fid=r_.id) }}" alt="{{ r_.name }}" loading="lazy" width="120" height="120"></a>
+    {%- else %}{{ file_tile(r_.name, url_for('photo_download', fid=r_.id)) }}{% endif %}
+    <span class="ui-thumb-name" title="{{ r_.name }}">{{ r_.name }}</span>
+    <form method="post" action="{{ url_for('photo_delete', fid=r_.id) }}" class="ui-action ui-thumb-del" data-photo-del data-confirm="Delete {{ r_.name }}? It is removed from the app and its backup copy. This cannot be undone."><input type="hidden" name="back" value="{{ back }}#photos"><button class="ui-x" title="Delete this file" aria-label="Delete {{ r_.name }}">&times;</button></form></li>
+{%- endmacro %}
+
+
+{% macro deliver_ways(a, back) -%}{% from "_macros.html" import help with context %}
+{%- set d_ = a.deliver -%}
+{%- set letter_ = d_.letter if d_.letter is defined else none -%}
+{%- set online_ = d_.online if d_.online is defined else true -%}
+{%- set usual_ = d_.usual if d_.usual is defined and d_.usual else ('letter' if letter_ else 'usb') -%}
+{%- set ways_ = (['letter', 'email', 'person'] if usual_ == 'letter' else ['person', 'email', 'letter']) -%}
+{%- set wait_ = "Put the gallery online first: the letter's QR code is its link." -%}
+{% call ui.inline_form('f-deliver-' ~ d_.sid, 'Choose how to deliver') %}
+{%- for w_ in ways_ %}
+  {%- if w_ == 'letter' and letter_ %}<div class="ui-deliver-way{{ ' ui-deliver-wait' if not online_ }}" data-way="letter">
+  <h3 class="ui-sub-title">Mail the QR letter</h3>
+  {% if not online_ %}<p class="ui-mute" id="dw-letter-{{ d_.sid }}">{{ wait_ }}</p>
+  <div class="ui-btnrow"><button type="button" class="ui-btn ui-btn-quiet" disabled aria-describedby="dw-letter-{{ d_.sid }}">Print the QR letter</button><button type="button" class="ui-btn ui-btn-quiet" disabled aria-describedby="dw-letter-{{ d_.sid }}">Mark mailed</button>
+    <details class="ui-more"><summary class="ui-btn ui-btn-quiet">More</summary><div class="ui-more-pop">{{ ui.button_link(letter_.doc, 'Print a draft letter', 'quiet', blank=true) }}</div></details></div>
+  {% else %}{% if letter_.printed %}<p class="ui-mute">Printed {{ nice(letter_.printed) }}.</p>{% endif %}
+  <div class="ui-btnrow">{{ ui.button_link(letter_.doc, 'Print the QR letter' if not letter_.printed else 'Print it again', 'quiet', blank=true) }}{{ ui.action(a.post, 'Mark mailed', a.fields or {}, back, 'quiet') }}</div>{% endif %}</div>
+  {%- elif w_ == 'email' and (d_.mail or not online_) %}<div class="ui-deliver-way{{ ' ui-deliver-wait' if not online_ }}" data-way="email">
+  <h3 class="ui-sub-title">Email the link{{ help("An emailed link is only as safe as their inbox." ~ (" The codeword still guards the gallery." if d_.codeword else "")) }}</h3>
+  {% if not online_ or not d_.mail %}<p class="ui-mute" id="dw-email-{{ d_.sid }}">Put the gallery online first: the email carries its link.</p>
+  <div class="ui-btnrow"><button type="button" class="ui-btn ui-btn-quiet" disabled aria-describedby="dw-email-{{ d_.sid }}">Email the link</button></div>
+  {% else %}<div class="ui-btnrow">{{ uim.mail_action(url_for('delivery_another', sid=d_.sid), d_.mail, 'Email the link', back, 'quiet', fields=dict(how='email', step=d_.step)) }}</div>{% endif %}</div>
+  {%- elif w_ == 'person' %}<div class="ui-deliver-way" data-way="person">
+  <h3 class="ui-sub-title">Handed over in person</h3>
+  <form method="post" action="{{ url_for('delivery_another', sid=d_.sid) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="step" value="{{ d_.step }}"><input type="hidden" name="back" value="{{ back }}">
+    {%- set media_ = [('usb', 'USB drive'), ('sd', 'SD card')] + ([('disc', 'CD or DVD')] if usual_ == 'disc' else []) %}
+    <span class="seg" role="radiogroup" aria-label="Handed over on">{% for k_, l_ in media_ %}<label><input type="radio" name="how" value="{{ k_ }}"{{ ' checked' if k_ == usual_ or (usual_ not in ('usb', 'sd', 'disc') and loop.first) }}><span>{{ l_ }}</span></label>{% endfor %}</span>
+    <input type="date" name="on" value="{{ iso_today() }}" max="{{ iso_today() }}" aria-label="Handed over on" class="ui-input-date">
+    <input name="note" maxlength="200" placeholder="Note" aria-label="Note" class="ui-grow">
+    <button class="ui-btn ui-btn-quiet">Record the handover</button></form></div>
+  {%- endif %}
+{%- endfor %}
+{% endcall %}
+{%- endmacro %}
+
+{% macro step_row(a, back, s=None, lead=false) -%}
+{%- set st_ = 'late' if a.group == 'overdue' or a.status == 'late' else ('soon' if a.status == 'soon' else 'next') -%}
+{%- set zid_ = 'dz-' ~ (a.drop or 'x') ~ '-' ~ (s.id if s else a.sid) -%}
+{%- set kind_ = 'primary' if lead else 'quiet' -%}
+{% call ui.todo_row(a.what, icon=a.sym or 'task_alt', status=st_, when=nice(a.when) if a.when else '', when_late=(a.group == 'overdue'),
+                    detail=a.detail or '', note=a.note or '', theirs=a.theirs, id=ui.step_row_id(a), tip=a.tip or '') %}
+  {%- if a.drop_main %}{{ chooser(zid_, a.drop_verb, kind_) }}{{ ui.row_more(a, back, [a.alt] if a.alt else []) }}
+  {%- elif a.deliver %}{{ ui.opener('f-deliver-' ~ a.deliver.sid, 'Choose how to deliver', kind_) }}{{ ui.row_more(a, back, [a.alt] if a.alt else []) }}
+  {%- else %}{{ ui.step_action(a, back, kind_) }}{% endif -%}
+{% endcall %}
+{%- if a.form %}{{ ui.step_form(a, back, s) }}{% endif -%}
+{%- if a.deliver %}{{ deliver_ways(a, back) }}{% endif -%}
+{%- if a.drop and s %}<li class="ui-todo-carry">
+  {%- if a.retouch %}<ul class="ui-picks" aria-label="The client's retouch picks">{% for p_ in a.retouch %}<li>{% if p_.done %}{{ ui.chip('In', 'done') }} {% endif %}{% if p_.name %}<b>{{ p_.name }}</b>{% endif %}{% if p_.name and p_.note %}: {% endif %}{{ p_.note }}</li>{% endfor %}</ul>{% endif -%}
+  {{ drop_zone(s.id, a.drop, zid_) }}</li>{% endif -%}
+{%- endmacro %}
+

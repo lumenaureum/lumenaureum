@@ -7,9 +7,10 @@
 4. `docker compose pull && docker compose up -d`, then sign in to unlock.
 
 The database records which version of its layout it has. When a new version needs to change it, the change runs at
-the first sign-in, after the app has made an encrypted **upgrade** backup (listed under Backups); if that backup
+the first sign-in, after the app has made an encrypted backup (listed under Settings, Backups as Before the update); if that backup
 can't be made, nothing is changed and sign-in says why. The change runs all at once or not at all. After an update,
-Today shows a one-time note with the new version number, and says when a backup was made before it. An older
+Today shows a note with the new version number, a link to what's new (also on About), and which backup was made
+before it. The note stays until you hide it or until the next day. An older
 version never opens a database a newer one has changed: it says so and points here.
 
 ### Galleries online get each new version's page
@@ -19,8 +20,27 @@ host runs PHP 7.4 or later, keeps the gallery's current page and scripts as a wa
 the page. It then proves the new scripts are the ones running, reads the new page back at its public address, and,
 for the first gallery on each host, opens it the way a client would. If that check fails, that gallery goes back to its
 previous page and scripts, the others on that host wait, and Today says why. A gallery whose client is picking right
-now waits until they have been quiet for 6 hours (at most a week); its session says so, with **Do it now**. If a client
+now waits until they have been quiet for 6 hours (at most a week); its Gallery block says so, with **Update it now**. If a client
 says "Send" failed in that moment, ask them to reload the page: their choices are still on their device.
+
+### The 1.5 update
+1.5 changes the database (new tables only), so its first sign-in makes the **upgrade** backup first, as above, and
+1.4.1 refuses the database afterwards. Then, once:
+- **Stages.** The new stage rules are applied to every open session. A session that already qualifies moves or
+  closes (picks already in move a session to Delivered; delivered and paid in full, with nothing owed either way,
+  closes it), each change is written in that session's History, and the note on Today lists them. Open
+  steps are dated from the shoot again, never from the update day. The clocks that delete photos after delivery
+  start from the day the files were delivered.
+- **Prices.** A price list already used on a sent quote counts as approved. Any other prints SAMPLE until you
+  approve it, and Today shows **Review your prices** until you do.
+- **Unattended unlock is removed.** An install that had it on starts locked, and the sign-in page says once why.
+  The old key file is no longer used: delete it from its separate volume or USB key, and take the
+  `CRM_UNLOCK_KEY_FILE` line and its volume line out of `compose.yaml` (1.5 ignores them). To hear about a locked restart instead, set up
+  the notice in Settings, Security (see [Notices while locked](security.md#notices-while-locked)).
+- **Signing in.** The update signs every device out; each one asks you to sign in again.
+- **Galleries.** Every gallery online gets 1.5's page and scripts the usual way (above): print ordering now closes 24
+  hours before a gallery does, and the gallery credit carries the Lumen Aureum mark, including on galleries built
+  before, without a rebuild.
 
 ### The 1.4 update
 1.4 gives every gallery a new address and seals the client's picks and drafts, and studio page inquiries, in one new
@@ -43,7 +63,7 @@ A gallery whose host can't be reached stays exactly as it was (the 1.3 page keep
 client's picks wait on the host, read at every check) and is tried again at each check; Today names the host. If that
 host is gone for good, say so on Move galleries. A host running PHP below 7.4 keeps its galleries on 1.3's page and
 scripts at their old addresses; Today names it and its version. A gallery whose client is picking right now waits until
-they are done (its session says so, with Do it now). Going back to 1.3.1 after 1.4 has run is refused, as for every
+they are done (its Gallery block says so, with Update it now). Going back to 1.3.1 after 1.4 has run is refused, as for every
 update; restore the upgrade backup instead.
 
 Images are signed. To check one before running it:
@@ -70,7 +90,8 @@ check the clients list and the next invoice number.)
 
 Going back to an earlier version is always this restore: each version that changes the database updates it at the
 first sign-in (1.0.1 turned refunds recorded the 1.0.0 way into credits; 1.1 added the gallery draft fields; 1.1.1
-keeps a copy of each issued invoice and receipt; 1.2 marks the data as using download galleries; 1.3 keeps each payment's sales tax and each statement charge as recorded), and an earlier
+keeps a copy of each issued invoice and receipt; 1.2 marks the data as using download galleries; 1.3 keeps each payment's sales tax and each statement charge as recorded; 1.5 adds tables for client labels, End
+contact, replaced quotes and the studio page's kept files, and applies the new stage rules once), and an earlier
 version refuses the updated database. Anything
 entered after the upgrade is not in that backup: before rolling back, look through each client's History and the
 audit log for what changed since, and note it. A rollback cannot undo a leak: if you rolled back because of a security
@@ -190,14 +211,16 @@ change (every change is in each client's History and in the audit log).
    template is below.
 
 ### Template: telling a client
-These are examples only, not legal advice. Adapt them for your business and the laws where you work, and have them reviewed.
+This template is one of the documents that come with Lumen Aureum: see the notice under
+[Example documents](../README.md#example-documents).
 
 > Dear [name], on [date] I learned that [what happened]. The information involved may include [what]. It did not
 > include [what it did not]. I have [what you did]. You may want to [what they can do]. If you have questions,
 > contact me at [contact]. I am sorry this happened.
 
 ## A privacy notice you can give clients (edit to fit)
-These are examples only, not legal advice. Adapt them for your business and the laws where you work, and have them reviewed.
+This template is one of the documents that come with Lumen Aureum: see the notice under
+[Example documents](../README.md#example-documents).
 
 > **How I keep your information.** I keep your contact details, session details, agreements and photos to do your
 > session and deliver your photos. I keep them encrypted on equipment I own. No online service stores them. Your online

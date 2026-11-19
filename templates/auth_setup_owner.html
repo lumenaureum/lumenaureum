@@ -3,9 +3,9 @@
 .auth label.l { display: block; font-size: 13px; margin: 10px 0 3px; }
 .landing { margin: 0 0 6px; } .landing img { width: min(320px, 85%); height: auto; display: block; }
 .tag { color: var(--mute); margin: 0 0 16px; } .auth > .brand { display: none; }</style>
-<h1 class="landing"><img src="{{ url_for('static', filename='brand/logo-horizontal-dark-bg.svg') }}" alt="Lumen Aureum"></h1>
+<div class="landing"><img src="{{ url_for('static', filename='brand/logo-horizontal-dark-bg.svg') }}" alt="Lumen Aureum"></div>
 <p class="tag">Set up the owner account.</p>
-<h2>Step 1 of 3: you</h2>
+<h1>Step 1 of 3: you</h1>
 <form method="post" class="card f">
   {% if err == 'slow' %}<div class="err">Too many tries. Wait 15 minutes.</div>{% endif %}
   {% if err == 'claim' %}<div class="err">Wrong setup code. A restart makes a new one.</div>{% endif %}

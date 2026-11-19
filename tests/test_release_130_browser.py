@@ -70,7 +70,7 @@ def test_a_timeline_day_mark_shows_its_tip_on_keyboard_focus(browser, app_):
     A, c = app_
     con = A.connect()
     try:
-        con.execute("INSERT INTO sessions (id, household_id, type, stage, shoot_date) VALUES (1, 1, 'family', 'inquiry', ?)",
+        con.execute("INSERT INTO sessions (id, household_id, type, stage, shoot_date) VALUES (1, 1, 'family', 'booked', ?)",
                     ((A.today() + timedelta(days=40)).isoformat(),))
         for what in ("Called about the date", "Sent the price list", "Talked about outfits"):
             con.execute("INSERT INTO log (household_id, session_id, at, channel, summary) VALUES (1, 1, ?, 'call', ?)",
@@ -81,6 +81,8 @@ def test_a_timeline_day_mark_shows_its_tip_on_keyboard_focus(browser, app_):
     ctx, p = _page(browser, c)
     try:
         p.goto(BASE + "/c/1?s=1")
+        if p.locator("#timeline > summary").count():
+            p.click("#timeline > summary")
         mark = p.locator('.jm[role="button"][data-tip-lines]').first
         assert mark.count() == 1
         mark.focus()
@@ -125,10 +127,10 @@ def test_each_photo_upload_announcement_is_heard(browser, app_, tmp_path):
             f.write_bytes(b"raw " * 300)
             files.append(str(f))
         p.locator('.dropzone[data-kind="raw"] input[type=file]').set_input_files(files)
-        p.wait_for_function("() => window.__heard.some(h => h.includes('2 of 2 files sealed'))", timeout=20000)
+        p.wait_for_function("() => window.__heard.some(h => h.startsWith('photos-status: 2 files added'))", timeout=20000)
         heard = p.evaluate("window.__heard")
         want = ["Uploading 2 files, one at a time", "A_1.NEF: uploading", "A_1.NEF: sealed", "B_2.NEF: uploading",
-                "B_2.NEF: sealed", "2 of 2 files sealed"]
+                "B_2.NEF: sealed", "2 files added"]
         said = [h.split(": ", 1)[1] for h in heard]
         assert [w for w in said if w in want] == want, heard
     finally:

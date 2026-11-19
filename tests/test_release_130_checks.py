@@ -115,6 +115,7 @@ def test_a_timeline_day_mark_with_a_count_has_a_role_for_its_label(env):
         for what in ("Called about the date", "Sent the price list", "Talked about outfits"):
             con.execute("INSERT INTO log (household_id, session_id, at, channel, summary) VALUES (1, 1, ?, 'call', ?)",
                         (A.today().isoformat() + " 10:00:00", what))
+        con.execute("UPDATE sessions SET stage='booked' WHERE id=1")
         con.commit()
     finally:
         con.close()

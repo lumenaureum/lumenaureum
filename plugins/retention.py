@@ -24,11 +24,14 @@ BLOCK = """
   {% if r.unsealed_dir %}<span class="mute" data-tip="Removed after {{ reprint_days }} days">Reprint copy: {{ r.unsealed_dir }}</span>
   {% else %}<details class="early" {{ 'open' if failed or slow }}><summary>Open for a reprint</summary>{% if slow %}<div style="color:var(--crit);font-size:12.5px">Too many wrong keys from here. Try again {{ slow }}.</div>{% elif failed %}<div style="color:var(--crit);font-size:12.5px">That key did not open it.</div>{% endif %}<form method="post" action="{{ url_for('retention_unseal', sid=s.id) }}" class="row" style="margin-top:6px;align-items:end">
     <input type="hidden" name="back" value="{{ back }}"><span class="grow" style="display:grid;gap:2px"><label class="l" for="unseal-key-{{ s.id }}">Master key</label><input type="password" id="unseal-key-{{ s.id }}" name="master" placeholder="AGE-SECRET-KEY-1..." autocomplete="off" required style="width:auto"></span><span style="display:grid;gap:2px"><label class="l" for="unseal-only-{{ s.id }}">Only these files</label><input id="unseal-only-{{ s.id }}" name="only" placeholder="Blank: all" style="width:200px"></span>
-    <button class="quiet">Open</button></form></details>{% endif %}</div>
-{% elif plain and master and not (r and r.purged_at) %}<div class="row" style="font-size:13px">{% if sdate %}<span class="grow" data-tip="RAWs and exports are encrypted and the plaintext removed">Seals {{ nice(sdate.isoformat()) }}</span>{% endif %}<form method="post" action="{{ url_for('retention_seal', sid=s.id) }}" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="quiet">Seal now</button></form></div>{% endif %}
+    <button class="quiet">Open the sealed files</button></form></details>{% endif %}</div>
+{% elif plain and master and not (r and r.purged_at) %}<div class="ui-factrow" id="readable-copies"><p class="ui-factrow-text">Readable copies for editing: encrypted and removed {{ nice(sdate.isoformat()) if sdate else 'a week after delivery' }}</p>
+  <div class="ui-btnrow"><form method="post" action="{{ url_for('retention_seal', sid=s.id) }}" class="ui-action" data-confirm="Encrypt the readable copies now? Only your master key opens them afterwards (for a reprint)."><input type="hidden" name="back" value="{{ back }}"><button class="ui-btn ui-btn-quiet">Encrypt them now</button></form></div></div>{% endif %}
 {% if r and r.purged_at %}<div class="sub" style="font-size:13px">RAWs and outtakes deleted {{ nice(r.purged_at) }}{% if r.early_note %} ({{ r.early_note }}){% endif %}</div>
 {% elif due %}<div class="row" style="font-size:13px"><span class="grow" {% if soon %}style="color:var(--warn)"{% endif %}>RAWs and outtakes delete {{ nice(due.isoformat()) }}</span>
-  <form method="post" action="{{ url_for('retention_keep', sid=s.id) }}" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="quiet">Keep another year</button></form></div>{% endif %}
+  <form method="post" action="{{ url_for('retention_keep', sid=s.id) }}" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="quiet">Keep another year</button></form></div>
+{% elif held %}<div class="ui-factrow" id="raw-date"><p class="ui-factrow-text">RAWs and outtakes: no deletion date set</p>
+  <div class="ui-btnrow"><form method="post" action="{{ url_for('retention_set_date', sid=s.id) }}" class="ui-action"><input type="hidden" name="back" value="{{ back }}"><input type="date" name="until" required min="{{ tomorrow }}" aria-label="Delete on" class="ui-input-date"><button class="ui-btn ui-btn-quiet">Set the deletion date</button></form></div></div>{% endif %}
 {% if not (r and r.purged_at) %}<details class="early"><summary>Delete early</summary>
   <form method="post" action="{{ url_for('retention_early', sid=s.id) }}" class="row" style="flex-wrap:wrap;gap:6px;margin-top:6px"
         data-confirm="Delete this client's RAWs, exports and gallery now, at home and on the web? This cannot be undone.">
@@ -84,11 +87,83 @@ def register(ctx):
     def row(sid):
         return q("SELECT * FROM retention WHERE session_id=?", (sid,), one=True)
 
-    def delivered_on(s):
+    def rules_mark():
+
+        r_ = q("SELECT value FROM settings WHERE key='stage_rules_mark'", one=True)
+        try:
+            return int(r_["value"]) if r_ else None
+        except (TypeError, ValueError):
+            return None
+
+    def _has_era():
+        return "era" in [c_[1] for c_ in q("PRAGMA table_info(stage_log)")]
+
+    def legacy_delivered():
+
+        mark = rules_mark()
+        era = "" if mark is None or not _has_era() else " AND era='1.4'"
+        return "SELECT session_id, MIN(at) FROM stage_log WHERE stage='delivered'" + era + " GROUP BY session_id"
+
+    def new_delivered():
+
+        if rules_mark() is None or not _has_era():
+            return "SELECT session_id, MIN(at) FROM stage_log WHERE 0 GROUP BY session_id"
+        return "SELECT session_id, MIN(at) FROM stage_log WHERE stage='delivered' AND era IS NULL GROUP BY session_id"
+
+    def upgrade_moved():
+
+        if rules_mark() is None or not _has_era():
+            return "SELECT session_id, MIN(at) FROM stage_log WHERE 0 GROUP BY session_id"
+        return ("SELECT session_id, MIN(at) FROM stage_log WHERE stage IN ('delivered','closed') AND era='upgrade'"
+                " GROUP BY session_id")
+
+    def fresh_entered():
+
+        if rules_mark() is None or not _has_era():
+            return "SELECT session_id, MIN(at) FROM stage_log WHERE 0 GROUP BY session_id"
+        return "SELECT session_id, MIN(at) FROM stage_log WHERE stage IN ('delivered','closed') AND era IS NULL GROUP BY session_id"
+
+    def held_start(s, moved, fresh):
+
+        days = [fresh[:10]] if fresh else []
+        if s["sd_shipped"] and s["sd_shipped"][:10] > moved[:10]:
+            days.append(s["sd_shipped"][:10])
+        return min(days) if days else None
+
+    def delivered_from(s, legacy, entered=None, moved=None, fresh=None):
+
+        if moved and not legacy:
+            return held_start(s, moved, fresh)
         if s["sd_shipped"]:
             return s["sd_shipped"][:10]
-        r = q("SELECT MIN(at) a FROM stage_log WHERE session_id=? AND stage='delivered'", (s["id"],), one=True)
-        return (r["a"] or "")[:10] or None
+        if legacy:
+            return legacy[:10]
+        if entered and s["first_visit"] and not ships_files(s):
+            return max(s["first_visit"][:10], entered[:10])
+        return None
+
+    def ships_files(s):
+
+        flow = ctx.C.WORKFLOW[s["type"]] or {}
+        return any(len(st_) > 1 and st_[1] == "sd_shipped" for steps in flow.values() for st_ in steps)
+
+    def _one(sql, sid):
+        r_ = q(sql.replace(" GROUP BY", " AND session_id=? GROUP BY"), (sid,))
+        return r_[0][1] if r_ else None
+
+    def delivered_on(s):
+        return delivered_from(s, _one(legacy_delivered(), s["id"]), _one(new_delivered(), s["id"]),
+                              _one(upgrade_moved(), s["id"]), _one(fresh_entered(), s["id"]))
+
+    def upgrade_held(s):
+
+        if s["stage"] not in ("delivered", "closed") or _one(legacy_delivered(), s["id"]):
+            return False
+        r_ = row(s["id"])
+        if r_ and r_["keep_until"]:
+            return False
+        moved = _one(upgrade_moved(), s["id"])
+        return bool(moved) and not held_start(s, moved, _one(fresh_entered(), s["id"]))
 
     def keep_days(s, r):
 
@@ -232,12 +307,32 @@ def register(ctx):
              ON CONFLICT(session_id) DO UPDATE SET keep_until=excluded.keep_until""", (sid, until))
         return redirect(ctx.safe_back(request.form.get("back")) or url_for("home"))
 
+    @app.post("/session/<int:sid>/raw/date", endpoint="retention_set_date")
+    def retention_set_date(sid):
+
+        s = q("SELECT * FROM sessions WHERE id=?", (sid,), one=True)
+        try:
+            until = date.fromisoformat(request.form.get("until", ""))
+        except ValueError:
+            until = None
+        if s and until and until > date.today():
+            x("""INSERT INTO retention (session_id, keep_until) VALUES (?,?)
+                 ON CONFLICT(session_id) DO UPDATE SET keep_until=excluded.keep_until""", (sid, until.isoformat()))
+            ctx.audit(f"Set the RAWs and outtakes to delete {ctx.nice(until.isoformat())}", sid=sid, who="Owner")
+        return redirect(ctx.safe_back(request.form.get("back")) or url_for("home"))
+
     UNSEALED = PHOTOS / "unsealed"
     REPRINT_DAYS = 7
     SEAL_AFTER_DAYS = 7
 
     def seal_date(s):
-        return date.fromisoformat(s["sd_shipped"][:10]) + timedelta(days=SEAL_AFTER_DAYS) if s["sd_shipped"] else None
+        if not s["sd_shipped"]:
+            return None
+        moved = _one(upgrade_moved(), s["id"])
+        if moved and not _one(legacy_delivered(), s["id"]):
+            start = held_start(s, moved, _one(fresh_entered(), s["id"]))
+            return date.fromisoformat(start) + timedelta(days=SEAL_AFTER_DAYS) if start else None
+        return date.fromisoformat(s["sd_shipped"][:10]) + timedelta(days=SEAL_AFTER_DAYS)
 
     def vault():
         from vault import seal as VS, web as VW, keys as VK
@@ -480,6 +575,7 @@ def register(ctx):
     if not os.environ.get("CRM_TESTING"):
         threading.Thread(target=loop, name="retention", daemon=True).start()
     app.config["retention_pass"] = pass_once
+    app.config["retention_due"] = lambda sid: due_date(q("SELECT * FROM sessions WHERE id=?", (sid,), one=True), row(sid))
     app.config["retention_purge_now"] = lambda sid: purge(q("SELECT * FROM sessions WHERE id=?", (sid,), one=True), row(sid), why="with the session")
 
     def _slow_text():
@@ -495,7 +591,8 @@ def register(ctx):
         r = row(s["id"])
         due = due_date(s, r)
         soon = bool(due and (due - date.today()).days <= WARN_DAYS)
-        html = render_template_string(BLOCK, s=s, r=r, dirs=raw_dirs(s) if not (r and r["sealed_at"]) else [], due=due, soon=soon,
+        html = render_template_string(BLOCK, s=s, r=r, held=not due and upgrade_held(s),
+                                      tomorrow=(date.today() + timedelta(days=1)).isoformat(), dirs=raw_dirs(s) if not (r and r["sealed_at"]) else [], due=due, soon=soon,
                                       nice=ctx.nice, back=back_of(s), plain=bool(plain_folders(s, r) or uploads(s["id"])), master=has_master(),
                                       reprint_days=REPRINT_DAYS, sdate=seal_date(s), folders=FOLDERS,
                                       failed=request.args.get("unseal") == "failed", slow=_slow_text())
@@ -509,7 +606,10 @@ def register(ctx):
         rets = {r_["session_id"]: r_ for r_ in q("SELECT * FROM retention")}
         hold_ = app.config.get("print_hold")
         held = lambda sid: bool(hold_ and hold_(sid))
-        delivered = {r_[0]: r_[1] for r_ in q("SELECT session_id, MIN(at) FROM stage_log WHERE stage='delivered' GROUP BY session_id")}
+        delivered = {r_[0]: r_[1] for r_ in q(legacy_delivered())}
+        entered = {r_[0]: r_[1] for r_ in q(new_delivered())}
+        moved_ = {r_[0]: r_[1] for r_ in q(upgrade_moved())}
+        fresh_ = {r_[0]: r_[1] for r_ in q(fresh_entered())}
         import photostore
         with_uploads = {r_[0] for r_ in q("SELECT DISTINCT session_id FROM photo_files WHERE state='done'")} \
             if q("SELECT 1 FROM sqlite_master WHERE name='photo_files'", one=True) else set()
@@ -522,8 +622,15 @@ def register(ctx):
             if r and r["keep_until"]:
                 due = date.fromisoformat(r["keep_until"])
             else:
-                dv = s["sd_shipped"][:10] if s["sd_shipped"] else (delivered.get(s["id"]) or "")[:10]
+                dv = delivered_from(s, delivered.get(s["id"]), entered.get(s["id"]), moved_.get(s["id"]), fresh_.get(s["id"]))
                 due = date.fromisoformat(dv) + timedelta(days=keep_days(s, r)) if dv else None
+                if not dv and moved_.get(s["id"]) and not delivered.get(s["id"]):
+                    out.append(dict(text="No deletion date set for the RAWs and outtakes", when=None, link=back_of(s) + "#raw-date",
+                                    verb="Set a deletion date",
+                                    help="The 1.5 update moved this session on, so its files are kept until you set a date or "
+                                         "a new delivery starts the usual clock.",
+                                    who=dict(name=s["household"], sub=ctx.C.SESSION_TYPES.get(s["type"], s["type"]),
+                                             link=back_of(s), type=s["type"], hid=s["household_id"])))
             sd_ = seal_date(s)
             if sd_ and not (r and r["sealed_at"]) and (sd_ - date.today()).days <= 3 and (s["id"] in with_uploads or plain_folders(s, r)):
                 if master is None:

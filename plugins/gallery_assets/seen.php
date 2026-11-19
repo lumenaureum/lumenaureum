@@ -1,7 +1,7 @@
 <?php
 // Records the first visit once. The timestamp file is the only thing it ever writes: seen-at.php, which begins with a
 // PHP exit line, so fetching it shows nothing (a gallery from before this layout has seen.txt, which still counts).
-header('X-Host-Scripts: 1.4.0');
+header('X-Host-Scripts: 1.5.0');
 header('Cache-Control: no-store');
 $f = __DIR__ . '/seen-at.php';
 $old = __DIR__ . '/seen.txt';

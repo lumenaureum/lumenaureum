@@ -186,7 +186,6 @@ def test_today_card_keeps_the_name_and_puts_the_hint_on_its_own_line(env):
     con.execute("INSERT INTO sessions (household_id, type, stage, shoot_date) VALUES (2, 'portrait', 'booked', '2099-01-02')")
     con.commit(); con.close()
     page = c.get("/", environ_base=E).get_data(as_text=True)
-    assert "The Sample Family</a>" in page
-    stage = re.findall(r'<div class="t-stage">(.*?)</div>', page, re.S)
-    assert stage and all('<span class="stage-hint">' in s_ for s_ in stage if "still open" in s_)
-    assert any("Portraits <em>" in s_ for s_ in stage)
+
+    assert re.search(r"<b>The Sample Family</b><small>[^<]*, Booked", page) or "The Sample Family</a>" in page
+    assert "Portraits, Booked" in page and 't-stage' not in page

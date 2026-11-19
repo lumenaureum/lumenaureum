@@ -2,6 +2,28 @@
 
 New features, behavior changes, security fixes, and other fixes in each release.
 
+## 1.5.0 (2026-11-18)
+
+### Changed
+- User experience and workflow improvements: Today, the client page, quotes and booking, shoot day, photos and
+  galleries, delivery, payments, clients, calendar, and settings.
+
+### New
+- Optional ntfy notices for basic studio status.
+
+### Security
+- Signs you out after a time with no activity.
+- Account activity lists sign-ins and other security events.
+- A ntfy notice tells you when the studio restarts and stays locked.
+
+### Before you update
+- The update applies new stage rules to existing sessions once and notes each change in its History.
+- A session the update moves to Delivered or Closed gets no photo deletion date from that move. You can set one on
+  its page.
+- Prices already used on a sent quote count as approved.
+- The unattended unlock option is removed. After a restart, the studio stays locked until you sign in.
+- Earlier versions can't open your data once 1.5 has updated it. The update makes a backup first.
+
 ## 1.4.1 (2026-11-17)
 
 ### New

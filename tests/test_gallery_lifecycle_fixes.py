@@ -178,7 +178,7 @@ def test_no_extension_is_offered_for_a_gallery_put_back_online(site):
     site.sync()
     site.c.post(f"/session/{sid}/gallery/back-online", data={"days": "14"}, environ_base=E)
     assert site.wait_up(sid) == "up"
-    page = site.c.get(f"/session/{sid}", environ_base=E).get_data(as_text=True)
+    page = site.c.get(f"/session/{sid}/edit", environ_base=E).get_data(as_text=True)
     with site.A.app.app_context():
         nice = site.A.nice((date.today() + timedelta(days=14)).isoformat())
     assert f"Deletes {nice}" in page and 'name="extension_used" value="1" ' not in page and "back online" in page
@@ -189,7 +189,7 @@ def test_a_removed_gallery_shows_no_planned_deletion(site):
     sid = site.gallery("Lane")
     _expire(site, sid)
     page = site.c.get(f"/c/1?s={sid}", environ_base=E).get_data(as_text=True)
-    assert "Removed from the web" in page and "Planned deletion" not in page
+    assert ", off the web" in page and "Online until" not in page and "Closing " not in page
 
 def test_esc_closes_the_notice_and_the_download_carries_on(site, browser):
     sid = site.gallery("Pine Street Realty", stype="realestate", title="418 Pine Street")

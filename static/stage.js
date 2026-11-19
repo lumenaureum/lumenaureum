@@ -16,6 +16,9 @@
   };
   const run = () => { document.querySelectorAll('.j-past').forEach(b => lay(b, true)); document.querySelectorAll('.j-future').forEach(b => lay(b, false)); };
   run(); addEventListener('resize', run); document.fonts && document.fonts.ready.then(run);
+  document.addEventListener('toggle', e => { if (e.target.querySelector && e.target.querySelector('.j-past')) run(); }, true);   // a folded timeline lays out when it opens
+  if (window.MutationObserver) new MutationObserver(ms => { if (ms.some(m => [...m.addedNodes].some(n => n.querySelector && (n.matches('.journey') || n.querySelector('.journey'))))) run(); })
+    .observe(document.body, { childList: true, subtree: true });
 })();
 document.addEventListener('submit', e => {
   const f = e.target; if (!f.matches || !f.matches('form.qnewf')) return;
@@ -36,4 +39,11 @@ document.addEventListener('submit', async e => {
   } catch (_) {}
   location.reload();     // this tab now shows Open quote N, or the refusal with the latest prices
 }, true);
+
+document.addEventListener('change', e => {
+  const f = e.target.form; if (!f) return;
+  f.querySelectorAll('[data-required-if]').forEach(el => {
+    const [n, v] = el.dataset.requiredIf.split('='), r = f.querySelector(`[name="${n}"]:checked`);
+    el.required = !!(r && r.value === v); });
+});
 

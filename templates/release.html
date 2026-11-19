@@ -1,15 +1,16 @@
-{% from "_doc_bar.html" import doc_bar, draft with context %}<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Photo release - {{ v.person }}</title>
+{% from "_doc_bar.html" import doc_bar, draft with context %}{% import "_ui.html" as ui with context %}<!doctype html><html lang="en"><head><meta charset="utf-8"><title>{{ 'Property' if v.property else 'Photo' }} release - {{ v.person }}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 {% include "_doc_style.html" %}</head><body>
-{% if not pdf %}{% set sign_ %}{% if v.unsigned %}<form method="post" action="{{ url_for('doc_save', did=v.did) }}" data-confirm="Mark this release signed? Do this once you have the signed copy back."><input type="hidden" name="status" value="signed"><input type="hidden" name="back" value="{{ request.path }}"><button class="linkish strong">Mark signed</button></form> {% else %}<span class="sent">Signed</span> {% endif %}{% endset %}{{ doc_bar(v.pdf_url, v.back, send, v.review if not v.reviewed, before=sign_) }}{% endif %}
+{% if not pdf %}{% set sign_ %}{% if v.unsigned %}{{ ui.action(url_for('doc_save', did=v.did), 'Mark signed', dict(status='signed'), request.path, inplace=false, confirm='Mark this release signed? Do this once you have the signed copy back.') }} {% else %}<span class="ui-chip">Signed</span> {% endif %}{% endset %}{{ doc_bar(v.pdf_url, v.back, send, v.review if not v.reviewed, approve=v.approve, after=sign_) }}{% endif %}
 <div class="page">
   {% include "_doc_logo.html" %}
 {% if v.legacy_signed %}<div class="draft"><b>Signed before Lumen Aureum kept a copy of what was signed. This copy shows today's wording; the copy the client signed is the record.</b></div>{% endif %}
-  {% if not v.reviewed %}{{ draft(v.review, 'release') }}{% endif %}
-  <h1>Photo release</h1>
+  {% if not v.reviewed %}{{ draft(v.review, 'release', v.approve, pdf) }}{% endif %}
+  <h1>{{ 'Property' if v.property else 'Photo' }} release</h1>
   <p class="sub">{{ v.photographer }}{% if v.business %}, {{ v.business }}{% endif %}</p>
   <table class="facts" style="margin-top:14px">
-    <tr><td>Photographed</td><td>{{ v.person }}{% if v.minor %} (a minor){% endif %}</td></tr>
+    <tr><td>{{ 'Property' if v.property else 'Photographed' }}</td><td>{{ v.person }}{% if v.minor %} (a minor){% endif %}</td></tr>
+    {% if v.guest or v.property %}<tr><td>Client</td><td>{{ v.client }}</td></tr>{% endif %}
     <tr><td>{{ 'Event' if v.event else 'Session' }}</td><td>{{ v.what }}{% if v.date_long %}, {{ v.date_long }}{% endif %}</td></tr>
     {% if v.signer %}<tr><td>Signed by</td><td>{{ v.signer }}{% if v.minor %}, parent or guardian{% endif %}</td></tr>{% endif %}
   </table>

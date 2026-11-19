@@ -8,7 +8,7 @@
 // purpose picks or draft, bound to this gallery's ID (this folder's name), 256 KB at most, and not readable text. Only a
 // visitor holding the key can write it: the X-Proof header is sha256 of the key (32 hex), checked against its SHA-256 in
 // seen-key.php, the same proof seen.php checks.
-header('X-Host-Scripts: 1.4.0');
+header('X-Host-Scripts: 1.5.0');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); exit; }

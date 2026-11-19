@@ -105,14 +105,14 @@ def test_a_refused_codeword_stays_in_the_field(tmp_path, monkeypatch):
     r = _delivery(c, sid, "blue")
     assert r.status_code == 302
     assert _q(A, "SELECT gallery_codeword FROM sessions WHERE id=?", (sid,))[0][0] == "spruce otter raven"
-    page = c.get(f"/session/{sid}", environ_base=E).get_data(as_text=True)
+    page = c.get(f"/session/{sid}/edit", environ_base=E).get_data(as_text=True)
     assert "That codeword is too easy to guess. Use three or more words, or 14 letters or more" in page
     field = re.search(r'<input name="gallery_codeword"[^>]*>', page).group(0)
     assert 'value="blue"' in field and 'aria-invalid="true"' in field
     assert "Not saved: this codeword is too easy to guess." in page
     assert 'The saved codeword is still "spruce otter raven".' in page
 
-    page = c.get(f"/session/{sid}", environ_base=E).get_data(as_text=True)
+    page = c.get(f"/session/{sid}/edit", environ_base=E).get_data(as_text=True)
     assert 'value="spruce otter raven"' in re.search(r'<input name="gallery_codeword"[^>]*>', page).group(0)
     assert "Not saved:" not in page
 
@@ -121,7 +121,7 @@ def test_a_refused_codeword_at_intake_is_quoted_back(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
     sid = _new(A, c, "family", subject_name="Ava", gallery_codeword="blue  sky")
     assert (_q(A, "SELECT gallery_codeword FROM sessions WHERE id=?", (sid,))[0][0] or "") == ""
-    page = c.get(f"/session/{sid}", environ_base=E).get_data(as_text=True)
+    page = c.get(f"/session/{sid}/edit", environ_base=E).get_data(as_text=True)
     assert "The gallery codeword &#34;blue sky&#34; wasn&#39;t saved: it is too easy to guess." in page
     assert "Use three or more words, or 14 letters or more" in page
 
@@ -132,7 +132,7 @@ def test_a_refused_codeword_is_only_put_back_on_its_own_session(tmp_path, monkey
         _shot(A, s_)
         _delivery(c, s_, "spruce otter raven")
     _delivery(c, one, "blue")
-    page = c.get(f"/session/{two}", environ_base=E).get_data(as_text=True)
+    page = c.get(f"/session/{two}/edit", environ_base=E).get_data(as_text=True)
     assert 'value="spruce otter raven"' in re.search(r'<input name="gallery_codeword"[^>]*>', page).group(0)
     assert "Not saved:" not in page
 
@@ -141,7 +141,7 @@ def _stale_session(tmp_path, monkeypatch):
     sid = _new(A, c, "family", subject_name="Ava")
     form = {"title": "", "type": "family", "shoot_date": "2027-12-04", "start_time": "", "stops": "", "notes": ""}
     c.post(f"/session/{sid}", data=form, environ_base=E)
-    tab_a, tab_b = _seen(c, f"/session/{sid}"), _seen(c, f"/session/{sid}")
+    tab_a, tab_b = _seen(c, f"/session/{sid}/edit"), _seen(c, f"/session/{sid}/edit")
     c.post(f"/session/{sid}", data={**form, "seen": tab_b, "title": "From B", "notes": "gate code 9911"}, environ_base=E)
     r = c.post(f"/session/{sid}", data={**form, "seen": tab_a, "title": "TAB A title", "notes": "bring the dog\nand a ball"},
                environ_base=E)
@@ -166,7 +166,7 @@ def test_clash_lists_each_typed_field_by_name_for_the_refill(tmp_path, monkeypat
 def test_clash_reload_is_a_button_and_the_message_clears_the_header(tmp_path, monkeypatch):
     A, c, sid, r = _stale_session(tmp_path, monkeypatch)
     page = r.get_data(as_text=True)
-    assert f'<a class="btn" href="/session/{sid}">Reload and discard what I typed</a>' in page
+    assert f'<a class="btn" href="/session/{sid}/edit#shoot">Reload and discard what I typed</a>' in page
     assert 'class="clash edit-clash" id="edit-clash" tabindex="-1"' in page
     assert re.search(r'<p[^>]*role="alert"><strong>This session ' + re.escape(CLASH), page)
     css = open(os.path.join(ROOT, "static", "style.css")).read()

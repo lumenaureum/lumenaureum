@@ -9,7 +9,7 @@ class HttpsClient(FlaskClient):
         return super().open(*args, **kw)
 
 TEST_PASSWORD = "test password 123"
-MODULES = ("app", "auth", "config", "setup", "sun", "datakey", "db", "atrest", "rotate", "netsec", "about", "settings_io", "serve", "seed_demo")
+MODULES = ("app", "auth", "config", "setup", "sun", "datakey", "locknotice", "db", "atrest", "rotate", "netsec", "about", "settings_io", "serve", "seed_demo")
 
 def fresh_modules():
 

@@ -77,7 +77,8 @@ def test_the_invoice_draft_stands_alone_and_promises_no_attachment(e):
     e.c.post(f"/prints/order/{oid}/shipping", data={"lab_ship": "8.00"}, environ_base=E)
     e.c.post(f"/prints/order/{oid}/invoice", environ_base=E)
     page = e.c.get(f"/prints/order/{oid}", environ_base=E).data.decode()
-    assert "Save the invoice as a PDF and attach it for their records, if you like." in page
+    assert "The email gives the invoice's number, total and how to pay." in page
+    assert "attach it" not in page
     assert "attached" not in page and "%20attached" not in page
 
 def test_the_host_check_says_why_in_plain_words(monkeypatch):

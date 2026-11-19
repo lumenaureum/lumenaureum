@@ -1,0 +1,179 @@
+{% extends "base.html" %}{% import "_ui.html" as ui with context %}{% import "_ui_mail.html" as uim with context %}{% import "_ui_bars.html" as bars with context %}{% import "_today.html" as tu with context %}{% import "_ui_filter.html" as uf with context %}{% import "_ui_photos.html" as ph with context %}{% import "_ui_pages.html" as pg with context %}{% import "_ui_inbox.html" as uin with context %}{% import "_ui_roster.html" as ur with context %}
+{% block title %}Components - Lumen Aureum{% endblock %}
+
+{% block body %}
+<div class="ui-page" data-ui-layout="components">
+{{ ui.page_head('Alex Morgan', status='Booked for 3 days &middot; Shoot Sat Nov 21, 3:30 pm, Longwood Gardens'|safe, kicker='Family session', face='', sub='555-0142 alex@example.com') }}
+
+{% call ui.needs('Their message', id='demo-needs') %}
+  {{ ui.message('Alex Morgan', 'from your website', 'Wed Nov 18, 9:00 am', [('Preferred date', 'Sun Apr 18, 2027')], 'Any weekend dates in December? We are four plus a dog.') }}
+  <div class="ui-btnrow">{{ ui.button_link('#', 'Reply', 'primary') }}{{ ui.action(url_for('dev_components_post'), 'Book it', dict(what='ok'), url_for('dev_components')) }}{{ ui.action(url_for('dev_components_post'), 'Do not book', dict(what='ok'), url_for('dev_components')) }}</div>
+{% endcall %}
+
+{% call ui.section('Buttons and links') %}
+  <div class="ui-btnrow">
+    {{ ui.action(url_for('dev_components_post'), 'Primary (does it)', dict(what='ok'), url_for('dev_components'), 'primary') }}
+    {{ ui.action(url_for('dev_components_post'), 'Quiet (does it)', dict(what='ok'), url_for('dev_components'), 'quiet') }}
+    {{ ui.action(url_for('dev_components_post'), 'Refused', dict(what='refuse'), url_for('dev_components'), 'quiet') }}
+    {{ ui.action(url_for('dev_components_post'), 'Error', dict(what='error'), url_for('dev_components'), 'quiet') }}
+    {{ ui.go('#', 'Goes somewhere') }}
+  </div>
+  <div class="ui-btnrow">{{ uim.mail_action(url_for('dev_components_post'), 'mailto:alex@example.com?subject=Re%3A%20your%20inquiry', 'Reply (opens a draft, records it)', url_for('dev_components'), 'quiet') }}</div>
+{% endcall %}
+
+{% call ui.section('Pager (year and month)') %}
+  {{ pg.pager('#', 2025, 2026, '#', 2027, 'Year') }}
+{% endcall %}
+
+{% call ui.section('Settings search') %}
+  {{ pg.settings_find([dict(text='Mileage rate', sub='Settings, General', link='#', words='mileage rate miles')], '', None) }}
+{% endcall %}
+
+{% call ui.section('Status chips') %}
+  <div class="ui-chips">{{ ui.chip('Neutral') }} {{ ui.chip('Due Thu Nov 19', 'attention', tip='Warning: due in 2 days') }} {{ ui.chip('Signed', 'done') }} {{ ui.chip('Was due Thu Oct 29', 'late', tip='Problem: the balance was due Thu Oct 29') }}</div>
+{% endcall %}
+
+{% call ui.section('Tasks', id='demo-todo', part=true) %}
+  <ul class="ui-todos">
+    {% call ui.todo_row('Send the session sheet', icon='description', when='Today') %}{{ ui.action(url_for('dev_components_post'), 'Mark done', dict(what='ok'), url_for('dev_components')) }}{% endcall %}
+    {% call ui.todo_row('Collect the deposit', icon='payments', status='soon', when='Thu Nov 19', note='$100 of $318') %}{{ ui.opener('demo-pay', 'Record deposit') }}{% endcall %}
+    {% call ui.inline_form('demo-pay', 'Record deposit') %}<form method="post" action="{{ url_for('dev_components_post') }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="what" value="ok"><input type="hidden" name="back" value="{{ url_for('dev_components') }}"><input type="number" name="amount" value="100.00" aria-label="Amount" class="ui-input-money"><input type="date" name="received" aria-label="Received on" class="ui-input-date"><button class="ui-btn ui-btn-primary">Record</button></form>{% endcall %}
+    {% call ui.todo_row('Balance $100', icon='payments', status='late', when='Thu Oct 29', when_late=true, theirs=true) %}{{ ui.action(url_for('dev_components_post'), 'Record payment ($100.00)', dict(what='ok'), url_for('dev_components')) }}{% endcall %}
+    {% call ui.todo_row('Send retouched photos', icon='photo_library', when='Fri Nov 20', detail='AM_01.jpg: soften the shadow on the left\nAM_02.jpg') %}{{ ui.action(url_for('dev_components_post'), 'Mark done', dict(what='refuse'), url_for('dev_components')) }}{% endcall %}
+  </ul>
+{% endcall %}
+
+{% call ui.section('Folds') %}
+  {% call ui.fold('$0 of $318 paid, balance $318', id='demo-glance') %}{{ ui.fact('Quoted', '$318') }}{{ ui.fact('Paid', '$0') }}{{ ui.fact('Balance', '$318') }}{% endcall %}
+  {% call ui.fold('What they want', id='demo-fold') %}{{ ui.fact('Who is coming', 'Four and a dog') }}{{ ui.fact('Looks wanted', 'Relaxed, outdoors') }}{{ ui.fact('Outfits', 'Two') }}{% endcall %}
+  {% call ui.fold('Next two weeks', id='demo-count', count=3) %}{{ ui.fact('Sat', 'Ellis Family shoot') }}{{ ui.fact('Mon', 'Send the gallery') }}{{ ui.fact('Wed', 'Invoice Bright Meadow') }}{% endcall %}
+  {% call ui.fold('Open by default', id='demo-open', open=true) %}{{ ui.fact('One', 'a') }}{{ ui.fact('Two', 'b') }}{{ ui.fact('Three', 'c') }}{% endcall %}
+  {% call ui.fold('Light', id='demo-one-line') %}{{ ui.fact('Light', 'Golden hour 4:04 pm, sunset 4:44 pm') }}{% endcall %}
+  {% call ui.fold('Book it', id='demo-one-action') %}<div class="ui-btnrow">{{ ui.action(url_for('dev_components_post'), 'Book it', dict(what='ok'), url_for('dev_components')) }}</div>{% endcall %}
+{% endcall %}
+
+{% call ui.section('Money table (fits a phone)') %}
+  {% call ui.money_table('Quote') %}
+    {% call ui.money_row('$250.00') %}<span class="ui-money-name">Family session, one hour, every edited image included, at the location of your choice</span>{% endcall %}
+    {% call ui.money_row('$1,240.00') %}<span class="ui-mute">2 &times; </span><span class="ui-money-name">Extra hour</span><button class="ui-x" type="button" aria-label="Remove">&times;</button>{% endcall %}
+    {% call ui.money_row('-$25.00', 'ui-money-sub') %}Returning client (10%){% endcall %}
+    {{ ui.money_total('Total', '$1,465.00') }}
+    {% call ui.money_row('$100.00', 'ui-money-sub') %}Tue Nov 3 deposit, cash{% endcall %}
+    {{ ui.money_total('Paid', '$100.00') }}{{ ui.money_total('Balance', '$1,365.00') }}
+  {% endcall %}
+{% endcall %}
+
+{% call ui.section('List rows') %}
+  {{ ui.list_row('#', 'Alex Morgan', 'Family, Booked, shoot Sat Nov 21') }}
+  {{ ui.list_row('#', 'Kim Lee', 'Headshots, Delivered, balance was due Thu Oct 29', ui.chip('$100 owed', 'late')) }}
+  {{ ui.list_row('#', 'A very long client name that has to wrap on a phone without pushing the chip off the edge', 'Newborn, Inquiry', ui.chip('New', 'attention')) }}
+{% endcall %}
+
+{% call ui.section('Document action bar') %}
+  {% call ui.doc_bar(ui.action(url_for('dev_components_post'), 'Email it', dict(what='ok'), url_for('dev_components'), 'primary')) %}
+    {{ ui.button_link('#', 'Download PDF') }}{{ ui.button_link('#', 'Print') }}{{ ui.action(url_for('dev_components_post'), 'Mark sent', dict(what='ok'), url_for('dev_components')) }}
+  {% endcall %}
+{% endcall %}
+
+{% call ui.section('Bar rows') %}
+  {% call bars.bar_list('Received by month') %}{{ bars.bar_row('Mar 2026', 818, 818, '$818') }}{{ bars.bar_row('Apr 2026', -40, 818, '-$40') }}{{ bars.bar_row('May 2026', 200, 818, '$200') }}{% endcall %}
+{% endcall %}
+
+{% call ui.section('Photo list') %}
+  <ul class="ui-photos"><li class="ui-photo"><span style="display:block;width:100px;height:66px;background:var(--surface-2);border-radius:4px"></span><div class="ui-photo-body">
+    <form method="post" action="{{ url_for('dev_components_post') }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="what" value="ok"><input type="hidden" name="back" value="{{ url_for('dev_components') }}"><input name="alt" placeholder="What it shows" aria-label="What the photo shows" class="ui-grow"><button class="ui-btn ui-btn-quiet">Save the description</button></form>
+    <div class="ui-mute" style="font-size:12.5px">Your upload: AM_01.jpg {{ ui.chip('No description yet', 'attention') }}</div></div></li></ul>
+{% endcall %}
+
+
+{% call ui.section('Stacked table') %}
+  <div class="ui-stack-wrap"><table class="r ui-stack"><thead><tr><th>Shown as</th><th>Short</th><th>Long</th><th>Price</th><th>Offered</th></tr></thead><tbody>
+    <tr><td data-label="Shown as"><input value="8x10 print, Lustre" aria-label="Shown as"></td><td data-label="Short"><input value="8" aria-label="Short side"></td><td data-label="Long"><input value="10" aria-label="Long side"></td><td data-label="Price"><input value="30.00" aria-label="Price"></td><td data-label="Offered"><input type="checkbox" checked aria-label="Offered"></td></tr>
+  </tbody></table></div>
+  <p>A search match: Keystone <mark>Realty</mark> Group</p>
+{% endcall %}
+
+
+{% set dev_ = url_for('dev_components') %}{% set try_ = url_for('dev_components_post') %}
+{% call ui.section('Today lines', id='demo-today', part=true) %}
+  <ul class="ui-tlines">
+    {{ tu.today_line(dict(key='d1', event=false, hid=none, eid=none, name='Robin Avery', href='#', kind='Newborn', stage='inquiry',
+        do=dict(what='Any weekend dates in December? We are four plus a dog.', late=false, when=none, detail='', a=dict(verb='Reply', post=try_, fields=dict(what='ok'), mail='mailto:robin@example.com?subject=Re%3A%20your%20inquiry'))), dev_) }}
+    {{ tu.today_line(dict(key='d2', event=false, hid=none, eid=none, name='Kim Lee', href='#', kind='Headshots', stage='delivered',
+        do=dict(what='Balance $100', late=true, when='2026-10-29', detail='', a=dict(verb='Record payment ($100.00)', post=try_, fields=dict(what='ok')))), dev_) }}
+    {{ tu.today_line(dict(key='d3', event=true, hid=none, eid=1, name='Spring Recital at the Grand Riverside Performing Arts Center', href='#', kind='Group event', stage='booked',
+        do=dict(what="Confirm the venue's photo rules", late=false, when='2026-11-30', detail='', a=dict(verb='Mark done', post=try_, fields=dict(what='ok')))), dev_) }}
+    {{ tu.today_line(dict(key='d4', event=false, hid=none, eid=none, name='Ellis', href='#', kind='Family', stage='delivered',
+        do=dict(what='Sent their picks: Send retouched photos', late=false, when=none, detail='AM_01.jpg: soften the shadow on the left', a=dict(verb='Mark done', post=try_, fields=dict(what='refuse')))), dev_) }}
+  </ul>
+{% endcall %}
+{% call ui.section('Shoot-day block (Today)') %}
+  {{ tu.shoot_block(dict(key='d5', name='Alex Morgan', href='#', kind='Family', time='3:30 pm', place='Longwood Gardens, main fountain entrance',
+      light=dict(text='Golden hour 4:04 pm, sunset 4:44 pm'), phone='555-0142', who='Alex Morgan', intake=[('Who is coming', 'Four and a dog')],
+      open_items=['Send the session sheet'], do=dict(what='The shoot time has passed', a=dict(verb='Shoot done', post=try_, fields=dict(what='ok'), confirm='Send the session sheet is still open. Move to Shot?'))), dev_) }}
+{% endcall %}
+
+{% call ui.section('Filter chips (ux15-b2-nav)', id='demo-filter') %}
+  {{ uf.filter_bar('components', today.isoformat(), groups=[dict(key='kind', label='Kind', values=['Retouch', 'Retouch', 'Back up']), dict(key='label', label='Labels', values=['Slow to pay'])],
+                   placeholder='Find a name or a task', sorts=[('name', 'Name A-Z', 'name', 'asc', false), ('owed', 'Money owed', 'owed', 'desc', true)]) }}
+  <div class="ui-fitem" {{ uf.item('mine', today.isoformat(), dict(kind='Retouch'), dict(name='ellis', owed='0')) }}>{{ ui.list_row('#', 'Ellis Family', 'Retouch 3 photos, due today') }}</div>
+  <div class="ui-fitem" {{ uf.item('mine', '', dict(kind='Retouch', label=['Slow to pay']), dict(name='kim', owed='318')) }}>{{ ui.list_row('#', 'Kim', 'Retouch 1 photo') }}<div class="ui-fitem-more"><span class="ui-chips ui-client-labels">{{ ui.chip('Slow to pay') }}</span></div></div>
+  <div class="ui-fitem" {{ uf.item('waiting', '', dict(kind='Back up'), dict(name='lee', owed='0')) }}>{{ ui.list_row('#', 'Lee', 'Waiting on their picks') }}</div>
+{% endcall %}
+
+
+{% call ui.section('Facts you tap to change, waiting rows, a reason in the menu', id='demo-work', part=true) %}{% set try_ = url_for('dev_components_post') %}{% set here_ = url_for('dev_components') %}
+  <p class="ui-status"><a class="ui-factlink" href="#demo-when" data-ui-open="demo-when" aria-controls="demo-when" aria-expanded="false">Shoot Sat Nov 21, 3:30 pm, Longwood Gardens</a></p>
+  {% call ui.inline_form('demo-when', 'Change the date, time or place') %}<form method="post" action="{{ try_ }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="what" value="ok"><input type="hidden" name="back" value="{{ here_ }}">
+    <input type="date" name="shoot_date" aria-label="Shoot date" class="ui-input-date"><input type="time" name="start_time" aria-label="Start time" class="ui-input-date"><input name="where" value="Longwood Gardens" aria-label="Where" class="ui-grow"><label class="ui-check"><input type="checkbox" name="tentative" value="1">Date not final yet</label><button class="ui-btn ui-btn-primary">Set</button></form>{% endcall %}
+  <ul class="ui-todos">
+    {% call ui.todo_row('Set the shoot date, time and place', icon='event', detail='No start time') %}{{ ui.opener('demo-when', 'Set date, time and place') }}{% endcall %}
+    {{ ui.step_row(dict(what='Morgan owes $318.00 · invoice 2026-014 sent Mon Nov 16', detail='Balance $318.00 of $318.00 (Family session, invoice 2026-014). The photos are released on payment.',
+         verb='Record payment ($318.00)', post=try_, fields=dict(what='ok'), sym='payments', more_items=[dict(verb='Waive the balance', post=try_, fields=dict(what='ok'),
+         ask='Why (required)', ask_name='note_why', confirm='Waive the balance? It is written off, not paid.')]), here_) }}
+    {{ ui.step_row(dict(what='Mail QR letter once paid', wait='After payment', sym='mail', detail='The letter carries the gallery link: it goes out once the $318.00 balance is paid.'), here_) }}
+  </ul>
+{% endcall %}
+
+
+{% call ui.section('Photos on the rows', id='demo-photos') %}
+  {% set dz_ = dict(what='Upload original photos', drop='raw', drop_verb='Browse RAW files', drop_main=true, note='Only one copy so far', when='', sid=0,
+                    alt=dict(verb='I backed it up another way', post=url_for('dev_components_post'), fields=dict(what='ok'))) %}
+  {% set rt_ = dict(what='Retouch 2 photos', drop='final', drop_verb='Browse retouched photos', drop_main=true, note='1 of 2 retouched photos in', sid=0,
+                    retouch=[dict(name='IMG_0042.jpg', note='soften the shadows', done=true), dict(name='IMG_0057.jpg', note='crop tighter', done=false)]) %}
+  {% set dl_ = dict(what='Get the photos to Alex', verb='Mark mailed', post=url_for('dev_components_post'), fields=dict(what='ok'),
+                    deliver=dict(sid=0, step='letter_mailed', mail='mailto:alex@example.com?subject=Your%20gallery', codeword=true, usual='letter',
+                                 letter=dict(doc='#', printed=''))) %}
+  <ul class="ui-todos">{{ ph.step_row(rt_, url_for('dev_components'), dict(id=0), lead=true) }}{{ ph.step_row(dz_, url_for('dev_components'), dict(id=0)) }}{{ ph.step_row(dl_, url_for('dev_components'), dict(id=0)) }}</ul>
+  {% call ph.fact_row('Morgan can download 4 photos · made Mon Nov 16') %}{{ ui.button_link('#', 'Preview the gallery') }}{% endcall %}
+  {% call ph.fact_row('Closing Wed Dec 16 · in 3 days · the client sees a warning', tone='attention') %}{{ ui.action(url_for('dev_components_post'), 'Extend to Fri Jan 15', dict(what='ok'), url_for('dev_components')) }}{% endcall %}
+{% endcall %}
+
+{% call ui.section('Facts') %}{{ ui.fact('When', 'Sat Nov 21, 3:30 pm') }}{{ ui.fact('Where', ui.go('#', 'Longwood Gardens, main fountain entrance')) }}{{ ui.fact('Light', 'Golden hour 4:04 pm, sunset 4:44 pm') }}{% endcall %}
+
+
+{% call ui.section('Inbox item (ux15-w15-today)', id='demo-inbox') %}
+  {{ uin.client_search([(1, 'Ellis Family #1', 'ellis@example.com'), (2, 'Kim #2', '555-0100')]) }}
+  <ul class="ui-mails">
+  {{ uin.inbox_item(dict(id=901, name='Pat Visitor', email='pat@example.com', phone='', type='family', type_label='Family', date='2027-05-01',
+      message='We would love fall photos by the lake, four of us and a dog.', first='We would love fall photos by the lake, four of us...',
+      received='2026-11-18 09:14', how='Website', new=true, reply='mailto:pat@example.com', matches=[], twin=false, cut=false), [('family', 'Family')], 4000, dev_, try_) }}
+  {{ uin.inbox_item(dict(id=902, name='Jo Ellis', email='jo@example.com', phone='555-0100', type='', type_label='', date='',
+      message='Is spring open?', first='Is spring open?', received='2026-11-17 18:02', how='Website', new=false, reply='mailto:jo@example.com',
+      matches=[dict(hid=1, name='Ellis Family')], twin=false, cut=false), [('family', 'Family')], 4000, dev_, try_) }}
+  </ul>
+{% endcall %}
+{% call ui.section('Roster table (ux15-w15-today)', id='demo-roster') %}
+  {{ ur.roster('demo-roster-t', [('name', 'Name'), ('phone', 'Phone'), ('email', 'Email'), ('stand', 'Where they stand'), ('owed', 'Owes'), ('toinv', 'To invoice')],
+      [dict(hid=0, name='Ellis Family', phone='(555) 010-1234', email='ellis@example.com', stand='Shot · Nov 2', owes='', to_invoice='$240.00', find='Slow to pay',
+            sort=dict(name='ellis', phone='5550101234', email='ellis@example.com', stand='3|2026-11-02', owed='0.00', toinv='240.00')),
+       dict(hid=0, name='Bright Meadow Realty', phone='', email='office@example.com', stand='Delivered · shoot Oct 3', owes='$318.00', late=true, to_invoice='', find='',
+            sort=dict(name='bright meadow realty', phone='', email='office@example.com', stand='4|2026-10-03', owed='318.00', toinv='0.00'))],
+      'name', false, '', request.path, placeholder='Find a name, phone, email or label') }}
+{% endcall %}
+</div>
+<div class="vh" id="ui-live" role="status" aria-live="polite"></div>
+<script src="{{ url_for('static', filename='filters.js', v=static_v('filters.js')) }}"></script>
+<script src="{{ url_for('static', filename='roster.js', v=static_v('roster.js')) }}"></script>
+{% endblock %}
+

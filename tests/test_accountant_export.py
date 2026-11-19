@@ -71,7 +71,7 @@ def test_zip_holds_the_files_and_is_audited(env):
     assert con.execute("SELECT COUNT(*) FROM audit WHERE action='Exported accounts for 2026'").fetchone()[0] == 1
     con.close()
     page = c.get("/money?year=2026", environ_base=E).get_data(as_text=True)
-    assert "Export for your accountant" in page and "/money/accounts.zip" in page
+    assert "Details (CSV)" in page and "/money/accounts.zip" in page
     assert '<option value="2026" selected>' in page and '<option value="2025"' in page
 
 def test_totals_match_finances(env):

@@ -19,7 +19,8 @@ Docker Desktop on macOS and Windows is not supported: it hides where each connec
 refuses them.
 A laptop that sleeps or travels is a poor choice.
 
-After any restart the app is locked until you sign in (see [Security](security.md)).
+After any restart the app is locked until you sign in (see [Security](security.md)). An optional ntfy notice tells
+your phone when that happens (see [Notices while locked](security.md#notices-while-locked)).
 
 Minimum: a 64-bit processor (Intel or AMD x86-64, or 64-bit ARM), 1 GB of free memory, and room for your photos. In
 our tests the app used about 70 MB at rest and about 150 MB while sealing a 12 GB session. Building a client gallery
@@ -50,7 +51,8 @@ see [Reaching the app](#reaching-the-app). To restore a backup on a catalog inst
 
 Updates arrive on the TrueNAS Apps screen after each release. The catalog's "Version" (1.0.1, say) is the package's
 number; the app's own version shows as App Version. Settings that compose.yaml would hold, such as `CRM_ALLOW_ONLY`,
-go in the app's Edit screen under Additional Environment Variables.
+go in the app's Edit screen under Additional Environment Variables. ntfy, for the optional locked-studio notice, is in
+the same catalog.
 
 ## A server in the cloud
 It runs in Docker on any 64-bit Intel, AMD or ARM machine, including a rented server. We recommend a computer you own, for one reason.
@@ -114,7 +116,7 @@ no version for other script platforms. What each kind of host gives you:
 | | A web host that runs PHP 7.4 or later | A plain bucket or static host (no PHP) |
 |---|---|---|
 | Galleries close on their last day, even with Lumen Aureum off | yes | no: the app removes them when it next checks |
-| Clients' picks come back by themselves (sealed) | yes | no: the client sends them by email, with a fingerprint the app checks |
+| Clients' picks come back by themselves (sealed) | yes | no: the client sends them by email, with a fingerprint the app checks; you paste it on the client page (Paste their picks email) |
 | The studio page's inquiry form | yes | no: the Contact page shows your email |
 | Print ordering from download galleries ([Print orders](print-orders.md)) | yes | no: galleries say "For prints, email" with your address |
 
@@ -243,7 +245,6 @@ Set these under `environment:` in `compose.yaml`; leave out any you don't need.
 | `CRM_TLS_SAN` | Addresses and names to put in the app's certificate, so the browser asks only once per device |
 | `CRM_TLS_CERT`, `CRM_TLS_KEY` | Your own certificate and its key, instead of the one the app makes |
 | `CRM_HSTS` | `1` tells browsers to always use HTTPS for this address |
-| `CRM_UNLOCK_KEY_FILE` | Unattended unlock: a key file on a different volume from the data folder (see [Security](security.md)) |
 | `CRM_PORT` | The port inside the container (default 8780) |
 | `TZ` | The time zone to start with, for example `America/Chicago`, until you choose one in setup |
 | `CRM_THREADS` | Request threads (default 8) |

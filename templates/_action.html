@@ -6,7 +6,7 @@
   {% if show_face %}<a class="act-who name" href="{{ a.who.link }}">{{ a.who.name }}</a>{% endif %}
   <div class="act-when {{ 'late' if a.group == 'overdue' }}">{{ nice(a.when) if a.when else '' }}</div>
   <div class="act-btn">
-    {% if a.doc %}<a class="btn {{ 'primary' if a.primary else 'verb' }}" href="{{ a.doc }}"{% if not a.doc_here %} target="_blank"{% endif %}>{{ a.doc_verb or 'Open' }}</a>{{ close_menu(a, back, more_) }}
+    {% if a.doc %}<a class="btn {{ 'primary' if a.primary else 'verb' }}" href="{{ a.doc }}"{% if not a.doc_here %} target="_blank"{% endif %}>{{ a.doc_verb or 'Open the document' }}</a>{{ close_menu(a, back, more_) }}
     {% elif a.post %}<form method="post" action="{{ a.post }}" class="inline">{% for k, v in a.fields.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}{% if a.ask_date %}<input type="date" name="on" value="{{ iso_today() }}" max="{{ iso_today() }}" title="{{ a.date_tip }}" style="width:auto;display:inline;margin:0 4px 0 0">{% endif %}
       <input type="hidden" name="back" value="{{ back }}"><button class="{{ 'primary' if a.primary else 'verb' }}">{{ a.verb }}</button></form>{{ close_menu(a, back, more_) }}
     {% elif a.form %}<button type="button" class="verb" data-toggle-open>{{ a.verb }}</button>{{ close_menu(a, back, more_) }}

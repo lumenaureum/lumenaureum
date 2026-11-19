@@ -31,7 +31,7 @@ def test_an_issued_invoice_keeps_its_words_when_the_app_changes(tmp_path, monkey
     _pay(c, sid, "100")
     r = c.post(f"/session/{sid}/invoice/issue", environ_base=E, follow_redirects=True).get_data(as_text=True)
     num = _q(A, "SELECT number FROM doc_numbers WHERE session_id=? AND kind='INV'", (sid,))[0][0]
-    assert f'<span class="note" role="status">Invoice {num} issued.</span>' in r
+    assert f'<span class="ui-note" role="status">Invoice {num} issued.</span>' in r
     html = _q(A, "SELECT html FROM bill_snapshots WHERE number=?", (num,))[0][0]
     assert html and num in html and "Questions about this invoice?" in html
 
@@ -76,7 +76,7 @@ def test_a_paid_invoice_is_not_shown_as_sent(tmp_path, monkeypatch):
     _pay(c, sid, "300", kind="balance")
     c.post(f"/session/{sid}/invoice/issue", environ_base=E)
     page = _page(c, f"/session/{sid}/invoice")
-    assert 'class="sent">Sent' not in page
+    assert 'sent">Sent' not in page
     assert [tuple(r) for r in _q(A, "SELECT outcome FROM tasks WHERE session_id=? AND title='Send invoice'", (sid,))] in ([("na",)], [])
 
 def test_setup_deposit_applies_to_weddings_until_the_type_changes_it(tmp_path, monkeypatch):
@@ -143,6 +143,8 @@ def test_the_update_note_shows_once(tmp_path, monkeypatch):
     import about
     first = _page(c, "/")
     assert f"Updated to Lumen Aureum {about.version()}." in first and "from before the update" in first
+    assert "Updated to Lumen Aureum" in _page(c, "/")
+    c.post("/today/update-notice-hide", data={"back": "/"}, environ_base=E)
     assert "Updated to Lumen Aureum" not in _page(c, "/")
 
 def test_newer_data_is_refused_on_the_sign_in_page(tmp_path, monkeypatch):
@@ -337,8 +339,17 @@ def test_a_proof_gallery_is_not_held_for_the_balance(gal, monkeypatch):
     con = A.connect()
     con.execute("UPDATE galleries SET proof=1 WHERE session_id=?", (sid,))
     con.commit(); con.close()
+
+    with A.app.test_request_context():
+        A.db()
+        dep = A.deposit_held(sid)
     page = _page(c, f"/c/1?s={sid}")
-    assert "release the gallery on payment" not in page and "can go online before payment" in page
+    assert "release the gallery on payment" not in page
+    assert dep > 0 and ("Collect the " + A.money(dep)) in page and "the proofs go online once it is in" in page
+    c.post(f"/session/{sid}/money", data={"what": "payment", "kind": "deposit", "amount": str(dep), "method": "cash"},
+           environ_base=E)
+    page = _page(c, f"/c/1?s={sid}")
+    assert "release the gallery on payment" not in page and "deposit first" not in page and ">Upload</button>" in page
 
 def test_the_letter_for_proofs_says_so(gal, monkeypatch):
     A, c, G, host, key, sid, src = gal

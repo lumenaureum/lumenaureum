@@ -22,7 +22,7 @@ def test_the_refund_choice_follows_the_amount_until_picked_by_hand(browser, app_
         con.close()
     ctx, page = _page(browser, c)
     try:
-        page.goto(BASE + "/session/1")
+        page.goto(BASE + "/session/1/edit")
         box = page.locator("[data-after-refund]")
         assert box.is_hidden()
         form = page.locator("form:has([data-after-refund])")

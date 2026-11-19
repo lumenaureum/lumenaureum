@@ -130,7 +130,7 @@ def test_a_gallery_that_went_dark_can_be_put_back_online_for_its_days_from_today
     c.post("/gallery/sync", environ_base=E)
     assert [p.name for p in (host / GID).iterdir()] == ["index.html"]
     page = c.get("/c/1?s=1", environ_base=E).get_data(as_text=True)
-    assert "Put back online" in page and 'aria-label="More actions for this gallery"' in page
+    assert "Put back online" in page and 'id="gal-back-1"' in page
     assert "For 7 days" in page and "For 14 days" in page and f"For {A.C.GALLERY_DAYS} days" in page
     assert "For one download" not in page
     c.post("/session/1/gallery/back-online", data={"days": str(A.C.GALLERY_DAYS)}, environ_base=E)

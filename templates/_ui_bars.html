@@ -1,0 +1,13 @@
+
+
+
+{% macro bar_list(label='') -%}
+<ul class="ui-bars"{% if label %} aria-label="{{ label }}"{% endif %}>{{ caller() }}</ul>
+{%- endmacro %}
+
+
+{% macro bar_row(label, value, peak, shown) -%}
+{%- set pct_ = ((value|abs) / peak * 100)|round|int if peak and peak > 0 else 0 -%}
+<li class="ui-bar-row{{ ' ui-bar-neg' if value < 0 }}"><span class="ui-bar-label">{{ label }}</span><span class="ui-bar-track"><span class="ui-bar" style="width:{{ pct_ }}%"></span></span><span class="ui-bar-amt">{{ shown }}</span></li>
+{%- endmacro %}
+

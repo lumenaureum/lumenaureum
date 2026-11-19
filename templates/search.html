@@ -1,18 +1,28 @@
-{% extends "base.html" %}{% from "_macros.html" import stage_pill, phone, avatar with context %}
-{% block title %}{% if term %}{{ term }} - {% endif %}Search - Lumen Aureum{% endblock %}{% block body %}
-<h1>{% if term %}"{{ term }}"{% else %}Everyone{% endif %}</h1>
-<ul class="acts" style="margin-top:14px">
+{% extends "base.html" %}{% import "_ui.html" as ui with context %}
+{% block title %}{% if term %}{{ term }} - {% endif %}Search - Lumen Aureum{% endblock %}
+
+{% block body %}
+<div class="ui-page" data-ui-layout="search">
+{{ ui.page_head(('"' ~ term ~ '"') if term else 'Everyone', kicker='Search') }}
+
+{% call ui.section(id='hits') %}
 {% for x in hits %}
-  {% if x.kind == 'client' %}<li style="grid-template-columns: minmax(0,1fr) minmax(0,2fr)">
-    <div class="row" style="align-items:flex-start;flex-wrap:nowrap">{{ avatar(x.h.id, 40) }}<div><a href="{{ url_for('client_view', hid=x.h.id) }}"><b>{{ x.h.name }}</b></a>
-      {% for p in x.people %}<div class="sub" style="font-size:13px">{{ p.name }} {{ phone(p.phone) }}</div>{% endfor %}
-      {% for m in x.matched %}<div class="sub" style="font-size:13px"><mark>{{ m }}</mark></div>{% endfor %}</div></div>
-    <div>{% for s in x.sessions %}<div class="row" style="padding:2px 0"><a href="{{ url_for('session_view', sid=s.id) }}">{{ type_label[s.type] }}</a>
-      <span class="sub">{{ nice(s.shoot_date) or 'No date' }}</span>{{ stage_pill(s.stage) }}{% if s.hit %}<span class="sub"><mark>{{ s.hit }}</mark></span>{% endif %}</div>{% endfor %}</div>
-  </li>{% else %}<li style="grid-template-columns: minmax(0,1fr)"><a href="{{ url_for('event_view', eid=x.e.id) }}"><b>{{ x.e.name }}</b></a> <span class="sub">{{ nice(x.e.date) }} {{ x.e.venue }}</span></li>{% endif %}
-{% else %}{% if not extra %}<li class="empty" style="display:block">Nothing found</li>{% endif %}{% endfor %}
-</ul>
-{% for sec in extra %}<h2 class="grp">{{ sec.title }}</h2>
-<ul class="acts">{% for r in sec.rows %}<li style="grid-template-columns: minmax(0,1fr) minmax(0,2fr)">{% if r.link %}<a href="{{ r.link }}"><b>{{ r.text }}</b></a>{% else %}<b>{{ r.text }}</b>{% endif %}<span class="sub">{{ r.sub or '' }}</span></li>{% endfor %}</ul>{% endfor %}
+  {% if x.kind == 'client' %}
+    {%- set sub_ %}{% for p in x.people %}{{ p.name }}{% if p.phone %} {{ p.phone }}{% endif %}{{ ', ' if not loop.last }}{% endfor %}
+      {%- for m in x.matched %}{{ ' · ' if loop.first and x.people }}<mark>{{ m }}</mark>{{ ' · ' if not loop.last }}{% endfor %}{% endset -%}
+    {%- if x.sessions|length == 1 %}{% set s = x.sessions[0] %}{% set sub1_ %}{{ sub_ }}{% if s.hit %}{{ ' · ' if sub_|trim }}<mark>{{ s.hit }}</mark>{% endif %}{% endset %}
+    {{ ui.list_row(url_for('client_stage', hid=x.h.id, s=s.id), x.h.name, sub1_, ui.chip(type_label[s.type] ~ ', ' ~ stage_label[s.stage], 'done' if s.stage in ('closed', 'lost') else 'neutral')) }}
+    {%- else %}
+    {{ ui.list_row(url_for('client_stage', hid=x.h.id), x.h.name, sub_, ui.chip(x.sessions|length ~ ' sessions') if x.sessions else '') }}
+      {%- for s in x.sessions %}{% set ssub_ %}{{ nice(s.shoot_date) or 'No date' }}{% if s.hit %} · <mark>{{ s.hit }}</mark>{% endif %}{% endset %}
+      {{ ui.list_row(url_for('client_stage', hid=x.h.id, s=s.id), x.h.name ~ ': ' ~ type_label[s.type], ssub_, ui.chip(stage_label[s.stage], 'done' if s.stage in ('closed', 'lost') else 'neutral')) }}{% endfor %}
+    {%- endif %}
+  {% else %}{{ ui.list_row(url_for('event_view', eid=x.e.id), x.e.name, ((nice(x.e.date) or '') ~ ' ' ~ (x.e.venue or ''))|trim, ui.chip('Event')) }}{% endif %}
+{% else %}{% if not extra %}<p class="ui-mute">Nothing found.</p>{% endif %}{% endfor %}
+{% endcall %}
+
+{% for sec in extra %}{% call ui.section(sec.title) %}{% for r in sec.rows %}
+  {% if r.link %}{{ ui.list_row(r.link, r.text, r.sub or '') }}{% else %}{{ ui.fact(r.text, r.sub or '') }}{% endif %}{% endfor %}{% endcall %}{% endfor %}
+</div>
 {% endblock %}
 

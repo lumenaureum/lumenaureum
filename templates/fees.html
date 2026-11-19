@@ -1,11 +1,20 @@
-{% extends "base.html" %}
-{% block title %}Fee schedule #{{ sch.id }} - Lumen Aureum{% endblock %}
+{% extends "base.html" %}{% import "_ui.html" as ui with context %}
+{% block title %}{{ sched_name(sch.id) }} - Lumen Aureum{% endblock %}
 {% block body %}
-<h1>Fee schedule #{{ sch.id }}</h1>
-<div class="mute">Saved {{ sch.created[:16] }}{% if sch.note %} - {{ sch.note }}{% endif %}{% if sch.id == current %} - current{% else %} - <a href="{{ url_for('fees_view', sched_id=current) }}">see current (#{{ current }})</a>{% endif %}</div>
-<table class="data" style="max-width:640px;margin-top:14px"><tbody>
-{% for it in sch['items'] %}<tr><td>{{ it.label }}</td><td class="n">{% if it.unit == 'mile' and not it.amount %}mileage rate{% else %}{{ money(it.amount) }}{% if it.unit == 'hour' %}/hr{% elif it.unit == 'mile' %}/mi{% elif it.unit == 'each' %} each{% endif %}{% endif %}</td></tr>{% endfor %}
-</tbody></table>
+<div class="ui-page">
+{% set code_ = sched_code(sch.id) %}
+{% set status_ %}{% if code_ %}{{ code_ }}{% else %}Not approved yet{% endif %}{% if sch.note and not code_ %} - {{ sch.note }}{% endif %}{% if sch.id == current %} - current{% endif %}{% endset %}
+{{ ui.page_head(sched_name(sch.id), status=status_, sub=ui.go(url_for('fees_view', sched_id=current), 'See the current prices (' ~ sched_name(current) ~ ')') if sch.id != current else '') }}
+
+{% if not code_ %}{% call ui.needs('Sample prices', id='approve-prices') %}
+  <p class="ui-needs-line">These are the starter prices that came with the app, not yet approved by you. Approving them makes them your prices: every quote and price list prints them as yours from now on. Change any that are not yours first, under {{ ui.go(url_for('settings_view', tab='fees') ~ '#fees', 'Settings, Fees') }}</p>
+  <div class="ui-btnrow">{{ ui.action(url_for('fees_approve', sched_id=sch.id), 'Approve these prices', {}, request.path, 'primary', inplace=false,
+     confirm='Approve these prices as they are? Approving counts as your review: they are final, stop printing SAMPLE, and print as your prices on every quote from now on.') }}</div>
+{% endcall %}{% endif %}
+{% call ui.money_table(sched_name(sch.id)) %}
+{% for it in sch['items'] %}{% set price_ %}{% if it.unit == 'mile' and not it.amount %}mileage rate{% else %}{{ money(it.amount) }}{% if it.unit == 'hour' %}/hr{% elif it.unit == 'mile' %}/mi{% elif it.unit == 'each' %} each{% endif %}{% endif %}{% endset %}{% call ui.money_row(price_) %}{{ it.label }}{% endcall %}{% endfor %}
+{% endcall %}
 {% include "_editing.html" %}
+</div>
 {% endblock %}
 

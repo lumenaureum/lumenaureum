@@ -54,10 +54,11 @@ def test_a_month_that_took_money_back_draws_its_own_size_in_red_not_full_width(t
     con.commit()
     con.close()
     page = c.get("/money?year=2026", environ_base=E).get_data(as_text=True)
-    box = page.split("By month", 1)[1].split("By session type", 1)[0]
-    bars = re.findall(r'<div class="bar( neg)?" style="width:(-?[\d.]+)%', box)
+    box = page.split('aria-label="Received by month"', 1)[1].split("</ul>", 1)[0]
+    bars = re.findall(r'<li class="ui-bar-row( ui-bar-neg)?">.*?<span class="ui-bar" style="width:(-?[\d.]+)%', box)
     assert [(bool(n), float(w)) for n, w in bars] == [(False, 100.0), (True, 5.0), (False, 24.0)]
-    assert "var(--red)" in box
+    css = open(os.path.join(ROOT, "static", "style.css")).read()
+    assert ".ui-bar-neg .ui-bar { background: var(--crit); }" in css
 
 def test_finances_by_month_with_nothing_but_zero_does_not_fail(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
@@ -74,6 +75,7 @@ def test_a_long_timeline_keeps_its_date_labels_apart(tmp_path, monkeypatch):
     sid = _new(A, c, "family")
     con = A.connect()
     con.execute("UPDATE sessions SET created=date('now', '-200 days') WHERE id=?", (sid,))
+    con.execute("UPDATE sessions SET stage='booked' WHERE id=?", (sid,))
     con.commit()
     con.close()
     page = c.get("/c/1", environ_base=E).get_data(as_text=True)
@@ -90,21 +92,30 @@ def test_a_long_timeline_keeps_its_date_labels_apart(tmp_path, monkeypatch):
 def test_a_short_timeline_keeps_every_week(tmp_path, monkeypatch):
     import re
     A, c = _app(tmp_path, monkeypatch)
-    _new(A, c, "family", shoot_date=__import__("datetime").date.today().isoformat())
+    sid = _new(A, c, "family", shoot_date=__import__("datetime").date.today().isoformat())
+    con = A.connect()
+    con.execute("UPDATE sessions SET stage='booked' WHERE id=?", (sid,))
+    con.commit()
+    con.close()
     page = c.get("/c/1", environ_base=E).get_data(as_text=True)
-    assert re.findall(r'<i class="tick"', page) and 'class="tick minor"' not in page
+    assert re.findall(r'<i class="tick"', page)
+
+    marks = [float(x_) for x_ in re.findall(r'class="j-(?:today|shoot)" style="left:([\d.]+)%', page)]
+    for x_ in re.findall(r'class="tick minor" style="left:([\d.]+)%', page):
+        assert any(abs(float(x_) - m_) < 13 for m_ in marks), x_
 
 def test_phone_rules_for_the_walk_bugs_are_in_the_stylesheet():
 
     css = open(os.path.join(ROOT, "static", "style.css")).read()
     for rule in (".t-stage .t-st { white-space: normal;", ".t-foot .t-shoot { white-space: normal;",
                  ".qtable { display: table; table-layout: fixed; width: 100%; }", "table.stack-phone thead { display: none; }",
-                 "table.sp-photos td:nth-child(2) { order: 3; flex: 1 1 100%; }"):
+                 ".ui-photo { display: grid; grid-template-columns: 100px minmax(0, 1fr);"):
         assert rule in css, rule
     client = open(os.path.join(ROOT, "templates", "client.html")).read()
     session = open(os.path.join(ROOT, "templates", "session.html")).read()
-    assert 'class="data people-t stack-phone"' in client and 'class="data stack-phone"' in session
-    assert 'data-l="Signed on"' in session
+
+    assert 'people-t' not in client and "id='person-'" in client and "<table" not in session
+    assert 'Signed on <input type="date"' in session
 
 CW = "heron maple tide river"
 
@@ -131,7 +142,7 @@ def test_an_existing_session_without_a_codeword_is_not_given_one(tmp_path, monke
     A, c = _app(tmp_path, monkeypatch)
     sid = _new(A, c, "family")
     assert _q(A, "SELECT gallery_codeword FROM sessions WHERE id=?", (sid,))[0][0] in ("", None)
-    c.get(f"/session/{sid}", environ_base=E)
+    c.get(f"/session/{sid}/edit", environ_base=E)
     assert _q(A, "SELECT gallery_codeword FROM sessions WHERE id=?", (sid,))[0][0] in ("", None)
 
 def _drafts(page):

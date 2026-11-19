@@ -1,0 +1,24 @@
+
+{% import "_ui.html" as ui with context %}{% from "_macros.html" import help with context %}
+
+{% macro labels_chips(hid) -%}
+{%- set labs_ = client_labels(hid) %}{% set end_ = hid in ended_contact() -%}
+{%- if labs_ or end_ %}<span class="ui-chips ui-client-labels">{% if end_ %}{{ ui.chip('End contact') }} {% endif %}{% for l_ in labs_ %}{{ ui.chip(l_) }} {% endfor %}</span>{% endif -%}
+{%- endmacro %}
+
+{% macro labels_box(hid, back) -%}
+{%- set labs_ = client_labels(hid) %}{% set end_ = ended_contact().get(hid) -%}
+{% call ui.section('Labels', id='labels', part=true) %}
+  {% if labs_ %}<div class="ui-chips ui-client-labels">{% for l_ in labs_ %}<span class="ui-label-chip">{{ ui.chip(l_) }}<form method="post" action="{{ url_for('client_label', hid=hid) }}" class="ui-action" data-ui-inplace><input type="hidden" name="remove" value="{{ l_ }}"><input type="hidden" name="back" value="{{ back }}"><button class="ui-x" aria-label="Take the label {{ l_ }} off" title="Take this label off">&times;</button></form></span>{% endfor %}</div>{% endif %}
+  <form method="post" action="{{ url_for('client_label', hid=hid) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ back }}">
+    <label for="new-label-{{ hid }}" class="ui-mute">Add a label</label>{{ help('Your own words for this client, to find them on Clients and Today. Labels are part of what a client gets if they ask for the data you keep about them. They never show on a document, a gallery or an email.') }}
+    <input id="new-label-{{ hid }}" name="label" maxlength="40" list="label-words" class="ui-grow" required>
+    <datalist id="label-words">{% for l_ in all_labels() %}<option value="{{ l_ }}">{% endfor %}</datalist>
+    <button class="ui-btn ui-btn-quiet">Add the label</button></form>
+  <div class="ui-btnrow">
+    {% if end_ %}{{ ui.chip('End contact since ' ~ nice(end_)) }}{{ ui.action(url_for('client_end_contact', hid=hid), 'Resume contact', dict(end='0'), back) }}
+    {% else %}{{ ui.action(url_for('client_end_contact', hid=hid), 'End contact', dict(end='1'), back, confirm='Leave this client out of every check-in? You can resume contact any time.') }}{{ help('Leaves this client out of Time to check in. Their sessions and records stay as they are.') }}{% endif %}
+  </div>
+{% endcall %}
+{%- endmacro %}
+

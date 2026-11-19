@@ -147,6 +147,7 @@ def _b64(b):
     return base64.b64encode(b).decode()
 
 def _mac(ring, key):
+
     body = json.dumps({k: ring.get(k) for k in ("v", "password", "master", "master_pub", "auto", "auto_pub")}, sort_keys=True)
     return hmac.new(subkey("keyring-mac", key), body.encode(), hashlib.sha256).hexdigest()
 
@@ -260,160 +261,31 @@ def master_pub():
     except (OSError, ValueError):
         return None
 
-def auto_file():
-    p = os.environ.get("CRM_UNLOCK_KEY_FILE", "").strip()
-    return Path(p) if p else None
+LEGACY_AUTO_ENV = "CRM_UNLOCK_KEY_FILE"
 
-def auto_enabled():
+def legacy_auto_notice():
+
     try:
-        return bool(_read().get("auto"))
+        ring = _read()
     except (OSError, ValueError):
         return False
+    if ring.get("auto_removed"):
+        return False
+    return bool(ring.get("auto")) or bool(os.environ.get(LEGACY_AUTO_ENV, "").strip())
 
-def _mounts():
+def forget_legacy_auto(key=None):
 
-    try:
-        with open("/proc/self/mountinfo") as f:
-            lines = f.read().splitlines()
-    except OSError:
-        return None
-    out = []
-    for line in lines:
-        head, _, tail = line.partition(" - ")
-        h = head.split()
-        if len(h) > 4:
-            out.append((h[4].replace("\\040", " "), (tail.split() or [""])[0]))
-    return out
-
-def _best_mount(path):
-    mounts = _mounts()
-    if mounts is None:
-        return None
-    real = os.path.realpath(path)
-    best = None
-    for mp, fstype in mounts:
-        if real == mp or real.startswith(mp.rstrip("/") + "/") or mp == "/":
-            if best is None or len(mp) >= len(best[0]):
-                best = (mp, fstype)
-    return best
-
-def _mount_point(path):
-
-    b = _best_mount(path)
-    return b[0] if b else None
-
-def _mount_fstype(path):
-
-    b = _best_mount(path)
-    return b[1] if b else None
-
-def _in_container():
-    return os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")
-
-def _existing(p):
-
-    p = Path(p)
-    while not p.exists() and p.parent != p:
-        p = p.parent
-    return p
-
-MEMORY_ONLY = ("tmpfs", "ramfs")
-
-class PlaceRefused(ValueError):
-
-    def __init__(self, msg, where):
-        super().__init__(msg)
-        self.where = where
-
-def check_auto_place(path):
-
-    parent = Path(path).resolve().parent
-    data = KEYRING.resolve().parent
-    here = _existing(parent)
-    msg = ("The unlock key file must be on a different volume from the data: on the same disk it would be no "
-           "protection at all.")
-    if parent == data or data in parent.parents:
-        raise PlaceRefused(msg, "the data folder")
-    if os.stat(here).st_dev == os.stat(data).st_dev:
-        raise PlaceRefused(msg, "the same volume as the data")
-    kp, dp = _mount_point(here), _mount_point(data)
-    if kp is not None and kp == dp:
-        raise PlaceRefused(msg + " Mount a separate volume for it (see docs/security.md).", "the same volume as the data")
-    if kp is not None and kp == "/" and _in_container():
-        raise PlaceRefused(msg + " Mount a separate volume for it (see docs/security.md).",
-                           "the container's own filesystem")
-    if _mount_fstype(here) in MEMORY_ONLY:
-        raise PlaceRefused("The unlock key file can't go there: this place is emptied at every restart, so the app "
-                           "could never unlock itself. Use a separate volume on disk.",
-                           "a memory-only filesystem that is emptied at every restart")
-
-def enable_auto(key=None):
-
-    key = key or dk()
-    path = auto_file()
-    if not path:
-        raise ValueError("Set CRM_UNLOCK_KEY_FILE to a path on a separate volume first.")
-    check_auto_place(path)
-    path.resolve().parent.mkdir(parents=True, exist_ok=True)
-    with _RING_LOCK:
-        ring = _read()
-        _check(ring, key)
-        ident = x25519.Identity.generate()
-        tmp = path.with_name(f"{path.name}.{secrets.token_hex(4)}.tmp")
-        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(fd, "w") as f:
-            f.write(str(ident) + "\n")
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp, path)
-        ring["auto"] = _b64(pyrage.encrypt(key, [ident.to_public()]))
-        ring["auto_pub"] = str(ident.to_public())
-        _write(ring, key)
-        AUTO_REFUSED[0] = None
-
-def disable_auto(key=None):
     key = key or dk()
     with _RING_LOCK:
         ring = _read()
+        if ring.get("auto_removed") or not (ring.get("auto") or os.environ.get(LEGACY_AUTO_ENV, "").strip()):
+            return False
         _check(ring, key)
         ring.pop("auto", None)
         ring.pop("auto_pub", None)
+        ring["auto_removed"] = "1.5.0"
         _write(ring, key)
-    AUTO_REFUSED[0] = None
-    p = auto_file()
-    if p and p.exists():
-        p.unlink()
-
-AUTO_REFUSED = [None]
-
-def auto_refused():
-    return AUTO_REFUSED[0]
-
-def try_auto_unlock():
-
-    AUTO_REFUSED[0] = None
-    path = auto_file()
-    if not path or not path.exists() or not exists():
-        return None
-    ring = _read()
-    if not ring.get("auto"):
-        return None
-    try:
-        check_auto_place(path)
-    except PlaceRefused as e:
-        AUTO_REFUSED[0] = (f"Unattended unlock is off: the key file is on {e.where}. Move it to its own volume.")
-        print(f"WARNING: {AUTO_REFUSED[0]} ({path}) Starting locked: sign in to unlock.", flush=True)
-        return None
-    except (OSError, ValueError) as e:
-        AUTO_REFUSED[0] = "Unattended unlock is off: the key file's place could not be checked."
-        print(f"WARNING: {AUTO_REFUSED[0]} ({path}: {e}) Starting locked: sign in to unlock.", flush=True)
-        return None
-    try:
-        ident = x25519.Identity.from_str(path.read_text().strip())
-        key = pyrage.decrypt(base64.b64decode(ring["auto"]), [ident])
-        return _check(ring, key)
-    except Exception:
-        return None
+    return True
 
 def new_ring_for(new_key, password, master_pub_, path=None):
 

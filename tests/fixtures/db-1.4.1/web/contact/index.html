@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Send an inquiry · Lark &amp; Pine Studio</title>
+<meta name="description" content="Family and headshot photography.">
+<meta name="author" content="Lark &amp; Pine Studio">
+<link rel="canonical" href="https://photos.example.com/contact/">
+<meta property="og:url" content="https://photos.example.com/contact/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Send an inquiry · Lark &amp; Pine Studio">
+<meta property="og:description" content="Family and headshot photography.">
+<meta property="og:image" content="https://photos.example.com/photos/photo-1-2f4397ae.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/inquiry.js?v=b6f4befd" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the content</a>
+<header class="two">
+  <a id="brand" href="../"><img id="logo" src="../assets/logo.png" alt="Lark &amp; Pine Studio" width="120" height="48"></a>
+  <hr class="rule">
+  <div class="words">
+    <h1><a href="../">Lark &amp; Pine Studio</a></h1>
+    <p class="tagline">Family portraits by the river</p>
+    <nav aria-label="Site"><a href="../">Photographs</a><a href="../about/">About</a><a href="../contact/" aria-current="page">Contact</a></nav>
+  </div>
+</header>
+<main id="main">
+<div class="text">
+<h2>Send an inquiry</h2>
+<p>Ask about a session, a date, or anything else. Lark &amp; Pine Studio will write back or call.</p>
+<form id="inq" class="inq" hidden novalidate data-key="BFZ0dRyTWb5HOYNFj-tYSeamhg18v0xhbvl3gr1WwqBo8wZnHoDCwU8K8TefuMb25sfwCDjQbuPhul7fVpnpFOU" data-work="17" data-post="../inquiry.php"
+  data-thanks="Thanks. Your inquiry is on its way to Lark &amp; Pine Studio." data-fail="It couldn't be sent just now. Please write to hello@studio.example instead.">
+  <div class="two"><p><label for="inq-name">Your name</label><input id="inq-name" name="name" maxlength="200" autocomplete="name" required></p>
+  <p><label for="inq-email">Email</label><input id="inq-email" name="email" type="email" maxlength="254" autocomplete="email"></p></div>
+  <div class="two"><p><label for="inq-phone">Phone <span>(optional)</span></label><input id="inq-phone" name="phone" type="tel" maxlength="40" autocomplete="tel"></p>
+  <p><label for="inq-date">Preferred date <span>(optional)</span></label><input id="inq-date" name="date" type="date" min="2026-01-01" max="2100-12-31"></p></div>
+  <p><label for="inq-type">What kind of session</label><select id="inq-type" name="type"><option value="">Not sure yet</option><option value="family">Family</option><option value="headshot">Headshots</option></select></p>
+  <p><label for="inq-message">Message</label><textarea id="inq-message" name="message" rows="6" maxlength="3000"></textarea></p>
+  <p class="hp" aria-hidden="true"><label for="inq-website">Leave this empty</label><input id="inq-website" name="website" tabindex="-1" autocomplete="off"></p>
+  <p class="send"><button type="submit">Send</button> <span class="sub">Name, and an email or a phone number, please.</span></p>
+</form>
+<p id="inq-msg" role="status" hidden></p>
+<p id="inq-alt">Write to <a href="mailto:hello@studio.example">hello@studio.example</a>.</p>
+<p class="already">Already a client? Your gallery opens from the private link in your letter or email. Lost it? Write to <a href="mailto:hello@studio.example">hello@studio.example</a>.</p>
+<p class="back"><a href="../">&larr; Photographs</a></p>
+</div>
+</main>
+<footer>
+  <div id="contact"><span>Lark &amp; Pine Studio</span><span><a href="mailto:hello@studio.example">hello@studio.example</a></span></div>
+  <div id="rights">&copy; 2026 Lark &amp; Pine Studio. All rights reserved.</div>
+  <a id="la" href="https://lumenaureum.org" rel="noopener"><svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"><defs><linearGradient id="las-gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6dfa6"/><stop offset=".55" stop-color="#e9b45c"/><stop offset="1" stop-color="#d0864e"/></linearGradient><linearGradient id="las-rose" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e3b3c0" stop-opacity=".5"/><stop offset=".5" stop-color="#ecd3da"/><stop offset="1" stop-color="#e3b3c0" stop-opacity=".5"/></linearGradient></defs><path d="M3,20 A13,13 0 0 1 29,20 Z M14,20 L14.8,15.2 A2.4,2.4 0 1 1 17.2,15.2 L18,20 Z" fill="url(#las-gold)" fill-rule="evenodd"/><rect x="2" y="22" width="28" height="2" rx="1" fill="url(#las-rose)"/><rect x="7" y="26" width="18" height="2" rx="1" fill="url(#las-rose)" opacity=".6"/></svg><span>Site by <b>Lumen Aureum</b><small>lumenaureum.org</small></span></a>
+</footer>
+</body>
+</html>

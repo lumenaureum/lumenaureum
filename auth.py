@@ -24,6 +24,7 @@ IP_FAILS_PER_HOUR = 20
 OPEN = {"static", "about", "login", "login_2fa", "setup_owner", "setup_owner_verify", "setup_owner_key", "unlock_master", "healthz"}
 MIN_PASSWORD = 12
 SESSIONS = {}
+LAST_SEEN = {}
 SETUP = {}
 SETUP_TTL = 1800
 
@@ -61,12 +62,31 @@ def new_recovery_codes(n=10):
 def start_session(uid):
     sid = secrets.token_urlsafe(24)
     SESSIONS[sid] = uid
+    LAST_SEEN[sid] = time.time()
     return sid
+
+def idle_left(sid, limit, now=None):
+
+    return limit - ((now or time.time()) - LAST_SEEN.get(sid, now or time.time()))
+
+IDLE_QUIET = {"idle_left", "static"}
+
+def is_activity(req):
+
+    if (req.endpoint or "") in IDLE_QUIET:
+        return False
+    if req.method == "POST":
+        return True
+    mode = req.headers.get("Sec-Fetch-Mode")
+    if mode:
+        return mode == "navigate"
+    return not req.headers.get("X-LA-Background")
 
 def end_sessions(uid, keep=None):
 
     for sid in [s_ for s_, u in SESSIONS.items() if u == uid and s_ != keep]:
         SESSIONS.pop(sid, None)
+        LAST_SEEN.pop(sid, None)
 
 def init_schema(connect):
     con = connect()
@@ -246,10 +266,47 @@ def register(app, connect, allowed, audit, on_unlock):
             finally:
                 con.close()
         if not uid:
-            return redirect(url_for("login", next=nxt))
+            return redirect(url_for("login", next=nxt, idle=1 if session.pop("idle_out", None) else None))
+        sid_ = session.get("sid")
+        limit = _idle_limit()
+        if limit and idle_left(sid_, limit) <= 0:
+            SESSIONS.pop(sid_, None)
+            LAST_SEEN.pop(sid_, None)
+            session.clear()
+            session["idle_out"] = 1
+            try:
+                audit("Security: signed out after being idle")
+            except Exception:
+                pass
+            if ep == "idle_left":
+                return {"left": 0}
+            return redirect(url_for("login", next=nxt, idle=1))
+        if is_activity(request):
+            LAST_SEEN[sid_] = time.time()
         return None
 
+    def _idle_limit():
+
+        fn = app.config.get("idle_seconds")
+        try:
+            return int(fn()) if callable(fn) else 0
+        except Exception:
+            return 0
+
     app.before_request_funcs.setdefault(None, []).insert(0, gate)
+
+    @app.get("/session/idle", endpoint="idle_left")
+    def idle_left_view():
+
+        limit = _idle_limit()
+        return {"left": int(idle_left(session.get("sid"), limit)) if limit else None, "limit": limit}
+
+    @app.post("/session/stay", endpoint="idle_stay")
+    def idle_stay():
+
+        if request.headers.get("X-LA-Inplace") or request.accept_mimetypes.best == "application/json":
+            return {"ok": True, "left": _idle_limit()}
+        return redirect(request.referrer if request.referrer and request.referrer.startswith(request.host_url) else url_for("home"))
 
     @app.get("/healthz", endpoint="healthz")
     def healthz():
@@ -386,8 +443,9 @@ def register(app, connect, allowed, audit, on_unlock):
                 if not err:
                     th.fail(ip, "password")
                     err = "bad"
-        return render_template("auth_login.html", err=err, next=request.args.get("next", ""),
-                               locked=not datakey.is_unlocked(), auto_refused=datakey.auto_refused())
+        return render_template("auth_login.html", err=err, next=request.args.get("next", ""), idle=bool(request.args.get("idle")),
+                               locked=not datakey.is_unlocked(),
+                               auto_removed=not datakey.is_unlocked() and datakey.legacy_auto_notice())
 
     def _owner_email_ok(key, email):
         try:
@@ -457,11 +515,17 @@ def register(app, connect, allowed, audit, on_unlock):
                 con.close()
             if ok:
                 datakey.drop_pending(tok)
-                if not datakey.is_unlocked():
+                unlocked_now = not datakey.is_unlocked()
+                if unlocked_now:
                     datakey.set_unlocked(key)
                     on_unlock()
                 nxt, remember = session.get("next"), session.get("remember")
-                return sign_in(u[0], remember, nxt)
+                r = sign_in(u[0], remember, nxt)
+                try:
+                    audit(("Signed in and unlocked the data" if unlocked_now else "Signed in") + f" from {ip}")
+                except Exception:
+                    pass
+                return r
             th.fail(ip, "two-factor code")
             err = True
         return render_template("auth_2fa.html", err=err)
@@ -470,6 +534,7 @@ def register(app, connect, allowed, audit, on_unlock):
     def logout():
         datakey.drop_pending(session.get("pending_tok"))
         SESSIONS.pop(session.get("sid"), None)
+        LAST_SEEN.pop(session.get("sid"), None)
         session.clear()
         return redirect(url_for("login"))
 
@@ -610,25 +675,14 @@ def register(app, connect, allowed, audit, on_unlock):
                 end_sessions(session["uid"], keep=session.get("sid"))
                 audit("Signed out every other device")
                 msg = "Every other device is signed out."
-            elif act == "auto_on":
-                try:
-                    datakey.enable_auto()
-                    audit("Turned on unattended unlock")
-                    msg = "Unattended unlock is on."
-                except ValueError as e:
-                    err = str(e)
-            elif act == "auto_off":
-                datakey.disable_auto()
-                audit("Turned off unattended unlock")
-                msg = "Unattended unlock is off."
         con = connect()
         try:
             left = len(json.loads(con.execute("SELECT recovery FROM users WHERE id=?", (session["uid"],)).fetchone()[0] or "[]"))
+            ntfy = dict(con.execute("SELECT key, value FROM settings WHERE key IN ('ntfy_server','ntfy_topic','ntfy_token')").fetchall())
         finally:
             con.close()
         return _no_store(app, render_template("auth_security.html", msg=msg, err=err, codes=codes, left=left,
-                                              auto=datakey.auto_enabled(), auto_file=datakey.auto_file(),
-                                              auto_refused=datakey.auto_refused(),
+                                              ntfy=ntfy if ntfy.get("ntfy_server") and ntfy.get("ntfy_topic") else None,
                                               min_pw=MIN_PASSWORD, pw_work=datakey.password_work(),
                                               std_work=datakey.STANDARD_WORK))
 

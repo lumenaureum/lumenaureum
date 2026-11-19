@@ -1,12 +1,12 @@
 
-{% set word = 'Receipt' if v.receipt else 'Invoice' %}{% set wo_ = v.written_off or 0 %}{% set rc_ = v.refund_credit or 0 %}{% set lword = word|lower %}  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
-    <div style="flex:1;min-width:0"><h1>{{ word }}{% if not v.number %} (draft){% endif %}</h1>
+{% set word = 'Receipt' if v.receipt else 'Invoice' %}{% set wo_ = v.written_off or 0 %}{% set rc_ = v.refund_credit or 0 %}{% set lword = word|lower %}  <div class="billhead" style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
+    <div style="flex:1;min-width:0"><h1>{{ 'Deposit invoice' if v.deposit_due else word }}{% if not v.number %} (draft){% endif %}</h1>
       <p class="sub">{{ v.photographer }}{% if v.business %}{% if v.photographer %}, {% endif %}{{ v.business }}{% endif %}</p>{% include "_doc_contact.html" %}</div>
     <table class="facts headfacts" style="width:auto;flex:none"><tr><td>{{ word }}</td><td>{{ v.number or ('Draft, not issued' if pdf else 'Assigned when issued') }}</td></tr>
       <tr><td>Date</td><td>{{ v.date_long }}</td></tr>
       {% if v.replaces %}<tr><td>Replaces</td><td>{{ v.replaces }}</td></tr>{% endif %}
       {% if v.po %}<tr><td>PO / reference</td><td>{{ v.po }}</td></tr>{% endif %}{% if v.tax_id %}<tr><td>Tax ID</td><td>{{ v.tax_id }}</td></tr>{% endif %}
-      {% if not v.receipt %}{% if v.balance > 0.005 %}<tr><td>Terms</td><td>{{ 'Due on delivery' if v.due_rule == 'On delivery' else 'Due by ' ~ v.due_rule }}</td></tr>{% elif wo_ > 0.005 %}<tr><td>Balance</td><td>Settled, the rest written off</td></tr>{% else %}<tr><td>Balance</td><td>Paid in full</td></tr>{% endif %}{% endif %}</table>
+      {% if not v.receipt %}{% if v.deposit_due %}<tr><td>Terms</td><td>Deposit due now</td></tr>{% elif v.balance > 0.005 %}<tr><td>Terms</td><td>{{ 'Due on delivery' if v.due_rule == 'On delivery' else 'Due by ' ~ v.due_rule }}</td></tr>{% elif wo_ > 0.005 %}<tr><td>Balance</td><td>Settled, the rest written off</td></tr>{% else %}<tr><td>Balance</td><td>Paid in full</td></tr>{% endif %}{% endif %}</table>
   </div>
   <table class="facts" style="margin-top:14px">
     <tr><td>{{ 'Received from' if v.receipt else 'Bill to' }}</td><td>{{ v.bill_to }}{% if v.attn %}<br>Attn: {{ v.attn }}{% endif %}{% if v.client_address %}<br>{{ v.client_address|replace('\n', '<br>'|safe) }}{% endif %}</td></tr>
@@ -21,6 +21,8 @@
     {% if rc_ > 0.005 %}<tr><td>Refunded, not owed again</td><td class="n">{{ money(rc_) }}</td></tr>{% endif %}
     {% if wo_ > 0.005 %}<tr><td>Written off (waived, not owed)</td><td class="n">{{ money(wo_) }}</td></tr>{% endif %}
     {% if v.receipt %}<tr><td><b>Total paid</b></td><td class="n"><b>{{ money(v.paid) }}</b></td></tr>
+    {% elif v.deposit_due %}{% if v.after_deposit > 0.005 %}<tr><td>Balance after the deposit, due {{ v.after_deposit_when }}</td><td class="n">{{ money(v.after_deposit) }}</td></tr>{% endif %}
+    <tr><td><b>Deposit due now</b></td><td class="n"><b>{{ money(v.deposit_due) }}</b></td></tr>
     {% else %}<tr><td><b>Balance due</b></td><td class="n"><b>{{ money(v.balance) }}</b></td></tr>{% endif %}
     {% if v.credit %}<tr><td>Credit due to you (paid beyond the total)</td><td class="n">{{ money(v.credit) }}</td></tr>{% endif %}</table>
   {% if v.receipt %}

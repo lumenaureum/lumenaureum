@@ -106,14 +106,14 @@ def test_ticking_a_subject_on_the_session_page_adds_their_release(tmp_path, monk
     kid = con.execute("INSERT INTO people (household_id, name, role, is_minor) VALUES (?, 'Ben Okafor', 'child', 1)", (hid,)).lastrowid
     con.commit()
     con.close()
-    page = c.get(f"/session/{sid}", environ_base=E).data.decode()
+    page = c.get(f"/session/{sid}/edit", environ_base=E).data.decode()
     seen = re.search(r'name="seen" value="([^"]*)"', page).group(1)
     c.post(f"/session/{sid}", data={"seen": seen, "title": "", "type": "portrait", "subjects_present": "1",
                                     "subjects": [str(ada), str(kid)]}, environ_base=E)
     assert {r[0] for r in _q(A, "SELECT person_id FROM session_people WHERE session_id=?", (sid,))} == {ada, kid}
     assert _q(A, "SELECT signer FROM documents WHERE session_id=? AND kind='release' AND about_person=?", (sid, kid)) \
         == [("Parent or guardian: Ngozi Okafor",)]
-    page = c.get(f"/session/{sid}", environ_base=E).data.decode()
+    page = c.get(f"/session/{sid}/edit", environ_base=E).data.decode()
     seen = re.search(r'name="seen" value="([^"]*)"', page).group(1)
     c.post(f"/session/{sid}", data={"seen": seen, "title": "", "type": "portrait", "subjects_present": "1",
                                     "subjects": [str(kid)]}, environ_base=E)
@@ -151,11 +151,11 @@ def test_cancellation_rows_name_what_they_cover(tmp_path, monkeypatch):
 def test_review_status_photo_license_row_follows_the_types(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch, presets=("portraits",))
     page = c.get("/settings?tab=documents", environ_base=E).data.decode()
-    assert "<td>Photo license</td>" in page
+    assert "<b>Photo license</b>" in page
     with A.app.test_request_context():
         A.db(); A._save_rules(LICENSE_TYPES=[])
     page = c.get("/settings?tab=documents", environ_base=E).data.decode()
-    assert "<td>Photo license</td>" not in page and "<td>Copyright transfer</td>" in page
+    assert "<b>Photo license</b>" not in page and "<b>Copyright transfer</b>" in page
 
 def test_timeline_one_mark_per_day_with_a_count(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)

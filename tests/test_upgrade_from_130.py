@@ -27,6 +27,11 @@ HOST, EARLIER = EXPECTED["hosts"]["current"], EXPECTED["hosts"]["earlier"][0]
 BY = EXPECTED["sessions_by_name"]
 YEAR = EXPECTED["year"]
 
+PICKS_IN_AT_SHOT = {str(EXPECTED["sessions_by_name"]["reyes"])}
+
+def _stage_15(sid, stage):
+    return "delivered" if str(sid) in PICKS_IN_AT_SHOT and stage == "shot" else stage
+
 def _place(tmp_path):
 
     shutil.copyfile(FIXTURE / "crm.db", tmp_path / "crm.db")
@@ -102,7 +107,7 @@ def _finances(A, c, year):
     return dict(total=round(seen["total"], 2), refunds=round(seen["refunds"], 2), tax_due=round(seen["tax_due"], 2),
                 received={r["type"]: round(r["v"], 2) for r in seen["received"]},
                 by_month={r["mo"]: round(r["v"], 2) for r in seen["by_month"]},
-                outstanding={str(o["s"]["id"]): round(o["t"]["due"], 2) for o in seen["outstanding"]},
+                outstanding={str(o["s"]["id"]): round(o["t"]["due"], 2) for o in seen["outstanding"] + seen.get("to_invoice", [])},
                 upcoming={str(o["s"]["id"]): round(o["t"]["due"], 2) for o in seen["upcoming"]})
 
 def _page(c, url):
@@ -176,17 +181,19 @@ def test_today_says_once_that_it_was_updated(tmp_path, monkeypatch):
     assert f"Updated to Lumen Aureum {now}." in first
     if A.SCHEMA_VERSION == V130_SCHEMA:
         assert taken == [] and "Your data didn't need changes, so no backup was made." in first
-    assert "Updated to Lumen Aureum" not in second
+    assert "Updated to Lumen Aureum" in second
+    c.post("/today/update-notice-hide", data={"back": "/"}, environ_base=E)
+    assert "Updated to Lumen Aureum" not in _page(c, "/")
 
 def test_every_record_is_still_there(upgraded):
     A, c, taken, _ = upgraded
     assert {str(r[0]): r[1] for r in _q(A, "SELECT id, name FROM households")} == EXPECTED["clients"]
     assert {str(r[0]): r[1] for r in _q(A, "SELECT id, stage FROM sessions")} == {
-        k: v["stage"] for k, v in EXPECTED["sessions"].items()}
+        k: _stage_15(k, v["stage"]) for k, v in EXPECTED["sessions"].items()}
     assert {str(r[0]): r[1] for r in _q(A, "SELECT id, lost_reason FROM sessions WHERE stage='lost'")} == EXPECTED["lost"]
     assert {str(r[0]): r[1] for r in _q(A, "SELECT id, tax_rate FROM sessions")} == EXPECTED["tax_rates"]
     for sid in EXPECTED["sessions"]:
-        assert c.get(f"/session/{sid}", environ_base=E).status_code == 200
+        assert c.get(f"/session/{sid}/edit", environ_base=E).status_code == 200
     for hid in EXPECTED["clients"]:
         assert c.get(f"/c/{hid}", environ_base=E).status_code == 200
 
@@ -407,7 +414,7 @@ def test_the_1_2_galleries_picks_and_download_galleries_survive(upgraded):
         return {st_["label"]: bool(st_["done"]) for stage in A.workflow(s_)["stages"] for st_ in stage["steps"]}
     for s_, want_ in EXPECTED["delivered"].items():
         sd, fv, stage = _q(A, "SELECT sd_shipped, first_visit, stage FROM sessions WHERE id=?", (int(s_),))[0]
-        assert (sd, fv, stage) == (want_["sd_shipped"], want_["first_visit"], want_["stage"])
+        assert (sd, fv, stage) == (want_["sd_shipped"], want_["first_visit"], _stage_15(s_, want_["stage"]))
         assert _in_request(A, lambda: steps(int(s_)))["Files delivered"] is want_["files_delivered"]
     assert EXPECTED["link_clause"] in doc_text_any(_page(c, f"/session/{BY['reyes']}/agreement"))
 
@@ -454,9 +461,8 @@ def test_the_studio_page_its_files_and_inquiries_are_kept(upgraded):
     assert list(_q(A, """SELECT h.id, h.name, h.source, s.type, s.stage, s.shoot_date, s.date_tentative FROM sessions s
                          JOIN households h ON h.id=s.household_id WHERE s.id=?""", (BY["ada"],))[0]) == [
         added[k] for k in ("household", "name", "source", "type", "stage", "shoot_date", "date_tentative")]
-    page = _page(c, "/settings/studio-page")
-    assert "Website inquiries to review" in page and "Grace Hopper" in page
-    assert "1 website inquiry to review" in _page(c, "/")
+    page = _page(c, "/")
+    assert "1 website inquiry to review: Add or Spam" in page and "Grace Hopper" in page
 
     rid = _q(A, "SELECT id FROM studio_inquiry_review")[0][0]
     c.post("/settings/studio-page/inquiries/review", data={"do": "add", "id": str(rid)}, environ_base=E)

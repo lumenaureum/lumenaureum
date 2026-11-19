@@ -1,3 +1,4 @@
+import html
 import hashlib
 import hmac
 import io
@@ -22,6 +23,11 @@ E = {"REMOTE_ADDR": "127.0.0.1"}
 V120_SCHEMA = 6
 DIRS = ("galleries", "host", "photos")
 NEW_GALLERY_COLS = ("limits_contact", "dark_at", "restored_at", "restore_days", "restore_once", "host_fp", "link_base")
+
+PICKS_IN_AT_SHOT = {str(EXPECTED["sessions_by_name"]["reyes"])}
+
+def _stage_15(sid, stage):
+    return "delivered" if str(sid) in PICKS_IN_AT_SHOT and stage == "shot" else stage
 
 def _place(tmp_path, side_files=SIDE_FILES):
 
@@ -83,7 +89,7 @@ def _finances(A, c, year):
     return dict(total=round(seen["total"], 2), refunds=round(seen["refunds"], 2), tax_due=round(seen["tax_due"], 2),
                 received={r["type"]: round(r["v"], 2) for r in seen["received"]},
                 by_month={r["mo"]: round(r["v"], 2) for r in seen["by_month"]},
-                outstanding={str(o["s"]["id"]): round(o["t"]["due"], 2) for o in seen["outstanding"]},
+                outstanding={str(o["s"]["id"]): round(o["t"]["due"], 2) for o in seen["outstanding"] + seen.get("to_invoice", [])},
                 upcoming={str(o["s"]["id"]): round(o["t"]["due"], 2) for o in seen["upcoming"]})
 
 def _bill(A, sid, receipt):
@@ -131,7 +137,7 @@ def test_the_schema_moves_to_the_current_version_after_a_sealed_backup(upgraded)
     assert A.SCHEMA_VERSION >= V120_SCHEMA
     assert _q(A, "PRAGMA user_version")[0][0] == A.SCHEMA_VERSION
     assert taken == (["upgrade"] if A.SCHEMA_VERSION > V120_SCHEMA else [])
-    assert A.SCHEMA_VERSION == 8 and taken == ["upgrade"]
+    assert A.SCHEMA_VERSION == 9 and taken == ["upgrade"]
     cols = {t: [r[1] for r in _q(A, f"PRAGMA table_info({t})")] for t in ("bill_snapshots", "sessions", "galleries")}
     assert "html" in cols["bill_snapshots"] and {"priced_on", "delivery_method"} <= set(cols["sessions"])
     assert set(NEW_GALLERY_COLS) | {"proof", "prune_due"} <= set(cols["galleries"])
@@ -148,20 +154,22 @@ def test_today_says_once_that_it_was_updated(tmp_path, monkeypatch):
     first, second = _page(c, "/"), _page(c, "/")
     assert f"Updated to Lumen Aureum {now}." in first
     assert "A backup of your data from before the update is under" in first
-    assert "Updated to Lumen Aureum" not in second
+    assert "Updated to Lumen Aureum" in second
+    c.post("/today/update-notice-hide", data={"back": "/"}, environ_base=E)
+    assert "Updated to Lumen Aureum" not in _page(c, "/")
 
 def test_every_record_is_still_there(upgraded):
     A, c, taken, _ = upgraded
     assert {str(r[0]): r[1] for r in _q(A, "SELECT id, name FROM households")} == EXPECTED["clients"]
     assert {str(r[0]): r[1] for r in _q(A, "SELECT id, stage FROM sessions")} == {
-        k: v["stage"] for k, v in EXPECTED["sessions"].items()}
+        k: _stage_15(k, v["stage"]) for k, v in EXPECTED["sessions"].items()}
     assert {str(r[0]): dict(session=r[1], kind=r[2], amount=r[3], received=r[4]) for r in
             _q(A, "SELECT id, session_id, kind, amount, received FROM payments")} == EXPECTED["payments"]
     ev = EXPECTED["event"]
     assert [r[0] for r in _q(A, """SELECT h.name FROM sessions s JOIN households h ON h.id=s.household_id
                                    WHERE s.event_id=? ORDER BY h.name""", (ev["id"],))] == ev["families"]
     for sid in EXPECTED["sessions"]:
-        assert c.get(f"/session/{sid}", environ_base=E).status_code == 200
+        assert c.get(f"/session/{sid}/edit", environ_base=E).status_code == 200
 
 def test_balances_and_refund_credits_match_1_2_0(upgraded):
     A, c, taken, _ = upgraded
@@ -377,7 +385,7 @@ def test_download_galleries_their_files_and_zip_pieces_survive(upgraded):
             assert zf.testzip() is None and sorted(zf.namelist()) == sorted(fulls)
             assert all(zf.read(n) == fulls[n] for n in zf.namelist())
         page = _page(c, f"/c/{_q(A, 'SELECT household_id FROM sessions WHERE id=?', (int(sid),))[0][0]}?s={sid}")
-        assert f"<b>{len(m['items'])}</b> photos to download" in page and f"{gid}/#k=" in page
+        assert f"{len(m['items'])} photos to download · made" in html.unescape(page) or f"can download {len(m['items'])} photos · made" in html.unescape(page) and f"{gid}/#k=" in page
 
 def test_finals_picks_and_deliver_without_picks_are_kept(upgraded):
     A, c, taken, _ = upgraded
@@ -403,7 +411,7 @@ def test_files_delivered_by_the_first_open_and_its_days(upgraded):
         return {st_["label"]: bool(st_["done"]) for stage in A.workflow(sid)["stages"] for st_ in stage["steps"]}
     for sid, want in EXPECTED["delivered"].items():
         sd, fv, stage = _q(A, "SELECT sd_shipped, first_visit, stage FROM sessions WHERE id=?", (int(sid),))[0]
-        assert (sd, fv, stage) == (want["sd_shipped"], want["first_visit"], want["stage"])
+        assert (sd, fv, stage) == (want["sd_shipped"], want["first_visit"], _stage_15(sid, want["stage"]))
         assert _in_request(A, lambda: steps(int(sid)))["Files delivered"] is want["files_delivered"]
         exp = _in_request(A, lambda: A.gallery_expires(A.q("SELECT * FROM sessions WHERE id=?", (int(sid),), one=True)))
         assert (exp.isoformat() if exp else None) == want["expires"]

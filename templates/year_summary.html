@@ -1,0 +1,53 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Year summary {{ v.year }}{% if v.business %} - {{ v.business }}{% endif %}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+{% include "_doc_style.html" %}
+<style>
+  @page { size: Letter; margin: 0.5in 0.5in 0.6in; @bottom-center { content: "Page " counter(page) " of " counter(pages); font: 10px sans-serif; color: #6b6459; } }
+  body { font-size: 13px; } .page { padding: 0; } h1 { font-size: 24px; } h2 { margin: 14px 0 4px; } td { padding: 3px 0; }
+  .total td { font-weight: 700; border-bottom: 0; }
+</style></head><body>
+<div class="page">
+  {% include "_doc_logo.html" %}
+  <h1>Year summary {{ v.year }}</h1>
+  <table class="facts" style="margin-top:10px">
+    {% if v.business %}<tr><td>Business</td><td>{{ v.business }}{% if v.studio and v.studio != v.business %} ({{ v.studio }}){% endif %}</td></tr>{% endif %}
+    {% if v.photographer %}<tr><td>Photographer</td><td>{{ v.photographer }}</td></tr>{% endif %}
+    {% if v.address %}<tr><td>Address</td><td>{{ v.address|oneline }}</td></tr>{% endif %}
+    {% if v.contact %}<tr><td>Contact</td><td>{{ v.contact|join(' - ') }}</td></tr>{% endif %}
+    {% if v.tax_id %}<tr><td>Tax ID</td><td>{{ v.tax_id }}</td></tr>{% endif %}
+    <tr><td>Tax year</td><td>{{ v.year }}</td></tr>
+    <tr><td>Period covered</td><td>{{ v.start }} to {{ v.end }}{% if v.to_date %}, year to date{% endif %}</td></tr>
+    <tr><td>Basis</td><td>Cash (money received)</td></tr>
+    <tr><td>Generated</td><td>{{ v.generated }}</td></tr>
+    <tr><td>App version</td><td>Lumen Aureum {{ v.version }}</td></tr>
+  </table>
+
+  <h2>Income received</h2>
+  <table>
+    <tr><td>Sessions</td><td class="n">{{ money(v.sessions) }}</td></tr>
+    {% if v.tips %}<tr><td>Tips</td><td class="n">{{ money(v.tips) }}</td></tr>{% endif %}
+    {% if v.any_prints or v.prints %}<tr><td>Prints</td><td class="n">{{ money(v.prints) }}</td></tr>{% endif %}
+    {% if v.other %}<tr><td>Other payments and trade, at their stated value</td><td class="n">{{ money(v.other) }}</td></tr>{% endif %}
+    <tr class="total"><td>Total received</td><td class="n">{{ money(v.gross) }}</td></tr>
+  </table>
+  <table style="margin-top:6px">
+    <tr><td>Refunds given</td><td class="n">{{ money(-v.refunds) if v.refunds else money(0) }}</td></tr>
+    <tr class="total"><td>Received, less refunds</td><td class="n">{{ money(v.net) }}</td></tr>
+  </table>
+
+  <h2>Sales tax collected</h2>
+  <table><tr><td>Sales tax in the money received</td><td class="n">{{ money(v.tax) }}</td></tr></table>
+
+  <h2>Expenses</h2>
+  <table>{% for k, a in v.expenses %}<tr><td>{{ k }}</td><td class="n">{{ money(a) }}</td></tr>{% else %}<tr><td>None recorded</td><td class="n">{{ money(0) }}</td></tr>{% endfor %}
+    {% if v.expenses %}<tr class="total"><td>Total expenses</td><td class="n">{{ money(v.exp_total) }}</td></tr>{% endif %}</table>
+
+  <h2>Mileage</h2>
+  <table><tr><td>Miles driven: {{ (v.miles|string)|replace('.0', '') }} mi{% if v.rate %}, at the rate recorded with each trip{% endif %}</td><td class="n">{{ money(v.mileage) }}</td></tr></table>
+
+  <h2>Balances waived</h2>
+  <table><tr><td>Written off, never received</td><td class="n">{{ money(v.waived) }}</td></tr></table>
+
+</div></body></html>
+

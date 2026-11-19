@@ -1485,6 +1485,295 @@ class More140(More131):
 def scenario_140(x, made_with):
     return scenario_101(x, made_with, more=More140())
 
+LICENSE_LINE = "Your license to use the photos is set out in your agreement"
+
+def form_fields(html, action=None):
+
+    from html.parser import HTMLParser
+
+    class P(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.forms, self.cur, self.sel, self.opt, self.area = [], None, None, None, None
+
+        def handle_starttag(self, tag, attrs):
+            a = dict(attrs)
+            if tag == "form":
+                self.cur = dict(action=a.get("action"), fields=[])
+                self.forms.append(self.cur)
+            elif self.cur is None:
+                return
+            elif tag == "input" and a.get("name"):
+                kind = (a.get("type") or "text").lower()
+                if kind in ("checkbox", "radio"):
+                    if "checked" in a:
+                        self.cur["fields"].append((a["name"], a.get("value", "on")))
+                elif kind not in ("submit", "button", "file", "image", "reset"):
+                    self.cur["fields"].append((a["name"], a.get("value", "")))
+            elif tag == "select" and a.get("name"):
+                self.sel = dict(name=a["name"], first=None, chosen=None)
+            elif tag == "option" and self.sel is not None:
+                v = a.get("value")
+                self.opt = v
+                if self.sel["first"] is None:
+                    self.sel["first"] = v
+                if "selected" in a:
+                    self.sel["chosen"] = v
+            elif tag == "textarea" and a.get("name"):
+                self.area = [a["name"], ""]
+
+        def handle_data(self, data):
+            if self.area is not None:
+                self.area[1] += data
+
+        def handle_endtag(self, tag):
+            if tag == "form":
+                self.cur = None
+            elif tag == "select" and self.sel is not None:
+                v = self.sel["chosen"] if self.sel["chosen"] is not None else self.sel["first"]
+                if v is not None and self.cur is not None:
+                    self.cur["fields"].append((self.sel["name"], v))
+                self.sel = None
+            elif tag == "textarea" and self.area is not None:
+                if self.cur is not None:
+                    self.cur["fields"].append((self.area[0], self.area[1].lstrip("\n")))
+                self.area = None
+    p = P()
+    p.feed(html)
+    form = next(f_ for f_ in p.forms if f_["action"] == action)
+    out = {}
+    for k, v in form["fields"]:
+        out.setdefault(k, []).append(v)
+    return out
+
+class More141(More140):
+
+    S3_BUCKET = "studio-backups"
+
+    def data(self, x):
+        super().data(x)
+        self._s3(x)
+        self._codeword_types(x)
+        self._replace_link(x)
+        self._served(x)
+        self._receipts(x)
+
+    def _s3(self, x):
+
+        from fake_s3 import ACCESS, SECRET, FakeS3, make_cert
+        import setup as SU
+        from vault import s3 as S3
+        from vault import web as VW
+        certs = Path(tempfile.mkdtemp(prefix="lumenaureum-141-s3-"))
+        self.s3 = FakeS3(buckets=(self.S3_BUCKET,), tls=make_cert(certs))
+        addr = f"127.0.0.1:{self.s3.port}"
+        prim = VW.config().get("primary") or {}
+        assert prim.get("type") == "local", prim
+        real_same = SU.same_disk
+        SU.same_disk = lambda a, b: False
+        try:
+            form = dict(primary_type="local", primary_path=prim["path"], primary_init="1", secondary_type="s3",
+                        secondary_bucket=self.S3_BUCKET, secondary_endpoint=self.s3.endpoint,
+                        secondary_access_key=ACCESS, secondary_secret_key=SECRET, secondary_addressing="path",
+                        backup_time="02:40")
+            r = x.c.post("/setup/storage", data=form, environ_base=x.E)
+            page = r.get_data(as_text=True).replace("&#39;", "'")
+            assert r.status_code == 200 and "Its certificate isn't from a public authority" in page, page.split('<div class="err">', 1)[-1][:600]
+            assert "secondary" not in VW.config() and not self.s3.log
+            seen = json.loads(x.one("SELECT value FROM settings WHERE key=?", (S3.SEEN_KEY + addr,))[0])
+            assert seen["kind"] == "untrusted" and seen["cert"]["fp"] in page, seen
+            r = x.c.post("/setup/storage", data=dict(form, s3cert_trust=f"{addr} {seen['cert']['sha256']}"), environ_base=x.E)
+            assert r.status_code == 302, r.get_data(as_text=True)[-2000:]
+        finally:
+            SU.same_disk = real_same
+        cfg = VW.config()
+        assert cfg["secondary"]["type"] == "s3" and cfg["secondary"]["endpoint"] == self.s3.endpoint, cfg["secondary"]
+        assert cfg["primary"] == prim
+        assert cfg[S3.STORE][addr]["sha256"] == seen["cert"]["sha256"]
+        assert any(m == "PUT" for m, *_ in self.s3.log) and not self.s3.objects[self.S3_BUCKET]
+        assert not x.one("SELECT 1 FROM settings WHERE key=?", (S3.SEEN_KEY + addr,))
+        assert "The one you confirmed on" in x.get("/setup/storage").get_data(as_text=True).replace("&#39;", "'")
+        self.s3_addr = addr
+
+    def _codeword_types(self, x):
+        A = x.A
+        assert all(A.C.POLICY[t].get("gallery_codeword") is True for t in A.C.SESSION_TYPES), \
+            {t: A.C.POLICY[t].get("gallery_codeword") for t in A.C.SESSION_TYPES}
+        fields = form_fields(x.get("/settings/type/headshot").get_data(as_text=True))
+        assert fields.pop("gallery_codeword") == ["1"], "the codeword box was not ticked"
+        r = x.c.post("/settings/type/headshot", data=fields, environ_base=x.E)
+        assert r.status_code == 302, r.status_code
+        assert A.C.POLICY["headshot"].get("gallery_codeword") is False
+        assert A.C.POLICY["family"].get("gallery_codeword") is True
+        others = {k: v for k, v in A.C.POLICY["headshot"].items() if k != "gallery_codeword"}
+        self.headshot_policy = others
+
+        _, s_upton, asked = self._inquiry(x, "Upton", "Casey Upton", "upton@example.com", "family", "Upton family",
+                                          f"{YEAR}-12-12", gallery_codeword=self.CODEWORD_141)
+        assert asked, "a family inquiry does not ask for a codeword"
+        assert x.one("SELECT gallery_codeword FROM sessions WHERE id=?", (s_upton,))[0] == self.CODEWORD_141
+        self.s_upton = s_upton
+
+    def _inquiry(self, x, name, contact, email, type_, title, shoot, **extra):
+
+        x.post("/contact/new", contact_name=contact, household_name=name, email=email)
+        hid = x.one("SELECT id FROM households WHERE name=?", (name,))[0]
+        page = x.get(f"/inquiry?hid={hid}&type={type_}").get_data(as_text=True)
+        x.post("/inquiry", type=type_, household_id=str(hid), title=title, shoot_date=shoot, **extra)
+        sid = x.one("SELECT MAX(id) FROM sessions WHERE household_id=?", (hid,))[0]
+        return hid, sid, 'name="gallery_codeword"' in page
+
+    def _replace_link(self, x):
+
+        post, one = x.post, x.one
+        from datetime import datetime, timedelta, timezone
+        from PIL import Image
+        h_yates, s_yates, asked = self._inquiry(x, "Yates", "Morgan Yates", "yates@example.com", "family", "Yates family",
+                                                f"{YEAR}-11-08", gallery_codeword="")
+        assert asked, "a family inquiry does not ask for a codeword"
+        assert one("SELECT gallery_codeword FROM sessions WHERE id=?", (s_yates,))[0] in ("", None)
+        post(f"/session/{s_yates}/money", what="line", label="Family session", amount="200")
+        post(f"/session/{s_yates}/stage", stage="booked")
+        self._pay(x, s_yates, "balance", self._due(x, s_yates), f"{YEAR}-11-08")
+        post(f"/session/{s_yates}/stage", stage="shot")
+        src = Path(x.work, "photos", "export", "yates")
+        src.mkdir(parents=True)
+        for i, col in enumerate(("peru", "cadetblue", "rosybrown"), 1):
+            Image.new("RGB", (64, 48), col).save(src / f"yates{i}.jpg", "JPEG")
+        self._build(x, s_yates, source_dir=str(src))
+        self._upload(x, s_yates)
+        old_gid = one("SELECT gallery_id FROM sessions WHERE id=?", (s_yates,))[0]
+        old_key = self._key(x, s_yates)
+        folder = Path(x.work, self.HOST, old_gid)
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        stamp = lambda hours: (now - timedelta(hours=hours)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        draft = [dict(i=0, name="yates1.jpg", r=True, note="a little brighter", m=False, v=False),
+                 dict(i=2, name="yates3.jpg", r=False, note="", m=True, v=False)]
+        self._seen(folder, stamp(10)[:19] + "Z", old_key)
+        self._send(folder, "picks", None, old_key, draft[:1], stamp(8))
+        self._send(folder, "draft", None, old_key, draft, stamp(3))
+        post("/gallery/sync")
+        assert one("SELECT draft_n FROM galleries WHERE session_id=?", (s_yates,))[0] == 2
+        G = x.A.app.config["gallery_module"]
+        assert sorted(p.name for p in (G.KEPT_ROOT / old_gid).iterdir()) == ["draft.las", "picks.las"]
+        hid = one("SELECT household_id FROM sessions WHERE id=?", (s_yates,))[0]
+        assert "Replace this link" in x.get(f"/c/{hid}?s={s_yates}").get_data(as_text=True)
+        post(f"/session/{s_yates}/gallery/replace-link")
+        _wait_threads(f"gallery-{s_yates}")
+        new_gid, state, built = one("""SELECT s.gallery_id, g.upload_state, g.built_at FROM sessions s
+                                       JOIN galleries g ON g.session_id=s.id WHERE s.id=?""", (s_yates,))
+        assert new_gid != old_gid and new_gid.startswith("g-") and state is None and built
+        assert not folder.exists(), "the old link still opens something"
+        self._upload(x, s_yates)
+        new_key = self._key(x, s_yates)
+        assert new_key != old_key
+        names = self._names(Path(x.work, self.HOST, new_gid), new_key)
+        assert {"index.html", "picks.las", "draft.las"} <= names, names
+        assert one("SELECT 1 FROM tasks WHERE session_id=? AND title='Send the client the new gallery link' AND done IS NULL",
+                   (s_yates,))
+        self.s141 = dict(yates=s_yates, upton=self.s_upton)
+        self.h141 = dict(yates=h_yates)
+        self.replaced = dict(session=s_yates, old_gallery_id=old_gid)
+
+    CODEWORD_141 = "copper lantern meadow"
+
+    def _served(self, x):
+
+        A, one = x.A, x.one
+        check = A.app.config["gallery_served_check"]
+
+        def run():
+            with A.app.app_context():
+                check(force=True)
+                A.db().commit()
+        x.post("/gallery/sync")
+        run()
+        st = json.loads(one("SELECT value FROM settings WHERE key='served_check'")[0])
+        assert st["bad"] == {} and st["last"], st
+        s_ivers = self.s130["ivers"]
+        gid = one("SELECT gallery_id FROM sessions WHERE id=?", (s_ivers,))[0]
+        page = Path(x.work, self.HOST, gid, "index.html")
+        page.write_bytes(page.read_bytes().replace(b"</body>", b"<!-- changed on the web host --></body>"))
+        run()
+        run()
+        st = json.loads(one("SELECT value FROM settings WHERE key='served_check'")[0])
+        assert list(st["bad"]) == [gid] and st["bad"][gid]["n"] == 2 and st["bad"][gid]["sid"] == s_ivers, st
+        assert "is not what Lumen Aureum put there" in x.get("/").get_data(as_text=True)
+        assert one("SELECT 1 FROM audit WHERE session_id=? AND action LIKE 'The gallery page or scripts on the web host%'",
+                   (s_ivers,))
+
+    def _receipts(self, x):
+        post, one = x.post, x.one
+        s_price = self.s_price
+        assert x.in_request(lambda: x.A.licensed(s_price))
+        assert one("SELECT 1 FROM documents WHERE session_id=? AND kind='agreement' AND status='signed'", (s_price,))
+        self._pay(x, s_price, "balance", self._due(x, s_price), f"{YEAR}-11-09")
+        post(f"/session/{s_price}/receipt/issue")
+        assert LICENSE_LINE in x.get(f"/session/{s_price}/receipt").get_data(as_text=True)
+        _, s_vance, asked = self._inquiry(x, "Vance", "Jules Vance", "vance@example.com", "headshot", "Vance headshots",
+                                          f"{YEAR}-11-10")
+        assert not asked, "a headshot inquiry still asks for a codeword"
+        assert x.in_request(lambda: x.A.licensed(s_vance))
+        assert not one("SELECT 1 FROM documents WHERE session_id=? AND kind='agreement' AND status='signed'", (s_vance,))
+        post(f"/session/{s_vance}/money", what="line", label="Headshot session", amount="150")
+        self._pay(x, s_vance, "balance", self._due(x, s_vance), f"{YEAR}-11-10")
+        post(f"/session/{s_vance}/receipt/issue")
+        page = x.get(f"/session/{s_vance}/receipt").get_data(as_text=True)
+        assert "Thank you." in page and LICENSE_LINE not in page and "copyright in your delivered photos" not in page
+        self.s141["vance"] = s_vance
+        self.receipts = {str(s_price): True, str(s_vance): False}
+
+    def _measure140(self, x, out):
+        got = super()._measure140(x, out)
+        try:
+            return dict(got, **self._measure141(x, dict(out, **got)))
+        finally:
+            if getattr(self, "s3", None):
+                self.s3.close()
+                self.s3 = None
+
+    def _measure141(self, x, out):
+        import hashlib
+        from vault import s3 as S3
+        from vault import web as VW
+        A, one, rows = x.A, x.one, x.rows
+        cfg = VW.config()
+        G = A.app.config["gallery_module"]
+        s_yates = self.s141["yates"]
+        gid = one("SELECT gallery_id FROM sessions WHERE id=?", (s_yates,))[0]
+        receipts = {}
+        for sid, has in self.receipts.items():
+            number = one("SELECT number FROM doc_numbers WHERE session_id=? AND kind='R'", (int(sid),))[0]
+            receipts[sid] = dict(number=number, license_line=has)
+        return dict(
+            sessions_by_name=dict(out["sessions_by_name"], **self.s141),
+            s3=dict(address=self.s3_addr, bucket=self.S3_BUCKET,
+                    secondary={k: v for k, v in cfg["secondary"].items() if k != "secret_key"},
+                    pins=cfg.get(S3.STORE) or {}),
+            primary_type=cfg["primary"]["type"],
+            storage_keys=sorted(cfg),
+            codeword_policy={t: A.C.POLICY[t].get("gallery_codeword") for t in sorted(A.C.SESSION_TYPES)},
+            headshot_policy=self.headshot_policy,
+            rules_sha256=hashlib.sha256(one("SELECT value FROM settings WHERE key='rules'")[0].encode()).hexdigest(),
+            codewords={str(r[0]): r[1] for r in rows(
+                "SELECT id, gallery_codeword FROM sessions WHERE gallery_codeword != '' ORDER BY id")},
+            replaced=dict(self.replaced, gallery_id=gid,
+                          kept=sorted(p.name for p in (G.KEPT_ROOT / gid).iterdir()) if (G.KEPT_ROOT / gid).is_dir() else [],
+                          history=[r[0] for r in rows(
+                              "SELECT action FROM audit WHERE session_id=? AND action LIKE 'Replaced the gallery%' ORDER BY id",
+                              (s_yates,))],
+                          tasks=[list(r) for r in rows(
+                              "SELECT title, done FROM tasks WHERE session_id=? AND title='Send the client the new gallery link'",
+                              (s_yates,))]),
+            served_check=json.loads(one("SELECT value FROM settings WHERE key='served_check'")[0]),
+            served_history={str(r[0]): r[1] for r in rows(
+                "SELECT session_id, action FROM audit WHERE action LIKE 'The gallery page or scripts on the web host%'")},
+            receipts=receipts,
+        )
+
+def scenario_141(x, made_with):
+    return scenario_101(x, made_with, more=More141())
+
 VERSIONS = {
     "1.0.0": dict(commit="a0966c9", scenario=scenario_100, files=("crm-before-delete.db",), env={}),
     "1.0.1": dict(commit="v1.0.1", scenario=scenario_101, files=(),
@@ -1505,6 +1794,10 @@ VERSIONS = {
                   env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
 
     "1.4.0": dict(commit="c45ce75", scenario=scenario_140, files=(),
+                  dirs=("galleries", "galleries-kept", "host", "web", "photos", "faces"),
+                  env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
+
+    "1.4.1": dict(commit="879c2b0", scenario=scenario_141, files=(),
                   dirs=("galleries", "galleries-kept", "host", "web", "photos", "faces"),
                   env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
 }

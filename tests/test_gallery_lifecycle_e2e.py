@@ -328,7 +328,7 @@ def test_put_back_on_an_extended_session_shows_the_real_last_day(site):
     page = site.c.get(f"/c/1?s={sid}", environ_base=E).get_data(as_text=True)
     with site.A.app.app_context():
         nice = site.A.nice(until)
-    assert f"Planned deletion {nice}" in page
+    assert f"Online until {nice}" in page
 
 def _change_host(site, path, base):
     return site.c.post("/setup/galleries", data={"gallery_days": "30", "unopened_days": "365", "gallery_type": "local",

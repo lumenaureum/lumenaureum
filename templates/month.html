@@ -1,21 +1,39 @@
-{% extends "base.html" %}{% from "_macros.html" import avatar, event_avatar, sym with context %}
+{% extends "base.html" %}{% from "_macros.html" import avatar, event_avatar, sym with context %}{% import "_ui.html" as ui with context %}{% import "_ui_pages.html" as pg with context %}
 {% block title %}{{ title }} - Lumen Aureum{% endblock %}
+
 {% block body %}
-<div class="mhead"><h1 class="grow">{{ title }}</h1>
-  <a class="go" href="{{ url_for('month_view', m=prev_m) }}">&lsaquo;</a>
-  {% if not is_this %}<a class="go" href="{{ url_for('month_view', m=this_m) }}">Today</a>{% endif %}
-  <a class="go" href="{{ url_for('month_view', m=next_m) }}">&rsaquo;</a>
-  <a class="go" href="{{ url_for('year_view', y=title[-4:]) }}">Year &rsaquo;</a></div>
+{% set nav_ %}{{ pg.pager(url_for('month_view', m=prev_m), prev_m|month, title, url_for('month_view', m=next_m), next_m|month, 'Month') }}
+  <div class="ui-btnrow">{%- if not is_this %}{{ ui.go(url_for('month_view', m=this_m), 'This month') }}{% endif %}{{ ui.go(url_for('year_view', y=title[-4:]), 'Year ' ~ title[-4:]) }}</div>{% endset %}
+{{ ui.page_head(title, sub=nav_) }}
+{% set SHOOTS_SHOWN, DUE_SHOWN = 2, 3 %}
+<div class="mwrap{{ ' mwrap-open' if day }}" data-month="{{ ym }}">
 <div class="month">
-  {% for dn in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] %}<div class="mdow">{{ dn }}</div>{% endfor %}
-  {% for wk in weeks %}{% for c in wk %}
-  <div class="mcell {{ 'other' if c.other }} {{ 'today' if c.today }} {{ 'weekend' if c.weekend }}">
-    <div class="mnum">{{ c.num }}</div>
-    {% for sh in c.shoots %}<a class="mshoot {{ 'done' if sh.done }}" href="{{ sh.link }}" data-tip="Shoot: {{ sh.name }}{% if sh.where %}, {{ sh.where }}{% endif %}{% if sh.time %}, {{ clock(sh.time) }}{% endif %}{% if sh.event %} ({{ sh.n }} families){% endif %}">
-      {% if sh.event %}{{ event_avatar(sh.eid, sh.name, 20) }}{% else %}{{ avatar(sh.hid, 20) }}{% endif %}{{ sym('photo_camera', 'next', 15) }}<span>{{ sh.where or sh.name.replace('The ', '') }}</span></a>{% endfor %}
-    {% if c.due %}<div class="mdue">{% for a in c.due %}<a href="{{ a.who.link if a.who and a.who.link else '#' }}" class="badged {{ 'theirs' if a.theirs }}" data-tip="{{ a.who.name }}: {{ a.tip or a.what }}">{{ sym(a.sym, a.status if a.status in ('late','soon') else 'next', 22) }}{% if a.who.hid %}<span class="badge-face">{{ avatar(a.who.hid, 13) }}</span>{% elif a.who.eid %}<span class="badge-face">{{ event_avatar(a.who.eid, a.who.name, 13) }}</span>{% endif %}</a>{% endfor %}</div>{% endif %}
-  </div>
+  {% for dn in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] %}<div class="mdow" aria-hidden="true">{{ dn }}</div>{% endfor %}
+  {% for wk in weeks %}{% for c in wk %}{% set n_ = c.shoots|length + c.due|length %}
+  {%- set more_ = ([c.shoots|length - SHOOTS_SHOWN, 0]|max) + ([c.due|length - DUE_SHOWN, 0]|max) %}
+  <a class="mcell {{ 'other' if c.other }} {{ 'today' if c.today }} {{ 'weekend' if c.weekend }}{{ ' mcell-on' if c.iso == day }}" data-day="{{ c.iso }}"
+     href="{{ url_for('month_view', m=ym) if c.iso == day else url_for('month_view', m=ym, d=c.iso) ~ '#day-' ~ c.iso }}"
+     aria-controls="day-{{ c.iso }}" aria-expanded="{{ 'true' if c.iso == day else 'false' }}"
+     aria-label="{{ c.long }}{{ ', today' if c.today }}: {% if n_ %}{{ c.shoots|length }} shoot{{ '' if c.shoots|length == 1 else 's' }}, {{ c.due|length }} due{% else %}nothing{% endif %}">
+    <span class="mnum">{{ c.num }}</span>
+    {% for sh in c.shoots[:SHOOTS_SHOWN] %}<span class="mshoot {{ 'done' if sh.done }}">
+      {% if sh.event %}{{ event_avatar(sh.eid, sh.name, 20) }}{% else %}{{ avatar(sh.hid, 20) }}{% endif %}{{ sym('photo_camera', 'next', 15) }}<span>{{ sh.name.replace('The ', '') }}</span></span>{% endfor %}
+    {% if c.due %}<span class="mdue">{% for a in c.due[:DUE_SHOWN] %}<span class="badged {{ 'theirs' if a.theirs }}">{{ sym(a.sym, a.status if a.status in ('late','soon') else 'next', 22) }}{% if a.who.hid %}<span class="badge-face">{{ avatar(a.who.hid, 13) }}</span>{% elif a.who.eid %}<span class="badge-face">{{ event_avatar(a.who.eid, a.who.name, 13) }}</span>{% endif %}</span>{% endfor %}</span>{% endif %}
+    {% if more_ %}<span class="mmore">+ {{ more_ }} more</span>{% endif %}
+  </a>
   {% endfor %}{% endfor %}
+</div>
+<div class="mdays">
+{% for wk in weeks %}{% for c in wk %}
+  <section class="mday" id="day-{{ c.iso }}" data-day="{{ c.iso }}" aria-label="{{ c.long }}"{% if c.iso != day %} hidden{% endif %}>
+    <h2 class="ui-sec-title">{{ c.long }}{{ ', today' if c.today }}</h2>
+    {% for sh in c.shoots %}{{ ui.list_row(sh.link, sh.name, 'Shoot' ~ (', ' ~ clock(sh.time) if sh.time else '') ~ (', ' ~ sh.where if sh.where else '') ~ (', ' ~ sh.n ~ ' families' if sh.event else '')) }}{% endfor %}
+    {% for a in c.due %}{{ ui.list_row(client_link(a.who.link) if a.who and a.who.link else url_for('home'), a.who.name, a.tip or a.what, ui.chip('late', 'late') if a.status == 'late' else '') }}{% endfor %}
+    {% if not c.shoots and not c.due %}<p class="ui-mute">Nothing on this day.</p>{% endif %}
+    <div class="ui-btnrow"><a class="ui-go mday-close" href="{{ url_for('month_view', m=ym) }}">Back to the whole month</a></div>
+  </section>
+{% endfor %}{% endfor %}
+</div>
 </div>
 {% endblock %}
 

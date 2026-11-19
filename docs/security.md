@@ -31,6 +31,15 @@ after five minutes, and at once whenever the password, the master key or the rec
 every other device, so a sign-in started before the change can't finish after it). Recovery codes stand in for the two-factor code only; they never unlock the data without your
 password. `/healthz` reports `"locked": true` so a NAS can show it.
 
+The app never unlocks itself. Earlier versions had an optional unattended unlock from a key
+file on another volume; 1.5 removed it, so a restart always leaves the studio locked until you sign in.
+
+**Idle sign-out.** A sign-in ends after a time with no tap and no page opened (8 hours by default; Settings, General,
+**Sign out when idle**, 1 to 72 hours). About 2 minutes before, a warning offers **Stay signed in**. Only a real tap
+counts: a page's own background requests (status checks, refreshes) never keep a sign-in alive. What you typed and did
+not save stays on the page, and the sign-in page says why you were signed out. Updating to a new version signs every
+device out.
+
 **Choose a long password.** The keyring's password wrap uses `age`'s passphrase mode (scrypt), which sets how slow
 each guess is from the speed of the machine it runs on; on a slow NAS each guess is cheaper for an attacker who has a
 copy of the keyring. The library the app uses has no setting for a minimum, and the app does not build its own
@@ -54,19 +63,27 @@ key, offline, and the data key opens the database and every file. A two-factor c
 who holds both, and would only lock you out if you lost your phone along with your password. The master key outranks
 the password and the two-factor code alike, which is why it lives on paper: keep it as carefully as the data itself.
 
-## Unattended unlock (off by default)
-Some installs restart unattended (NAS updates). Set `CRM_UNLOCK_KEY_FILE` to a path on a **separate** volume and turn
-on Unattended unlock in Settings > Security: the app then unlocks itself at start from that file. The app refuses
-a key file inside the data folder, on the same filesystem or mount as the data, or (in a container) on the
-container's own filesystem rather than a mounted volume, and a memory-only filesystem (tmpfs, such as /tmp on many
-systems), which is emptied at every restart. The place is checked again at every start: a key file moved somewhere
-refused since it was turned on does not unlock the app, which starts locked and says why on the sign-in and Security
-pages and in the log. It can only tell filesystems apart, not disks: two
-partitions of one disk, or two folders of one NAS pool mounted separately, pass the check and protect nothing, so
-choosing a place on another device is up to you. Anyone with both
-that volume and the data folder can read everything, so keep the file where a thief would not also take it (an
-encrypted dataset that is locked when the machine is off, a USB key you keep elsewhere). This trades protection at
-rest for availability; leave it off unless you need it.
+## Notices while locked
+While the app is locked, backups and gallery checks wait, so a restart while you are away (a power cut, a NAS update)
+can go unnoticed for days. The locked-studio notice sends a message to your phone when that happens. It is optional and off until you set it up in Settings,
+Security: the address of an ntfy server, a topic, and an access token if the server needs one. **Send a test
+notice** checks it. Once ntfy is set up, **Studio locked after a restart** shows as a ticked box that stays on. The
+first time the studio restarts locked without it, Today suggests it once.
+
+When the studio starts locked, the app sends a notice, then one a day until you sign in: "Your studio restarted and
+has been locked since <day and time>. Backups and gallery closings are waiting until you sign in." The notice never
+carries a link, a client's name, a count, an amount or anything else from your data. Sign in from the app's own
+address as usual. It goes over HTTPS only. A notice that fails is written to the app's log and tried again an hour
+later at the soonest. A restart while the studio is still locked keeps the time it first locked and sends nothing
+more than the one a day. When you sign in after 15 minutes or more locked, Today says once since when the studio was
+locked; the backups and gallery closings that waited catch up then.
+
+The app has no key while it is locked, so it can't read the server address, topic and token from the encrypted
+database. It keeps a copy of them, with the studio's time zone, in a small plain file in the data folder,
+`ntfy.json`, and anyone who can read the data folder can read them. Use a topic nobody could guess, and an access
+token where the server takes one. ntfy can run on your own machine (it is also in the TrueNAS app catalog), with a
+private topic and a token. Your phone must then be able to reach that server when you are away from home, over a VPN
+for example, or notices arrive only at home.
 
 ## What is not encrypted by the app
 - **The copy on your own computer.** Photos are uploaded into the app and sealed on arrival; a download (to edit again)
@@ -85,6 +102,12 @@ rest for availability; leave it off unless you need it.
   use encrypted swap, or run on a machine that doesn't hibernate. The app never writes its memory to disk itself: core
   dumps are off (the process is marked not dumpable and its core file size is 0, and `compose.yaml` sets the same), so
   a crash leaves no copy of a key or of client data on the machine's disk.
+- **The ntfy settings** (server, topic, access token, time zone), in `ntfy.json` in the data folder, so the locked
+  studio can send its notice, and `lock-state.json` beside it: when the studio locked and when the last notice went,
+  times only. See [Notices while locked](#notices-while-locked).
+- **Kept copies of web host files.** When the studio page replaces files of yours on the web host (Replace these
+  files), a copy of each old file is kept in `data/site-kept/` as it was on the host, so it can be put back. They are
+  the public files of your website.
 - **A running, unlocked machine** that is taken while on is protected only by the network allow-list and sign-in.
 
 Galleries on a web host that runs PHP expire by themselves: the gallery page fetches every encrypted file through a
@@ -94,6 +117,11 @@ unlocked to do it. The app also removes every gallery on its first check after t
 Outside the encrypted files, a gallery's host holds only its dates and your studio email: the gate gives the email to
 a visitor once the gallery has closed, and the page left at an expired gallery's link shows your studio name and email.
 The client's name and the photos are never on it.
+
+**Adopting a gallery already online** reads it with the key in the link you paste, and writes nothing on the host. It
+is refused unless the gallery's folder is on the web host in your settings, the app can write there with its own
+credentials (it writes and removes a small test file in that folder), and the key opens the gallery's manifest.
+Bringing it up to date rebuilds it at the same link only after the old gallery has been read in full.
 
 Deleting a session or client takes its gallery down from the host in use (the delete stops if that fails) and from any
 earlier web host that still holds a copy. A copy that can't be removed then (the host can't be reached) is kept in
@@ -117,7 +145,7 @@ What a gallery link can and can't protect:
   is a limit of encryption delivered by a web page, not something a setting or a choice of host protects against.
   What the app does: about once an hour, at the regular gallery check, it fetches each online gallery's page from its
   public address and reads the page and the gallery's scripts back from the host, and compares every byte with what it
-  put there. A difference seen at two checks in a row shows on Today and in the gallery's panel, with Take down now
+  put there. A difference seen at two checks in a row shows on Today and in the Gallery block on the client page, with Take down now
   and Put the published page back. This finds a change after it happens; it can't stop a client opening a changed
   page before the next check.
 - **Expiry needs the host's help.** The window is kept in two small files on the host (the first-visit stamp and the
@@ -166,7 +194,7 @@ gallery to its link ID and carries every pick, draft and order sent before over 
 Each gallery folder holds a few small PHP files beside the encrypted photos. Every file that keeps the gallery's state
 begins with a PHP exit line (`<?php exit; ?>`), so on a host that runs PHP, fetching it shows nothing, whatever web
 server the host runs; nothing in the folder depends on `.htaccess` to stay private. Every script answers with an
-`X-Host-Scripts` header naming its set (1.4.0), on every answer, so the app can tell the scripts it put there are the
+`X-Host-Scripts` header naming its set (1.5.0), on every answer, so the app can tell the scripts it put there are the
 ones running. What each does:
 
 | File | What it does |
@@ -176,7 +204,7 @@ ones running. What each does:
 | `seen.php` | Records the first visit in `seen-at.php` (before 1.4, `seen.txt`), once, and only for a visitor who sends the key proof. A stamp left empty is replaced. |
 | `gate.php` | Serves the encrypted photo files, `manifest.bin`, `offer.bin`, `draft.las` and `picks.las`, and only while the window is open. A missing or unreadable `limits.php` counts as closed. It asks for the key proof for every file, and finds the sealed files by the names the proof gives. A one-time download's list and end go in `once.php` and `done.php`. It never serves anything else. |
 | `picks.php` | Saves the client's picks (`picks.las`) or the picks still being made (`draft.las`). It takes one form field holding a sealed envelope (LAS1, purpose picks or draft, bound to this gallery's folder name, its link ID), up to 256 KB, that doesn't look like readable text, from a visitor who sends the key proof, and only while the window is open, under the name the proof gives. Wrong proofs count toward the same limit as the gate's. On a copy marked moved it saves nothing and answers with your email. |
-| `orders.php` | Keeps a print order sent from a download gallery, as `orders/<hash>.las`, for the app to collect. It takes one sealed envelope (LAS1, purpose print-order: sealed to your studio key with the link key mixed in, bound to this gallery's folder name and the studio key's ID, at most 64 KB and padded to one of five sizes), with the key proof, a proof of work, and only while the window is open and prints are on (`offer-kid.php` is there). 5 orders an hour and 10 waiting from one sender (behind a proxy or CDN, where every client seems to share an address, only the gallery's own limits), 100 files and 6.5 MB waiting in all. Past the hourly limit it answers with Retry-After (when the oldest of the five is an hour old), so the gallery page tells the client when to try again. It never reads, lists or serves an order, and `orders/` holds an empty `index.html`, so a web server that lists folders shows nothing there. |
+| `orders.php` | Keeps a print order sent from a download gallery, as `orders/<hash>.las`, for the app to collect. It takes one sealed envelope (LAS1, purpose print-order: sealed to your studio key with the link key mixed in, bound to this gallery's folder name and the studio key's ID, at most 64 KB and padded to one of five sizes), with the key proof, a proof of work, and only while the window is open, more than 24 hours before the gallery closes, and prints are on (`offer-kid.php` is there). 5 orders an hour and 10 waiting from one sender (behind a proxy or CDN, where every client seems to share an address, only the gallery's own limits), 100 files and 6.5 MB waiting in all. Past the hourly limit it answers with Retry-After (when the oldest of the five is an hour old), so the gallery page tells the client when to try again. It never reads, lists or serves an order, and `orders/` holds an empty `index.html`, so a web server that lists folders shows nothing there. |
 | `offer.bin` | The print offer: your price list (prices only, never your cost), the shipping lines, your email and the studio's public key, sealed under the link key like `manifest.bin`, so the host can't swap the key the page seals to. Only on a gallery that offers prints. |
 | `offer-kid.php` | The studio key's ID `orders.php` checks. It starts with `<?php exit; ?>`, so fetching it shows nothing. |
 | `sealed.php` | The shape check `picks.php` and `inquiry.php` use (the sealed format's checks, steps 1 to 15). It holds no key and opens nothing; fetched on its own it prints nothing. |
@@ -349,14 +377,13 @@ file is lost); at each sign-in both are raised to at least every number the data
 list have seen.
 
 ## Rotating the data key
-Changing your password or turning off unattended unlock stops the old password or key file from opening the
-*current* keyring, but anyone who kept a copy of an older `keyring.json` (with the old password or old key file) can
-still unwrap the same data key. Only a rotation revokes that. So if a password, a keyring copy or an unlock key file
-may have leaked, stop the app and run `python -m vault.cli rotate`. Everything is
+Changing your password stops the old password from opening the *current* keyring, but anyone who kept a copy of an
+older `keyring.json` (with the old password) can still unwrap the same data key. Only a rotation revokes that. So if
+a password, a keyring copy, or an unlock key file from before 1.5 may have leaked, stop the app and run `python -m vault.cli rotate`. Everything is
 re-encrypted under a new key, uploaded photos included (each gets a fresh key and is rewritten; their mirror
 copies are refreshed afterwards; a photo whose file here is missing is fetched back from its mirror copy first, and
 if one can't be fetched the rotation stops before anything is changed) - staged and checked first, swapped in last; an interrupted rotation is finished by
-running the command again, and the app will not start until it is. It refuses to run while the app is running. Unattended unlock is turned off by a rotation.
+running the command again, and the app will not start until it is. It refuses to run while the app is running.
 Older backups keep their own keyring and still open with the master key.
 
 ## Restoring a backup

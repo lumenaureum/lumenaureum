@@ -67,7 +67,7 @@ def test_payment_and_expense_dates_before_2000_are_refused(env):
         post(c, "/session/1/money", what="expense", label="Lens", amount="80", date=day)
         post(c, "/money/overhead", label="Lens", amount="80", date=day)
     assert (_count(A, "payments"), _count(A, "expenses")) == (0, 0)
-    page = c.get("/session/1", environ_base=E).get_data(as_text=True)
+    page = c.get("/session/1/edit", environ_base=E).get_data(as_text=True)
     assert "before 2000" in page
     pay(c, 1, "deposit", 100, "2000-01-01")
     post(c, "/session/1/money", what="expense", label="Lens", amount="80", date="2000-01-01")
@@ -140,9 +140,9 @@ def test_a_refused_form_is_filled_again_with_what_was_typed(env):
     household(A, 1, "Lane")
     session(A, 1, 1, "booked", "2026-07-01")
     post(c, "/session/1/money", what="expense", label="Trip", miles="-10", date="2026-05-30")
-    page = c.get("/session/1", environ_base=E).get_data(as_text=True)
+    page = c.get("/session/1/edit", environ_base=E).get_data(as_text=True)
     assert 'data-refill="/session/1/money"' in page
-    assert 'data-refill' not in c.get("/session/1", environ_base=E).get_data(as_text=True)
+    assert 'data-refill' not in c.get("/session/1/edit", environ_base=E).get_data(as_text=True)
     js = open(os.path.join(ROOT, "static", "ui.js")).read()
     assert "data-refill" in js and "la-form" in js
 
@@ -184,17 +184,17 @@ def test_a_refused_expense_comes_back_filled_in_a_browser(env):
     expense = "form:has(input[name=what][value=expense])"
     try:
         ctx, page = _browser_page(b, c)
-        page.goto("https://app.test/session/1")
+
+        page.goto("https://app.test/session/1/edit")
         page.locator(expense).evaluate("f => { const d = f.closest('details'); if (d) d.open = true; }")
         page.locator(expense + " [name=label]").fill("Trip to the park")
         page.locator(expense + " [name=miles]").fill("-10")
-        with page.expect_navigation():
-            page.locator(expense).evaluate("f => f.requestSubmit()")
-        page.wait_for_selector(".toast[data-refill]", state="attached")
+        page.locator(expense).evaluate("f => f.requestSubmit()")
+        page.wait_for_selector(".ui-note-error", state="attached")
         assert page.locator(expense + " [name=label]").input_value() == "Trip to the park"
         assert page.locator(expense + " [name=miles]").input_value() == "-10"
         assert _count(A, "expenses") == 0
-        page.goto("https://app.test/session/1")
+        page.goto("https://app.test/session/1/edit")
         assert page.locator(expense + " [name=label]").input_value() == ""
         ctx.close()
     finally:

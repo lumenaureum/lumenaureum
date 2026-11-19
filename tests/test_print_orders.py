@@ -188,6 +188,8 @@ def test_every_hand_edge_and_the_refused_ones(e):
     e.c.post(f"/prints/order/{oid}/delivered", environ_base=E)
     e.c.post(f"/prints/order/{oid}/close", environ_base=E)
     assert orders(e)[0]["state"] == "closed"
+    head = e.c.get(f"/prints/order/{oid}", environ_base=E).data.decode().split("<h1>", 1)[1].split("</h1>", 1)[0]
+    assert " at A Lab, no. 77, 78" in head
     e.c.post(f"/prints/order/{oid}/cancel", environ_base=E)
     assert orders(e)[0]["state"] == "closed"
     hist = [r["action"] for r in PE.q(e, "SELECT action FROM audit WHERE session_id=1 AND action LIKE 'Print order from%'")]
@@ -234,6 +236,11 @@ def test_prepare_streams_the_files_and_the_sheet_writing_nothing_readable(e, mon
     from PIL import Image
     with Image.open(io.BytesIO(z.read(f"{inv}-1-8x10-Lustre-x2.jpg"))) as im:
         assert im.size[0] * 5 == im.size[1] * 4 or im.size[0] * 4 == im.size[1] * 5
+
+        want = round(min(im.size) / 8)
+        assert im.info.get("dpi") and round(im.info["dpi"][0]) == want and want != 72
+        ex = im.getexif()
+        assert not ex.get(282) or round(float(ex[282])) == want
     assert orders(e)[0]["state"] == "prepared"
 
 def test_a_broken_stream_leaves_the_state(e):

@@ -91,7 +91,7 @@ def test_every_step_in_order(host):
     env = order(G, key, spk, "1" * 32)
     good = body(env)
     st, _b, h = call(u, method="GET")
-    assert st == 405 and h.get("X-Host-Scripts") == "1.4.0"
+    assert st == 405 and h.get("X-Host-Scripts") == "1.5.0"
     host_write(d, "limits.txt", "days=30\nunopened_until=2001-01-01\nproof=1\n")
     assert call(u, good, proof)[0] == 410
     host_write(d, "limits.txt", 'days=30\nunopened_until=2099-01-01\nproof=1\ncontact="studio@example.com"\n')

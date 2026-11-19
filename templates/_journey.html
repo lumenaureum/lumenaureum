@@ -1,0 +1,16 @@
+
+<section class="journey" aria-label="Timeline, week by week{{ ' to the shoot' if j.shoot is not none else '' }}">
+  <div class="j-past">{% for e in j.past %}<div class="jm l{{ e.lane }} {{ 'lab' if e.show }}" style="left:{{ e.x }}%" data-tip="{{ e.tip }}"{% if e.n > 1 %} data-tip-lines tabindex="0" role="button" aria-label="{{ e.tip }}"{% endif %}>{{ sym(e.sym, 'next', 22) }}{% if e.n > 1 %}<b class="jn" aria-hidden="true">{{ e.n }}</b>{% endif %}</div>{% endfor %}</div>
+  <div class="j-axis">
+    {% for b in j.bands %}<div class="band st-{{ b.stage }}" style="left:{{ b.a }}%;width:{{ b.w }}%" data-tip="{{ stage_label[b.stage] }}">{% if b.label %}<span>{{ stage_label[b.stage] }}</span>{% endif %}</div>{% endfor %}
+    
+    {%- set tk_ = namespace(last=-100) -%}
+    {% for tk in j.ticks %}{% set near_ = (tk.x - j.today)|abs < 13 or (j.shoot is not none and (tk.x - j.shoot)|abs < 13) %}
+      {%- set minor_ = tk.minor or near_ or tk.x - tk_.last < 15 -%}{% if not minor_ %}{% set tk_.last = tk.x %}{% endif -%}
+      <i class="tick{{ ' minor' if minor_ }}" style="left:{{ tk.x }}%"><b>{{ tk.label }}</b></i>{% endfor %}
+    {% if j.shoot is not none %}<div class="j-shoot" style="left:{{ j.shoot }}%" data-tip="Shoot {{ nice(j.shoot_d) }}">{% if j.shoot_label %}<span>Shoot</span>{% endif %}</div>{% endif %}
+    <div class="j-today" style="left:{{ j.today }}%">{{ avatar(h.id, 34) }}<b>Today</b></div>
+  </div>
+  <div class="j-future">{% for e in j.future %}<div class="jm fut l{{ e.lane }} {{ 'lab' if e.show }} s-{{ e.status }}" style="left:{{ e.x }}%" data-tip="{{ e.tip }}"{% if e.n > 1 %} data-tip-lines tabindex="0" role="button" aria-label="{{ e.tip }}"{% endif %}>{{ sym(e.sym, e.status, 24) }}{% if e.n > 1 %}<b class="jn" aria-hidden="true">{{ e.n }}</b>{% endif %}</div>{% endfor %}</div>
+</section>
+

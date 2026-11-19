@@ -6,7 +6,7 @@
 // hname), so on any web server, whether or not it reads .htaccess, nobody without the key can fetch them by name.
 // The gallery's state (limits.php, seen-at.php, once.php, done.php) begins with a PHP exit line, so fetching it shows
 // nothing. Nothing under orders/ is ever served.
-header('X-Host-Scripts: 1.4.0');
+header('X-Host-Scripts: 1.5.0');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 // A state file: its PHP form, after the exit line, or (a folder from before this layout) its plain one

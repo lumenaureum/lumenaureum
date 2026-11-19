@@ -12,12 +12,17 @@
 .stepper li.cur .dot { border-color: var(--gold); background: var(--gold); color: var(--on-accent, #111); }
 .stepper li.cur .lab { color: var(--gold); font-weight: 600; }
 .stepper .lab { display: block; margin-top: 4px; line-height: 1.25; } .stepper .lab small { display: block; opacity: .7; }
-@media (max-width: 640px) { .stepper .lab { display: none; } .stepper li.cur .lab { display: block; } }
+@media (max-width: 640px) { .stepper .lab { display: none; } }
+.stepper-cap { display: none; font-size: 12px; color: var(--mute); margin: -10px 0 4px; }
+@media (max-width: 640px) { .stepper-cap { display: block; } }
 .steps a { color: var(--mute); text-decoration: none; } .steps a.on { color: var(--gold); font-weight: 600; } .steps a.ok::before { content: "\2713  "; color: var(--ok, #8c8); }
-.auth label.l { display: block; font-size: 12px; color: var(--mute); margin: 8px 0 2px; } .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.auth label.l { display: block; font-size: 12px; color: var(--mute); margin: 8px 0 2px; } .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; } @media (max-width: 480px) { .two { grid-template-columns: 1fr; } }
 .errgo { margin: -4px 0 12px; } .choice { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; } .choice input { width: auto; margin: 3px 0 0; }
 .hardtag { font-weight: 600; color: var(--gold); font-size: 11px; margin-left: 6px; text-transform: uppercase; letter-spacing: .04em; } .hint { font-size: 12px; color: var(--mute); margin: 2px 0 8px; } .hard { border-left: 3px solid var(--gold); padding: 4px 10px; font-size: 13px; margin: 10px 0; }
 .be { display: none; } .be.on { display: block; } .test { font-size: 12px; margin-left: 8px; } table.r td { padding: 4px 8px 4px 0; vertical-align: middle; } table.r input { width: 90px; margin: 0; }
+@media (max-width: 480px) { table.rs, table.rs tbody { display: block; } table.rs tr { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; padding: 6px 0; }
+  table.rs td { display: block; padding: 0; width: auto !important; border: 0; } table.rs td:first-child { flex: 1 1 100%; }
+  table.rs td .pre:empty { display: none; } }
 table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-align: right; margin-right: 4px; }
 .sbar { display: flex; gap: 8px; align-items: center; margin-top: 14px; } .sbar .fill { flex: 1; }
 .auth input::placeholder, .auth textarea::placeholder { font-style: italic; opacity: .55; }
@@ -26,7 +31,7 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
   <li class="done"><span class="dot">&#10003;</span><span class="lab">Owner and master key</span></li>
   {% for s, t, req in steps %}<li class="{{ 'cur' if s == step else ('done' if s in done else 'ahead') }}"><a href="{{ url_for('setup_step', step=s) }}"{% if s == step %} aria-current="step"{% endif %}><span class="dot">{{ '&#10003;'|safe if s in done and s != step else loop.index + 1 }}</span><span class="lab">{{ t }}{% if not req %} <small>optional</small>{% endif %}</span></a></li>{% endfor %}
 </ol>{% endif %}
-{% for s, t, req in steps %}{% if s == step %}<h1>{{ t }}</h1>{% endif %}{% endfor %}
+{% for s, t, req in steps %}{% if s == step %}{% if not complete %}<p class="stepper-cap">Step {{ loop.index + 1 }} of {{ steps|length + 1 }}{% if not req %}, optional{% endif %}</p>{% endif %}<h1>{{ t }}</h1>{% endif %}{% endfor %}
 {% if err %}<div class="err">{{ err.replace('SAME-DISK: ', '').replace('ONE-DISK: ', '') }}</div>{% endif %}{% if saved %}<div class="ok-msg">Saved.</div>{% endif %}
 {% include "_import_msg.html" %}
 {% if step == 'business' and not complete %}<form method="post" action="{{ url_for('settings_import') }}" enctype="multipart/form-data" id="impf">
@@ -39,14 +44,16 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
 {% elif err and err.startswith('SAME-DISK') %}<div class="errgo"><button name="same_disk_ok" value="1">Keep it anyway: I know the second copy is on the same disk</button></div>{% endif %}
 
 
+{% macro lf(name, label, value, ph='', type='text', extra='') %}<div><label class="l" for="f-{{ name }}">{{ label }}</label><input type="{{ type }}" id="f-{{ name }}" name="{{ name }}"{% if ph %} placeholder="{{ ph }}"{% endif %} value="{{ value }}"{{ extra|safe }}></div>{% endmacro %}
+
 {% macro trustbox(p, cur) %}{% set tr_ = trust.get(p) if trust else none %}
     <input type="hidden" name="{{ p }}host_key" value="{{ tr_.host_key if tr_ else '' }}">
     <label class="choice trustbox" data-trust="{{ p[:-1] }}"{% if not tr_ %} hidden{% endif %}><input type="checkbox" name="{{ p }}trust" value="1"{{ ' checked' if tr_ and tr_.ticked }}><span>Trust this server: its key fingerprint is <b class="fp">{{ tr_.fp if tr_ else '' }}</b></span></label>
     {% if cur.type == 'sftp' and cur.host_key and not tr_ %}<div class="hint">Server key trusted: {{ host_fp(cur.host_key) }}</div>{% endif %}{% endmacro %}
 {% macro s3_fields(p, cur) %}
-  <div class="be" data-be="{{ p }}s3"><div class="two"><input name="{{ p }}bucket" placeholder="Bucket name" value="{{ fv(p ~ 'bucket', cur.bucket if cur.type == 's3') }}"><input name="{{ p }}endpoint" placeholder="Endpoint, e.g. https://s3.example.com (blank for AWS)" value="{{ fv(p ~ 'endpoint', cur.endpoint if cur.type == 's3') }}"></div>
-    <div class="two"><input name="{{ p }}access_key" placeholder="Access key" value="{{ fv(p ~ 'access_key', cur.access_key if cur.type == 's3') }}"><input type="password" name="{{ p }}secret_key" placeholder="{{ 'Secret key (kept from your last try; blank keeps it)' if pending and pending.get(p ~ 'secret_key') else ('Secret key (saved; blank keeps it)' if cur.secret_key else 'Secret key') }}" autocomplete="off"></div>
-    <div class="two"><input name="{{ p }}region" placeholder="Region (optional)" value="{{ fv(p ~ 'region', cur.region if cur.type == 's3') }}"><input name="{{ p }}s3prefix" placeholder="Folder prefix (optional)" value="{{ fv(p ~ 's3prefix', cur.prefix if cur.type == 's3') }}"></div>
+  <div class="be" data-be="{{ p }}s3"><div class="two">{{ lf(p ~ 'bucket', 'Bucket name', fv(p ~ 'bucket', cur.bucket if cur.type == 's3')) }}{{ lf(p ~ 'endpoint', 'Endpoint (blank for AWS)', fv(p ~ 'endpoint', cur.endpoint if cur.type == 's3'), 'e.g. https://s3.example.com') }}</div>
+    <div class="two">{{ lf(p ~ 'access_key', 'Access key', fv(p ~ 'access_key', cur.access_key if cur.type == 's3')) }}{{ lf(p ~ 'secret_key', 'Secret key', '', 'kept from your last try; blank keeps it' if pending and pending.get(p ~ 'secret_key') else ('saved; blank keeps it' if cur.secret_key else ''), type='password', extra=' autocomplete="off"') }}</div>
+    <div class="two">{{ lf(p ~ 'region', 'Region (optional)', fv(p ~ 'region', cur.region if cur.type == 's3')) }}{{ lf(p ~ 's3prefix', 'Folder prefix (optional)', fv(p ~ 's3prefix', cur.prefix if cur.type == 's3')) }}</div>
     {% set ad_ = fv(p ~ 'addressing', cur.addressing if cur.type == 's3') or 'auto' %}
     <label class="l" for="f-{{ p }}addressing">Bucket address{{ help("How the bucket's name goes into each request. Automatic works for AWS and almost every other service. Change it only if your storage's instructions ask for one or the other.") }}</label>
     <select id="f-{{ p }}addressing" name="{{ p }}addressing" style="width:auto">{% for v_, w_ in [('auto', 'Automatic'), ('path', 'After the address (path style)'), ('virtual', 'In the server name (virtual host)')] %}<option value="{{ v_ }}"{{ ' selected' if ad_ == v_ }}>{{ w_ }}</option>{% endfor %}</select>
@@ -88,12 +95,11 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
     <div><label class="l" for="f-photographer_name">Your name</label><input id="f-photographer_name" name="photographer_name" maxlength="200" value="{{ fv('photographer_name', get('photographer_name')) }}" required></div></div>
   <label class="l" for="f-studio_name">Brand name, if different</label><input id="f-studio_name" name="studio_name" maxlength="200" value="{{ fv('studio_name', get('studio_name')) }}">
   <div class="two"><div><label class="l" for="f-business_email">Business email</label><input type="email" id="f-business_email" name="business_email" maxlength="200" value="{{ fv('business_email', get('business_email')) }}">
-      <label class="l" for="f-business_phone">Business phone{{ help("Printed with your email and address at the top of quotes, invoices and session details, so clients can reach you.") }}</label><input type="tel" id="f-business_phone" name="business_phone" maxlength="40" value="{{ fv('business_phone', get('business_phone')) }}"></div>
+      <label class="l" for="f-business_phone">Business phone{{ help("Printed with your email and address at the top of quotes, invoices and session sheets, so clients can reach you.") }}</label><input type="tel" id="f-business_phone" name="business_phone" maxlength="40" value="{{ fv('business_phone', get('business_phone')) }}"></div>
     <div><label class="l" for="f-business_address">Mailing address</label><textarea id="f-business_address" name="business_address" rows="2" maxlength="400">{{ fv('business_address', get('business_address')) }}</textarea></div></div>
-  <label class="l" for="f-timezone">Time zone <b class="hardtag">hard to change later</b>{{ help("Every date and deadline is stored in this time zone. Changing it later moves due dates and the sunset times already worked out.") }}</label>
+  <label class="l" for="f-timezone">Time zone <b class="hardtag">hard to change later</b>{{ help(("Filled in from this device's time zone: change it if your business keeps a different one. " if not tz_saved else "") ~ "Every date and deadline is stored in this time zone. Changing it later moves due dates and the sunset times already worked out.") }}</label>
   {% set tz_ = fv('timezone', tz) %}<select name="timezone" id="f-timezone" required{% if tz_saved or request.method == 'POST' %} data-keep="1"{% endif %}><option value="">Pick one</option>{% for z in zones %}<option{{ ' selected' if z == tz_ }}>{{ z }}</option>{% endfor %}</select>
   <input type="hidden" name="browser_tz" value="">
-  {% if not tz_saved %}<div class="hint">Filled in from this device's time zone. Change it if your business keeps a different one.</div>{% endif %}
   <label class="l" for="f-home_zip">Home ZIP code, for sunset times</label><input id="f-home_zip" name="home_zip" value="{{ fv('home_zip', get('home_zip')) }}" inputmode="numeric" maxlength="5" style="width:120px">
   <div class="hint">Or latitude and longitude:</div>
   <div class="two"><input name="home_lat" placeholder="Latitude, e.g. 39.83" value="{{ fv('home_lat', get('home_lat') if not get('home_zip')) }}"><input name="home_lon" placeholder="Longitude, e.g. -98.58" value="{{ fv('home_lon', get('home_lon') if not get('home_zip')) }}"></div>
@@ -108,42 +114,46 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
     {% if vault_mounted and not optional and request.method != 'POST' %}<div class="hint">Filled in: the app's container has a /vault folder mounted for backups.</div>{% endif %}
     {% if optional %}<div class="hint">A folder outside the app's own folders must be mounted into its container first: see docs/where-it-runs.md, Folders outside the container.</div>{% endif %}
     <label class="choice"><input type="checkbox" name="{{ p }}init" value="1"{{ ' checked' if fc(p ~ 'init', not marked.get(p)) }}><span>New empty folder: set it up</span></label></div>
-  <div class="be" data-be="{{ p }}sftp"><div class="two"><input name="{{ p }}host" placeholder="Host, e.g. sftp.example.com" value="{{ fv(p ~ 'host', cur.host if cur.type == 'sftp') }}"><input name="{{ p }}user" placeholder="User name on the server" value="{{ fv(p ~ 'user', cur.user if cur.type == 'sftp') }}"></div>
-    <div class="two"><input name="{{ p }}root" placeholder="Folder on the server, e.g. backups" value="{{ fv(p ~ 'root', cur.root if cur.type == 'sftp') }}"><input name="{{ p }}port" placeholder="Port (blank for 22)" value="{{ fv(p ~ 'port', cur.port if cur.type == 'sftp' and cur.port) }}"></div>
+  <div class="be" data-be="{{ p }}sftp"><div class="two">{{ lf(p ~ 'host', 'Host', fv(p ~ 'host', cur.host if cur.type == 'sftp'), 'e.g. sftp.example.com') }}{{ lf(p ~ 'user', 'User name on the server', fv(p ~ 'user', cur.user if cur.type == 'sftp')) }}</div>
+    <div class="two">{{ lf(p ~ 'root', 'Folder on the server', fv(p ~ 'root', cur.root if cur.type == 'sftp'), 'e.g. backups') }}{{ lf(p ~ 'port', 'Port (blank for 22)', fv(p ~ 'port', cur.port if cur.type == 'sftp' and cur.port), '', extra=' inputmode="numeric"') }}</div>
     <label class="l" id="f-{{ p }}keymode">Sign-in key{{ help("Key sign-in only, no passwords. The app's own key is kept encrypted with your data; you only paste its public line on the server once.") }}</label>
     {% set km_ = fv(p ~ 'keymode', 'file' if cur.type == 'sftp' and cur.key_file else 'app') %}
     <span class="seg" role="radiogroup" aria-labelledby="f-{{ p }}keymode"><label><input type="radio" name="{{ p }}keymode" value="app"{{ ' checked' if km_ == 'app' }}><span>The app's own key</span></label><label><input type="radio" name="{{ p }}keymode" value="file"{{ ' checked' if km_ == 'file' }}><span>A key file I mounted</span></label></span>
     <div data-show-if="{{ p }}keymode=app" class="hint">On the server, add this line to <b>~/.ssh/authorized_keys</b> of that user:
       <div class="mono" id="pub_{{ p }}" style="font-size:11px;margin:4px 0">{{ app_pub }}</div><button type="button" class="quiet tbtn" data-copy="#pub_{{ p }}">Copy</button></div>
-    <input name="{{ p }}key_file" placeholder="Private key file inside the container, e.g. /keys/id_ed25519" value="{{ fv(p ~ 'key_file', cur.key_file if cur.type == 'sftp') }}" data-show-if="{{ p }}keymode=file">
+    <div data-show-if="{{ p }}keymode=file">{{ lf(p ~ 'key_file', 'Private key file inside the container', fv(p ~ 'key_file', cur.key_file if cur.type == 'sftp'), 'e.g. /keys/id_ed25519') }}</div>
     {{ trustbox(p, cur) }}</div>
   {{ s3_fields(p, cur) }}
   {% endmacro %}
-  {{ backend('primary_', primary, 'Backups (encrypted), on a different disk from the app', hard="Moving the vault later means copying every sealed file to the new place. On a NAS with one pool, a separate dataset is fine; then the second copy, in another place, is what protects you.") }}
+  {{ backend('primary_', primary, 'Backups, on a different disk from the app', hard="Backups are encrypted before they are written. Moving the vault later means copying every sealed file to the new place. On a NAS with one pool, a separate dataset is fine; then the second copy, in another place, is what protects you.") }}
   {{ backend('secondary_', secondary, 'Second copy, in another place', True) }}
   {{ s3cert_panel(s3_certs, s3cert_msg) }}
-  <div class="hint">Each location is tested when you continue: a small file is written, read back and removed. Nothing is saved unless it works.</div>
   <label class="l" for="f-backup_time">Daily backup at{{ help("The app makes an encrypted backup every day at this time, while it is running and unlocked.") }}</label><input type="time" id="f-backup_time" name="backup_time" value="{{ btime }}" style="width:auto">
 
 {% elif step == 'money' %}
-  <table class="r"><tbody>
+  <table class="r rs"><tbody>
     <tr><td><label for="f-deposit">Deposit to hold a date</label>{{ help("Asked for when the client books. A session type can have its own deposit in Settings, Session types.") }}</td><td><span class="pre">$</span><input type="number" id="f-deposit" name="deposit" min="0" value="{{ fv('deposit', rules.DEPOSIT_AMOUNT) }}"></td></tr>
     <tr><td><label for="f-event_pct">Deposit for {{ (C.setup_pct_types() + ['events'])|join(' and ')|lower if C.setup_pct_types() else 'events' }}</label></td><td><span class="pre"></span><input type="number" id="f-event_pct" name="event_pct" min="0" max="100" value="{{ fv('event_pct', rules.EVENT_DEPOSIT_PCT) }}">% of the price</td></tr>
-    <tr><td><label for="f-reschedule_fee">Reschedule fee (after the free one)</label>{{ help("Printed in your terms. Whether a type gets a free reschedule, and how much notice, is set per session type.") }}</td><td><span class="pre">$</span><input type="number" id="f-reschedule_fee" name="reschedule_fee" min="0" value="{{ fv('reschedule_fee', rules.RESCHEDULE_FEE) }}"></td></tr>
-    <tr><td><label for="f-delivery_days">Photos ready within</label></td><td><span class="pre"></span><input type="number" id="f-delivery_days" name="delivery_days" min="1" value="{{ fv('delivery_days', rules.DELIVERY_DAYS) }}"> days; events <input type="number" name="event_delivery_days" aria-label="Event photos ready within, days" min="1" value="{{ fv('event_delivery_days', rules.EVENT_DELIVERY_DAYS) }}"> days</td></tr>
+    <tr><td><label for="f-reschedule_fee">Reschedule fee</label>{{ help("Charged after the free one. Printed in your terms. Whether a type gets a free reschedule, and how much notice, is set per session type.") }}</td><td><span class="pre">$</span><input type="number" id="f-reschedule_fee" name="reschedule_fee" min="0" value="{{ fv('reschedule_fee', rules.RESCHEDULE_FEE) }}"></td></tr>
+    <tr><td><label for="f-delivery_days">Photos ready within</label></td><td><span class="pre"></span><input type="number" id="f-delivery_days" name="delivery_days" min="1" value="{{ fv('delivery_days', rules.DELIVERY_DAYS) }}"> days
+      {%- set own_dd = C.own_delivery_types() %}{% if own_dd %}<br><small class="ui-mute">Not for {% for l_, d_ in own_dd %}{{ l_ }} ({{ d_ }} days){{ ', ' if not loop.last }}{% endfor %}: {{ 'that type has' if own_dd|length == 1 else 'those types have' }} its own number, set in Settings, Session types.</small>{% endif %}</td></tr>
+    <tr><td><label for="f-event_delivery_days">Event photos ready within</label></td><td><span class="pre"></span><input type="number" id="f-event_delivery_days" name="event_delivery_days" min="1" value="{{ fv('event_delivery_days', rules.EVENT_DELIVERY_DAYS) }}"> days</td></tr>
     <tr><td><label for="f-quote_term_days">Quotes good for</label>{{ help("How long the prices on a sent quote hold. After that the quote shows as expired and you can requote at current prices.") }}</td><td><span class="pre"></span><input type="number" id="f-quote_term_days" name="quote_term_days" min="1" value="{{ fv('quote_term_days', get('quote_term_days') or C.QUOTE_TERM_DAYS) }}"> days</td></tr>
     <tr><td><label for="f-travel_free">Travel is free within</label>{{ help("Printed in your terms: travel within this distance of your home base costs nothing; beyond it, the mileage rate applies each way.") }}</td><td><span class="pre"></span><input type="number" id="f-travel_free" name="travel_free" min="0" value="{{ fv('travel_free', rules.TRAVEL_FREE_MILES) }}"> miles</td></tr>
     <tr><td><label for="f-mileage_rate">Mileage rate</label></td><td><span class="pre">$</span><input type="number" id="f-mileage_rate" name="mileage_rate" step="0.001" min="0" value="{{ fv('mileage_rate', get('mileage_rate')) }}"> per mile</td></tr>
   </tbody></table>
   <label class="l" id="bal-l">Balance due{{ help("Before the session: due a set number of days ahead. On delivery: photos are released on payment. After (invoice): due a set number of days after the invoice.") }}</label>
-  <table class="r"><tbody>{% for t, lab in types.items() %}{% set b_ = fv('bal_' ~ t, 'before' if t in rules.BEFORE_TYPES else ('after' if t in rules.NET_TERMS_TYPES else 'delivery')) %}
+  <table class="r rs"><tbody>{% for t, lab in types.items() %}{% set b_ = fv('bal_' ~ t, 'before' if t in rules.BEFORE_TYPES else ('after' if t in rules.NET_TERMS_TYPES else 'delivery')) %}
     <tr><td style="width:200px" id="bal-{{ t }}">{{ lab }}</td><td><span class="seg" role="radiogroup" aria-labelledby="bal-l bal-{{ t }}">
       {% for v_, w_ in [('before', 'Before the session'), ('delivery', 'On delivery'), ('after', 'After (invoice)')] %}<label><input type="radio" name="bal_{{ t }}" value="{{ v_ }}"{{ ' checked' if b_ == v_ }}><span>{{ w_ }}</span></label>{% endfor %}</span></td></tr>{% endfor %}
   </tbody></table>
-  <div>Before: <input type="number" name="before_days" aria-label="Before: days ahead" min="0" value="{{ fv('before_days', rules.BALANCE_BEFORE_DAYS) }}" style="width:80px;display:inline"> days ahead. After: <input type="number" name="net_days" aria-label="After: days" min="0" value="{{ fv('net_days', rules.BALANCE_NET_DAYS) }}" style="width:80px;display:inline"> days.</div>
-  <label class="l">Ways clients can pay</label>
+  <table class="r rs"><tbody>
+    <tr><td><label for="f-before_days">Before the session: due</label></td><td><span class="pre"></span><input type="number" id="f-before_days" name="before_days" min="0" value="{{ fv('before_days', rules.BALANCE_BEFORE_DAYS) }}"> days ahead</td></tr>
+    <tr><td><label for="f-net_days">After (invoice): due</label></td><td><span class="pre"></span><input type="number" id="f-net_days" name="net_days" min="0" value="{{ fv('net_days', rules.BALANCE_NET_DAYS) }}"> days after the invoice</td></tr>
+  </tbody></table>
+  <label class="l" id="pay-methods">Ways clients can pay</label>
   <div class="checks">{% for m in pay_choices %}<label class="choice"><input type="checkbox" name="pay_{{ m }}" value="1"{{ ' checked' if fc('pay_' ~ m, m in rules.PAYMENT_METHODS) }}><span>{{ m|capitalize }}</span></label>{% endfor %}</div>
-  <input name="pay_other" placeholder="Others, separated by commas, e.g. Venmo, gift card" value="{{ fv('pay_other', rules.PAYMENT_METHODS|reject('in', pay_choices)|join(', ')) }}">
+  <label class="l" for="f-pay_other">Other ways, separated by commas (optional)</label><input id="f-pay_other" name="pay_other" placeholder="e.g. Venmo, gift card" value="{{ fv('pay_other', rules.PAYMENT_METHODS|reject('in', pay_choices)|join(', ')) }}">
 
 {% elif step == 'tax' %}
   {% set mode = fv('tax_mode', get('tax_mode', 'none')) %}
@@ -152,15 +162,12 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
   <label class="choice"><input type="radio" name="tax_mode" value="flat"{{ ' checked' if mode == 'flat' }}><span>One rate for every client</span></label>
   {% if region %}<label class="choice"><input type="radio" name="tax_mode" value="regional"{{ ' checked' if mode == 'regional' }}><span>{{ region }}</span></label>{% endif %}
   </div>
-  <div class="hint">Whether a service, a print or a kept deposit is taxable depends on where you work; check with your tax authority or accountant.</div>
-  <div class="two"><div><label class="l" for="f-sales_tax_pct">Rate %</label><input type="number" step="0.001" min="0" id="f-sales_tax_pct" name="sales_tax_pct" value="{{ fv('sales_tax_pct', get('sales_tax_pct')) }}"></div>
+  <div class="two"><div><label class="l" for="f-sales_tax_pct">Rate %{{ help("You can change the rate later in Settings. Sessions already taxed keep the rate they were taxed at.") }}</label><input type="number" step="0.001" min="0" id="f-sales_tax_pct" name="sales_tax_pct" value="{{ fv('sales_tax_pct', get('sales_tax_pct')) }}"></div>
     {% if region %}<div><label class="l" for="f-local_tax_pct">Local rate %</label><input type="number" step="0.001" min="0" id="f-local_tax_pct" name="local_tax_pct" value="{{ fv('local_tax_pct', get('local_tax_pct')) }}"></div>{% endif %}</div>
-  <div class="hint">You can change the rate later in Settings; sessions already taxed keep the rate they were taxed at.</div>
   {% if plugin_on('prints') %}<input type="hidden" name="prints_shown" value="1">
-  <label class="l">Prints ordered from galleries</label>
+  <label class="l">Prints ordered from galleries{{ help("Under a regional rate, a print order is taxed where it ships; one picked up, where the studio is.") }}</label>
   <div class="checks"><label class="choice"><input type="checkbox" name="tax_prints" value="1"{{ ' checked' if fc('tax_prints', get('tax_prints', '1') == '1') }}><span>Charge tax on prints</span></label>
-    <label class="choice"><input type="checkbox" name="tax_print_shipping" value="1"{{ ' checked' if fc('tax_print_shipping', get('tax_print_shipping', '0') == '1') }}><span>Charge tax on shipping</span></label></div>
-  <div class="hint">Whether to charge tax on prints and shipping, and at what rate, is your decision with your accountant; Lumen Aureum applies what you choose. Under a regional rate, a print order is taxed where it ships (pick up: where the studio is).</div>{% endif %}
+    <label class="choice"><input type="checkbox" name="tax_print_shipping" value="1"{{ ' checked' if fc('tax_print_shipping', get('tax_print_shipping', '0') == '1') }}><span>Charge tax on shipping</span></label></div>{% endif %}
 
 {% elif step == 'shoot' %}
   <div class="checks">{% for k, pr in presets.items() %}<label class="choice"><input type="checkbox" name="preset_{{ k }}" value="1"{{ ' checked' if fc('preset_' ~ k, k in chosen) }}><span>{{ pr.label }}</span></label>{% endfor %}</div>
@@ -169,15 +176,14 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
   <div class="hint">Check every kind you shoot. With none checked, you keep the kinds you already have (an imported settings file, say), or start with portraits, families, and group events. Change it later in Settings.</div>
 
 {% elif step == 'documents' %}
-  <label class="l" id="rights-l">Who owns the photos once paid{{ help("Client: the copyright transfers to them when the balance is paid. Me: you keep it and they get a license to use the photos. Applies to new sessions; documents already signed keep theirs.") }}</label>
+  <label class="l" id="rights-l">Who owns the photos once paid{{ help("Me (license): you keep the copyright and your client gets a lasting license to print, share, and post the photos. Client: the copyright becomes theirs once the balance is paid, and you keep only your portfolio permission. Group-event families always receive a personal-use license. Applies to new sessions; documents already signed keep theirs.") }}</label>
   <table class="r"><tbody>{% for t, lab in types.items() %}
     <tr><td style="width:200px" id="rights-{{ t }}">{{ lab }}</td><td><span class="seg" role="radiogroup" aria-labelledby="rights-l rights-{{ t }}">
       <label><input type="radio" name="rights_{{ t }}" value="transfer"{{ ' checked' if fv('rights_' ~ t, 'license' if t in rules.LICENSE_TYPES else 'transfer') == 'transfer' }}><span>Client</span></label>
       <label><input type="radio" name="rights_{{ t }}" value="license"{{ ' checked' if fv('rights_' ~ t, 'license' if t in rules.LICENSE_TYPES else 'transfer') == 'license' }}><span>Me (license)</span></label></span></td></tr>{% endfor %}
   </tbody></table>
-  <p class="hint" style="margin-top:6px">Me (license): you keep the copyright and your client gets a lasting license to print, share, and post the photos. Client: the copyright becomes theirs once the balance is paid, and you keep only your portfolio permission. Group-event families always receive a personal-use license.</p>
   <label class="l" for="f-governing_law">Which law applies to your agreements{{ help("Fills the 'which law applies' line in your agreement: \"The law of ___ applies.\" For example: Oregon. Left blank, it reads \"the place where I do business\".") }}</label><input id="f-governing_law" name="governing_law" maxlength="200" placeholder="State or country, e.g. Oregon" value="{{ fv('governing_law', get('governing_law')) }}">
-  <div class="hint" style="margin-top:14px">Your documents print as SAMPLE until you read and review each one in Settings, Documents.</div>
+  <div class="hint" style="margin-top:14px">Your documents print as SAMPLE until you approve them. Approve each one right where you use it: a quote, agreement or release still marked SAMPLE offers Approve, and says what approving means.</div>
   <p style="font-size:13px;border-left:3px solid var(--gold);padding:4px 10px;margin-top:6px">{{ DOC_DISCLAIMER }}</p>
 
 {% elif step == 'galleries' %}
@@ -187,24 +193,29 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
     {% for v, lab in [('sftp', 'Web hosting over SFTP'), ('s3', 'S3-compatible storage with a public web address'), ('local', 'A folder a web server here serves')] %}<option value="{{ v }}"{{ ' selected' if gt_ == v }}>{{ lab }}</option>{% endfor %}</select>
   <div class="be" data-be="gallery_local"><div class="hint">The web server must run as this app's user (or share its group with write permission): it records the client's first visit and saves their picks in each gallery's folder. Without that, galleries still open, but stay up a year instead of their window. The folder must also be mounted into the app's container (for example - /srv/www/galleries:/galleries in compose.yaml, then type /galleries here): see docs/where-it-runs.md, Folders outside the container.</div><input name="gallery_path" placeholder="e.g. /galleries" aria-label="Gallery folder path, as the app sees it" value="{{ fv('gallery_path', cur.path if cur.type == 'local') }}">
     <label class="choice"><input type="checkbox" name="gallery_init" value="1"{{ ' checked' if fc('gallery_init', not gallery_marked) }}><span>New empty folder: set it up</span></label></div>
-  <div class="be" data-be="gallery_sftp"><div class="two"><input name="gallery_host" placeholder="Host, e.g. example.com" value="{{ fv('gallery_host', cur.host if cur.type == 'sftp') }}"><input name="gallery_user" placeholder="User name on the server" value="{{ fv('gallery_user', cur.user if cur.type == 'sftp') }}"></div>
-    <div class="two"><input name="gallery_root" placeholder="Web folder on the server, e.g. example.com/g" value="{{ fv('gallery_root', cur.root if cur.type == 'sftp') }}"><input name="gallery_port" placeholder="Port (blank for 22)" value="{{ fv('gallery_port', cur.port if cur.type == 'sftp' and cur.port) }}"></div>
+  <div class="be" data-be="gallery_sftp"><div class="two">{{ lf('gallery_host', 'Host', fv('gallery_host', cur.host if cur.type == 'sftp'), 'e.g. example.com') }}{{ lf('gallery_user', 'User name on the server', fv('gallery_user', cur.user if cur.type == 'sftp')) }}</div>
+    <div class="two">{{ lf('gallery_root', 'Web folder on the server', fv('gallery_root', cur.root if cur.type == 'sftp'), 'e.g. example.com/g') }}{{ lf('gallery_port', 'Port (blank for 22)', fv('gallery_port', cur.port if cur.type == 'sftp' and cur.port), '', extra=' inputmode="numeric"') }}</div>
     <label class="l" id="f-{{ p }}keymode">Sign-in key{{ help("Key sign-in only, no passwords. The app's own key is kept encrypted with your data; you only paste its public line on the server once.") }}</label>
     {% set km_ = fv(p ~ 'keymode', 'file' if cur.type == 'sftp' and cur.key_file else 'app') %}
     <span class="seg" role="radiogroup" aria-labelledby="f-{{ p }}keymode"><label><input type="radio" name="{{ p }}keymode" value="app"{{ ' checked' if km_ == 'app' }}><span>The app's own key</span></label><label><input type="radio" name="{{ p }}keymode" value="file"{{ ' checked' if km_ == 'file' }}><span>A key file I mounted</span></label></span>
     <div data-show-if="{{ p }}keymode=app" class="hint">On the server, add this line to <b>~/.ssh/authorized_keys</b> of that user:
       <div class="mono" id="pub_{{ p }}" style="font-size:11px;margin:4px 0">{{ app_pub }}</div><button type="button" class="quiet tbtn" data-copy="#pub_{{ p }}">Copy</button></div>
-    <input name="{{ p }}key_file" placeholder="Private key file inside the container, e.g. /keys/id_ed25519" value="{{ fv(p ~ 'key_file', cur.key_file if cur.type == 'sftp') }}" data-show-if="{{ p }}keymode=file">
+    <div data-show-if="{{ p }}keymode=file">{{ lf(p ~ 'key_file', 'Private key file inside the container', fv(p ~ 'key_file', cur.key_file if cur.type == 'sftp'), 'e.g. /keys/id_ed25519') }}</div>
     {{ trustbox(p, cur) }}</div>
   {{ s3_fields(p, cur) }}
   {{ s3cert_panel(s3_certs, s3cert_msg) }}
-  <div class="be" data-be="gallery_any"><div class="hint">The web host is tested when you continue: a small file is written, read back and removed. Nothing is saved unless it works.</div>
+  <div class="be" data-be="gallery_any">
     <label class="l" for="f-gallery_base_url">Web address of that folder <b class="hardtag">hard to change later</b>{{ help("It must start with https://, so the web server needs a certificate. It is printed in every QR letter you mail. Letters already sent keep pointing at the old address.") }}</label><input id="f-gallery_base_url" name="gallery_base_url" placeholder="e.g. https://example.com/g/" value="{{ fv('gallery_base_url', get('gallery_base_url')) }}"></div>
   {% if host_caps %}<div id="hostcaps" class="be" data-be="gallery_any" style="margin-top:10px">
     <label class="l">What this host can do</label>
+    {%- set notes_ = host_caps.features|map(attribute='3')|unique|list -%}
+    {%- if host_caps.kind not in ('ok', 'old', 'none') and host_caps.features and not host_caps.features|selectattr('2')|list and notes_|length == 1 and notes_[0] %}
+    
+    <p style="margin:0"><span style="color:var(--amber, #b07a12)">Not known yet</span>: {{ notes_[0] }}.</p>
+    {%- else %}
     <table class="r" style="margin-top:0"><tbody>
     {% for key_, label_, works_, note_ in host_caps.features %}<tr><td>{{ label_ }}</td><td>{% if works_ %}Works{% else %}<span style="color:var(--amber, #b07a12)">Doesn't work</span>{% if note_ %}: {{ note_ }}{% endif %}{% endif %}</td></tr>
-    {% endfor %}</tbody></table>
+    {% endfor %}</tbody></table>{% endif %}
     <div class="hint">{% if host_caps.kind == 'ok' %}PHP {{ host_caps.version }} runs there.{% elif host_caps.kind == 'old' %}{{ host_caps.detail }}.{% elif host_caps.kind == 'none' %}PHP does not run there, so galleries stay up a year instead of their window, and clients send their picks by email.{% elif host_caps.cert in ('untrusted', 'changed') %}{% else %}The host couldn't be checked at its web address{% if host_caps.detail %} ({{ host_caps.detail }}){% endif %}.{% endif %}
       {% if host_caps.cert == 'public' %}Its certificate is publicly trusted.{% elif host_caps.cert == 'pinned' %}Its certificate is the one you confirmed below.{% elif host_caps.cert == 'untrusted' %}Its certificate isn't trusted yet: check it below.{% elif host_caps.cert == 'changed' %}Its certificate changed since you confirmed it: check it below.{% endif %}
       {% if host_caps.gate is sameas false %}It hands out gallery files without asking for the key, so galleries there don't close on their last day by themselves (Lumen Aureum takes each one down on its last day instead), and a gallery with a codeword can't go there: someone with only the link could try codewords as fast as their computer allows. Every gallery's files stay sealed and hidden by names only its key finds.{% elif host_caps.gate is none and host_caps.htaccess is sameas false %}It ignores .htaccess files. Gallery files are kept under names only each gallery's key finds, and its state behind a PHP exit line, so nothing depends on them.{% endif %}
@@ -212,6 +223,7 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
       Checked {{ host_caps.at }}.</div>
     <button type="submit" class="quiet tbtn" formaction="{{ url_for('setup_host_check') }}" formnovalidate>Check again</button>
   </div>{% endif %}
+  {% if go_on %}<div class="sbar" id="go-on"><span class="fill"></span><a class="btn primary" href="{{ go_on }}">Go on to the next step</a></div>{% endif %}
   {% if web_certs %}<div id="webcert" class="be" data-be="gallery_any" style="margin-top:10px">
     <label class="l">The web host's certificate{{ help("The app checks your web host over its https:// address, the way a client's browser does. A certificate from a public authority is trusted as it is. A self-signed certificate, or one from your own authority (a web server on your home network, say), is trusted once you confirm it here, and from then on only that certificate's key is accepted at that address, in a certificate that names it.") }}</label>
     {% if cert_msg == 'trusted' %}<div class="hint">Saved. The app checks the web host again now.</div>{% elif cert_msg == 'stale' %}<div class="hint" style="color:var(--amber, #b07a12)">The certificate changed again since it was shown. Check the one shown now.</div>{% elif cert_msg == 'name' %}<div class="hint" style="color:var(--amber, #b07a12)">Not trusted: that certificate doesn't name the web host's address.</div>{% endif %}
@@ -246,26 +258,27 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
       <button type="submit" class="quiet tbtn" formaction="{{ url_for('setup_web_cert_check') }}" formnovalidate name="addr" value="{{ r_.addr }}">Check the certificate</button>
     </div>{% endfor %}
   </div>{% endif %}
-  <table class="r"><tbody>
+  <table class="r rs"><tbody>
     <tr><td><label for="f-gallery_days">A gallery stays up for</label>{{ help("Counted from the day the client first opens it. One extension can be given from the session page.") }}</td><td><input type="number" id="f-gallery_days" name="gallery_days" min="1" value="{{ fv('gallery_days', rules.GALLERY_DAYS) }}"> days after it is opened</td></tr>
     <tr><td><label for="f-unopened_days">A gallery nobody opens comes down after</label></td><td><input type="number" id="f-unopened_days" name="unopened_days" min="1" value="{{ fv('unopened_days', rules.GALLERY_UNOPENED_DAYS) }}"> days</td></tr>
   </tbody></table>
 
-{% elif step == 'network' %}
-  <label class="l">Who can reach it</label>
+{% elif step == 'network' %}{% import "_ui.html" as ui with context %}
   {% if only %}<p>Only the devices you listed can open Lumen Aureum. Nothing on the internet can.</p>
   {% else %}<p>Devices on your home network can open Lumen Aureum. Nothing on the internet can.</p>{% endif %}
-  <details><summary>Details</summary>
-    <div class="mono" style="margin-top:6px">{{ nets|join(', ') }}</div>
+  
+  {% call ui.fold('Addresses that can connect', id='net-detail', count=nets|length) %}
+    <div class="mono">{{ nets|join(', ') }}</div>
     <div class="hint">This request came from {{ me }}. Devices behind a router or VPN can share one address, so it may be the router's, not this device's.</div>
-    <div class="hint">To narrow the list, set CRM_ALLOW_ONLY to the addresses that may connect, then restart the app: {% if container %}with compose.yaml, a line under environment:; on a TrueNAS app, its Edit screen, under Additional Environment Variables.{% else %}in the environment the app starts with.{% endif %}</div></details>
+    <div class="hint">To narrow the list, set CRM_ALLOW_ONLY to the addresses that may connect, then restart the app: {% if container %}with compose.yaml, a line under environment:; on a TrueNAS app, its Edit screen, under Additional Environment Variables.{% else %}in the environment the app starts with.{% endif %}</div>
+  {% endcall %}
 {% endif %}
 
-  <div class="sbar">
+  {% if not (step == 'network' and complete) %}<div class="sbar">
     {% if not required and not complete %}<button name="skip" value="1" class="quiet" formnovalidate>Use the defaults</button>{% endif %}
     <span class="fill"></span>
-    <button class="primary">{% if step in ('storage', 'galleries') %}{{ 'Test and save' if complete else 'Test and continue' }}{% else %}{{ 'Save' if complete else ('Finish' if step == 'network' else 'Next') }}{% endif %}</button>
-  </div>
+    {% if step in ('storage', 'galleries') %}{{ help(("Each location" if step == 'storage' else "The web host") ~ " is tested first: a small file is written, read back and removed. Nothing is saved unless it works.") }}{% endif %}<button class="primary">{% if step in ('storage', 'galleries') %}{{ 'Test and save' if complete else 'Test and continue' }}{% else %}{{ 'Save' if complete else ('Finish' if step == 'network' else 'Next') }}{% endif %}</button>
+  </div>{% endif %}
 </form>
 {% if complete %}</div>{% endif %}
 <script src="{{ url_for('static', filename='setup.js', v=static_v('setup.js')) }}"></script>

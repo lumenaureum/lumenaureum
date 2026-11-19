@@ -1,27 +1,27 @@
-{% extends "base.html" %}{% from "_macros.html" import help with context %}
+{% extends "base.html" %}{% from "_macros.html" import help with context %}{% import "_ui.html" as ui with context %}
 {% block title %}{{ label }} wording - Lumen Aureum{% endblock %}
 {% block body %}
-<div class="row"><h1 class="grow">{{ label }} wording{% if stype %}: {{ stype.label }}{% endif %}</h1><a class="go" href="{{ url_for('settings_view') }}">Settings &rsaquo;</a></div>
+{{ ui.page_head(label ~ ' wording' ~ (': ' ~ stype.label if stype else '')) }}
 <p class="mute" style="margin:4px 0 0">{% if stype %}{{ 'Wording for ' ~ stype.label ~ ' only.' if own else 'Uses the general wording until you change it here.' }}{% else %}{{ 'Your own wording, for every session type without its own.' if own else 'The standard wording.' }}{% endif %} <b># </b>starts a heading; a blank line starts a paragraph; <b>[FIELDS]</b> are filled in.</p>
 <form method="get" class="row" style="gap:8px;margin:8px 0 0"><label class="mute" for="w-type">For</label>
-  <select id="w-type" name="type" data-autosubmit style="width:auto"><option value="">Every session type</option>{% for t in all_types %}<option value="{{ t.key }}"{{ ' selected' if stype and stype.key == t.key }}>{{ t.label }}{{ ' (own wording)' if t in typed }}</option>{% endfor %}</select><noscript><button>Show</button></noscript></form>
+  <select id="w-type" name="type" data-autosubmit style="width:auto"><option value="">Every session type</option>{% for t in all_types %}<option value="{{ t.key }}"{{ ' selected' if stype and stype.key == t.key }}>{{ t.label }}{{ ' (own wording)' if t in typed }}</option>{% endfor %}</select><noscript><button class="ui-btn ui-btn-quiet">Show this wording</button></noscript></form>
 <p class="draft-note" style="margin:10px 0 0;font-size:13px;border-left:3px solid var(--gold);padding:4px 10px">{{ DOC_DISCLAIMER }}</p>
 {% if saved %}<p class="ok-msg" style="color:var(--gold)">Saved.{% if not review_state(doc, stype.key if stype else None).reviewed %} Still a sample: saving is not a review.{% endif %}</p>{% endif %}
 {% set rs = review_state(doc, stype.key if stype else None) %}
 <form method="post" action="{{ url_for('doc_review', doc=doc) }}" class="reviewbox {{ 'ok' if rs.reviewed }}"><input type="hidden" name="type" value="{{ stype.key if stype else '' }}">
 {% if rs.reviewed %}<span class="grow"><b>Reviewed {{ rs.when }}.</b> {{ label }}s print without SAMPLE. Changes you make later keep it reviewed.</span>
-{% else %}<span class="grow"><b>This {{ label|lower }} prints as SAMPLE</b> until you review it here.{{ help("Saving does not count as a review. Read the wording, change what you need and save; then press Reviewed. Each document (agreement, release, copyright transfer, photo license, and each type's terms) is reviewed on its own.") }}</span><button class="primary">Reviewed - remove SAMPLE</button>{% endif %}</form>
+{% else %}<span class="grow"><b>This {{ label|lower }} prints as SAMPLE</b> until you review it here.{{ help("Saving does not count as a review. Read the wording, change what you need and save; then press Reviewed. Each document (agreement, release, copyright transfer, photo license, and each type's terms) is reviewed on its own.") }}</span><button class="ui-btn ui-btn-primary">Reviewed - remove SAMPLE</button>{% endif %}</form>
 <div class="wording">
 <form method="post" class="f">
   <label class="vh" for="w-text">{{ label }} wording</label><textarea id="w-text" name="text" rows="28" maxlength="20000" spellcheck="true" style="font:14px/1.5 ui-monospace,Menlo,monospace">{{ text }}</textarea>
-  <div class="row" style="gap:8px"><button class="primary">Save</button>
-    {% if stype and own %}<button name="reset" value="1" class="quiet" data-confirm="Go back to the general wording for {{ stype.label }}?">Use the general wording</button>{% endif %}</div>
+  <div class="ui-btnrow"><button class="ui-btn ui-btn-primary">Save</button>
+    {% if stype and own %}<button name="reset" value="1" class="ui-btn ui-btn-quiet" data-confirm="Go back to the general wording for {{ stype.label }}?">Use the general wording</button>{% endif %}</div>
 </form>
 <div><h3 style="margin-top:0">Fields</h3>
   {% for k, what in fields %}<div style="font-size:13px;margin:0 0 6px"><b>[{{ k }}]</b> <span class="mute">{{ what }}</span></div>{% endfor %}
   <p class="mute" style="font-size:12px">A section whose fields are all empty is left out.</p></div>
 </div>
-{% if not stype %}<form method="post" action="{{ url_for('doc_review', doc=doc) }}" class="row" style="margin-top:10px" data-confirm="Replace your {{ label|lower }} wording with the one that ships with Lumen Aureum, and mark it SAMPLE again?">
-  <input type="hidden" name="revert" value="1"><button class="quiet">Revert to default</button><span class="mute" style="font-size:12px">The shipped wording, marked SAMPLE until you review it again.</span></form>{% endif %}
+{% if not stype %}<form method="post" action="{{ url_for('doc_review', doc=doc) }}" class="ui-form-row" style="margin-top:10px" data-confirm="Replace your {{ label|lower }} wording with the one that ships with Lumen Aureum, and mark it SAMPLE again?">
+  <input type="hidden" name="revert" value="1"><button class="ui-btn ui-btn-quiet">Revert to default</button><span class="ui-mute" style="font-size:12px">The shipped wording, marked SAMPLE until you review it again.</span></form>{% endif %}
 {% endblock %}
 

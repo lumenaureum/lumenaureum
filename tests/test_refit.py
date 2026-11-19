@@ -176,6 +176,30 @@ def test_a_client_picking_now_is_left_until_quiet_and_do_it_now_goes_ahead(site)
     s.c.post("/session/1/gallery/refit-now", environ_base=E)
     assert "(previous release)" not in (s.web / "g" / gid / "index.html").read_text()
 
+def test_a_closed_session_or_a_download_gallery_never_waits_for_picking(site):
+
+    s = site
+    gid = s.gids[0]
+    as_previous_release(s, gid)
+    _x(s.A, "UPDATE galleries SET draft_at=? WHERE session_id=1", (datetime.now().isoformat(timespec="minutes"),))
+    _x(s.A, "UPDATE sessions SET stage='closed' WHERE id=1")
+    assert refit_now(s) == 1
+    assert "(previous release)" not in (s.web / "g" / gid / "index.html").read_text()
+    import refit
+
+    class G_:
+        online_download = staticmethod(lambda g_: True)
+
+    class Run_:
+        G, now = G_, time.time()
+    row = dict(gallery_id=gid, draft_at=datetime.now().isoformat(timespec="minutes"), retouch_picks="", favorites="",
+               veto="", stage="delivered")
+
+    class R_(dict):
+        def keys(self):
+            return list(super().keys())
+    assert refit.busy(Run_, R_(row), None) is False
+
 def test_quiet_waits_at_most_a_week(site):
     s = site
     gid = s.gids[0]

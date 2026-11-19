@@ -16,6 +16,7 @@ STATE_KEY = "gallery_refit"
 def fingerprint(G):
 
     h = hashlib.sha256((G.ASSETS / "viewer.html").read_bytes())
+    h.update(getattr(G, "CREDIT_HTML", "").encode())
     for name in sorted(G.HOST_SCRIPTS):
         h.update(name.encode() + b"\0" + (G.ASSETS / G.HOST_SCRIPTS[name]).read_bytes())
     return h.hexdigest()[:16]
@@ -96,6 +97,9 @@ def _put(G, host, gid, name, data):
 def busy(run, r, host):
 
     gid = r["gallery_id"]
+
+    if ("stage" in r.keys() and r["stage"] in ("closed", "lost")) or run.G.online_download(gid):
+        return False
     cut = run.now - QUIET_HOURS * 3600
     at = r["draft_at"] if "draft_at" in r.keys() else None
     if at:
@@ -375,11 +379,13 @@ def run_all(ctx, G, only_sid=None, force=False):
     cur = G.host_fingerprint()
     b = q("SELECT value FROM settings WHERE key='gallery_base_url'", one=True)
     base = (b["value"] if b and b["value"] else "").strip()
-    rows = q("""SELECT g.*, s.gallery_id, s.id AS sid, s.first_visit, s.retouch_picks, s.favorites, s.veto
+    rows = q("""SELECT g.*, s.gallery_id, s.id AS sid, s.first_visit, s.retouch_picks, s.favorites, s.veto, s.stage
                 FROM galleries g JOIN sessions s ON s.id=g.session_id
                 WHERE g.removed_at IS NULL AND g.upload_state='up' AND g.sealed_gen=1
                 AND (g.page_set IS NULL OR g.page_set != ?) AND (g.host_fp IS NULL OR g.host_fp=?)""", (fp, cur))
-    rows = [r for r in rows if G.is_link(r["gallery_id"] or "") and (not only_sid or r["sid"] == only_sid)]
+
+    rows = [r for r in rows if (G.is_link(r["gallery_id"] or "") or ("adopted" in r.keys() and r["adopted"]))
+            and (not only_sid or r["sid"] == only_sid)]
     run = Run(G, q, x, ctx.audit, base, st)
     n, waiting = 0, False
     if rows:

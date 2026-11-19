@@ -23,6 +23,24 @@ def month_label(ym):
     except (ValueError, TypeError):
         return ym or ""
 
+def money(v):
+
+    try:
+        v = round(float(v or 0), 2)
+    except (TypeError, ValueError):
+        v = 0.0
+    a = abs(v)
+    return ("-" if v < -0.004 else "") + f"${a:,.2f}"
+
+def money_before_15(v):
+
+    try:
+        v = round(float(v or 0), 2)
+    except (TypeError, ValueError):
+        v = 0.0
+    a = abs(v)
+    return ("-" if v < 0 else "") + (f"${a:,.0f}" if a.is_integer() else f"${a:,.2f}")
+
 CODEWORD_LEFT_OUT = "(the gallery codeword you chose with me)"
 
 def drop_codewords(text, words):

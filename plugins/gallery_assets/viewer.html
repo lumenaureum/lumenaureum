@@ -25,7 +25,7 @@ body.tray { padding-bottom: 58px; }
 html:has(body.tray) { scroll-padding-bottom: 76px; }
 header { padding: 36px 20px 20px; max-width: 1100px; margin: 0 auto; text-align: center; }
 #brand { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 18px; }
-#logo { display: block; max-height: 72px; max-width: min(320px, 70vw); object-fit: contain; }
+#logo { display: block; max-height: 120px; max-width: min(480px, 85vw); object-fit: contain; }   /* sized by its shape once loaded (sizeLogo) */
 #studio { font-size: 12px; letter-spacing: .22em; text-transform: uppercase; color: var(--mute); }
 #studio.word { font: 400 24px/1.2 var(--serif); letter-spacing: .04em; text-transform: none; color: var(--ink); }
 .rule { width: 56px; height: 1px; background: var(--gold); margin: 0 auto 16px; border: 0; }
@@ -56,6 +56,9 @@ html.gonedark #msg b { font-size: 30px; }
 #welcome[hidden] { display: none; }
 #welcome .box { background: var(--bg); color: var(--ink); max-width: 440px; width: 100%; border-radius: 10px; padding: 26px 28px 22px; box-shadow: 0 12px 40px rgba(0,0,0,.25); font-size: 15px; line-height: 1.5; }
 #welcome h2 { margin: 0 0 10px; font: 400 26px/1.2 var(--serif); }
+/* no one-word orphan ("about to / sunset."): balanced headings and short notices, tidier paragraphs where supported */
+#sunset h2, #welcome h2, #msg, #msgsay, header h1 { text-wrap: balance; }
+#sunset p, #welcome p, #msg p, #prline { text-wrap: pretty; }
 #welcome p { margin: 0 0 10px; color: var(--ink); }
 #welcome ul { margin: 0 0 12px; padding-left: 20px; } #welcome li { margin: 6px 0; }
 #wgo { display: block; margin: 16px 0 0 auto; font: 600 15px/1 -apple-system, sans-serif; padding: 11px 26px; border: 0; border-radius: 20px; background: #e3aa48; color: #1a1308; cursor: pointer; }
@@ -196,7 +199,7 @@ header.two #prline { grid-column: 3; }
 #prd { position: fixed; inset: 0; z-index: 22; background: rgba(20,16,12,.55); display: flex; align-items: flex-start; justify-content: center; padding: 16px; overflow-y: auto; }
 #prd .box { background: var(--bg); color: var(--ink); max-width: 620px; width: 100%; border-radius: 10px; padding: 22px 22px 18px; box-shadow: 0 12px 40px rgba(0,0,0,.25); font-size: 15px; line-height: 1.5; margin: auto 0; }
 #prd h2 { margin: 0 0 12px; font: 400 24px/1.2 var(--serif); }
-#prd p { margin: 0 0 10px; } #prd .mute { color: var(--mute); font-size: 13px; } #prd .err, #prd .warnl { color: #a8321f; font-size: 13px; }
+#prd p { margin: 0 0 10px; } #prd p a { color: inherit; overflow-wrap: anywhere; } #prd .mute { color: var(--mute); font-size: 13px; } #prd .err, #prd .warnl { color: #a8321f; font-size: 13px; }
 #prd .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; } #prd .grow { flex: 1 1 auto; }
 #prd button { font: 600 14px/1 -apple-system, sans-serif; padding: 11px 18px; min-height: 44px; border-radius: 22px; cursor: pointer; border: 1px solid var(--edge); background: none; color: var(--ink); }
 #prd button.go { background: #e3aa48; border-color: #e3aa48; color: #1a1308; } #prd button.plain { border-color: transparent; text-decoration: underline; padding: 8px; }
@@ -212,7 +215,8 @@ header.two #prline { grid-column: 3; }
 #prd .line canvas { border-radius: 3px; background: var(--cell); } #prd .total { font-weight: 600; margin-top: 10px; }
 #prd .fld { margin: 8px 0; } #prd .fld label { display: block; font-size: 13px; color: var(--mute); margin-bottom: 3px; }
 #prd .fld input, #prd .fld select, #prd .fld textarea { width: 100%; font: inherit; padding: 9px 10px; border: 1px solid var(--edge); border-radius: 8px; background: var(--bg); color: var(--ink); }
-#prd .hows label, #prd .ack { display: block; margin: 6px 0; } #prd .addr { margin: 10px 0; padding: 8px 12px; border-left: 3px solid var(--gold); }
+#prd .hows label, #prd .ack { display: block; margin: 6px 0; }
+#prd .ack.want { padding: 6px 8px; border: 2px solid #a8321f; border-radius: 6px; } #prd .ack.want + .err { margin-top: -2px; } #prd .addr { margin: 10px 0; padding: 8px 12px; border-left: 3px solid var(--gold); }
 #prd .marks { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 8px; }
 @media print { body > *:not(#prd) { display: none !important; } #prd { position: static; background: none; padding: 0; }
   #prd .box { box-shadow: none; } #prd .noprint { display: none !important; } }
@@ -756,7 +760,7 @@ function askWord(why, last) {                  // why: "" (first ask), "wrong" (
     const act = $("msgact");
     const f = document.createElement("form"), i = document.createElement("input"), go = document.createElement("button");
     i.type = "password"; i.autocomplete = "off"; i.setAttribute("aria-label", "Gallery word");
-    go.type = "submit"; go.textContent = "Open";
+    go.type = "submit"; go.textContent = "Open the gallery";
     f.append(i, go);
     const opening = () => say("", OPENING);
     f.onsubmit = e => { e.preventDefault(); go.disabled = true; go.textContent = "Opening..."; opening(); resolve(i.value); };
@@ -839,10 +843,24 @@ async function main() {
   [B.what, B.date, m.items.length + (m.items.length === 1 ? " photo" : " photos")].filter(Boolean).forEach((t, j) => {
     const sp = document.createElement("span"); sp.className = "nw"; sp.textContent = t;
     $("meta").append(...(j ? ["  \u00b7  ", sp] : [sp])); });
+  // the studio logo sized by its shape: about the same area whatever its proportions, so a wide wordmark is not
+  // shrunk to a thin strip by a fixed height (1.5 walk w7 Q13); never wider than the screen allows, never too tall
+  function sizeLogo() {
+    const im = $("logo"), r = im.naturalWidth / im.naturalHeight;
+    if (!r || !isFinite(r)) return;
+    const phone = matchMedia("(max-width: 640px)").matches, area = phone ? 150 * 150 : 200 * 200;
+    let w = Math.sqrt(area * r), ht = w / r;
+    const maxW = Math.min(innerWidth * 0.85, 480), maxH = phone ? 120 : 140;
+    if (w > maxW) { w = maxW; ht = w / r; }
+    if (ht > maxH) { ht = maxH; w = ht * r; }
+    im.style.width = Math.round(w) + "px"; im.style.height = Math.round(ht) + "px";
+    im.style.maxWidth = "none"; im.style.maxHeight = "none";
+  }
   if (B.logo) try {
     const bin = atob(B.logo);
     $("logo").src = URL.createObjectURL(new Blob([Uint8Array.from(bin, c => c.charCodeAt(0))], { type: "image/png" }));
     $("logo").alt = B.studio || ""; $("logo").hidden = false;
+    $("logo").onload = sizeLogo; addEventListener("resize", sizeLogo);
   } catch (e) {}
   $("studio").textContent = B.logo ? "" : (B.studio || "");     // a logo already carries the name
   $("studio").classList.toggle("word", !B.logo);
@@ -1281,6 +1299,19 @@ async function main() {
     if (!GATE || !subtle || !Array.isArray(offer.items) || !offer.items.length || !/^[A-Za-z0-9_-]{87}$/.test(offer.spk || "")) return;
     const studio = offer.studio || B.studio || "the studio", contact = EMAIL.test(offer.contact || "") ? offer.contact : (B.email || "");
     const S = offer.ship || {}, PR = PRINTS;
+    // Ordering prints closes 24 hours before the gallery does (1.5): from then the order button is gone and this line
+    // says why, with the way to ask for more time. orders.php refuses an order sent after that time too.
+    const cutAt = closes && !isNaN(closes) ? closes.getTime() - 86400000 : null;
+    const fmt = t => new Date(t).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }) + " at " +
+      new Date(t).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    const closedWords = () => { const p = $("prline");
+      p.textContent = "Ordering prints has closed because this gallery closes within 24 hours. To order prints, ";
+      if (EMAIL.test(contact)) p.append("email ", mailLink(contact), " to ask for the gallery to be extended.");
+      else p.append("contact your photographer to ask for the gallery to be extended.");
+      p.hidden = false; };
+    const printsClosed = () => cutAt !== null && Date.now() >= cutAt;
+    if (printsClosed()) { closedWords(); return; }
+    if (cutAt !== null && sunsetOn && !onceOn) $("sswhen").append(" Order prints by " + fmt(cutAt) + ".");
     const photos = {};
     m.items.forEach((it, i) => { if (it.o && it.ow && it.oh) photos[it.o] = { i, it }; });
     const itemOf = id => offer.items.find(x => x.id === id);
@@ -1415,10 +1446,12 @@ async function main() {
       inp.oninput();
       return h("div", { cls: "fld" }, h("label", { for: id, text: label }), inp, warn);
     }
+    const ACK_WHY = "Tick \u2018I\u2019ll get an invoice\u2019 to continue.";
     function details(err) {
-      const b = open("Your details");
+      const b = open("Ship to");
+      const atAck = err === ACK_WHY;           // a refusal about the checkbox sits at the checkbox, not at the top
       const errP = err ? h("p", { cls: "err", role: "alert", tabindex: "-1", text: err }) : null;
-      if (errP) b.append(errP);
+      if (errP && !atAck) b.append(errP);
       b.append(field("Your name", "name", { maxlength: "60", autocomplete: "name", required: "" }),
                field("Your email", "email", { maxlength: "254", autocomplete: "email", type: "email", required: "" }),
                field("Phone (optional)", "phone", { maxlength: "25", autocomplete: "tel", type: "tel" }));
@@ -1445,10 +1478,14 @@ async function main() {
       if (offer.arrive && det.how && det.how !== "pickup") b.append(h("p", { cls: "mute", text: offer.arrive }));
       b.append(field("Note to " + studio + " (optional)", "note", { tag: "textarea", maxlength: "500", rows: "3" }));
       const ack = h("input", { type: "checkbox", id: "pf-ack", onchange: () => { det.ack = ack.checked; } }); ack.checked = det.ack;
-      b.append(h("label", { cls: "ack", for: "pf-ack" }, ack, " I will get an invoice at the email above, and nothing is printed until it is paid."));
+      const ackL = h("label", { cls: "ack" + (atAck ? " want" : ""), for: "pf-ack" }, ack, " I\u2019ll get an invoice. Nothing is printed until it\u2019s paid.");
+      if (atAck) { ack.setAttribute("aria-invalid", "true"); ack.setAttribute("aria-describedby", "pf-ack-why"); errP.id = "pf-ack-why"; }
+      b.append(ackL);
+      if (atAck) b.append(errP);
       b.append(h("div", { cls: "row" }, btn("Back", () => showCart()), btn("Continue", () => {
         const why = problem(); if (why) { details(why); return; } review(); }, "go")));
-      if (errP) { if (errP.scrollIntoView) errP.scrollIntoView({ block: "center" }); errP.focus(); }
+      if (atAck) { if (ackL.scrollIntoView) ackL.scrollIntoView({ block: "center" }); ack.focus(); }
+      else if (errP) { if (errP.scrollIntoView) errP.scrollIntoView({ block: "center" }); errP.focus(); }
     }
     function problem() {
       ["name", "email", "phone", "rname", "addr1", "addr2", "city", "zip", "note"].forEach(k => { det[k] = k === "note" ? String(det[k] || "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "").trim() : PR.clean(det[k]); });
@@ -1462,7 +1499,7 @@ async function main() {
         if (!PR.ZIP[det.country].test(det.zip)) return det.country === "CA" ? "Please check the postal code (like K1A 0B1)." : "Please check the ZIP (like 62704).";
         if (det.country === "CA" && !det.phone) return "A phone number is needed for Canada.";
       }
-      if (!det.ack) return "Please check the box about the invoice.";
+      if (!det.ack) return ACK_WHY;
       return "";
     }
     // what the photographer's page says for the chosen destination ("" for pick-up when it only repeats the choice)
@@ -1503,7 +1540,19 @@ async function main() {
     // Forgotten once sent, refused, or closed.
     const forget = () => LS.remove(PEND, true);
     const digest = async t => b64u(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t))));
+    function shut() {                                 // the 24 hours began while this page was open
+      $("prbar").hidden = true; $("pp").hidden = true; closedWords();
+      const b = open("Your order was not sent");      // said first: nothing went to the studio (web host test 1.5, #8)
+      b.append(h("p", { role: "alert", text: "Ordering prints has closed because this gallery closes within 24 hours, so this order was not sent." }));
+      const ask = h("p", {});
+      if (EMAIL.test(contact)) ask.append("To order prints, email ", mailLink(contact), " to ask for the gallery to be extended.");
+      else ask.append("To order prints, contact your photographer to ask for the gallery to be extended.");
+      b.append(ask, h("div", { cls: "row" }, btn("Close", close, "go")));
+    }
+    if (cutAt !== null) setTimeout(() => { if (printsClosed()) { $("prbar").hidden = true; $("pp").hidden = true; closedWords(); } },
+                                   Math.min(2147483000, Math.max(0, cutAt - Date.now())));
     async function send() {
+      if (printsClosed()) { forget(); shut(); return; }
       let pend = LS.json(PEND, null, true);
       const sig = await digest(JSON.stringify([good(), det]));
       if (!pend || pend.sig !== sig) {
@@ -1535,6 +1584,7 @@ async function main() {
       }
       if (!r) { failed("We could not take your order right now. Please email " + (contact || studio) + ".", true); return; }
       if (r.status === 204) { sent(pend); return; }
+      if (r.status === 423) { forget(); shut(); return; }     // the host: within 24 hours of closing
       if (r.status === 409 || r.status === 410) { forget(); failed("Please email " + (contact || studio) + "."); return; }
       if (r.status === 429 && !r.headers.get("X-Work")) {   // the limit on orders from one sender, not an outage
         const wait = parseInt(r.headers.get("Retry-After") || "", 10);

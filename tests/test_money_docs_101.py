@@ -55,11 +55,11 @@ def test_an_issued_invoice_stays_as_issued_after_later_payments(tmp_path, monkey
     before = _page(c, f"/session/{sid}/invoice")
     _pay(c, sid, "200", kind="balance", received="2026-01-15")
     after = _page(c, f"/session/{sid}/invoice")
-    assert num in after and "$200" in after and "Jan 15" not in after.split('class="page"')[1]
-    assert re.search(r"Balance due</b></td><td class=\"n\"><b>\$200<", after)
+    assert num in after and "$200.00" in after and "Jan 15" not in after.split('class="page"')[1]
+    assert re.search(r"Balance due</b></td><td class=\"n\"><b>\$200\.00<", after)
     assert "It has since been paid in full." in after
     pdf = c.get(f"/session/{sid}/invoice.pdf", environ_base=E).get_data(as_text=True)
-    assert num in pdf and re.search(r"Balance due</b></td><td class=\"n\"><b>\$200<", pdf) and "DRAFT" not in pdf
+    assert num in pdf and re.search(r"Balance due</b></td><td class=\"n\"><b>\$200\.00<", pdf) and "DRAFT" not in pdf
 
     assert re.search(r"<td>Date</td><td>([^<]+)</td>", before).group(1) == re.search(r"<td>Date</td><td>([^<]+)</td>", after).group(1)
 
@@ -88,7 +88,7 @@ def test_an_issued_receipt_stays_as_issued_after_a_refund(tmp_path, monkeypatch)
     _pay(c, sid, "50", kind="refund")
     page = _page(c, f"/session/{sid}/receipt")
     assert num in page and "refund" not in page.split('class="page"')[1].lower().replace("refunds", "")
-    assert re.search(r"Total paid</b></td><td class=\"n\"><b>\$300<", page), (
+    assert re.search(r"Total paid</b></td><td class=\"n\"><b>\$300\.00<", page), (
         f"receipt {num} payments: {_payments_table(page)}; payments recorded: "
         f"{_q(A, 'SELECT kind, amount, received, voided FROM payments WHERE session_id=?', (sid,))}; "
         f"snapshots: {_q(A, 'SELECT number, at FROM bill_snapshots WHERE session_id=?', (sid,))}; "
@@ -103,16 +103,16 @@ def test_a_refund_is_money_back_and_never_lowers_the_quote(tmp_path, monkeypatch
     t = _tot(A, sid)
     assert t["quoted"] == 2800 and round(t["paid"], 2) == 740 and round(t["due"], 2) == 1960
     assert not _q(A, "SELECT 1 FROM lines WHERE session_id=? AND label='Refund'", (sid,))
-    page = _page(c, f"/session/{sid}")
-    assert "$100 refunded, not owed again" in page
+    page = _page(c, f"/session/{sid}/edit")
+    assert "$100.00 refunded, not owed again" in page
     inv = _page(c, f"/session/{sid}/invoice")
     services = inv.split("<h2>Services</h2>")[1].split("<h2>Payments</h2>")[0]
-    assert "Refund" not in services and "$2,800" in services
+    assert "Refund" not in services and "$2,800.00" in services
 
     month = _q(A, "SELECT substr(received, 1, 7) FROM payments LIMIT 1")[0][0]
     c.post(f"/session/{sid}/invoice/issue", environ_base=E)
     st = _page(c, f"/client/1/statement?m={month}")
-    assert "$1,960" in st
+    assert "$1,960.00" in st
 
 def test_a_full_refund_of_an_overpaid_session_leaves_the_price_and_nothing_owed(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
@@ -156,7 +156,7 @@ def test_deleting_a_refunded_session_names_its_issued_documents(tmp_path, monkey
     c.post(f"/session/{sid}/receipt/issue", environ_base=E)
     inv, rec = _number(A, sid, "INV"), _number(A, sid, "R")
     _pay(c, sid, "45", kind="refund")
-    page = _page(c, f"/session/{sid}")
+    page = _page(c, f"/session/{sid}/edit")
     assert f"Issued documents {inv}, {rec} are kept in History" in page
     assert c.post(f"/session/{sid}/delete", environ_base=E).status_code == 302
     assert not _q(A, "SELECT 1 FROM sessions WHERE id=?", (sid,))
@@ -172,7 +172,9 @@ def test_issue_is_the_primary_button_and_says_what_it_issued(tmp_path, monkeypat
     sid = _new(A, c, "family", subject_name="Ava")
     _line(c, sid, "300")
     page = _page(c, f"/session/{sid}/invoice")
-    assert 'class="primary">Issue this invoice' in page
+
+    assert re.search(r'<input type="hidden" name="then" value="email"><button class="ui-btn ui-btn-primary">Email it</button>', page)
+    assert '<button class="ui-btn ui-btn-quiet">Issue this invoice</button>' in page.split('class="ui-more-pop"', 1)[1]
     c.post(f"/session/{sid}/invoice/issue", environ_base=E)
     num = _number(A, sid, "INV")
     page = _page(c, f"/session/{sid}/invoice")
@@ -216,7 +218,7 @@ def test_the_receipt_page_is_titled_receipt_before_it_is_due(tmp_path, monkeypat
     _pay(c, sid, "100")
     r = c.get(f"/session/{sid}/receipt", environ_base=E)
     page = r.get_data(as_text=True)
-    assert r.status_code == 200 and "<title>Receipt" in page and "Nothing to receipt yet" in page and "$200 still to pay" in page
+    assert r.status_code == 200 and "<title>Receipt" in page and "Nothing to receipt yet" in page and "$200.00 still to pay" in page
 
 def test_paid_in_full_closes_the_send_invoice_step(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
@@ -235,31 +237,31 @@ def test_voiding_asks_first_names_an_issued_receipt_and_history_says_voided(tmp_
     sid = _new(A, c, "family", subject_name="Ava")
     _line(c, sid, "300")
     _pay(c, sid, "300", kind="balance")
-    page = _page(c, f"/session/{sid}")
-    assert 'data-confirm="Void this $300 balance?' in page
+    page = _page(c, f"/session/{sid}/edit")
+    assert 'data-confirm="Void this $300.00 balance?' in page
     c.post(f"/session/{sid}/receipt/issue", environ_base=E)
     rec = _number(A, sid, "R")
-    assert f"Receipt {rec} was already issued for this session and stays as issued." in _page(c, f"/session/{sid}")
+    assert f"Receipt {rec} was already issued for this session and stays as issued." in _page(c, f"/session/{sid}/edit")
     pid = _q(A, "SELECT id FROM payments WHERE session_id=?", (sid,))[0][0]
     c.post(f"/money/payment/{pid}/delete", data={"set": "void"}, environ_base=E)
     acts = [r[0] for r in _q(A, "SELECT action FROM audit WHERE session_id=?", (sid,))]
-    assert any(a.startswith("Voided the $300 balance") for a in acts) and not any(a.startswith("Deleted payment") for a in acts)
+    assert any(a.startswith("Voided the $300.00 balance") for a in acts) and not any(a.startswith("Deleted payment") for a in acts)
     c.post(f"/money/payment/{pid}/delete", data={"set": "restore"}, environ_base=E)
-    assert any(r[0].startswith("Restored the $300 balance") for r in _q(A, "SELECT action FROM audit WHERE session_id=?", (sid,)))
+    assert any(r[0].startswith("Restored the $300.00 balance") for r in _q(A, "SELECT action FROM audit WHERE session_id=?", (sid,)))
 
 def test_a_payment_over_the_balance_is_recorded_with_a_warning(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
     sid = _new(A, c, "family", subject_name="Ava")
     _line(c, sid, "45")
-    page = _page(c, f"/session/{sid}")
+    page = _page(c, f"/session/{sid}/edit")
     assert 'data-balance="45.00"' in page
     _pay(c, sid, "50", kind="balance")
     assert round(_tot(A, sid)["paid"], 2) == 50
-    page = _page(c, f"/session/{sid}")
-    assert "$5 more than the balance" in page and "$5 credit" in page
+    page = _page(c, f"/session/{sid}/edit")
+    assert "$5.00 more than the balance" in page and "$5.00 credit" in page
     c.post(f"/session/{sid}/receipt/issue", environ_base=E)
     rec = _page(c, f"/session/{sid}/receipt")
-    assert "Credit due to you" in rec and "$5" in rec
+    assert "Credit due to you" in rec and "$5.00" in rec
 
 def test_no_empty_checks_line_without_a_business_name(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)

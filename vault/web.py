@@ -97,14 +97,20 @@ def backups(connect, limit=30):
 
     con = connect()
     try:
-        rows = con.execute("""SELECT name, MIN(created) created, MAX(size) size, GROUP_CONCAT(DISTINCT backend) at
+        rows = con.execute("""SELECT name, MIN(created) created, MAX(size) size, GROUP_CONCAT(DISTINCT backend) at, MAX(kind)
                               FROM vault_objects WHERE kind IN ('db', 'manual', 'upgrade') AND deleted IS NULL
                               GROUP BY name ORDER BY MAX(id) DESC LIMIT ?""", (limit,)).fetchall()
         second = {r[0] for r in con.execute("SELECT name FROM vault_secondary")} if con.execute(
             "SELECT 1 FROM sqlite_master WHERE name='vault_secondary'").fetchone() else set()
     finally:
         con.close()
-    return [dict(name=r[0], created=r[1], size=r[2] or 0, at=r[3] or "", second=r[0] in second) for r in rows]
+    return [dict(name=r[0], created=r[1], size=r[2] or 0, at=r[3] or "", second=r[0] in second, kind=r[4] or "db",
+                 what=KIND_WORDS.get(r[4] or "db", "")) for r in rows]
+
+KIND_WORDS = {"db": "Daily", "manual": "Back up now", "upgrade": "Before the update"}
+OBJ_WORDS = {"db": "Daily backups", "faces": "Daily backups, faces", "manual": "Back up now", "manual-faces": "Back up now, faces",
+             "upgrade": "Before an update", "upgrade-faces": "Before an update, faces", "reset": "Before a reset",
+             "found": "Found in the backup folder", "session": "Sealed sessions"}
 
 def check_backup(connect, master_secret):
 
@@ -177,7 +183,7 @@ def register(app, connect, audit):
             con.close()
         return render_template("vault.html", master=mp, master_mismatch=bool(mp and ring_mp and mp != ring_mp),
                                second_err=second_err, objs=objs, last_db=last_db, n_keys=n_keys, btime=btime, blast=blast,
-                               backups=backups(connect), result=_s.pop("vault_result", None),
+                               backups=backups(connect), obj_words=OBJ_WORDS, result=_s.pop("vault_result", None),
                                primary=describe(c.get("primary")), offsite=describe(c.get("secondary")),
                                gallery=describe(c.get("gallery_host")))
 

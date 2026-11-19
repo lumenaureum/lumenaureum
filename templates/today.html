@@ -1,117 +1,117 @@
-{% extends "base.html" %}{% from "_macros.html" import stage_pill, avatar, event_avatar, sym, close_menu with context %}
-{% block title %}Today - Lumen Aureum{% endblock %}{% block body %}
-{% set L = light(today.isoformat()) %}
-<header class="dash-head">
-  <div><h1>{{ today.strftime('%A, %B %-d') }}</h1>
+{% extends "base.html" %}{% import "_ui.html" as ui with context %}{% import "_today.html" as tu with context %}{% import "_ui_filter.html" as uf with context %}{% import "_ui_inbox.html" as uin with context %}{% from "_macros.html" import help with context %}
+{% block title %}Today - Lumen Aureum{% endblock %}
+
+{% block body %}
+{% set B = board %}{% set back = url_for('home') %}
+{% set n_inbox = review|length %}{% set n_new = review|selectattr('new')|list|length %}
+{% set n_work = B.money|length + B.work|length + B.other|length %}
+{% set facts_ = [] %}
+{% if B.shoots %}{% set _ = facts_.append(B.shoots|length ~ (' shoot' if B.shoots|length == 1 else ' shoots') ~ ' today') %}{% endif %}
+{% if n_new %}{% set _ = facts_.append(n_new ~ ' new in the Inbox') %}
+{% elif n_inbox %}{% set _ = facts_.append(n_inbox ~ ' in the Inbox') %}{% endif %}
+{% if B.money %}{% set _ = facts_.append(B.money|length ~ ' past due') %}{% endif %}
+{% if n_work %}{% set _ = facts_.append(n_work ~ ' on the list') %}{% endif %}
+{% set updated_ %}{% if updated %}<span class="ui-mute" id="updated-line">Updated to Lumen Aureum {{ updated.version }}. {{ ui.go('#update-note', 'What changed') }}</span>{% endif %}{% if locked_waited %}{{ ' ' if updated }}<span class="ui-mute" id="locked-waited">Locked from {{ locked_waited }} until you signed in. Backups and gallery closings that waited are catching up now.</span>{% endif %}{% if ntfy_suggest %}{{ ' ' if updated or locked_waited }}<span class="ui-mute" id="ntfy-suggest">To hear about a locked restart on your phone, set up the {{ ui.go(url_for('security') ~ '#notice', 'locked-studio notice') }}</span>{% endif %}{% endset %}
+
+
+{% set ns = namespace(first=true) %}
+{% macro sect(title, id) -%}{%- set body_ = caller() -%}
+{%- if ns.first -%}{% set ns.first = false %}{% call ui.needs(title, id=id) %}{{ body_ }}{% endcall %}
+{%- else -%}{% call ui.section(title, id=id, part=true) %}{{ body_ }}{% endcall %}{%- endif -%}
+{%- endmacro %}
+
+<div class="ui-page" data-ui-layout="today">
+
+{{ ui.page_head(today.strftime('%A, %B %-d'), status=(facts_|join(' &middot; ')|safe) if facts_ else '', kicker='Today', id='today-head', sub=updated_) }}
+
+
+{% set urgent_ = urgent + ([('Check you still have your master key: it is the only way back in if your password is lost', url_for('master_key_check'))] if setup_dismissed and master_due else []) %}
+{% if clock_paused or unconfirmed or urgent_ %}{% call sect('Check first', 'check-first') %}
+  {% if clock_paused %}<div role="alert"><p class="ui-needs-line"><b>Automatic deletions are paused.</b> The date moved from {{ nice(clock_paused[0]) }} to {{ nice(clock_paused[1]) }} since the last check, which can mean the clock is wrong. Nothing is sealed or deleted on its own until you confirm today's date.</p>
+    <div class="ui-btnrow">{{ ui.action(url_for('clock_confirm'), "Today's date is right", {}, None, 'primary', inplace=false, confirm="Today is " ~ today.strftime('%A, %B %-d, %Y') ~ ". Is that right?") }}</div></div>{% endif %}
+  {% if unconfirmed %}<div role="alert" id="unconfirmed"><p class="ui-needs-line"><b>{{ unconfirmed|length }} client{{ '' if unconfirmed|length == 1 else 's' }} you may have deleted {{ 'is' if unconfirmed|length == 1 else 'are' }} back:</b>
+    {% for r_ in unconfirmed %}{{ r_.name }}{{ ', ' if not loop.last }}{% endfor %}. This copy of your data could not confirm the deletion{{ '' if unconfirmed|length == 1 else 's' }}, so nothing was deleted.</p>
+    <div class="ui-btnrow">{{ ui.button_link(url_for('unconfirmed_view'), 'Review and decide', 'primary') }}</div></div>{% endif %}
+  
+  {% for text_, link_ in urgent_ %}{{ ui.list_row(link_, text_) }}{% endfor %}
+{% endcall %}{% endif %}
+
+
+{% if B.shoots %}{% call sect('Shooting today', 'shoots') %}
+  {% for sh in B.shoots %}<div>{{ tu.shoot_block(sh, back) }}</div>{% endfor %}
+{% endcall %}{% endif %}
+
+
+{% if n_inbox %}{% call sect('Inbox', 'inbox') %}
+  {{ uin.client_search(review_clients) }}
+  <ul class="ui-mails" id="inquiries">{% for i_ in review %}{{ uin.inbox_item(i_, review_types, review_cut, back, url_for('studio_page_review')) }}{% endfor %}</ul>
+  <p class="ui-mute">{{ review|length }} website inquir{{ 'y' if review|length == 1 else 'ies' }} to review: Add or Spam</p>
+  {% if review|length > 1 %}{% set fresh = review|rejectattr('matches')|list %}<div class="ui-btnrow">
+    {% if fresh %}{% set ids_ %}{% for i_ in fresh %}<input type="hidden" name="id" value="{{ i_.id }}">{% endfor %}{% endset %}{{ ui.action(url_for('studio_page_review'), 'Add all ' ~ fresh|length, {}, back, 'quiet', name='do', value='add_all', extra=ids_,
+        confirm='Add ' ~ ('this inquiry' if fresh|length == 1 else 'all ' ~ fresh|length ~ ' inquiries') ~ ' as new clients, each with an Inquiry session?' ~ (' Those that match a client you have are left for you to choose.' if fresh|length < review|length else '')) }}{% endif %}
+    {% set all_ %}{% for i_ in review %}<input type="hidden" name="id" value="{{ i_.id }}">{% endfor %}{% endset %}{{ ui.action(url_for('studio_page_review'), 'Spam all ' ~ review|length, {}, back, 'quiet', name='do', value='spam_all', extra=all_,
+        confirm="Remove all " ~ review|length ~ " inquiries as spam? They can't be brought back.") }}
+  </div>{% endif %}
+{% endcall %}{% endif %}
+
+
+{% set n_lines_ = n_work + B.quiet|length + loose|length %}
+{% if n_lines_ > 1 %}{{ uf.filter_bar('today', today_iso, groups=[dict(key='kind', label='Kind', values=kinds.kind + (['Other'] * loose|length)), dict(key='label', label='Labels', values=kinds.label)],
+                                placeholder='Find a name or a task', scope='work') }}{% endif %}
+
+
+{% if n_work or loose or B.quiet %}{% call sect('Tasks', 'work') %}
+  {% if not n_work and not loose %}<p class="ui-needs-line">Nothing waits on you today.</p>{% endif %}
+  {% if n_work %}<ul class="ui-tlines">{% for l in B.money %}{{ tu.today_line(l, back) }}{% endfor %}{% for l in B.work %}{{ tu.today_line(l, back) }}{% endfor %}{% for l in B.other %}{{ tu.today_line(l, back) }}{% endfor %}</ul>{% endif %}
+  {% if loose %}<h3 class="ui-sub-title">Also</h3>{% for it in loose %}
+    <div {{ uf.item('mine', it.when or '', dict(kind='Other')) }}>{% if it.post %}<div class="ui-form-row"><span class="ui-grow">{{ it.text }}{% if it.help %}{{ help(it.help) }}{% endif %}{% if it.sub %} <span class="ui-mute">{{ it.sub }}</span>{% endif %}</span>{{ ui.action(it.post, it.verb, it.fields or {}, back) }}</div>
+    {% elif it.link %}{{ ui.list_row(it.link, it.text, it.sub or '') }}
+    {% else %}<p>{{ it.text }}{% if it.help %}{{ help(it.help) }}{% endif %}{% if it.sub %} <span class="ui-mute">{{ it.sub }}</span>{% endif %}</p>{% endif %}</div>{% endfor %}{% endif %}
+  
+  {% if B.quiet %}{% call ui.fold('Waiting on the client or nothing to do now', id='quiet', count=B.quiet|length) %}
+    {% for l in B.quiet %}<div {{ uf.item(l.f.status, l.f.due, dict(label=l.f.labels)) }}>{{ ui.list_row(l.href, l.name, l.kind ~ ', ' ~ stage_label[l.stage] ~ ('. ' ~ l.note if l.note else '')) }}</div>{% endfor %}
+  {% endcall %}{% endif %}
+{% endcall %}{% endif %}
+{% if ns.first %}{% call sect('Today', 'work') %}<p class="ui-needs-line">Nothing waits on you today.</p>{% endcall %}{% endif %}
+
+
+{% set n_sh = days|sum(attribute='shoots', start=[])|length %}{% set n_due = days|sum(attribute='due', start=[])|length %}
+{% call ui.fold('Next two weeks', id='two-weeks', part=true, count=n_sh + n_due, note=(n_sh ~ (' shoot' if n_sh == 1 else ' shoots') ~ ', ' ~ n_due ~ (' step' if n_due == 1 else ' steps')) if days else 'Nothing planned') %}
+  {% for d in days %}{% set label_ = d.date.strftime('%a %b %-d') %}
+    {% set rows_ %}{% for sh in d.shoots %}{{ ui.list_row(url_for('event_view', eid=sh.eid) if sh.event else url_for('client_stage', hid=sh.hid, s=sh.sid), 'Shoot: ' ~ sh.name,
+        (clock(sh.time) if sh.time else ('%d families' % sh.n if sh.event else 'no start time yet')) ~ (', sunset ' ~ sh.light.sunset if sh.light else ''), ui.chip('Shoot', 'attention')) }}{% endfor %}
+      {% for x in d.due %}{{ ui.list_row(url_for('event_view', eid=x.eid) if x.eid else (url_for('client_stage', hid=x.hid) if x.hid else x.who), x.name, x.what) }}{% endfor %}{% endset %}
+    {% if d.due|length > 5 %}{% call ui.fold(label_ ~ ': ' ~ (d.shoots|length ~ ' shoot' ~ ('' if d.shoots|length == 1 else 's') ~ ', ' if d.shoots else '') ~ d.due|length ~ ' steps', id='day-' ~ d.iso) %}{{ rows_ }}{% endcall %}
+    {% else %}<h3 class="ui-sub-title">{{ label_ }}</h3>{{ rows_ }}{% endif %}
+  {% endfor %}
+  <div class="ui-btnrow">{{ ui.go(url_for('month_view'), 'Month calendar') }}{{ ui.go(url_for('year_view'), 'Year calendar') }}</div>
+{% endcall %}
+
+
+{% if updated %}{% call ui.section('Updated to Lumen Aureum ' ~ updated.version, id='update-note', part=true) %}
+  <p>{{ ui.go(url_for('about') ~ '#whats-new', "What's new in " ~ updated.version) }}</p>
+  <p>{% if updated.backup %}A backup of your data from before the update is under {{ ui.go(url_for('vault_view'), 'Settings, Backups') }}: the one marked Before the update{% if updated.backup_at %}, {{ nice(updated.backup_at[:10]) }} at {{ clock(updated.backup_at[11:16]) }}{% endif %}.{% elif updated.changed %}Your data was updated. No backup was made first, because backups aren't set up: {{ ui.go(url_for('vault_view'), 'Settings, Backups') }}.{% else %}Your data didn't need changes, so no backup was made.{% endif %}</p>
+  {% if updated.stages %}<p>{{ updated.stages }}</p>{% endif %}
+  <p class="ui-mute">An update signs everyone out, so each device asks you to sign in again.</p>
+  <div class="ui-btnrow">{{ ui.action(url_for('update_notice_hide'), 'Hide this note', {}, back) }}</div>
+{% endcall %}{% else %}<div id="update-note" data-ui-part hidden></div>{% endif %}
+
+
+{% set wo_ = walk_offer() %}
+{% if not setup_dismissed and (wo_ or master_due or finish or prices_sample) %}{% call ui.section('Setting up', id='setup', part=true) %}
+  {% if prices_sample %}<div id="review-prices"><p><b>Review your prices.</b> They are still the starter prices that came with the app (SAMPLE). Look them over, change any that are not yours, and approve them: from then on they print as your prices.</p>
+    <div class="ui-btnrow">{{ ui.button_link(url_for('fees_view', sched_id=prices_sample), 'Review your prices') }}</div></div>{% endif %}
+  {% if master_due %}<div id="master-key-check"><p><b>Check you still have your master key.</b> It is the only way back in if your password is lost, so make sure you can still find it.</p>
+    <div class="ui-btnrow">{{ ui.button_link(url_for('master_key_check'), 'Check your master key') }}{{ ui.action(url_for('master_key_later'), 'Ask again in a week', {}, None) }}</div></div>{% endif %}
+  
+  {% if wo_ %}<p><b>Fine-tune your session types.</b>{{ help("Each one takes a few minutes and covers deposits, delivery, how long you keep files, the gallery and portfolio use. The defaults already work, so this is optional.") }}</p>
+    <div class="ui-btnrow">{% for k_, lab_ in wo_ %}{{ ui.button_link(url_for('type_walk', key=k_, n=0), 'Walk through ' ~ lab_) }}{% endfor %}</div>{% endif %}
+  {% if finish %}{% for text, link in finish %}{{ ui.list_row(link, text) }}{% endfor %}{% endif %}
+  <div class="ui-btnrow">{{ ui.action(url_for('setup_dismiss'), 'Dismiss', {}, back, confirm='Dismiss Setting up for good? Anything in it that becomes urgent will show on Today by itself.') }}</div>
+{% endcall %}{% elif setup_dismissed %}<div id="setup" data-ui-part hidden></div>{% endif %}
 </div>
-  <div class="kpis">
-    <button class="kpi sel {{ 'hot' if kpi.overdue }}" data-filter="overdue"><b>{{ kpi.overdue }}</b><span>overdue</span></button>
-    <button class="kpi sel" data-filter="week"><b>{{ kpi.week }}</b><span>to do this week</span></button>
-    <button class="kpi sel {{ 'warm' if kpi.owed }}" data-filter="money"><b>{{ money(kpi.owed) }}</b><span>owed to you</span></button>
-    {% if kpi.deposits %}<button class="kpi sel" data-filter="money"><b>{{ money(kpi.deposits) }}</b><span>deposits unpaid</span></button>{% endif %}
-    <button class="kpi sel" data-filter="lead"><b>{{ kpi.leads }}</b><span>open lead{{ '' if kpi.leads == 1 else 's' }}</span></button>
-  </div>
-</header>
-{% set wo_ = walk_offer() %}{% if wo_ %}<section class="finish also" style="margin:10px 0"><div class="row" style="gap:10px;flex-wrap:wrap"><b class="grow">Fine-tune your session types</b>
-  <form method="post" action="{{ url_for('walk_dismiss') }}" class="inline"><button class="linkish" title="Hide this for good; the walkthrough stays on each type's settings">Not now</button></form></div>
-  <p class="mute" style="margin:2px 0 6px;font-size:13px">Each one takes a few minutes and covers deposits, delivery, how long you keep files, the gallery and portfolio use. The defaults already work, so this is optional.</p>
-  <div class="row" style="gap:8px;flex-wrap:wrap">{% for k_, lab_ in wo_ %}<a class="btn quiet" href="{{ url_for('type_walk', key=k_, n=0) }}">{{ lab_ }}</a>{% endfor %}</div></section>{% endif %}
-{% if updated %}<section class="finish also" role="status" style="margin:10px 0;padding:10px 14px;font-size:14px">
-  <span>Updated to Lumen Aureum {{ updated.version }}.{% if updated.backup %} A backup of your data from before the update is under <a href="{{ url_for('vault_view') }}">Settings, Backups</a>.{% elif updated.changed %} Your data was updated. No backup was made first, because backups aren't set up: <a href="{{ url_for('vault_view') }}">Settings, Backups</a>.{% else %} Your data didn't need changes, so no backup was made.{% endif %}</span></section>{% endif %}
-{% if clock_paused %}<section class="clash" role="alert" style="margin:10px 0;padding:10px 14px;font-size:14px">
-  <b>Automatic deletions are paused.</b> The date moved from {{ nice(clock_paused[0]) }} to {{ nice(clock_paused[1]) }} since the last check, which can mean the clock is wrong. Nothing is sealed or deleted on its own until you confirm today's date.
-  <form method="post" action="{{ url_for('clock_confirm') }}" class="inline" style="margin-left:8px"><button class="primary" data-confirm="Today is {{ today.strftime('%A, %B %-d, %Y') }}. Is that right?">Today's date is right</button></form></section>{% endif %}
-{% if master_due %}<section class="finish also" id="master-key-check" style="margin:10px 0;padding:10px 14px;font-size:14px"><div class="row" style="gap:10px;flex-wrap:wrap">
-  <span class="grow"><b>Check you still have your master key.</b> It is the only way back in if your password is lost, so make sure you can still find it.</span>
-  <a class="btn primary" href="{{ url_for('master_key_check') }}">Check it</a>
-  <form method="post" action="{{ url_for('master_key_later') }}" class="inline"><button class="quiet" title="Ask again in a week">Not now</button></form></div></section>{% endif %}
-{% if unconfirmed %}<section class="clash" role="alert" id="unconfirmed" style="margin:10px 0;padding:10px 14px;font-size:14px">
-  <b>{{ unconfirmed|length }} client{{ '' if unconfirmed|length == 1 else 's' }} you may have deleted {{ 'is' if unconfirmed|length == 1 else 'are' }} back:</b>
-  {% for r_ in unconfirmed %}{{ r_.name }}{{ ', ' if not loop.last }}{% endfor %}.
-  This copy of your data could not confirm the deletion{{ '' if unconfirmed|length == 1 else 's' }}, so nothing was deleted.
-  <a href="{{ url_for('unconfirmed_view') }}">Review and decide</a></section>{% endif %}
-{% if loose %}
-<section class="finish also"><b>Also</b>
-  <ul>{% for it in loose %}<li>{% if it.link %}<a href="{{ it.link }}">{{ it.text }}</a>{% else %}{{ it.text }}{% endif %}{% if it.sub %} <span class="mute">{{ it.sub }}</span>{% endif %}{% if it.post %} <form method="post" action="{{ it.post }}" class="inline">{% for k, v in (it.fields or {}).items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}<button class="quiet" style="font-size:12px;padding:3px 8px">{{ it.verb }}</button></form>{% endif %}</li>{% endfor %}</ul>
-</section>
-<style>.finish.also { border-left-color: var(--line); }</style>
-{% endif %}
-{% if finish %}
-<section class="finish">
-  <div class="row"><b class="grow">Finish setting up</b>
-    <form method="post" action="{{ url_for('setup_hide_list') }}" class="inline"><button class="quiet" style="font-size:12px;padding:3px 8px">Hide this list</button></form></div>
-  <ul>{% for text, link in finish %}<li><a href="{{ link }}">{{ text }}</a></li>{% endfor %}</ul>
-</section>
-<style>.finish { border-left: 3px solid var(--gold); padding: 8px 14px; margin: 4px 0 14px; } .finish ul { margin: 6px 0 2px; padding-left: 18px; }
-.finish li { margin: 3px 0; font-size: 14px; }</style>
-{% endif %}
-
-
-<div class="home-grid">
-<section id="roster">
-  <div class="filter-note" hidden><span></span> <button class="quiet" data-clear>Show everyone</button></div>
-  <div class="tiles">
-  {% for r in roster %}{% set f0 = r.flows[0] %}
-  <div class="client tile h-{{ r.health }}" data-key="{{ r.key }}" data-late="{{ 1 if r.late else 0 }}" data-week="{{ 1 if r.week else 0 }}"
-       data-money="{{ 1 if r.owed else 0 }}" data-lead="{{ 1 if r.lead else 0 }}">
-    {% if r.corner %}<span class="corner" data-tip="{{ r.corner }}"></span>{% endif %}
-    <div class="t-head sel" data-sel="{{ r.key }}">
-      <span class="cface">{% if r.kind == 'event' %}{{ event_avatar(r.eid, r.name, 60) }}{% else %}{{ avatar(r.hid, 60) }}{% endif %}</span>
-      <div class="t-who"><b><a class="t-link" href="{{ url_for('event_view', eid=r.eid) if r.kind == 'event' else url_for('client_stage', hid=r.hid) }}">{{ r.name }}</a></b>{% if r.demo %} <span class="pill" data-tip="Sample client: delete in Settings">Sample</span>{% endif %}<small title="{{ r.people }}">{{ r.people }}</small></div>
-      <div class="t-stage">{% for f in r.flows %}<span class="t-st">{{ f.type }} <em>{{ stage_label[f.stage] }}</em> <small class="days" data-tip="In {{ stage_label[f.stage] }} since {{ nice(f.since) }}">{{ f.days }}d</small></span>{% if f.hint %}<span class="stage-hint">{{ f.hint|capitalize }}</span>{% endif %}{% endfor %}</div>
-    </div>
-    {% for f in r.flows %}{% if r.flows|length > 1 %}<div class="t-flowname">{{ f.type }}</div>{% endif %}<div class="t-track">{% for st in C.STAGES %}<div class="tn {{ 'past' if loop.index0 < f.idx }} {{ 'now' if loop.index0 == f.idx }}"><i></i><span>{{ stage_label[st] }}</span></div>{% endfor %}</div>{% endfor %}
-
-    {% set a = r.next %}
-    <div class="t-next s-{{ a.status if a else 'none' }}">
-      <div class="t-label">Next</div>
-      {% if a %}
-      <div class="t-what {{ 'theirs' if a.theirs }}"><span class="tipw" data-tip="{{ a.tip }}"><span class="badged">{{ sym(a.sym, a.status if a.status in ('late','soon') else 'next', 46) }}{% if a.theirs %}<span class="badge-face">{% if r.kind == 'event' %}{{ event_avatar(r.eid, r.name, 22) }}{% else %}{{ avatar(r.hid, 22) }}{% endif %}</span>{% endif %}</span></span><span>{{ a.what }}{% if a.note %}<small class="t-note" style="display:block;color:var(--mute);font-size:12px">{{ a.note }}</small>{% endif %}</span>{% if a.theirs and not a.when and a.waited %}<em>waiting {{ a.waited }}d</em>{% endif %}{% if a.when %}<em>{{ 'late since ' if a.status == 'late' }}{{ nice(a.when) }}</em>{% endif %}</div>
-      <div class="t-do">{% if a.post %}<form method="post" action="{{ a.post }}" class="inline">{% for k, v in a.fields.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}{% if a.ask_date %}<input type="date" name="on" value="{{ iso_today() }}" max="{{ iso_today() }}" title="{{ a.date_tip }}" style="width:auto;display:inline;margin:0 4px 0 0">{% endif %}<input type="hidden" name="back" value="{{ url_for('home') }}"><button class="{{ 'primary' if a.status == 'late' or a.primary else 'verb' }}">{{ a.verb }}</button></form>{{ close_menu(a, url_for('home')) }}
-        {% else %}<a class="go" href="{{ a.href if a.href and not a.href.startswith('/session/') else (url_for('client_stage', hid=r.hid) if r.hid else a.who.link) }}">{{ a.verb }} &rsaquo;</a>{{ close_menu(a, url_for('home')) }}{% endif %}</div>
-      {% elif r.shoot %}<div class="t-what">{{ sym('photo_camera', 'next', 34) }}<span>Shoot {{ nice(r.shoot.date) }}{% if r.shoot.tentative %} (tentative){% endif %}{% if r.shoot.time %}, {{ clock(r.shoot.time) }}{% endif %}</span></div>
-      {% else %}<div class="t-what mute"><span>Nothing open</span></div>{% endif %}
-    </div>
-
-    {% if r.then %}<ul class="t-then">{% for x in r.then %}<li data-tip="{{ x.tip }}" class="{{ 'theirs' if x.theirs }}"><span class="badged">{{ sym(x.sym, x.status if x.status in ('late','soon') else 'next', 33) }}{% if x.theirs %}<span class="badge-face">{% if r.kind == 'event' %}{{ event_avatar(r.eid, r.name, 17) }}{% else %}{{ avatar(r.hid, 17) }}{% endif %}</span>{% endif %}</span><span>{{ x.what }}{% if x.note %}<small class="t-note" style="display:block;color:var(--mute);font-size:12px">{{ x.note }}</small>{% endif %}</span><em>{{ nice(x.when) if x.when else ('waiting %dd' % x.waited if x.theirs and x.waited else '') }}</em></li>{% endfor %}
-      {% if r.more %}<li class="more">+{{ r.more }} more</li>{% endif %}</ul>{% endif %}
-
-    <div class="t-foot">
-      {% if r.shoot %}{% set SL = light(r.shoot.date, r.shoot.stype) %}<span class="t-shoot">{{ sym('photo_camera', 'next', 20) }} Shoot {{ nice(r.shoot.date) }}{% if r.shoot.tentative %} (tentative){% endif %}{% if r.shoot.time %}, {{ clock(r.shoot.time) }}{% endif %}{% if SL %} <span class="gh">sunset {{ SL.sunset }}</span>{% endif %}</span>{% endif %}
-      <span class="grow"></span>
-      {% if r.owed %}<span class="owed" style="--s:22px" data-tip="{{ money(r.owed) }} still owed after the shoot">{{ money(r.owed) }} owed</span>{% endif %}
-      {% if r.dep_short %}<span class="owed" style="--s:22px" data-tip="Deposit {{ money(r.dep_short) }} short">{{ money(r.dep_short) }} dep.</span>{% endif %}
-    </div>
-  </div>
-  {% else %}<div class="empty" style="padding:30px 0">No open clients.</div>{% endfor %}
-  </div>
-  {% if quiet %}<details class="quiet-clients" style="margin:14px 0 0"><summary class="mute" style="cursor:pointer">{{ quiet|length }} client{{ '' if quiet|length == 1 else 's' }} with nothing to do now</summary>
-    <ul style="margin:8px 0 0;padding-left:18px">{% for r in quiet %}<li><a href="{{ url_for('client_stage', hid=r.hid) if r.hid else '#' }}">{{ r.name }}</a>{% for f in r.flows %} <span class="mute" style="font-size:12px">{{ f.type }}, {{ stage_label[f.stage] }}</span>{% endfor %}</li>{% endfor %}</ul></details>{% endif %}
-</section>
-  <aside class="cal">
-    <h2 class="grp row" style="justify-content:space-between">Next two weeks <span><a class="go" href="{{ url_for('month_view') }}" style="font-size:12px;letter-spacing:0;text-transform:none">Month &rsaquo;</a> <a class="go" href="{{ url_for('year_view') }}" style="font-size:12px;letter-spacing:0;text-transform:none">Year &rsaquo;</a></span></h2>
-    {% for d in days %}
-    <div class="cday {{ 'today' if d.today }} {{ 'weekend' if d.weekend }} {{ 'busy' if d.shoots or d.due else 'quiet' }}" data-drop="day" data-value="{{ d.iso }}">
-      <div class="cd-date"><span>{{ 'Today' if d.today else d.dow }}</span><b>{{ d.num }}</b>{% if d.first and not d.today %}<em>{{ d.mon }}</em>{% endif %}</div>
-      <div class="cd-body">
-        {% for sh in d.shoots %}
-        <div class="cshoot sel" data-drag data-kind="{{ 'event' if sh.event else 'session' }}" data-id="{{ sh.eid if sh.event else sh.sid }}" data-sel="{{ 'e:%s' % sh.eid if sh.event else 'c:%s' % sh.hid }}">
-          {% if sh.event %}{{ event_avatar(sh.eid, sh.name, 30) }}{% else %}{{ avatar(sh.hid, 30) }}{% endif %}
-          <div class="cs-text" data-tip="{{ sh.name }}"><b>{{ sym('photo_camera','next',16) }} <a class="cs-name t-link" href="{{ url_for('event_view', eid=sh.eid) if sh.event else url_for('client_stage', hid=sh.hid) }}">{{ sh.name }}</a></b><small>{{ clock(sh.time) if sh.time else ('%d families' % sh.n if sh.event else 'shoot') }}{% if sh.light %}, sunset {{ sh.light.sunset }}{% endif %}</small></div>
-        </div>
-        {% endfor %}
-        {% for x in d.due %}<div class="cdue-item" data-sel="{{ 'e:%s' % x.eid if x.eid else 'c:%s' % x.hid }}" data-tip="{{ x.name }}: {{ x.what }}{{ ' (late)' if x.late }}">{% if x.eid %}{{ event_avatar(x.eid, x.name, 18) }}{% else %}{{ avatar(x.hid, 18) }}{% endif %}<a class="t-link {{ 'late' if x.late }} {{ 'theirs' if x.theirs }}" href="{{ url_for('event_view', eid=x.eid) if x.eid else url_for('client_stage', hid=x.hid) }}" aria-label="{{ x.name }}: {{ x.what }}">{{ x.what }}</a></div>{% endfor %}
-      </div>
-    </div>
-    {% endfor %}
-  </aside>
-</div>
-
-
-
-
-
-
-<span hidden id="today-sel" data-sel="{{ sel }}"></span><script src="{{ url_for('static', filename='today.js', v=static_v('today.js')) }}"></script>
+<div class="vh" id="ui-live" role="status" aria-live="polite"></div>
+<script src="{{ url_for('static', filename='today.js', v=static_v('today.js')) }}"></script>
+<script src="{{ url_for('static', filename='filters.js', v=static_v('filters.js')) }}"></script>
 {% endblock %}
 

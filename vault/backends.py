@@ -344,6 +344,7 @@ class S3Backend(Backend):
                  pins=None):
         from vault import s3
         self.bucket, self.prefix = bucket, prefix.strip("/")
+        self.endpoint = endpoint or ""
         self.s3 = s3.Client(bucket, access_key, secret_key, endpoint=endpoint or None, region=region or None,
                             addressing=addressing or "auto", pins_table=pins)
 

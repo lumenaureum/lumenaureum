@@ -1,0 +1,34 @@
+
+
+
+{% macro filter_bar(id, today_iso, status=true, due_days=7, groups=[], q='', placeholder='Search this list', noun='list',
+                    sorts=[], sort='', keep={}, server=false, scope='') -%}
+<div class="ui-filter" id="filter-{{ id }}" data-ui-filter="{{ id }}" data-today="{{ today_iso }}" data-days="{{ due_days }}"{% if scope %} data-f-scope="{{ scope }}"{% endif %}>
+  <form method="get" class="ui-filter-find" role="search"{% if not server %} data-f-script-only hidden{% endif %}>
+    {%- for k_, v_ in keep.items() %}<input type="hidden" name="{{ k_ }}" value="{{ v_ }}">{% endfor %}
+    <input type="search" name="q" value="{{ q }}" placeholder="{{ placeholder }}" aria-label="{{ placeholder }}" class="ui-grow" data-f-q autocomplete="off">
+    {%- if sorts %}<label class="ui-filter-sort"><span>Sorted by</span>
+      <select name="sort" data-f-sort aria-label="Sorted by">{% for k_, l_, key_, dir_, num_ in sorts %}<option value="{{ k_ }}" data-key="{{ key_ }}" data-dir="{{ dir_ }}"{% if num_ %} data-num="1"{% endif %}{{ ' selected' if k_ == sort }}>{{ l_ }}</option>{% endfor %}</select></label>{% endif %}
+    {%- if server %}<button class="ui-btn ui-btn-quiet" data-f-noscript>Filter {{ noun }}</button>{% endif %}
+  </form>
+  {% if status %}<div class="ui-filter-row" role="group" aria-label="Show" data-f-row hidden>
+    {%- for v_, l_ in (('', 'All'), ('mine', 'Mine'), ('waiting', 'Waiting'), ('today', 'Due today'), ('due', 'Due in ' ~ due_days ~ ' days')) %}
+    <button type="button" class="ui-btn ui-fchip" data-f-key="status" data-f-val="{{ v_ }}" aria-pressed="{{ 'true' if not v_ else 'false' }}">{{ l_ }} <span class="ui-fchip-n" data-f-c="{{ v_ }}"></span></button>
+    {%- endfor %}
+  </div>{% endif %}
+  {% for g_ in groups %}{% set counts_ = {} %}{% for v_ in g_['values'] if v_ %}{% set _ = counts_.update({v_: counts_.get(v_, 0) + 1}) %}{% endfor %}
+  {% if counts_ %}<div class="ui-filter-row" role="group" aria-label="{{ g_.label }}" data-f-row hidden>
+    <span class="ui-filter-k">{{ g_.label }}</span>
+    {% for v_, n_ in counts_|dictsort(by='value', reverse=true) %}<button type="button" class="ui-btn ui-fchip" data-f-key="{{ g_.key }}" data-f-val="{{ v_ }}" aria-pressed="false">{{ v_ }} <span class="ui-fchip-n">{{ n_ }}</span></button>{% endfor %}
+  </div>{% endif %}{% endfor %}
+  <div class="ui-filter-none" data-f-none hidden><span class="ui-mute">Nothing here matches.</span> <button type="button" class="ui-btn ui-btn-quiet" data-f-clear>Show everything</button></div>
+</div>
+{%- endmacro %}
+
+
+{% macro item(status='', due='', groups={}, sort={}) -%}
+data-f data-f-status="{{ status }}" data-f-due="{{ (due or '')[:10] }}"
+{%- for k_, v_ in groups.items() %} data-f-g-{{ k_ }}="{{ ((v_ if v_ is not string else [v_]) if v_ else [])|select|join('|') }}"{% endfor %}
+{%- for k_, v_ in sort.items() %} data-s-{{ k_ }}="{{ v_ if v_ is not none else '' }}"{% endfor %}
+{%- endmacro %}
+

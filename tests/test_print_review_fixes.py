@@ -109,7 +109,7 @@ def test_a_part_paid_invoice_never_expires_and_today_names_it(e):
     daily(e)
     o = orders(e)[0]
     assert o["state"] == "invoiced" and o["invoice_number"]
-    assert "part paid, the rest unpaid after 30 days" in e.c.get("/", environ_base=E).data.decode()
+    assert "partially paid, the rest unpaid after 30 days" in e.c.get("/", environ_base=E).data.decode()
 
 def test_a_part_refund_after_day_30_does_not_void_the_invoice(e):
     oid, total = invoiced(e)
@@ -148,7 +148,7 @@ def test_an_order_collected_as_the_session_is_deleted_stops_the_delete(e):
     e.c.post("/session/1/delete", environ_base=E)
     assert PE.q(e, "SELECT 1 FROM sessions WHERE id=1")
     assert [o["oid"] for o in orders(e)] == [OID1]
-    page = e.c.get("/session/1", environ_base=E).data.decode()
+    page = e.c.get("/session/1/edit", environ_base=E).data.decode()
     assert "1 print order from its gallery is deleted with it." in page
 
 def test_the_orders_folder_is_made_by_the_app_when_the_offer_goes_up(e):

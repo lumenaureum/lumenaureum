@@ -69,7 +69,7 @@ def _finances(A, c, year):
     return dict(total=round(seen["total"], 2), refunds=round(seen["refunds"], 2), tax_due=round(seen["tax_due"], 2),
                 received={r["type"]: round(r["v"], 2) for r in seen["received"]},
                 by_month={r["mo"]: round(r["v"], 2) for r in seen["by_month"]},
-                outstanding={str(o["s"]["id"]): round(o["t"]["due"], 2) for o in seen["outstanding"]},
+                outstanding={str(o["s"]["id"]): round(o["t"]["due"], 2) for o in seen["outstanding"] + seen.get("to_invoice", [])},
                 upcoming={str(o["s"]["id"]): round(o["t"]["due"], 2) for o in seen["upcoming"]})
 
 def _bill(A, sid, receipt):
@@ -110,7 +110,7 @@ def test_every_record_is_still_there(upgraded):
     assert [r[0] for r in _q(A, """SELECT h.name FROM sessions s JOIN households h ON h.id=s.household_id
                                    WHERE s.event_id=? ORDER BY h.name""", (ev["id"],))] == ev["families"]
     for sid in EXPECTED["sessions"]:
-        assert c.get(f"/session/{sid}", environ_base=E).status_code == 200
+        assert c.get(f"/session/{sid}/edit", environ_base=E).status_code == 200
 
 def test_balances_and_refund_credits_match_1_1_0(upgraded):
     A, c, taken, _ = upgraded

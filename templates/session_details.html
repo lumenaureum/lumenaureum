@@ -1,10 +1,10 @@
-{% from "_doc_bar.html" import doc_bar, draft with context %}<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Session details - {{ v.client }}</title>
+{% from "_doc_bar.html" import doc_bar, draft with context %}<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Session sheet - {{ v.client }}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 {% include "_doc_style.html" %}</head><body>
-{% if not pdf %}{{ doc_bar(url_for('session_details_pdf', sid=v.sid), v.back, send, v.review if not v.reviewed) }}{% endif %}
+{% if not pdf %}{{ doc_bar(url_for('session_details_pdf', sid=v.sid), v.back, send, v.review if not v.reviewed, approve=v.approve if not pdf else none) }}{% endif %}
 <div class="page">
   {% include "_doc_logo.html" %}
-  {% if not v.reviewed %}{{ draft(v.review, 'wording') }}{% endif %}
+  {% if not v.reviewed %}{{ draft(v.review, 'wording', v.approve, pdf) }}{% endif %}
   <h1>Your session</h1>
   <p class="sub">{{ v.photographer }}{% if v.business %}, {{ v.business }}{% endif %}</p>
   {% include "_doc_contact.html" %}

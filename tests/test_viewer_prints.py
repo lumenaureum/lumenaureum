@@ -44,6 +44,7 @@ def res():
         "second": {"store": {"orders:" + GID: json.dumps([{"oid": "a" * 32, "at": "2026-11-20T12:00:00Z", "n": 3, "total": 4500}])},
                    "rel": "A change to that one"},
         "email_only": {"email_only": True},
+        "ack_first": {"how": "me", "ack_first": True},
     }, spk)
     return r, priv, spk
 
@@ -187,3 +188,13 @@ def test_the_cart_and_order_markers_are_sealed_on_the_device(res):
     assert r["closed"]["stored"]
     mid = r["refused_then_again"]["session_mid_stored"]
     assert len(mid) == 1 and all(k.startswith("la:") for k in mid)
+
+def test_the_invoice_checkbox_refusal_sits_at_the_checkbox(res):
+
+    r, _, _ = res
+    a = r["ack_first"]["ack"]
+    assert a["heading"] == "Ship to"
+    assert a["label"].strip() == "I\u2019ll get an invoice. Nothing is printed until it\u2019s paid."
+    assert a["err"] == ["Tick \u2018I\u2019ll get an invoice\u2019 to continue."] and a["err_after_box"]
+    assert a["focused"] and a["want"] and a["invalid"]
+    assert "Sent to Sample Studio." in r["ack_first"]["said"][-1]

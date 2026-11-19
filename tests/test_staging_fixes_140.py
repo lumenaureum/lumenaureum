@@ -69,7 +69,10 @@ def test_the_web_host_certificate_is_trusted_inside_first_run_setup(fresh, self_
     assert webtls.pins() == {}
     r = c.post("/setup/web-cert/trust", data={"cert": f"{addr} {sha_of(cert)}"}, environ_base=E)
     assert webtls.pins()[addr]["sha256"] == sha_of(cert)
-    assert r.status_code == 302 and r.headers["Location"].endswith("/setup/network")
+    assert r.status_code == 302 and "/setup/galleries" in r.headers["Location"] and "#hostcaps" in r.headers["Location"]
+    page = c.get(r.headers["Location"].split("#")[0].replace("https://localhost", ""), environ_base=E).get_data(as_text=True)
+    assert "What this host can do" in page
+    assert 'href="/setup/network">Go on to the next step' in page
     assert _q(A, "SELECT COUNT(*) FROM audit WHERE action LIKE 'Trusted the web host''s certificate at %'")[0][0] == 1
     r = c.post("/setup/network", data={}, environ_base=E)
     assert _q(A, "SELECT value FROM settings WHERE key='setup_complete'")[0][0] == "1"
@@ -136,9 +139,17 @@ def test_the_upgraded_studio_page_has_every_file_a_fresh_1_4_one_has(tmp_path, m
         assert st.get("site") == "done", st
         assert (web / "inquiries" / "index.html").read_bytes() == b""
         fresh_ = ns["SITE_ROOT"] / "upgrade"
-        assert _files(web) == _files(fresh_)
-        for n in _files(fresh_):
-            assert (web / n).read_bytes() == (fresh_ / n).read_bytes(), n
+
+        new_15 = {"favicon.ico", "apple-touch-icon.png", "llms.txt"}
+        assert _files(web) == [n for n in _files(fresh_) if n not in new_15]
+        icon = (b'<link rel="icon" href="{r}favicon.ico" sizes="any">\n'
+                b'<link rel="apple-touch-icon" href="{r}apple-touch-icon.png">\n')
+
+        for n in [n_ for n_ in _files(web) if n_.startswith(("inquir", "contact/")) or n_ in ("sealed.php", "assets/inquiry.js")]:
+            want = (fresh_ / n).read_bytes()
+            for r_ in (b"", b"../", b"/"):
+                want = want.replace(icon.replace(b"{r}", r_), b"")
+            assert (web / n).read_bytes() in ((fresh_ / n).read_bytes(), want), n
         owned = {r[0] for r in _q(A, "SELECT name FROM studio_files")}
         assert "inquiries/index.html" in owned
     finally:

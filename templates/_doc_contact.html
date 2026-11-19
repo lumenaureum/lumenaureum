@@ -1,2 +1,3 @@
-{% set cb = contact_bits() %}{% if cb %}<p class="sub contact">{{ cb|join(' - ') }}</p>{% endif %}
+
+{% set cb = contact_bits() %}{% if cb %}<p class="sub contact">{% for b_ in cb %}{{ ' - ' if not loop.first }}<span{% if ',' not in b_ %} class="nb"{% endif %}>{{ b_ }}</span>{% endfor %}</p>{% endif %}
 

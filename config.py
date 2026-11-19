@@ -1,5 +1,7 @@
 import re
 
+from formats import money as _money
+
 CREDIT = "Made with Lumen Aureum\u2122 \u00b7 lumenaureum.org"
 
 STAGES = ["inquiry", "quoted", "booked", "shot", "delivered", "closed"]
@@ -346,6 +348,18 @@ def setup_pct_types():
     return [t["label"] for t in TYPES if t.get("kind") != "event" and t.get("deposit_pct") is not None
             and deposit_follows_setup(t)]
 
+def own_delivery_types():
+
+    out = []
+    for t in TYPES:
+        try:
+            v = int(((t.get("policy") or {}).get("delivery_days")) or 0)
+        except (TypeError, ValueError):
+            v = 0
+        if v > 0 and t.get("kind") != "event":
+            out.append((t["label"], min(v, 365)))
+    return out
+
 def preset_types(names):
     return [t for n in names if n in PRESETS for t in PRESETS[n]["types"]]
 
@@ -441,6 +455,10 @@ BOOKING_BUFFER_MIN = 60
 PAYMENT_METHODS = ["cash", "check"]
 ADDON_FEES = ("extra_hour", "extra_person", "extra_loc", "retouch", "rush", "reschedule", "travel")
 LOST_REASONS = ["Price", "Chose someone else", "Date didn't work", "No reply", "Canceled", "No-show", "Other"]
+
+NOT_BOOKED_REASONS = ["They went elsewhere", "Not a fit for me", "No answer", "Other"]
+
+CANCEL_REASONS = [("Canceled", "They canceled"), ("No-show", "No-show"), ("Date didn't work", "Date didn't work"), ("Other", "Other")]
 EVENT_DELIVERY_DAYS = 21
 BALANCE_NET_DAYS = 30
 BALANCE_BEFORE_DAYS = 14
@@ -499,9 +517,9 @@ def portfolio_choice(n=None):
 def portfolio_discount_words(stype):
 
     r = PORTFOLIO_DISCOUNT.get(stype)
-    return "" if not r else (f"{r[1]}%" if r[0] == "pct" else f"${r[1]:,}")
+    return "" if not r else (f"{r[1]}%" if r[0] == "pct" else _money(r[1]))
 
-def payment_text():
+def payment_text(business=""):
 
     m = payment_methods()
     if not m:
@@ -509,7 +527,8 @@ def payment_text():
     txt = _or_list(m)
     txt = txt[0].upper() + txt[1:] + "."
     if "check" in m:
-        txt += " Checks are made out to the business named on your invoice."
+        b = " ".join((business or "").split()).rstrip(".")
+        txt += f" Checks are made out to {b}." if b else " Checks are made out to the business named on your invoice."
     how = " ".join((pay_details() or "").split())
     if how:
         txt += " " + how + ("" if re.search(r"[./]\w+/?$", how) and not how.endswith(".") else ("" if how.endswith(".") else "."))
@@ -547,7 +566,7 @@ def cancel_text(stype):
     txt = "If you cancel before the session, nothing is owed." if no_dep else "If you cancel, the deposit is not refunded."
     if p["free_reschedule"]:
         txt += (f" One free reschedule{' with ' + _notice(p['notice_hours']) + ' notice' if p['notice_hours'] else ''}; "
-                f"after that, ${RESCHEDULE_FEE:,} per reschedule, which I may waive. Illness on either side "
+                f"after that, {_money(RESCHEDULE_FEE)} per reschedule, which I may waive. Illness on either side "
                 "is always a free reschedule.")
     else:
         txt += " A new date depends on my availability" + ("." if no_dep else "; the deposit carries over once.")
@@ -571,7 +590,7 @@ def late_text(stype):
             f" counts as a missed session: {keep}, and a new date needs a new booking"
             + ("." if has_no_deposit(stype) else " and a new deposit."))
 
-def build_terms(stype=None):
+def build_terms(stype=None, business=""):
     types = [stype] if stype else list(SESSION_TYPES)
     kinds = {TYPE_KIND.get(t) for t in types}
     label = lambda ts: _or_list([SESSION_TYPES.get(t, t) for t in ts]).replace(" or ", " and ")
@@ -580,7 +599,7 @@ def build_terms(stype=None):
         booking = "A deposit, if required, holds your date."
     elif own:
         booking = ("No deposit." if not own[1] else
-                   f"A deposit of {own[1]}% of the price holds your date." if own[0] == "pct" else f"A ${own[1]:,} deposit holds your date.")
+                   f"A deposit of {own[1]}% of the price holds your date." if own[0] == "pct" else f"A {_money(own[1])} deposit holds your date.")
     elif kinds == {"event"}:
         booking = f"A deposit of {EVENT_DEPOSIT_PCT}% of the price holds your date."
     elif not DEPOSIT_AMOUNT and "event" not in kinds:
@@ -590,7 +609,7 @@ def build_terms(stype=None):
         booking = (f"No deposit, except {label(ev_)}: a deposit of {EVENT_DEPOSIT_PCT}% of the price holds your date."
                    if EVENT_DEPOSIT_PCT else "No deposit.")
     else:
-        booking = f"A ${DEPOSIT_AMOUNT:,} deposit holds your date" + (f" ({EVENT_DEPOSIT_PCT}% for events)." if "event" in kinds else ".")
+        booking = f"A {_money(DEPOSIT_AMOUNT)} deposit holds your date" + (f" ({EVENT_DEPOSIT_PCT}% for events)." if "event" in kinds else ".")
     if stype:
         booking += f" The balance is {balance_text(stype)}."
     else:
@@ -603,7 +622,7 @@ def build_terms(stype=None):
             booking += f" {label(before)}: due {BALANCE_BEFORE_DAYS} days before the session."
         if net:
             booking += f" {label(net)}: due within {BALANCE_NET_DAYS} days of the invoice."
-    out = [("Booking", booking), ("Payment", payment_text())]
+    out = [("Booking", booking), ("Payment", payment_text(business))]
     outfits = any(POLICY[t]["outfits"] for t in types)
     if kinds <= {"property"}:
         out.append(("What I provide", "Photography of what we agreed on, at the place and time we agreed on."))

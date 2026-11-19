@@ -49,7 +49,7 @@ def test_a_stale_intake_tab_on_the_session_page_and_a_fresh_one(tmp_path, monkey
     A, c = _app(tmp_path, monkeypatch)
     sid = _new(A, c, "family", subject_name="Ava")
     act = f"/session/{sid}/intake"
-    old = _stamp(c.get(f"/session/{sid}", environ_base=E).get_data(as_text=True), act)
+    old = _stamp(c.get(f"/session/{sid}/edit", environ_base=E).get_data(as_text=True), act)
     assert c.post(act, data={**INTAKE, "seen": old, "who": "Ava"}, environ_base=E).status_code == 302
     r = c.post(act, data={**INTAKE, "seen": old, "who": "Ava, Ben"}, environ_base=E)
     assert r.status_code == 409 and "This session " + CLASH in r.get_data(as_text=True)
@@ -63,7 +63,7 @@ def test_the_delivery_form_refuses_a_stale_tab(tmp_path, monkeypatch):
     con.commit()
     con.close()
     act = f"/session/{sid}/delivery"
-    old = _stamp(c.get(f"/session/{sid}", environ_base=E).get_data(as_text=True), act)
+    old = _stamp(c.get(f"/session/{sid}/edit", environ_base=E).get_data(as_text=True), act)
     r = c.post(act, data={"seen": old, "retouch_picks": "12 brighten, 40 crop"}, environ_base=E)
     assert r.status_code == 302
     r = c.post(act, data={"seen": old, "retouch_picks": "", "favorites": "7"}, environ_base=E)
@@ -121,7 +121,7 @@ def test_prepare_quote_is_named_for_what_it_does_and_never_numbers_twice(tmp_pat
     assert len(vids) == 1 and r1.location == r2.location and r2.location.endswith(f"/quote/{vids[0]}")
     assert len(_q(A, "SELECT 1 FROM audit WHERE route=?", (f"/session/{sid}/quote/send",))) == 1
     page = _stage(c, sid)
-    assert f">Open quote {vids[0]}<" in page and ">Prepare quote<" not in page
+    assert ">Send the quote<" in page and ">Prepare quote<" not in page
     _line(c, sid, "50")
     assert ">Prepare updated quote<" in _stage(c, sid)
     c.post(f"/session/{sid}/quote/send", data={"total": "350.00"}, environ_base=E)

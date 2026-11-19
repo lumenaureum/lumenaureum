@@ -553,7 +553,7 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
         if not complete() and "galleries" in done() and not any(
                 r_["seen"] and not r_["seen"].get("refused") for r_ in cert_rows()):
 
-            return nxt("galleries")
+            return redirect(url_for("setup_step", step="galleries", cert="trusted", go=1) + "#hostcaps")
         return redirect(url_for("setup_step", step="galleries", cert="trusted") + "#webcert")
 
     @app.post("/setup/web-cert/refuse", endpoint="setup_web_cert_refuse")
@@ -814,8 +814,6 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
         try:
             one = lambda sql: con.execute(sql).fetchone()[0]
             clients = one("SELECT COUNT(*) FROM households WHERE COALESCE(demo, 0)=0")
-            versions = one("SELECT COUNT(*) FROM fee_schedules")
-            starter = one("SELECT note FROM fee_schedules ORDER BY id LIMIT 1") if versions else ""
         finally:
             con.close()
         cfg = VW.config()
@@ -825,10 +823,9 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
         if get("atrest_upgraded"):
             items.append(("Delete the unencrypted snapshots and copies made before the upgrade", url_for("security")))
         if get("doc_reviews") in (None, "", "{}"):
-            items.append(("Read your documents and mark each one reviewed: until then they print as SAMPLE",
+            items.append(("Your documents print as SAMPLE until approved: approve each where you use it, or read them all here",
                           url_for("settings_view", tab="documents")))
-        if versions <= 1 and starter == "Starting estimates":
-            items.append(("Set your own prices: the starter prices are placeholders", url_for("settings_view") + "#fees"))
+
         if not get("business_email"):
             items.append(("Add your business email (clients' gallery picks are sent there)", url_for("setup_step", step="business")))
         if backups_share_disk(cfg):
@@ -843,6 +840,20 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
         return items
 
     app.config["finish_items"] = finish_items
+
+    def urgent_items():
+
+        if not complete():
+            return []
+        items = []
+        if get("atrest_upgraded"):
+            items.append(("Delete the unencrypted snapshots and copies made before the upgrade", url_for("security")))
+        if backups_share_disk(VW.config()):
+            items.append(("Your backups are on the same disk as your data: move the vault or add a second location",
+                          url_for("setup_step", step="storage")))
+        return items
+
+    app.config["urgent_items"] = urgent_items
 
     def tz_prompt():
 
@@ -1102,7 +1113,10 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             if request.method == "POST" and request.form.get("gallery_type"):
                 gal = backend_from_form(request.form, "gallery_", gal) or gal
             base.update(s3_certs=s3_cert_rows(step), s3cert_msg=g_s3msg())
+            go_on = (url_for("setup_step", step=SLUGS[SLUGS.index("galleries") + 1])
+                     if request.args.get("go") and not complete() and "galleries" in done() else "")
             base.update(gallery=gal, host_caps=host_caps(), web_certs=cert_rows(), cert_msg=request.args.get("cert", ""),
+                        go_on=go_on,
                         gallery_marked=gal.get("type") == "local" and
                         os.path.isfile(os.path.join(gal.get("path", ""), B.LocalBackend.MARKER)))
         elif step == "network":

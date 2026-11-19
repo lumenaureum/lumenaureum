@@ -1,20 +1,14 @@
-{% extends "base.html" %}{% from "_macros.html" import phone with context %}
-{% block title %}Clients - Lumen Aureum{% endblock %}{% block body %}
-<div class="page-head"><div class="grow"><div class="kicker">Clients</div><h1>All clients</h1></div>
-  <form method="get"><input name="q" value="{{ term }}" placeholder="Filter clients" aria-label="Filter clients" style="width:260px"></form></div>
-<div class="surface wrapx">
-<table class="data">
-  <thead><tr><th>Client</th><th class="opt">People</th><th>Contact</th><th class="opt">Source</th><th class="n">Open</th><th class="n opt">Sessions</th><th class="opt">Last contact</th></tr></thead>
-  <tbody>{% for h in rows %}<tr class="rowlink" data-href="{{ url_for('client_view', hid=h.id) }}">
-    <td><a href="{{ url_for('client_view', hid=h.id) }}"><b>{{ h.name }}</b></a></td>
-    <td class="opt mute">{{ h.members or '' }}</td>
-    <td>{% if h.reach and '@' not in h.reach %}{{ phone(h.reach) }}{% elif h.reach %}<a href="mailto:{{ h.reach }}">{{ h.reach }}</a>{% else %}-{% endif %}</td>
-    <td class="opt">{{ h.source or '' }}{% if h.referrer %} <span class="sub" style="font-size:12px">via {{ h.referrer }}</span>{% endif %}</td>
-    <td class="n">{{ h.n_open or '' }}</td>
-    <td class="n opt">{{ h.n_sessions }}</td>
-    <td class="opt" data-v="{{ h.last_touch or '' }}">{{ nice(h.last_touch) or '-' }}</td>
-  </tr>{% else %}<tr><td colspan="7" class="empty">No one yet</td></tr>{% endfor %}</tbody>
-</table></div>
-<div class="sub" style="margin-top:8px;font-size:13px">{{ rows|length }} client{{ '' if rows|length == 1 else 's' }}</div>
+{% extends "base.html" %}{% import "_ui.html" as ui with context %}{% import "_ui_roster.html" as ur with context %}
+{% block title %}Clients - Lumen Aureum{% endblock %}
+
+{% block body %}
+<div class="ui-page" data-ui-layout="clients">
+{{ ui.page_head('Clients', status=n_all ~ (' client' if n_all == 1 else ' clients'), sub=ui.go(url_for('contact_new'), 'New contact')) }}
+{% call ui.section(id='client-rows') %}
+{{ ur.roster('clients', cols, rows, sort, desc, term, url_for('clients'), placeholder='Find a name, phone, email or label',
+             empty=('No one matches.' if term or rows else 'No one yet.')) }}
+{% endcall %}
+</div>
+<script src="{{ url_for('static', filename='roster.js', v=static_v('roster.js')) }}"></script>
 {% endblock %}
 

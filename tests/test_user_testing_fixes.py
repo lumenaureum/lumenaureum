@@ -66,6 +66,7 @@ def test_a_signed_agreement_keeps_its_words(tmp_path, monkeypatch):
     c.post("/settings/wording/agreement", data={"text": "# Changed\nBRAND NEW WORDS for [CLIENT]"}, environ_base=E)
     page = c.get(f"/session/{sid}/agreement", environ_base=E).get_data(as_text=True)
     assert "BRAND NEW WORDS" not in page and "Who this is between" in page
+    assert "wording-here-text" not in page and ">Approve this wording<" not in page
     did = _q(A, "SELECT id FROM documents WHERE session_id=? AND kind='agreement'", (sid,))[0][0]
     c.post(f"/doc/{did}", data={"signed_on": ""}, environ_base=E)
     page = c.get(f"/session/{sid}/agreement", environ_base=E).get_data(as_text=True)
@@ -144,7 +145,7 @@ def test_portfolio_discount_and_declining_it(tmp_path, monkeypatch):
     form = {"questions": "\n".join(q for _, q in C.INTAKE["family"]), "notice_hours": "48", "late_minutes": "30",
             "delivery": "online", "weather": "rain date", "license_use": "x", "portfolio_value": "25", "portfolio_mode": "amt"}
     c.post("/settings/type/family", data=form, environ_base=E)
-    assert C.portfolio_discount_words("family") == "$25"
+    assert C.portfolio_discount_words("family") == "$25.00"
     with A.app.test_request_context():
         A.db()
         sid = A.create_session(1, "family")
@@ -206,8 +207,10 @@ def test_retouch_notes_show_where_the_work_is(tmp_path, monkeypatch):
     with A.app.test_request_context():
         A.db()
         acts = A.build_actions(only_sid=sid)
-    assert any(a.get("detail") == "IMG_0412.jpg: soften the shadow" for a in acts if a["what"].startswith("Send retouched"))
-    assert "soften the shadow" in c.get(f"/session/{sid}", environ_base=E).get_data(as_text=True)
+
+    assert any(p_["name"] == "IMG_0412.jpg" and p_["note"] == "soften the shadow"
+               for a in acts if a["what"] == "Retouch 1 photo" for p_ in a["retouch"])
+    assert "soften the shadow" in c.get(f"/session/{sid}/edit", environ_base=E).get_data(as_text=True)
 
 def test_several_people_at_once(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)

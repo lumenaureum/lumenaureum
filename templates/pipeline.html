@@ -1,24 +1,19 @@
-{% extends "base.html" %}
-{% block title %}Board - Lumen Aureum{% endblock %}{% block body %}
-<div class="page-head"><div class="grow"><div class="kicker">Sessions</div><h1>Board</h1></div><a class="btn" href="{{ url_for('sessions') }}">List</a>
-  <a class="btn" href="{{ url_for('pipeline', lost=0 if show_lost else 1) }}">{{ 'Hide' if show_lost else 'Show' }} lost ({{ cols['lost']|length }})</a></div>
-<div class="board">
-{% for st in C.STAGES + (C.OFF_PIPELINE if show_lost else []) %}
-  <div class="col"><h3>{{ stage_label[st] }} <span>{{ cols[st]|length }}</span></h3>
-  {% for c in cols[st] %}
-    {% if c.event %}
-    <a class="tile event" href="{{ url_for('event_view', eid=c.id) }}">
-      <div class="name">{{ c.name }}</div>
-      <div class="meta">{{ c.n }} famil{{ 'y' if c.n == 1 else 'ies' }} - {{ nice(c.date) or 'No date' }}</div>
-    </a>
-    {% else %}{% set s = c.s %}
-    <a class="tile" href="{{ url_for('session_view', sid=s.id) }}">
-      <div class="name">{{ s.household }}</div>
-      <div class="meta">{{ type_label[s.type] }}</div>{% set bh_ = booked_hint(s.id) %}{% if bh_ %}<div class="meta stage-hint">{{ bh_|capitalize }}</div>{% endif %}
-      <div class="meta">{{ nice(s.shoot_date) or 'No date' }}{% if c.quoted %} - {{ money(c.quoted) }}{% endif %}</div>
-    </a>
-    {% endif %}
-  {% endfor %}</div>
+{% extends "base.html" %}{% import "_ui.html" as ui with context %}
+{% block title %}Board - Lumen Aureum{% endblock %}
+
+{% block body %}
+<div class="ui-page" data-ui-layout="board">
+{{ ui.page_head('Board', kicker='Sessions', status='By stage', sub=ui.go(url_for('sessions'), 'Sessions list')) }}
+{% for st in C.STAGES + C.OFF_PIPELINE %}{% set n_ = cols[st]|length %}
+  {% set body_ %}{% for c in cols[st] %}
+    {% if c.event %}{{ ui.list_row(url_for('event_view', eid=c.id), c.name, c.n ~ (' family' if c.n == 1 else ' families') ~ ', ' ~ (nice(c.date) or 'No date'), ui.chip(stage_label[st])) }}
+    {% else %}{% set s = c.s %}{% set bh_ = booked_hint(s.id) %}
+    {{ ui.list_row(url_for('client_stage', hid=s.household_id, s=s.id), s.household,
+                   [type_label[s.type], nice(s.shoot_date) or 'No date'] |join(', ') ~ (', ' ~ money(c.quoted) if c.quoted else '') ~ (' · ' ~ bh_|capitalize if bh_ else ''),
+                   ui.chip(stage_label[st], 'done' if st in ('closed', 'lost') else ('attention' if bh_ else 'neutral'))) }}
+    {% endif %}{% endfor %}{% if not n_ %}<p class="ui-mute">None</p>{% endif %}{% endset %}
+  {% if st in ('closed', 'lost') %}{% call ui.fold(stage_label[st], count=n_, id='stage-' ~ st, open=(st == 'lost' and show_lost)) %}{{ body_ }}{% endcall %}
+  {% else %}{% call ui.section(stage_label[st] ~ ' (' ~ n_ ~ ')', id='stage-' ~ st) %}{{ body_ }}{% endcall %}{% endif %}
 {% endfor %}
 </div>
 {% endblock %}

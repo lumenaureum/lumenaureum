@@ -1,7 +1,7 @@
-{% from "_doc_bar.html" import doc_bar, draft with context %}<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Statement {{ v.title }} - {{ v.bill_to }}</title>
+{% from "_doc_bar.html" import doc_bar, draft with context %}{% import "_ui.html" as ui with context %}<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Statement {{ v.title }} - {{ v.bill_to }}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 {% include "_doc_style.html" %}</head><body>
-{% if not pdf %}{% set nav %}<a href="{{ url_for('statement', hid=v.hid, m=v.prev) }}">&lsaquo; {{ v.prev|month }}</a><a href="{{ url_for('statement', hid=v.hid, m=v.next) }}">{{ v.next|month }} &rsaquo;</a>{% endset %}{{ doc_bar(v.pdf_url, v.back, before=nav) }}{% endif %}
+{% if not pdf %}{% set nav %}{{ ui.button_link(url_for('statement', hid=v.hid, m=v.prev), '&lsaquo; '|safe ~ (v.prev|month)) }}{{ ui.button_link(url_for('statement', hid=v.hid, m=v.next), (v.next|month) ~ ' &rsaquo;'|safe) }}{% endset %}{{ doc_bar(v.pdf_url, v.back, before=nav) }}{% endif %}
 <div class="page">
   {% include "_doc_logo.html" %}
   <h1>Statement, {{ v.title }}</h1>

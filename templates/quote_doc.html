@@ -1,11 +1,12 @@
-{% from "_doc_bar.html" import doc_bar, draft with context %}<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Quote - {{ v.client }}</title>
+{% from "_doc_bar.html" import doc_bar, draft, plain_bar, sample_prices with context %}{% import "_ui.html" as ui with context %}<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Quote - {{ v.client }}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 {% include "_doc_style.html" %}</head><body>
-{% if preview %}<div class="bar"><span class="sent" style="margin-right:auto">Preview: nothing has been sent or saved</span><form method="post" action="{{ url_for('quote_send', sid=v.sid) }}" class="inline"><input type="hidden" name="total" value="{{ total_shown }}"><button class="linkish strong" title="Numbers this quote and opens it to email, print, or mark sent">Prepare this quote</button></form><a href="{{ v.back }}" data-close>Close</a></div>
-{% elif not pdf %}{{ doc_bar(url_for('quote_doc_pdf', vid=v.id), v.back, send, v.review if not v.reviewed) }}{% endif %}
+{% if preview %}{% call plain_bar(v.back) %}<span class="ui-note">Preview: nothing has been sent or saved</span>{{ ui.action(url_for('quote_send', sid=v.sid), 'Prepare this quote', dict(total=total_shown), kind='primary', inplace=false) }}<span class="ui-note">Numbers this quote and opens it to email, print, or mark sent.</span>{% endcall %}
+{% elif not pdf %}{{ doc_bar(url_for('quote_doc_pdf', vid=v.id), v.back, send, v.review if not v.reviewed, approve=v.approve if not pdf else none) }}{% endif %}
 <div class="page">
   {% include "_doc_logo.html" %}
-  {% if not v.reviewed %}{{ draft(v.review, 'wording') }}{% endif %}
+  {% if not v.reviewed %}{{ draft(v.review, 'wording', v.approve, pdf) }}{% endif %}
+  {{ sample_prices(v.schedule_id, pdf) }}
   <h1>Quote for {{ v.client_company or v.client }}</h1>
   <p class="sub">{{ [v.photographer, v.business, v.sent_long, 'good through ' ~ v.expires_long]|select|join(' - ') }}</p>
   {% include "_doc_contact.html" %}
@@ -21,10 +22,10 @@
   </table>
   <div class="promise"><b>Every edited image is included.</b></div>
   <h2>Terms</h2>
-  <table>{% for head, txt in v.terms %}<tr><td style="width:170px"><b>{{ head }}</b></td><td>{{ txt }}</td></tr>{% endfor %}</table>
+  <table>{% if v.license_terms %}<tr><td style="width:170px"><b>License</b></td><td>{{ v.license_terms }}</td></tr>{% endif %}{% for head, txt in v.terms %}<tr><td style="width:170px"><b>{{ head }}</b></td><td>{{ txt }}</td></tr>{% endfor %}</table>
   <h2>What editing includes</h2>
   <div class="ed">{% for head, pts in v.editing %}<b>{{ head }}</b><ul>{% for p_ in pts %}<li>{{ p_ }}</li>{% endfor %}</ul>{% endfor %}</div>
-  <p class="foot">Quote {{ v.id or "(numbered when sent)" }}, fee schedule #{{ v.schedule_id }}. Prices on this quote hold until {{ v.expires_long }}.</p>
+  <p class="foot">Quote {{ v.id or "(numbered when sent)" }}, {{ sched_name(v.schedule_id)|lower if not sched_code(v.schedule_id) else sched_name(v.schedule_id) ~ ' (' ~ sched_code(v.schedule_id) ~ ')' }}. Prices on this quote hold until {{ v.expires_long }}.</p>
 {% include "_credit.html" %}
 </div>{% if not pdf %}<script src="{{ url_for('static', filename='ui.js', v=static_v('ui.js')) }}"></script>{% endif %}</body></html>
 

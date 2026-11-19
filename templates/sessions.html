@@ -1,33 +1,41 @@
-{% extends "base.html" %}{% from "_macros.html" import stage_pill, seg with context %}
-{% block title %}Sessions - Lumen Aureum{% endblock %}{% block body %}
-<div class="page-head"><div class="grow"><h1>Sessions</h1></div>
-  <a class="btn" href="{{ url_for('pipeline') }}">Board</a></div>
-<form class="toolbar" method="get">
-  <span class="chips row" style="gap:6px">{% for k, v in views.items() %}<a href="{{ url_for('sessions', view=k) }}" class="{{ 'on' if k == view }}">{{ v[0] }}</a>{% endfor %}</span>
-  <span class="grow"></span>
-  <input type="hidden" name="view" value="{{ view }}">
-  {{ seg('type', [('', 'All')] + C.SESSION_TYPES.items()|list, request.args.get('type', ''), attrs='data-autosubmit', label='Session type') }}
-  <label class="row" style="gap:5px;font-size:13px"><input type="checkbox" name="owing" value="1" data-autosubmit {{ 'checked' if request.args.get('owing') }}>Owing</label>
-  <input name="q" value="{{ request.args.get('q', '') }}" placeholder="Filter this list" aria-label="Filter this list">
-</form>
-<div class="surface wrapx">
-<table class="data">
-  <thead><tr><th>Client</th><th>Type</th><th>Shoot</th><th>Stage</th><th class="opt">Next step</th><th class="opt">Paperwork</th><th class="n">Quote</th><th class="n">Balance</th></tr></thead>
-  <tbody>{% for r in rows %}{% set s = r.s %}
-  <tr class="rowlink" data-href="{{ url_for('session_view', sid=s.id) }}">
-    <td><a href="{{ url_for('session_view', sid=s.id) }}"><b>{{ s.household }}</b></a>{% if s.event_name %}<div class="sub" style="font-size:12px">{{ s.event_name }}</div>{% elif s.title %}<div class="sub" style="font-size:12px">{{ s.title }}</div>{% endif %}</td>
-    <td>{{ type_label[s.type] }}</td>
-    <td data-v="{{ s.shoot_date or '9999' }}">{{ nice(s.shoot_date) or 'No date' }}</td>
-    <td data-v="{{ (C.STAGES + C.OFF_PIPELINE).index(s.stage) }}">{{ stage_pill(s.stage) }}</td>
-    {% set nx = r.wf.next_step %}{% set cur = r.wf.current %}
-    <td class="opt" data-v="{{ (nx.due if nx and nx.due) or '9999' }}">{% if cur and cur.steps %}<span class="mini-bar"><span style="width:{{ (cur.n_done / cur.steps|length * 100)|round }}%"></span></span>{% endif %}
-      {% if nx %}<span class="{{ 'late' if nx.due and nx.due < today.isoformat() }}" style="{{ 'color:var(--red);font-weight:600' if nx.due and nx.due < today.isoformat() }}">{{ nx.label|todo }}</span>{% if nx.due %} <span class="sub" style="font-size:12px">{{ nice(nx.due) }}</span>{% endif %}
-      {% elif r.wf.next_stage and s.stage not in ('lost',) %}<span style="font-weight:600">Ready for {{ stage_label[r.wf.next_stage] }}</span>{% else %}<span class="sub">-</span>{% endif %}</td>
-    <td class="opt" data-v="{{ s.n_docs - s.n_signed }}">{% if s.n_docs %}<span class="pill {{ 'green' if s.n_signed == s.n_docs else 'red' }}">{{ s.n_signed }}/{{ s.n_docs }}</span>{% endif %}</td>
-    <td class="n" data-v="{{ r.t.quoted }}">{{ money(r.t.quoted) if r.t.quoted else '-' }}</td>
-    <td class="n" data-v="{{ r.t.due }}">{{ money(r.t.due) if r.t.quoted else '-' }}</td>
-  </tr>{% else %}<tr><td colspan="8" class="empty">Nothing in this view</td></tr>{% endfor %}</tbody>
-</table></div>
-<div class="sub" style="margin-top:8px;font-size:13px">{{ rows|length }} session{{ '' if rows|length == 1 else 's' }}</div>
+{% extends "base.html" %}{% from "_macros.html" import seg with context %}{% import "_ui.html" as ui with context %}{% import "_ui_filter.html" as uf with context %}
+{% block title %}Sessions - Lumen Aureum{% endblock %}
+
+{% block body %}
+<div class="ui-page" data-ui-layout="sessions">
+{{ ui.page_head('Sessions', status=views[view][0] if view in views else views['open'][0], sub=ui.go(url_for('pipeline'), 'Board by stage')) }}
+
+<nav class="ui-btnrow" aria-label="Which sessions">{% for k, v in views.items() %}{% if k == view %}<b aria-current="page">{{ v[0] }}</b>{% else %}{{ ui.go(url_for('sessions', view=k), v[0]) }}{% endif %}{% endfor %}</nav>
+
+
+{% set stages_ = [] %}{% set types_ = [] %}{% set owing_ = [] %}{% set labs_ = [] %}
+{% for r in rows %}{% set _ = stages_.append(stage_label[r.s.stage]) %}{% set _ = types_.append(type_label[r.s.type] if not r.s.event_name else 'Group event') %}{% if r.f.owing %}{% set _ = owing_.append('Owing') %}{% endif %}{% set _ = labs_.extend(r.f.labels) %}{% endfor %}
+{{ uf.filter_bar('sessions', today_iso, groups=[dict(key='stage', label='Stage', values=stages_), dict(key='type', label='Type', values=types_),
+                 dict(key='money', label='Money', values=owing_), dict(key='label', label='Labels', values=labs_)],
+                 q=request.args.get('q', ''), placeholder='Name, title or event', noun='sessions', keep=dict(view=view), server=true) }}
+
+{% call ui.section(rows|length ~ (' session' if rows|length == 1 else ' sessions'), id='session-rows') %}
+{% for r in rows %}{% set s = r.s %}{% set nx = r.wf.next_step %}
+  
+  {%- set item_, tone_ = '', 'neutral' -%}
+  {%- if s.stage == 'lost' -%}{% set item_ = s.lost_reason or '' %}
+  {%- elif r.next and r.next.a -%}
+    {%- set nd_ = (r.next.when or '')[:10] -%}{% set item_ = r.next.what ~ (', due ' ~ nice(nd_) if nd_ else '') %}
+    {%- if nd_ and nd_ < today.isoformat() %}{% set tone_ = 'late' %}{% elif nd_ and nd_ <= (today + delta3).isoformat() %}{% set tone_ = 'attention' %}{% endif -%}
+  {%- elif nx -%}{% set item_ = nx.label|todo ~ (', due ' ~ nice(nx.due) if nx.due else '') %}
+    {%- if nx.due and nx.due < today.isoformat() %}{% set tone_ = 'late' %}{% elif nx.due and nx.due <= (today + delta3).isoformat() %}{% set tone_ = 'attention' %}{% endif -%}
+  {%- elif r.wf.next_stage -%}{% set item_ = 'Ready for ' ~ stage_label[r.wf.next_stage] %}{% set tone_ = 'attention' %}
+  {%- elif r.t.quoted and r.t.due > 0.005 and s.stage in ('shot', 'delivered', 'closed') -%}{% set item_ = money(r.t.due) ~ ' owed' %}
+  {%- endif -%}
+  {%- if s.stage in ('closed', 'lost') and tone_ == 'neutral' %}{% set tone_ = 'done' %}{% endif -%}
+  {%- set sub_ = [type_label[s.type], nice(s.shoot_date) or 'No date'] + ([s.event_name or s.title] if s.event_name or s.title else []) -%}
+  <div class="ui-fitem" {{ uf.item(r.f.status, r.f.due, dict(stage=stage_label[s.stage], type=type_label[s.type] if not s.event_name else 'Group event', money='Owing' if r.f.owing else '', label=r.f.labels)) }}>
+  {{ ui.list_row(url_for('client_stage', hid=s.household_id, s=s.id), s.household,
+                 sub_|join(', ') ~ (' · ' ~ item_ if item_ else ''),
+                 ui.chip(stage_label[s.stage], tone_, tip=item_)) }}</div>
+{% else %}<p class="ui-mute">Nothing in this view.</p>{% endfor %}
+{% endcall %}
+</div>
+<script src="{{ url_for('static', filename='filters.js', v=static_v('filters.js')) }}"></script>
 {% endblock %}
 

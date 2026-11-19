@@ -150,7 +150,7 @@ def test_back_office_forms_name_every_field(tmp_path, monkeypatch):
     urls += ["/", "/sessions", "/events", "/vault"]
     urls += [f"/client/{h}" for h in hids] + [f"/event/{e}" for e in eids]
     for sid in sorted(set(stages.values()) | set(sids[:12])):
-        urls += [f"/session/{sid}", f"/c/{hid_of[sid]}?s={sid}"]
+        urls += [f"/session/{sid}/edit", f"/c/{hid_of[sid]}?s={sid}"]
     key = next(iter(C.SESSION_TYPES))
     for n in range(40):
         r = c.get(f"/settings/type/{key}/walk/{n}", environ_base=E)

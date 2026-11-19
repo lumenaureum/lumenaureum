@@ -96,7 +96,7 @@ def test_price_change_after_payment_is_a_correction_this_year(env):
     pay(c, 1, "refund", 54, "2026-02-02")
     assert (tax_of(A, 2025), tax_of(A, 2026)) == (40.0, -4.0)
     page = c.get("/money?year=2026", environ_base=E).get_data(as_text=True)
-    assert "$4 taken back this year on money received earlier" in text(page)
+    assert "$4.00 taken back this year on money received earlier" in text(page)
 
 def test_a_voided_payment_after_a_write_off_brings_the_write_off_back(env):
     A, c, freeze = env
@@ -216,7 +216,8 @@ def test_canceled_booking_profit_and_wording(env):
     t = tot(A, 1)
     assert (t["kept"], t["refund_due"]) == (100, 430)
     assert round(t["profit"], 2) == round(100 - 100 * 30 / 530, 2)
-    assert "Refund $430 (canceled; the $100 deposit is kept)" in c.get("/", environ_base=E).get_data(as_text=True)
+
+    assert "Lane canceled. Refund owed: $430.00. Deposit of $100.00 is retained." in c.get("/", environ_base=E).get_data(as_text=True)
     household(A, 2, "Ruiz")
     session(A, 2, 2, "quoted", "2027-12-01")
     line(c, 2, "Session", 200)
@@ -226,8 +227,8 @@ def test_canceled_booking_profit_and_wording(env):
     post(c, "/session/2/stage", stage="lost", lost_reason="No-show")
     assert (tot(A, 2)["kept"], tot(A, 2)["refund_due"]) == (0, 50)
     today_ = text(c.get("/", environ_base=E).get_data(as_text=True))
-    assert "Refund $50 (no-show; no deposit to keep)" in today_
-    assert "no deposit to keep, all of it goes back" in text(c.get("/session/2", environ_base=E).get_data(as_text=True))
+    assert "Ruiz did not show. Refund owed: $50.00." in today_ and "retained" not in today_.split("Ruiz did not show", 1)[1][:80]
+    assert "no deposit to keep, all of it goes back" in text(c.get("/session/2/edit", environ_base=E).get_data(as_text=True))
     assert "No-show, deposit kept" not in text(c.get("/client/2/statement?m=2026-04", environ_base=E).get_data(as_text=True))
 
 def test_payments_from_before_the_update_read_and_fill_as_before(env):

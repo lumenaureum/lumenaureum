@@ -46,9 +46,9 @@ def test_people_columns_follow_the_client(tmp_path, monkeypatch):
     con.close()
     if pet:
         page = c.get(f"/client/{pet[0]}", environ_base=E).data.decode()
-        assert "<th>Grad year</th>" not in page
+        assert "<span>Grad year</span>" not in page
     if senior:
-        assert "<th>Grad year</th>" in c.get(f"/client/{senior[0]}", environ_base=E).data.decode()
+        assert "<span>Grad year</span>" in c.get(f"/client/{senior[0]}", environ_base=E).data.decode()
 
 def test_same_name_notice(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)

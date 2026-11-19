@@ -66,7 +66,7 @@ def test_a_double_click_records_a_payment_or_adds_a_line_once(env):
     import re
     A, c = env
     sid = _new_session(A)
-    page = c.get(f"/session/{sid}", environ_base=E).get_data(as_text=True)
+    page = c.get(f"/session/{sid}/edit", environ_base=E).get_data(as_text=True)
     forms = re.findall(r'name="what" value="(line|payment|expense)"><input type="hidden" name="once" value="([^"]+)"', page)
     toks = dict(forms)
     assert set(toks) == {"line", "payment", "expense"}
@@ -97,7 +97,7 @@ def test_a_double_click_on_a_paperwork_status_moves_it_one_step(env):
     con = A.connect()
     did = con.execute("SELECT id FROM documents WHERE session_id=? AND kind='release'", (sid,)).fetchone()[0]
     con.close()
-    page = c.get(f"/session/{sid}", environ_base=E).get_data(as_text=True)
+    page = c.get(f"/session/{sid}/edit", environ_base=E).get_data(as_text=True)
     assert f'action="/doc/{did}"' in page and 'name="from" value="needed"' in page
     for _ in range(2):
         c.post(f"/doc/{did}", data={"cycle": "1", "from": "needed"}, environ_base=E)
@@ -147,12 +147,14 @@ def test_a_deposit_rule_changed_mid_season_leaves_quoted_bookings_alone(env, mon
         assert A._totals(sid)["deposit_req"] == 100
     c.post(f"/session/{sid}/money", data={"what": "line", "label": "Album", "amount": "200"}, environ_base=E)
     with A.app.test_request_context():
-        assert A.totals(sid)["deposit_req"] == 100
-    con = A.connect()
-    con.execute("UPDATE sessions SET stage='quoted' WHERE id=?", (sid,))
-    con.commit(); con.close()
+        assert A.totals(sid)["quoted"] == 500 and A.totals(sid)["deposit_req"] == 100
+
+    c.post(f"/session/{sid}/quote/replace", environ_base=E)
+    c.post(f"/session/{sid}/money", data={"what": "line", "label": "Album", "amount": "200"}, environ_base=E)
+    c.post(f"/session/{sid}/quick", data={"act": "rebook"}, environ_base=E)
     with A.app.test_request_context():
-        assert A.totals(sid)["deposit_req"] == 250
+        t_ = A.totals(sid)
+        assert (t_["quoted"], t_["deposit_req"], t_["deposit_short"]) == (700, 250, 150)
 
 def test_a_family_that_dropped_out_of_an_event_is_left_alone(env):
     A, c = env

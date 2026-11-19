@@ -29,6 +29,7 @@ QUALITY = 86
 KEEP_EDGE = 2400
 MAX_PHOTOS = 24
 MAX_UPLOAD = 40 * 1024 * 1024
+KEEP_MAX = 20 * 1024 * 1024
 TAGLINE_MAX, INTRO_MAX, DESC_MAX, ABOUT_MAX, ALT_MAX = 120, 200, 300, 8000, 200
 BACKGROUNDS = (("", "Same as your galleries"), ("#f6f3ed", "Ivory"), ("#ffffff", "White"), ("#262422", "Charcoal"),
                ("#0d0c0b", "Black"))
@@ -39,7 +40,7 @@ LOCK = threading.Lock()
 JOB = {}
 READY = {}
 
-_MARK_SVG = (_REPO / "brand" / "mark-small.svg").read_text().strip() if (_REPO / "brand" / "mark-small.svg").is_file() else ""
+_MARK_SVG = (_REPO / "static" / "brand" / "mark-small.svg").read_text().strip()
 CREDIT_HTML = ('<a id="la" href="https://lumenaureum.org" rel="noopener">'
                + re.sub(r"<svg ", '<svg aria-hidden="true" focusable="false" ', _MARK_SVG, count=1)
                + '<span>Site by <b>Lumen Aureum</b><small>lumenaureum.org</small></span></a>')
@@ -54,7 +55,8 @@ class Conflict(SiteProblem):
         ed, mine, no = set(edited), [n for n in self.names if n in set(ours) and n not in set(edited)], list(declined)
         ed = [n for n in self.names if n in ed]
         other = [n for n in self.names if n not in set(ed) and n not in set(mine)]
-        self.ours, self.declined = mine, no
+        self.ours, self.declined, self.other = mine, no, other
+        self.fp = None
 
         def few(ns):
             return ", ".join(ns[:12]) + (" and more" if len(ns) > 12 else "")
@@ -348,6 +350,7 @@ footer {{ background: #141210; color: #b9ad9a; padding: 26px 20px 30px; text-ali
 #contact a {{ color: #e9e1d2; text-decoration: none; border-bottom: 1px solid #4a4237; }} #contact a:hover {{ color: #fff; }}
 #contact span {{ display: inline-block; }}
 #contact span + span::before {{ content: "\\00b7"; margin: 0 10px; color: #6e6455; }}
+@media (max-width: 560px) {{ #contact span {{ display: block; margin: 2px 0; }} #contact span + span::before {{ content: none; }} }}
 #addr {{ margin: 0 0 14px; }}
 #rights {{ margin: 0 0 14px; font-size: 12px; color: #8f8474; }}
 #la {{ display: inline-flex; align-items: center; gap: 10px; color: #b9ad9a; text-decoration: none; letter-spacing: .03em; text-align: left; }}
@@ -364,6 +367,8 @@ footer {{ background: #141210; color: #b9ad9a; padding: 26px 20px 30px; text-ali
 .vf .af {{ top: 50%; left: 50%; width: 5%; height: 7.5%; transform: translate(-50%, -50%); border: 2px solid #c9463d; }}
 .readout {{ margin-top: 14px; font: 14px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: .12em; color: var(--mute); }}
 .lost h1 {{ font: 400 clamp(24px, 4vw, 32px)/1.2 var(--title); margin: 5vh 0 0; letter-spacing: .04em; }}
+h1, h2, .tagline {{ text-wrap: balance; }}
+p {{ text-wrap: pretty; }}
 .lost p {{ margin: .8em 0 0; color: var(--mute); }}
 .lost a {{ display: inline-block; margin-top: 2em; text-decoration: none; border-bottom: 1px solid var(--gold);
   letter-spacing: .16em; font-size: 13px; text-transform: uppercase; }}
@@ -468,7 +473,7 @@ PAGE = """<!doctype html>
 </div>
 {% elif page == 'contact' %}<div class="text">
 <h2>Send an inquiry</h2>
-{% if form %}<p>Ask about a session, a date, or anything else. {{ owner }} will write back or call.</p>
+{% if form %}<p id="inq-intro">Ask about a session, a date, or anything else. {{ owner }} will write back or call.</p>
 {% if form_off %}<p class="note">Preview: sending is off. The form works once the site is on your web host.</p>
 {% endif %}<form id="inq" class="inq" hidden novalidate data-key="{{ form.key }}" data-work="{{ form.work }}" data-post="{{ root }}inquiry.php"{% if form_off %} data-off="1"{% endif %}
   data-thanks="Thanks. Your inquiry is on its way to {{ owner }}." data-fail="It couldn't be sent just now.{% if email %} Please write to {{ email }} instead.{% endif %}">
@@ -476,7 +481,7 @@ PAGE = """<!doctype html>
   <p><label for="inq-email">Email</label><input id="inq-email" name="email" type="email" maxlength="254" autocomplete="email"></p></div>
   <div class="two"><p><label for="inq-phone">Phone <span>(optional)</span></label><input id="inq-phone" name="phone" type="tel" maxlength="40" autocomplete="tel"></p>
   <p><label for="inq-date">Preferred date <span>(optional)</span></label><input id="inq-date" name="date" type="date" min="{{ year }}-01-01" max="2100-12-31"></p></div>
-  <p><label for="inq-type">What kind of session</label><select id="inq-type" name="type"><option value="">Not sure yet</option>{% for k, l in form.types %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></p>
+  <p><label for="inq-type">What kind of session</label><select id="inq-type" name="type"><option value="">Not sure yet</option>{% for k, l in form.types %}<option value="{{ k }}">{{ l }}</option>{% endfor %}<option value="other">Other (explain below)</option></select></p>
   <p><label for="inq-message">Message</label><textarea id="inq-message" name="message" rows="6" maxlength="3000"></textarea></p>
   <p class="hp" aria-hidden="true"><label for="inq-website">Leave this empty</label><input id="inq-website" name="website" tabindex="-1" autocomplete="off"></p>
   <p class="send"><button type="submit">Send</button> <span class="sub">Name, and an email or a phone number, please.</span></p>
@@ -598,6 +603,11 @@ def build_site(out_dir, conf, photos):
                 fav = True
             except Exception:
                 fav = None
+        if not fav:
+            brand = _REPO / "static" / "brand"
+            put("favicon.ico", (brand / "favicon.ico").read_bytes())
+            put("apple-touch-icon.png", (brand / "apple-touch-icon.png").read_bytes())
+            fav = True
         draft = bool(conf.get("draft"))
         site_url, site_path = conf.get("site_url") or "", conf.get("site_path") or "/"
         link_url = "" if draft else site_url
@@ -656,6 +666,8 @@ def build_site(out_dir, conf, photos):
                     + ([site_url + "contact/"] if common["contact_page"] else [])
                 put("sitemap.xml", '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
                     + "".join(f"  <url><loc>{_html.escape(u)}</loc></url>\n" for u in locs) + "</urlset>\n")
+            if conf.get("llms", True):
+                put("llms.txt", llms_text(conf, about, site_url, common["contact_page"], bool(form and not form_off)))
             if conf.get("htaccess"):
                 put(".htaccess", f"ErrorDocument 404 {site_path}404.html\n")
         old = out_dir.parent / f".{out_dir.name}.old"
@@ -668,6 +680,38 @@ def build_site(out_dir, conf, photos):
         shutil.rmtree(tmp, ignore_errors=True)
         raise
     return Built(out_dir, sorted(files), pub)
+
+def _plain(text_):
+
+    t_ = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text_ or "")
+    return " ".join(t_.replace("#", " ").replace("*", " ").split())
+
+def llms_text(conf, about, site_url, contact_page, form_on):
+
+    root = site_url or ""
+    name = conf["name"]
+    out = [f"# {name}", ""]
+    if (conf.get("tagline") or "").strip():
+        out += [f"> {conf['tagline'].strip()}", ""]
+    if (conf.get("intro") or "").strip():
+        out += [conf["intro"].strip(), ""]
+    first = ""
+    for line in (conf.get("about") or "").replace("\r\n", "\n").split("\n\n"):
+        if line.strip() and not line.strip().startswith("##"):
+            first = _plain(line)
+            break
+    if first:
+        out += [first[:400], ""]
+    if (conf.get("address") or "").strip():
+        out += [f"Where: {conf['address'].strip()}", ""]
+    out += ["## Pages", "", f"- [Home]({root or './'}): photos of the work"]
+    if about:
+        out.append(f"- [About]({root}about/): about {name}")
+    if contact_page:
+        how = ("the inquiry form on the Contact page" if form_on else
+               (f"email {conf['email']}" if conf.get("email") else "the details on the Contact page"))
+        out.append(f"- [Send an inquiry]({root}contact/): {how}")
+    return "\n".join(out) + "\n"
 
 def clear_build(name):
 
@@ -788,7 +832,7 @@ def clean_inquiry(data, types):
         out["message"], out["cut"] = out["message"][:INQ_CUT], True
     if out["email"] and not EMAIL_OK.fullmatch(out["email"]):
         out["email"] = ""
-    if out["type"] not in dict(types):
+    if out["type"] not in dict(types) and out["type"] != "other":
         out["type"] = ""
     try:
         d_ = date.fromisoformat(out["date"])
@@ -807,7 +851,7 @@ INQ_DIR = "inquiries"
 
 SITE_TOP_NAMES = frozenset({"photos", "assets", "about", "contact", INQ_DIR, "index.html", "404.html", "sealed.php",
                             "inquiry.php", "robots.txt", "sitemap.xml", ".htaccess", "favicon.ico",
-                            "apple-touch-icon.png"})
+                            "apple-touch-icon.png", "llms.txt"})
 
 def reserved_folder(name):
 
@@ -961,7 +1005,7 @@ def _owned(v):
     return v if isinstance(v, tuple) else (v, None)
 
 def publish(host, out_dir, owned, folder, kind="", on_put=lambda name, size, sha: None, on_forget=lambda name: None,
-            progress=lambda done, total: None, hold=(), on_left=None, edited=()):
+            progress=lambda done, total: None, hold=(), on_left=None, edited=(), replace=()):
 
     out_dir = Path(out_dir)
     files = sorted((str(p.relative_to(out_dir)).replace(os.sep, "/") for p in out_dir.rglob("*") if p.is_file()), key=_order)
@@ -973,7 +1017,7 @@ def publish(host, out_dir, owned, folder, kind="", on_put=lambda name, size, sha
     if kind == "s3" and ".htaccess" in files:
         files.remove(".htaccess")
     with host.session():
-        theirs = [n for n in files if n not in owned and host.stat(n) is not None]
+        theirs = [n for n in files if n not in owned and n not in replace and host.stat(n) is not None]
         if ".htaccess" in theirs:
             theirs.remove(".htaccess")
             files.remove(".htaccess")
@@ -1028,127 +1072,123 @@ def take_down(host, owned, folder, on_forget=lambda name: None, on_left=None):
             host.remove_dir(d + "/")
     return removed, left
 
-SETTINGS_PAGE = """{% extends "base.html" %}
+SETTINGS_PAGE = """{% extends "base.html" %}{% import "_ui.html" as ui with context %}{% from "_macros.html" import help with context %}
 {% block title %}Studio page - Lumen Aureum{% endblock %}
 {% block body %}
-<h1>Studio page</h1>
+{#- The studio page editor, built from the shared components (1.5.0). The inquiries block below is left as it is: it
+    moves to Today. -#}
+{{ ui.page_head('Studio page') }}
 {% if request.args.get('saved') %}<p class="ok-msg" style="color:var(--gold)">Saved.</p>{% endif %}
-<form method="post" action="{{ url_for('studio_page_switch') }}" class="card f" style="max-width:720px;margin-top:4px">
+<form method="post" action="{{ url_for('studio_page_switch') }}" class="ui-sec f" style="max-width:720px">
   <p style="font-size:13px;margin:0">A small public website for your studio, in the look of your galleries: a few photos you pick, an About page, and how to reach you, with an inquiry form. It goes to your web host, in the folder above your galleries (your galleries stay as they are), only when you press Upload. No tracking, nothing loaded from anywhere else.</p>
   <label class="row" style="gap:6px"><input type="checkbox" name="use" value="1" data-autosubmit {{ 'checked' if on }}>Use the studio page</label>
-  <noscript><div><button class="quiet">Save</button></div></noscript>
+  <noscript><div><button class="ui-btn ui-btn-quiet">Save</button></div></noscript>
 </form>
 {% if on %}
-<form method="post" action="{{ url_for('studio_page_save') }}" class="card f" style="max-width:720px" id="words">
-  <h2>Words</h2>
+<form method="post" action="{{ url_for('studio_page_save') }}" class="ui-sec f" style="max-width:720px" id="words">
+  <h2 class="ui-sec-title">Words</h2>
   <div class="f2"><div><label class="l" for="sp-name">Name at the top</label><input id="sp-name" name="site_name" maxlength="120" value="{{ v.site_name }}" placeholder="{{ d.name }}"></div>
     <div><label class="l" for="sp-tag">Line under the name</label><input id="sp-tag" name="site_tagline" maxlength="{{ L.tag }}" value="{{ v.site_tagline }}" placeholder="Photographer · Your town"></div></div>
-  <div><label class="l" for="sp-intro">One line about your work (home page)</label><input id="sp-intro" name="site_intro" maxlength="{{ L.intro }}" value="{{ v.site_intro }}" placeholder="Portraits · Families · Weddings"></div>
+  <div><label class="l" for="sp-intro">One line about your work{{ help("Shown on the home page.") }}</label><input id="sp-intro" name="site_intro" maxlength="{{ L.intro }}" value="{{ v.site_intro }}" placeholder="Portraits · Families · Weddings"></div>
   <div><label class="l" for="sp-desc">Short description, for search results and link previews</label><input id="sp-desc" name="site_description" maxlength="{{ L.desc }}" value="{{ v.site_description }}"></div>
   <div><label class="l" for="sp-about">About</label><textarea id="sp-about" name="site_about" rows="12" maxlength="{{ L.about }}">{{ v.site_about }}</textarea>
     <div class="sub" style="font-size:12.5px;margin-top:4px">A blank line starts a new paragraph; the first one is shown larger. A line starting with ## is a small heading. A link: [words](https://example.com). Leave it empty for no About page.</div></div>
-  <div class="sub" style="font-size:13px">Contact: {% if contact %}{{ contact | join(' · ') }}{% else %}<span class="mute">none yet</span>{% endif %}. These come from <a class="go" href="{{ url_for('settings_view') }}">Settings, General &rsaquo;</a></div>
+  <div class="sub" style="font-size:13px">Contact: {% if contact %}{{ contact | join(' · ') }}{% else %}<span class="mute">none yet</span>{% endif %}. These come from {{ ui.go(url_for('settings_view', tab='general'), 'Settings, General') }}</div>
   <div class="row" style="gap:18px;flex-wrap:wrap">
     <label class="row" style="gap:6px"><input type="checkbox" name="site_show_phone" value="1" {{ 'checked' if v.site_show_phone != '0' }}>Show the phone number</label>
     <label class="row" style="gap:6px"><input type="checkbox" name="site_show_address" value="1" {{ 'checked' if v.site_show_address != '0' }}>Show the mailing address</label>
-    <label class="row" style="gap:6px"><input type="checkbox" name="site_inquiries" value="1" {{ 'checked' if v.site_inquiries != '0' }}>An inquiry form</label></div>
+    <label class="row" style="gap:6px"><input type="checkbox" name="site_inquiries" value="1" {{ 'checked' if v.site_inquiries != '0' }}>An inquiry form</label>
+    <label class="row" style="gap:6px" id="sp-llms"><input type="checkbox" name="site_llms" value="1" {{ 'checked' if v.site_llms != '0' }}>A summary for modern search tools (llms.txt){{ help("A short text file that modern search tools read: your studio name, the line under it, the start of About, where you work, and the site's pages with how to send an inquiry. Only what the site already shows; never a gallery.") }}</label></div>
   <div class="sub" style="font-size:12.5px">The inquiry form is sealed in the visitor's browser so only this app can read it; your web host keeps it until the app collects it and adds it as a new inquiry. It needs a host that runs PHP (SFTP web hosting); elsewhere the Contact page shows your email instead.</div>
   <div><label class="l" for="sp-bg">Background</label><select id="sp-bg" name="site_bg">{% for c_, l_ in backgrounds %}<option value="{{ c_ }}"{{ ' selected' if v.site_bg == c_ }}>{{ l_ }}</option>{% endfor %}</select>
-    <div class="sub" style="font-size:12.5px;margin-top:4px">The font and colors follow your <a class="go" href="{{ url_for('settings_view') }}#gallery-look">client galleries' look &rsaquo;</a></div></div>
+    <div class="sub" style="font-size:12.5px;margin-top:4px">The font and colors follow your {{ ui.go(url_for('settings_view', tab='general') ~ '#gallery-look', "client galleries' look") }}</div></div>
   <div class="row" style="gap:10px;flex-wrap:wrap"><label class="row" style="gap:6px"><input type="checkbox" name="site_mark" value="1" {{ 'checked' if v.site_mark != '0' }}>Copyright mark on each photo</label>
     <label class="l" for="sp-markname" style="margin:0">Name in the mark</label><input id="sp-markname" name="site_mark_name" maxlength="80" value="{{ v.site_mark_name }}" placeholder="{{ d.owner }}" style="width:220px"></div>
   <div class="sub" style="font-size:12.5px">Small, in the bottom-left corner: &copy; {{ d.year }} {{ v.site_mark_name or d.owner }}, the year each photo first goes online.</div>
-  <div><button class="primary">Save</button></div>
+  <div><button class="ui-btn ui-btn-primary">Save the words</button></div>
 </form>
 
-<div class="card f" style="max-width:720px" id="photos">
-  <h2>Photos <span class="mute" style="font-weight:400;font-size:13px">{{ photos|length }} of up to {{ max_photos }}, shown in this order</span></h2>
-  {% if photos %}<table class="data sp-photos"><tbody>{% for p in photos %}<tr>
-    <td style="width:110px"><img src="{{ url_for('studio_page_thumb', pid=p.id) }}" alt="" style="max-width:100px;max-height:70px;display:block"></td>
-    <td><form method="post" action="{{ url_for('studio_page_photo', pid=p.id) }}" class="row" style="gap:6px">
-      <input name="alt" maxlength="{{ L.alt }}" value="{{ p.alt }}" aria-label="What the photo shows (for people who can't see it)" placeholder="What it shows" class="grow">
-      <button class="quiet" name="do" value="alt">Save</button></form>
-      <div class="sub" style="font-size:12px">{% if p.source == 'session' %}{{ p.who }}: {{ p.name }}{% if p.problem %} <span style="color:var(--red)">{{ p.problem }}</span>{% endif %}{% else %}Your upload: {{ p.name }}{% endif %}{% if not p.alt %} <span style="color:var(--amber, #b07a12)">No description yet: people who can't see the photo get nothing.</span>{% endif %}</div></td>
-    <td style="width:150px;white-space:nowrap"><form method="post" action="{{ url_for('studio_page_photo', pid=p.id) }}" class="inline">
-      <button class="ghost" name="do" value="up" aria-label="Move up"{{ ' disabled' if loop.first }}>&uarr;</button><button class="ghost" name="do" value="down" aria-label="Move down"{{ ' disabled' if loop.last }}>&darr;</button>
-      <button class="ghost" name="do" value="remove">Remove</button></form></td></tr>{% endfor %}</tbody></table>
-  {% else %}<p class="mute" style="font-size:13px;margin:0">No photos yet.</p>{% endif %}
+<div class="ui-sec f" style="max-width:720px" id="photos" data-save-together>
+  <h2 class="ui-sec-title">Photos <span class="ui-mute" style="text-transform:none;letter-spacing:0;font-weight:400">{{ photos|length }} of up to {{ max_photos }}, shown in this order</span></h2>
+  {#- one block per photo: the picture, then its description at full width (never squeezed into a narrow column),
+      then where it came from and its order -#}
+  {% if photos %}<ul class="ui-photos">{% for p in photos %}<li class="ui-photo">
+    <img src="{{ url_for('studio_page_thumb', pid=p.id) }}" alt="">
+    <div class="ui-photo-body">
+      <form method="post" action="{{ url_for('studio_page_photo', pid=p.id) }}" class="ui-form-row">
+        <input name="alt" maxlength="{{ L.alt }}" value="{{ p.alt }}" aria-label="What the photo shows (for people who can't see it)" placeholder="What it shows" class="ui-grow">
+        <button class="ui-btn ui-btn-quiet" name="do" value="alt">Save the description</button></form>
+      <div class="ui-mute" style="font-size:12.5px">{% if p.source == 'session' %}{{ p.who }}: {{ p.name }}{% if p.problem %} <span class="ui-late">{{ p.problem }}</span>{% endif %}{% else %}Your upload: {{ p.name }}{% endif %}{% if not p.alt %} {{ ui.chip("No description yet: people who can't see the photo get nothing", 'attention') }}{% endif %}</div>
+      <form method="post" action="{{ url_for('studio_page_photo', pid=p.id) }}" class="ui-form-row">
+        <button class="ui-btn ui-btn-quiet" name="do" value="up" aria-label="Move {{ p.name }} up"{{ ' disabled' if loop.first }}>&uarr; Up</button><button class="ui-btn ui-btn-quiet" name="do" value="down" aria-label="Move {{ p.name }} down"{{ ' disabled' if loop.last }}>&darr; Down</button>
+        <button class="ui-btn ui-btn-quiet" name="do" value="remove">Remove from the page</button></form>
+    </div></li>{% endfor %}</ul>
+  {% else %}<p class="ui-mute" style="margin:0">No photos yet.</p>{% endif %}
   {% if photos|length < max_photos %}
-  <form method="post" action="{{ url_for('studio_page_add_own') }}" enctype="multipart/form-data" class="row" style="gap:8px;flex-wrap:wrap">
+  <form method="post" action="{{ url_for('studio_page_add_own') }}" enctype="multipart/form-data" class="ui-form-row">
     <label class="l" for="sp-own" style="margin:0">Your own photos</label><input id="sp-own" type="file" name="photos" accept="image/jpeg,image/png" multiple required style="width:auto">
-    <button class="quiet">Add</button></form>
+    <button class="ui-btn ui-btn-quiet">Add the photos</button></form>
   <div class="sub" style="font-size:12.5px">JPEG or PNG, up to 40 MB at a time. Only the pixels are kept, at a size for the web: nothing of the file's camera data or location.</div>
-  <form method="get" action="{{ url_for('studio_page') }}#photos" class="row" style="gap:8px;flex-wrap:wrap">
+  <form method="get" action="{{ url_for('studio_page') }}#photos" class="ui-form-row">
     <label class="l" for="sp-sess" style="margin:0">From a client session</label>
     <select id="sp-sess" name="from" class="grow"><option value="">Sessions whose client allows portfolio use</option>{% for s_ in sessions %}<option value="{{ s_.id }}"{{ ' selected' if pick and pick.id == s_.id }}>{{ s_.label }}</option>{% endfor %}</select>
-    <button class="quiet">Choose photos</button></form>
+    <button class="ui-btn ui-btn-quiet">Choose photos</button></form>
   {% if pick %}<form method="post" action="{{ url_for('studio_page_add_session', sid=pick.id) }}" class="f" style="border-left:3px solid var(--gold);padding-left:12px">
     <div class="sub" style="font-size:13px">{{ pick.label }}. Up to {{ pick.cap }} photo{{ '' if pick.cap == 1 else 's' }} from one session, as your agreement says{% if pick.used %} ({{ pick.used }} on the page already){% endif %}. Photos the client asked you not to show aren't listed.{% if not pick.picks_in %} The client hasn't sent picks from the gallery yet, so hasn't had the chance to say no to any photo.{% endif %}</div>
     {% if pick.unclear %}<p style="font-size:13px;margin:0;color:var(--amber, #b07a12)">The client's Don't show note for {{ pick.label }} isn't specific file names, so none of its photos are offered. To offer the others, write the note as the names of the photos not to show (on the session page, Delivery).</p>
     {% elif pick.files %}<div class="f" style="gap:4px;max-height:260px;overflow:auto">{% for f_ in pick.files %}<label class="row" style="gap:6px;font-size:13px"><input type="checkbox" name="file" value="{{ f_.id }}"{{ ' disabled' if f_.on }}>{{ f_.name }}{% if f_.suggested %} <span class="pill green">client's favorite</span>{% endif %}{% if f_.on %} <span class="mute">on the page</span>{% endif %}</label>{% endfor %}</div>
-    <div><button class="quiet"{{ ' disabled' if pick.used >= pick.cap }}>Add these</button></div>{% else %}<p class="mute" style="font-size:13px;margin:0">No photos from this session can be shown.</p>{% endif %}
+    <div><button class="ui-btn ui-btn-quiet"{{ ' disabled' if pick.used >= pick.cap }}>Add these</button></div>{% else %}<p class="mute" style="font-size:13px;margin:0">No photos from this session can be shown.</p>{% endif %}
   </form>{% endif %}
   {% endif %}
 </div>
 
-<div class="card f" style="max-width:720px" id="icon">
-  <h2>Icon</h2>
-  <p class="mute" style="font-size:13px;margin:0">The small picture a browser shows on the tab. A square PNG works best; ICO, GIF and JPEG are fine too.</p>
+<div class="ui-sec f" style="max-width:720px" id="icon">
+  <h2 class="ui-sec-title">Icon</h2>
+  <p class="ui-mute" style="margin:0">The small picture a browser shows on the tab. A square PNG works best; ICO, GIF and JPEG are fine too.</p>
   {% if favicon %}<div><img src="{{ url_for('studio_page_favicon_png') }}" alt="Your icon" width="32" height="32"></div>{% endif %}
-  <form method="post" action="{{ url_for('studio_page_favicon') }}" enctype="multipart/form-data" class="row" style="gap:8px;flex-wrap:wrap">
-    <input type="file" name="icon" accept="image/png,image/jpeg,image/gif,image/x-icon,image/vnd.microsoft.icon,.ico" required aria-label="Icon for the browser tab" style="width:auto"><button class="quiet">Upload</button></form>
-  {% if favicon %}<form method="post" action="{{ url_for('studio_page_favicon') }}"><button class="ghost" name="remove" value="1">Remove the icon</button></form>{% endif %}
+  <form method="post" action="{{ url_for('studio_page_favicon') }}" enctype="multipart/form-data" class="ui-form-row">
+    <input type="file" name="icon" accept="image/png,image/jpeg,image/gif,image/x-icon,image/vnd.microsoft.icon,.ico" required aria-label="Icon for the browser tab" style="width:auto"><button class="ui-btn ui-btn-quiet">Upload the icon</button></form>
+  {% if favicon %}<form method="post" action="{{ url_for('studio_page_favicon') }}"><button class="ui-btn ui-btn-quiet" name="remove" value="1">Remove the icon</button></form>{% endif %}
 </div>
 {% endif %}
 
-{% if review %}<div class="card f" style="max-width:720px" id="inquiries">
-  <h2>Website inquiries to review <span class="mute" style="font-weight:400;font-size:13px">{{ review|length }}</span></h2>
-  <p class="mute" style="font-size:13px;margin:0">Sent from the form on your site. Add makes a new client with an Inquiry session; Add to a client the inquiry matches gives that client a new Inquiry session instead; Spam removes it. Nothing becomes a client record until you add it.</p>
-  {% for i_ in review %}<div style="border-left:3px solid var(--gold);padding-left:12px">
-    <div><b>{{ i_.name }}</b>{% if i_.email %} &middot; {{ i_.email }}{% endif %}{% if i_.phone %} &middot; {{ i_.phone }}{% endif %} <span class="mute" style="font-size:12.5px">{{ i_.received }}</span></div>
-    <div class="sub" style="font-size:13px">Kind of session: {{ i_.type_label or 'not given' }}{% if i_.date %}, preferred date {{ i_.date }}{% endif %}</div>
-    {% for m_ in i_.matches %}<div class="sub" style="font-size:13px;color:var(--amber, #b07a12)">Matches {{ m_.name }}: the same email or phone number</div>{% endfor %}
-    {% if i_.twin %}<div class="sub" style="font-size:13px;color:var(--amber, #b07a12)">The same email or phone number as another inquiry waiting here</div>{% endif %}
-    {% if i_.message %}<div style="font-size:13.5px;white-space:pre-wrap">{{ i_.message }}</div>{% endif %}
-    {% if i_.cut %}<div class="sub" style="font-size:12.5px">The message was longer than {{ inq_cut }} characters; only the first {{ inq_cut }} were kept.</div>{% endif %}
-    <form method="post" action="{{ url_for('studio_page_review') }}" class="row" style="gap:8px;margin-top:4px;flex-wrap:wrap"><input type="hidden" name="id" value="{{ i_.id }}">
-      {% if not i_.type_label %}<label class="l" for="rv-type-{{ i_.id }}" style="margin:0">Kind of session</label><select id="rv-type-{{ i_.id }}" name="type" style="width:auto">{% for k_, l_ in types %}<option value="{{ k_ }}">{{ l_ }}</option>{% endfor %}</select>{% endif %}
-      <button class="quiet" name="do" value="add">{{ 'Add as a new client' if i_.matches else 'Add' }}</button>{% for m_ in i_.matches %}<button class="quiet" name="add_to" value="{{ m_.hid }}">Add to {{ m_.name }}</button>{% endfor %}<button class="ghost" name="do" value="spam">Spam</button></form>
-  </div>{% endfor %}
-  {% if review|length > 1 %}{% set fresh = review | rejectattr('matches') | list %}<div class="row" style="gap:8px;flex-wrap:wrap">
-    {% if fresh %}<form method="post" action="{{ url_for('studio_page_review') }}" class="inline" data-confirm="Add {{ 'this inquiry' if fresh|length == 1 else 'all ' ~ fresh|length ~ ' inquiries' }} as new clients, each with an Inquiry session?{% if fresh|length < review|length %} Those that match a client you have are left for you to choose.{% endif %}">{% for i_ in fresh %}<input type="hidden" name="id" value="{{ i_.id }}">{% endfor %}<button class="quiet" name="do" value="add_all">Add all {{ fresh|length }}</button></form>{% endif %}
-    <form method="post" action="{{ url_for('studio_page_review') }}" class="inline" data-confirm="Remove all {{ review|length }} inquiries as spam? They can't be brought back.">{% for i_ in review %}<input type="hidden" name="id" value="{{ i_.id }}">{% endfor %}<button class="ghost" name="do" value="spam_all">Spam all {{ review|length }}</button></form></div>{% endif %}
+{% if review %}<div class="card f" style="max-width:720px" id="inquiries-on-today">
+  <p style="font-size:13px;margin:0">{{ review|length }} website inquir{{ 'y waits' if review|length == 1 else 'ies wait' }} for you on <a href="{{ url_for('home') }}#inquiries">Today</a>, where you add each one or mark it as spam.</p>
 </div>
 {% endif %}
-{% if on or n_files or earlier %}<div class="card f" style="max-width:720px" id="publish">
-  {% if on %}<h2>Preview and upload</h2>
-  {% if no_alt %}<p style="font-size:13px;margin:0;color:var(--amber, #b07a12)">{{ no_alt }} photo{{ '' if no_alt == 1 else 's' }} on the page {{ 'has' if no_alt == 1 else 'have' }} no description. Add a few words saying what each shows (<a class="go" href="#photos">Photos</a>), for people who can't see them.</p>{% endif %}
+{% if on or n_files or earlier %}<div class="ui-sec f" style="max-width:720px" id="publish">
+  {% if on %}<h2 class="ui-sec-title">Preview and upload</h2>
+  {% if no_alt %}<p style="font-size:13px;margin:0;color:var(--amber, #b07a12)">{{ no_alt }} photo{{ '' if no_alt == 1 else 's' }} on the page {{ 'has' if no_alt == 1 else 'have' }} no description. Add a few words saying what each shows ({{ ui.go('#photos', 'Photos') }}), for people who can't see them.</p>{% endif %}
   {% if problem %}<p style="font-size:13px;margin:0;color:var(--amber, #b07a12)">{{ problem }}</p>
   {% else %}<p style="font-size:13px;margin:0">Your site: <b>{{ site_url }}</b>, with your galleries at {{ site_url }}{{ folder }}/.</p>{% endif %}
-  <div class="row" style="gap:8px;flex-wrap:wrap">
-    <form method="post" action="{{ url_for('studio_page_preview_build') }}" target="_blank" class="inline"><button class="quiet">Preview</button></form>
-    {% if not problem %}<form method="post" action="{{ url_for('studio_page_upload') }}" class="inline" data-confirm="Put the studio page online at {{ site_url }}? It is built fresh first. Your galleries aren't touched."><button class="primary"{{ ' disabled' if busy }}>Upload</button></form>{% endif %}
+  <div class="ui-btnrow">
+    <form method="post" action="{{ url_for('studio_page_preview_build') }}" target="_blank" class="ui-action"><button class="ui-btn ui-btn-quiet">Preview the site</button></form>
+    {% if not problem %}<form method="post" action="{{ url_for('studio_page_upload') }}" class="ui-action" data-confirm="Put the studio page online at {{ site_url }}? It is built fresh first. Your galleries aren't touched."><button class="ui-btn ui-btn-primary"{{ ' disabled' if busy }}>Upload</button></form>{% endif %}
   </div>
-  {% else %}<h2>Your site is still online</h2>
+  {% else %}<h2 class="ui-sec-title">Your site is still online</h2>
   <p style="font-size:13px;margin:0">The studio page is switched off, but the files it put on your web host{% if site_url %} ({{ site_url }}){% endif %} are still there{% if inq_live %}, and so is its inquiry form: what visitors send is still collected{% endif %}. {{ 'Take them down below.' if problem else 'Take the site down to remove them.' }}</p>
   {% if problem %}<p style="font-size:13px;margin:0;color:var(--amber, #b07a12)">{{ problem }} Until then, each web host the studio page put files on is listed here.</p>{% endif %}
   {% endif %}
   <div class="sub" style="font-size:13px" role="status">{% if busy %}{{ job.label or 'Working' }}{% if job.total %}: {{ job.done }} of {{ job.total }}{% endif %}
     {% elif state == 'awaiting' %}Waiting for approval. Press {{ 'Upload' if on else 'Take the site down' }} again to ask again.
+    {% elif state == 'awaiting_back' %}Waiting for approval. Press Put the old files back again to ask again.
     {% elif state == 'error' %}<span style="color:var(--red)">{{ error }}</span>
     {% elif state == 'up' %}Online since {{ nice(up_at) }}{% if n_files %} ({{ n_files }} files){% endif %}.
     {% elif state == 'down' %}Taken down {{ nice(up_at) }}.
     {% else %}Not online yet.{% endif %}{% if note %} {{ note }}{% endif %}</div>
+  {% if on and state == 'error' and theirs and not busy and not problem %}<form method="post" action="{{ url_for('studio_page_replace') }}" class="ui-btnrow" id="replace-theirs" data-confirm="Replace these {{ theirs|length }} file{{ '' if theirs|length == 1 else 's' }} on your web host with the studio page's own? Lumen Aureum keeps a copy of each old file first, so you can put them back.">{% for n_ in theirs %}<input type="hidden" name="name" value="{{ n_ }}">{% endfor %}<button class="ui-btn ui-btn-quiet">Replace these files</button></form>{% endif %}
+  {% for k_ in kept %}<div class="row" style="gap:8px;flex-wrap:wrap" id="kept-{{ k_.id }}"><span class="grow" style="font-size:13px">Replaced {{ nice(k_.at) }}: {{ k_.n }} file{{ '' if k_.n == 1 else 's' }} your web host had before ({{ k_.names }}). Lumen Aureum keeps a copy of {{ 'it' if k_.n == 1 else 'each' }}.</span>
+    {% if not busy %}<form method="post" action="{{ url_for('studio_page_put_back') }}" class="inline" data-confirm="Put the {{ k_.n }} old file{{ '' if k_.n == 1 else 's' }} back on your web host? {{ 'It replaces' if k_.n == 1 else 'They replace' }} the studio page's own file{{ '' if k_.n == 1 else 's' }} of the same name{{ '' if k_.n == 1 else 's' }}, and Lumen Aureum stops counting {{ 'it' if k_.n == 1 else 'them' }} as its own."><input type="hidden" name="kept" value="{{ k_.id }}"><button class="ui-btn ui-btn-quiet">Put the old files back</button></form>{% endif %}</div>{% endfor %}
   {% for s_ in stale %}<div class="row" style="gap:8px;flex-wrap:wrap"><span class="grow" style="font-size:13px;color:var(--amber, #b07a12)">{{ s_.name }} is a photo its client no longer allows{% if s_.edited %}. It was changed on your web host since it went up, so an upload or a take-down leaves it there: delete it on your host, or remove it here{% else %}{{ ': press Upload to take it off' if on else ': take the site down to remove it' }}{% endif %}.</span>
-    {% if s_.edited and not busy %}<form method="post" action="{{ url_for('studio_page_remove_file') }}" class="inline" data-confirm="Remove {{ s_.name }} from your web host, whatever was changed in it there?"><input type="hidden" name="name" value="{{ s_.name }}"><button class="ghost">Remove it anyway</button></form>{% endif %}</div>{% endfor %}
+    {% if s_.edited and not busy %}<form method="post" action="{{ url_for('studio_page_remove_file') }}" class="inline" data-confirm="Remove {{ s_.name }} from your web host, whatever was changed in it there?"><input type="hidden" name="name" value="{{ s_.name }}"><button class="ui-btn ui-btn-quiet">Remove it anyway</button></form>{% endif %}</div>{% endfor %}
   {% for h_ in earlier %}<div class="row" style="gap:8px;flex-wrap:wrap"><span class="grow" style="font-size:13px;color:var(--amber, #b07a12)">{% if problem %}On {{ h_.label }}: {{ h_.n }} file{{ '' if h_.n == 1 else 's' }} the studio page put there{% else %}Left on an earlier web host, {{ h_.label }}: {{ h_.n }} file{{ '' if h_.n == 1 else 's' }} the studio page put there before your web host settings changed to another place{% endif %}{% if h_.stale %}, among them {{ h_.stale|map(attribute='name')|join(', ') }}: {{ 'client photos their clients no longer allow' if h_.stale|length > 1 else 'a client photo its client no longer allows' }}{% endif %}.{% if not h_.known %} Its settings aren't known here: delete the files on that host yourself.{% endif %}</span>
-    {% if not busy %}{% if h_.known %}<form method="post" action="{{ url_for('studio_page_take_down_earlier') }}" class="inline" data-confirm="Remove the studio page's files from {{ h_.label }}? Only the files Lumen Aureum put there are removed, and only while they are as it put them."><input type="hidden" name="host" value="{{ h_.fp }}"><button class="ghost">Take down there</button></form>{% endif %}
-    {% if not problem %}<form method="post" action="{{ url_for('studio_page_forget_host') }}" class="inline" data-confirm="Forget {{ h_.label }} and its list of files? Do this only when that host is gone for good: nothing is removed from it, and Today stops reminding about it."><input type="hidden" name="host" value="{{ h_.fp }}"><button class="quiet">Gone for good</button></form>{% endif %}{% endif %}</div>
-    {% for s_ in h_.stale if s_.edited and h_.known and not busy %}<div class="row" style="gap:8px"><span class="grow" style="font-size:13px">{{ s_.name }} on {{ h_.label }} was changed there since it went up, so taking down leaves it.</span><form method="post" action="{{ url_for('studio_page_remove_file') }}" class="inline" data-confirm="Remove {{ s_.name }} from {{ h_.label }}, whatever was changed in it there?"><input type="hidden" name="name" value="{{ s_.name }}"><input type="hidden" name="host" value="{{ h_.fp }}"><button class="ghost">Remove it anyway</button></form></div>{% endfor %}{% endfor %}
+    {% if not busy %}{% if h_.known %}<form method="post" action="{{ url_for('studio_page_take_down_earlier') }}" class="inline" data-confirm="Remove the studio page's files from {{ h_.label }}? Only the files Lumen Aureum put there are removed, and only while they are as it put them."><input type="hidden" name="host" value="{{ h_.fp }}"><button class="ui-btn ui-btn-quiet">Take down there</button></form>{% endif %}
+    {% if not problem %}<form method="post" action="{{ url_for('studio_page_forget_host') }}" class="inline" data-confirm="Forget {{ h_.label }} and its list of files? Do this only when that host is gone for good: nothing is removed from it, and Today stops reminding about it."><input type="hidden" name="host" value="{{ h_.fp }}"><button class="ui-btn ui-btn-quiet">Gone for good</button></form>{% endif %}{% endif %}</div>
+    {% for s_ in h_.stale if s_.edited and h_.known and not busy %}<div class="row" style="gap:8px"><span class="grow" style="font-size:13px">{{ s_.name }} on {{ h_.label }} was changed there since it went up, so taking down leaves it.</span><form method="post" action="{{ url_for('studio_page_remove_file') }}" class="inline" data-confirm="Remove {{ s_.name }} from {{ h_.label }}, whatever was changed in it there?"><input type="hidden" name="name" value="{{ s_.name }}"><input type="hidden" name="host" value="{{ h_.fp }}"><button class="ui-btn ui-btn-quiet">Remove it anyway</button></form></div>{% endfor %}{% endfor %}
   {% if inq_live or (on and inq_on and n_files) %}<form method="post" action="{{ url_for('studio_page_inquiries') }}" class="row" style="gap:8px">
     <span class="grow sub" style="font-size:13px">{% if inq_at %}Inquiries last collected {{ inq_at }}{% if inq_note %}: {{ inq_note }}{% endif %}.{% else %}Inquiries from the form are collected every {{ inq_min }} minutes.{% endif %}</span>
-    <button class="quiet">Check for inquiries</button></form>{% endif %}
-  {% if n_files and not busy %}<form method="post" action="{{ url_for('studio_page_take_down') }}" data-confirm="Remove the studio page from your web host? Only the files Lumen Aureum put there are removed; your galleries and anything else stay."><button class="ghost">Take the site down</button></form>{% endif %}
+    <button class="ui-btn ui-btn-quiet">Check for inquiries</button></form>{% endif %}
+  {% if n_files and not busy %}<form method="post" action="{{ url_for('studio_page_take_down') }}" data-confirm="Remove the studio page from your web host? Only the files Lumen Aureum put there are removed; your galleries and anything else stay."><button class="ui-btn ui-btn-quiet">Take the site down</button></form>{% endif %}
 </div>
 {% endif %}
 {% endblock %}
@@ -1168,9 +1208,29 @@ def register(ctx):
     CREATE TABLE IF NOT EXISTS studio_inquiries (
         sha256 TEXT PRIMARY KEY, session_id INTEGER, household_id INTEGER, received TEXT, outcome TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS studio_inquiry_review (
-        id INTEGER PRIMARY KEY, sha256 TEXT UNIQUE NOT NULL, fields TEXT NOT NULL, received TEXT NOT NULL);""")
+        id INTEGER PRIMARY KEY, sha256 TEXT UNIQUE NOT NULL, fields TEXT NOT NULL, received TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS studio_kept (
+        id INTEGER PRIMARY KEY, host_fp TEXT NOT NULL, at TEXT NOT NULL, folder TEXT NOT NULL, files TEXT NOT NULL,
+        put_back TEXT);""")
     ctx.migrate(items.TABLE)
     ctx.on_unlock(items.migrate_hook(ctx.connect))
+
+    @ctx.on_unlock
+    def _review_cols():
+
+        _con = ctx.connect()
+        try:
+            if "replied" not in [r_[1] for r_ in _con.execute("PRAGMA table_info(studio_inquiry_review)")]:
+                ctx.add_column(_con, "studio_inquiry_review", "replied", "TEXT")
+                _con.commit()
+
+            have_ = [r_[1] for r_ in _con.execute("PRAGMA table_info(studio_inquiries)")]
+            for col_, decl_ in (("sender", "TEXT"), ("contact_id", "INTEGER"), ("log_id", "INTEGER"), ("filed", "TEXT")):
+                if col_ not in have_:
+                    ctx.add_column(_con, "studio_inquiries", col_, decl_)
+            _con.commit()
+        finally:
+            _con.close()
 
     @ctx.on_unlock
     def _restamp_hosts():
@@ -1386,7 +1446,8 @@ def register(ctx):
                     php=bool(site_cfg) and site_cfg.get("type") in ("sftp", "local"),
                     inquiry=dict(key=inquiry_public(inquiry_key()), kid=kid_hex(inquiry_public(inquiry_key())),
                                  types=form_types(), salt=inquiry_salt(), work=INQ_WORK, shared=host_shared())
-                    if setting("site_inquiries") != "0" else None)
+                    if setting("site_inquiries") != "0" else None,
+                    llms=setting("site_llms") != "0")
 
     def build(out_name, preview=False):
 
@@ -1409,7 +1470,7 @@ def register(ctx):
     def studio_page():
         v = {k: setting(k) for k in ("site_name", "site_tagline", "site_intro", "site_description", "site_about", "site_bg",
                                       "site_mark", "site_mark_name", "site_show_phone", "site_show_address",
-                                      "site_inquiries")}
+                                      "site_inquiries", "site_llms")}
         rows = photo_rows()
         ok_ids = {r["id"] for r in allowed_now(rows)[0]}
         skipped = dict((r["id"], why) for r, why in allowed_now(rows)[1])
@@ -1466,10 +1527,11 @@ def register(ctx):
                                       no_alt=sum(1 for p_ in photos if p_["id"] in ok_ids and not (p_["alt"] or "").strip()),
                                       busy=JOB.get("state") == "running", job=JOB, state=setting("site_state"),
                                       error=setting("site_error"), up_at=setting("site_at"), n_files=n_files, stale=stale,
-                                      earlier=earlier,
+                                      earlier=earlier, theirs=theirs_shown(fp) if fp else [],
+                                      kept=kept_rows(fp) if fp else [],
                                       note=setting("site_note"), inq_on=setting("site_inquiries") != "0",
                                       inq_live=form_online(), inq_cut=INQ_CUT, types=form_types(),
-                                      inq_at=setting("site_inq_at"), inq_note=setting("site_inq_note"), inq_min=INQ_CHECK_MIN)
+                                      inq_at=setting("site_inq_at"), inq_note=inq_note_now(), inq_min=INQ_CHECK_MIN)
 
     back = lambda anchor="": url_for("studio_page") + anchor
 
@@ -1493,7 +1555,7 @@ def register(ctx):
         put_setting("site_about", clip(f.get("site_about", "").replace("\r\n", "\n"), ABOUT_MAX).strip())
         put_setting("site_bg", f.get("site_bg", "") if f.get("site_bg", "") in [b for b, _ in BACKGROUNDS] else "")
         put_setting("site_mark_name", one("site_mark_name", 80))
-        for k in ("site_mark", "site_show_phone", "site_show_address", "site_inquiries"):
+        for k in ("site_mark", "site_show_phone", "site_show_address", "site_inquiries", "site_llms"):
             put_setting(k, "1" if f.get(k) else "0")
         return redirect(url_for("studio_page", saved=1) + "#words")
 
@@ -1781,7 +1843,16 @@ def register(ctx):
                 if r_["name"] not in declined and NAME_OK.match(r_["name"]) and ".." not in r_["name"].split("/") \
                         and host.stat(r_["name"]) is not None:
                     declined.append(r_["name"])
-        return Conflict(names, edited, ours=ours, declined=declined)
+        e = Conflict(names, edited, ours=ours, declined=declined)
+        e.fp = fp
+        back_ = put_back_names(fp, owned(fp))
+        e.all_back = bool(names) and set(names) <= set(back_) and not declined
+        if e.all_back:
+            it_ = "it" if len(names) == 1 else "them"
+            e.args = (f"Upload stopped: {len(names)} file{'' if len(names) == 1 else 's'} "
+                      f"{'is' if len(names) == 1 else 'are'} back to the old site's ({few(sorted(names))}). Uploads leave "
+                      f"{it_} alone, so nothing else went up: your other changes wait until you replace {it_} again.",)
+        return e
 
     def collect_picks(sids):
 
@@ -1892,6 +1963,105 @@ def register(ctx):
             host.remove_dir(INQ_DIR + "/")
         return "inquiries/.htaccess was changed on your host since, so it was left there." if st == "changed" else ""
 
+    KEPT = _DATA / "site-kept"
+
+    def few(ns, k=6):
+        return ", ".join(ns[:k]) + (" and more" if len(ns) > k else "")
+
+    def remember_theirs(e):
+
+        if isinstance(e, Conflict) and e.fp and e.other and set(e.other) == set(e.names):
+            put_setting("site_theirs", json.dumps(dict(fp=e.fp, names=list(e.other)), separators=(",", ":")))
+            if getattr(e, "all_back", False):
+                put_setting("site_note", "")
+        else:
+            put_setting("site_theirs", "")
+
+    def theirs_shown(fp):
+        try:
+            v_ = json.loads(setting("site_theirs") or "{}")
+        except ValueError:
+            return []
+        return list(v_.get("names") or []) if isinstance(v_, dict) and v_.get("fp") == fp else []
+
+    def check_replace(host, fp, have, edited, wanted, names):
+
+        wanted = sorted(set(wanted))
+        with host.session():
+            theirs = [n for n in names if n not in have and n != ".htaccess" and host.stat(n) is not None]
+        e = refusal(host, theirs, fp, edited) if theirs else None
+        now = list(e.names) if e else []
+        if e is None or set(now) != set(wanted) or set(e.other) != set(now):
+            more = [n for n in now if n not in wanted]
+            gone = [n for n in wanted if n not in now]
+            lead = "The files on your web host changed since you were asked, so nothing was replaced" + "".join(
+                (f"; now also there: {few(more)}" if more else "", f"; no longer there: {few(gone)}" if gone else "")) + "."
+            if e is None:
+                raise SiteProblem(lead + " Press Upload again.")
+            e.args = (lead + " " + e.args[0],)
+            raise e
+        with host.session():
+            sizes = {n: host.stat(n) for n in wanted}
+        big = [n for n in wanted if (sizes[n] or 0) > KEEP_MAX]
+        if big:
+            raise SiteProblem(few(big) + (" is" if len(big) == 1 else " are") + f" larger than {KEEP_MAX // (1024 * 1024)} MB, "
+                              "too large for Lumen Aureum to keep a copy of, so nothing was replaced. Move "
+                              + ("it" if len(big) == 1 else "them") + " aside or delete " + ("it" if len(big) == 1 else "them")
+                              + " on your host, then press Upload again.")
+        return sizes
+
+    def keep_old(host, fp, site_url, names):
+
+        at = datetime.now()
+        base = KEPT / re.sub(r"[^A-Za-z0-9_-]", "_", fp)
+        d_ = base / at.strftime("%Y%m%d-%H%M%S")
+        if d_.exists():
+            d_ = base / (at.strftime("%Y%m%d-%H%M%S") + "-" + secrets.token_hex(3))
+        files = []
+        with host.session():
+            for n in names:
+                dst = d_ / n
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                h = hashlib.sha256()
+                with open(dst, "wb") as f:
+                    class _W:
+                        def write(self, b):
+                            h.update(b)
+                            return f.write(b)
+                    host.get_stream(n, _W())
+                size = dst.stat().st_size
+                if size != host.stat(n):
+                    raise SiteProblem(f"A copy of {n} couldn't be read in full from your web host, so nothing was replaced.")
+                files.append(dict(name=n, size=size, sha256=h.hexdigest()))
+        x("INSERT INTO studio_kept (host_fp, at, folder, files) VALUES (?,?,?,?)",
+          (fp, at.isoformat(timespec="seconds"), str(d_.relative_to(KEPT)), json.dumps(files)))
+        return q("SELECT MAX(id) n FROM studio_kept", one=True)["n"]
+
+    def back_note(names):
+
+        n_, it_ = len(names), "it" if len(names) == 1 else "them"
+        return (f"{n_} file{'' if n_ == 1 else 's'} {'is' if n_ == 1 else 'are'} back to the old site's ({few(names)}). "
+                f"Uploads leave {it_} alone, so an upload stops on {it_} and nothing else goes up until you replace {it_} "
+                f"again.")
+
+    def put_back_names(fp, have):
+
+        names = []
+        for r_ in q("SELECT files FROM studio_kept WHERE host_fp=? AND put_back IS NOT NULL", (fp,)):
+            names += [f_["name"] for f_ in json.loads(r_["files"] or "[]") if f_["name"] not in have]
+        return list(dict.fromkeys(names))
+
+    def kept_rows(fp):
+        out = []
+        for r_ in q("SELECT * FROM studio_kept WHERE host_fp=? AND put_back IS NULL ORDER BY id DESC", (fp,)):
+            fs = json.loads(r_["files"] or "[]")
+            out.append(dict(id=r_["id"], at=r_["at"], n=len(fs), names=few([f_["name"] for f_ in fs])))
+        return out
+
+    def ready_names():
+        d_ = SITE_ROOT / "ready"
+        return sorted((str(p_.relative_to(d_)).replace(os.sep, "/") for p_ in d_.rglob("*") if p_.is_file()), key=_order)
+
     def left_out_note(skipped):
         return ("Left out: " + "; ".join(f"{r['name']} ({why})" for r, why in skipped[:5]) + ".") if skipped else ""
 
@@ -1919,6 +2089,7 @@ def register(ctx):
                 edited = edited_names(fp)
                 photo_of = dict(READY.get("photos") or {})
                 left_out = READY.get("left_out") or ""
+                replace = list(READY.get("replace") or [])
                 kind = site_cfg.get("type")
 
                 collect_picks(page_sessions())
@@ -1930,6 +2101,12 @@ def register(ctx):
                     left_out = left_out_note(skipped)
                     JOB.update(label="Uploading the studio page")
             host = open_host(gcfg, site_cfg)
+            if replace:
+                with app.app_context():
+                    check_replace(host, fp, have, edited, replace, ready_names())
+                    JOB.update(label="Keeping a copy of the files being replaced")
+                    keep_old(host, fp, site_url, replace)
+                    JOB.update(label="Uploading the studio page")
 
             def on_put(name, size, sha):
                 pid = photo_of.get(name)
@@ -1955,7 +2132,7 @@ def register(ctx):
             try:
                 res = publish(host, SITE_ROOT / "ready", have, folder, kind, on_put, on_forget,
                               progress=lambda d, t: JOB.update(done=d, total=t), hold=hold, on_left=left_on_host(fp),
-                              edited=edited)
+                              edited=edited, replace=set(replace))
             except Conflict as e:
                 with app.app_context():
                     raise refusal(host, e.names, fp, edited) from None
@@ -1981,6 +2158,11 @@ def register(ctx):
                 put_setting("site_at", date.today().isoformat())
                 put_setting("site_error", "")
                 put_setting("site_note", " ".join(note))
+                put_setting("site_theirs", "")
+                if replace:
+                    ctx.audit(f"Studio page: replaced {len(replace)} file{'' if len(replace) == 1 else 's'} on {site_url} that "
+                              f"Lumen Aureum hadn't put there ({few(replace, 12)}), after keeping a copy of each",
+                              who="Lumen Aureum")
                 ctx.audit(f"Studio page uploaded to {site_url} ({len(res['put'])} files"
                           + (f"; {len(res['removed'])} earlier file{'' if len(res['removed']) == 1 else 's'} removed" if res["removed"] else "")
                           + ")", who="Lumen Aureum")
@@ -1991,6 +2173,7 @@ def register(ctx):
             with app.app_context():
                 put_setting("site_state", "error")
                 put_setting("site_error", ("Upload stopped: " if not isinstance(e, SiteProblem) else "") + str(e)[:1500])
+                remember_theirs(e)
         finally:
             if ran:
                 READY.clear()
@@ -2000,6 +2183,19 @@ def register(ctx):
 
     @app.post("/settings/studio-page/upload", endpoint="studio_page_upload")
     def studio_page_upload():
+        return start_upload()
+
+    @app.post("/settings/studio-page/replace", endpoint="studio_page_replace")
+    def studio_page_replace():
+
+        wanted = [n for n in request.form.getlist("name") if n]
+        if not wanted:
+            from flask import g as _g
+            _g.refused = True
+            return redirect(back("#publish"))
+        return start_upload(replace=wanted)
+
+    def start_upload(replace=None):
         from flask import g as _g
         if not on():
             abort(404)
@@ -2019,25 +2215,31 @@ def register(ctx):
             fp = settle(site_cfg, gcfg, site_url, folder, host=host)
             have = owned(fp)
             edited = edited_names(fp)
-            with host.session():
-                theirs = [n for n in names if n not in have and n != ".htaccess" and host.stat(n) is not None]
-            if theirs:
-                raise refusal(host, theirs, fp, edited)
+            if replace is not None:
+                check_replace(host, fp, have, edited, replace, names)
+            else:
+                with host.session():
+                    theirs = [n for n in names if n not in have and n != ".htaccess" and host.stat(n) is not None]
+                if theirs:
+                    raise refusal(host, theirs, fp, edited)
         except SiteProblem as e:
             clear_build("ready")
             put_setting("site_state", "error")
             put_setting("site_error", str(e)[:1500])
+            remember_theirs(e)
             _g.refused = True
             return redirect(back("#publish"))
         except Exception as e:
             clear_build("ready")
+            remember_theirs(None)
             app.logger.exception("studio page upload")
             put_setting("site_state", "error")
             put_setting("site_error", f"The site couldn't be built or the host couldn't be reached: {e}"[:600])
             return redirect(back("#publish"))
         stamp = secrets.token_hex(8)
         READY.clear()
-        READY.update(stamp=stamp, photos={name: pid for pid, name in built.photos}, left_out=left_out_note(skipped))
+        READY.update(stamp=stamp, photos={name: pid for pid, name in built.photos}, left_out=left_out_note(skipped),
+                     replace=sorted(set(replace or ())))
         put_setting("site_note", left_out_note(skipped))
         if ctx.hooks.guard(GUARD, lambda: do_upload(stamp), sid=None, gallery_id=None, n_files=len(built.files), site=True,
                            site_url=site_url):
@@ -2105,6 +2307,93 @@ def register(ctx):
             put_setting("site_state", "awaiting")
             return redirect(back("#publish"))
         threading.Thread(target=do_take_down, name="studio-page-down", daemon=True).start()
+        return redirect(back("#publish"))
+
+    def do_put_back(kid):
+
+        import logging
+        with LOCK:
+            if JOB.get("state") == "running":
+                return
+            JOB.clear()
+            JOB.update(state="running", done=0, total=0, label="Putting the old files back", error="")
+        try:
+            with app.app_context():
+                rec = q("SELECT * FROM studio_kept WHERE id=? AND put_back IS NULL", (kid,), one=True)
+                if not rec:
+                    JOB.update(state="done")
+                    return
+                site_cfg, site_url, folder = target()
+                gcfg = gallery_cfg()
+                fp = settle(site_cfg, gcfg, site_url, folder, host=open_host(gcfg, site_cfg))
+                if rec["host_fp"] != fp:
+                    raise SiteProblem(f"The old files were kept from another web host ({host_name(rec['host_fp'])}), not "
+                                      "the one in use now, so they weren't put back.")
+                have = owned(fp)
+                files = json.loads(rec["files"] or "[]")
+                src = KEPT / rec["folder"]
+            for f_ in files:
+                check_name(f_["name"], folder)
+                p_ = src / f_["name"]
+                if not p_.is_file() or hashlib.sha256(p_.read_bytes()).hexdigest() != f_["sha256"]:
+                    raise SiteProblem(f"The kept copy of {f_['name']} is missing or damaged, so nothing was put back.")
+            host = open_host(gcfg, site_cfg)
+            JOB.update(total=len(files))
+            with host.session():
+                changed = [f_["name"] for f_ in files
+                           if (host_copy(host, f_["name"], *_owned(have[f_["name"]])) == "changed" if f_["name"] in have
+                               else host.stat(f_["name"]) is not None)]
+                if changed:
+                    raise SiteProblem(few(changed) + (" was" if len(changed) == 1 else " were") + " changed on your web host "
+                                      "since Lumen Aureum replaced the old files, so nothing was put back. The old files "
+                                      "are still kept.")
+                for i, f_ in enumerate(files):
+                    n = f_["name"]
+                    with open(src / n, "rb") as fh:
+                        host.put_stream(n, fh, content_type=MIME.get(Path(n).suffix or n), cache_control="no-cache")
+                    with app.app_context():
+                        x("DELETE FROM studio_files WHERE name=? AND host_fp=?", (n, fp))
+                        mark_left(fp, n, None)
+                    JOB.update(done=i + 1)
+            with app.app_context():
+                x("UPDATE studio_kept SET put_back=? WHERE id=?", (datetime.now().isoformat(timespec="seconds"), kid))
+                names = [f_["name"] for f_ in files]
+                put_setting("site_error", "")
+                if setting("site_state") in ("error", "awaiting_back"):
+                    put_setting("site_state", "up" if has_manifest_rows(fp) else "down")
+                put_setting("site_note", back_note(names))
+                ctx.audit(f"Studio page: put {len(names)} old file{'' if len(names) == 1 else 's'} back on {site_url} "
+                          f"({few(names, 12)}); Lumen Aureum no longer counts them as its own", who="Lumen Aureum")
+            JOB.update(state="done")
+        except Exception as e:
+            logging.getLogger(__name__).exception("studio page put back")
+            JOB.update(state="error", error=str(e))
+            with app.app_context():
+                put_setting("site_state", "error")
+                put_setting("site_theirs", "")
+                put_setting("site_error", ("Putting the old files back stopped: " if not isinstance(e, SiteProblem) else "")
+                            + str(e)[:600])
+
+    @app.post("/settings/studio-page/put-back", endpoint="studio_page_put_back")
+    def studio_page_put_back():
+        from flask import g as _g
+        kid = request.form.get("kept", "")
+        rec = q("SELECT * FROM studio_kept WHERE id=? AND put_back IS NULL", (kid,), one=True) if kid.isdigit() else None
+        if not rec or JOB.get("state") == "running":
+            _g.refused = True
+            return redirect(back("#publish"))
+        try:
+            _, site_url, _ = target()
+        except SiteProblem as e:
+            put_setting("site_error", str(e)[:600])
+            _g.refused = True
+            return redirect(back("#publish"))
+        n = len(json.loads(rec["files"] or "[]"))
+        if ctx.hooks.guard(GUARD, lambda: do_put_back(rec["id"]), sid=None, gallery_id=None, n_files=n, site=True,
+                           site_url=site_url):
+            put_setting("site_state", "awaiting_back")
+            return redirect(back("#publish"))
+        threading.Thread(target=do_put_back, args=(rec["id"],), name="studio-page-put-back", daemon=True).start()
         return redirect(back("#publish"))
 
     def place_of(fp):
@@ -2346,12 +2635,28 @@ def register(ctx):
             return open_host(gcfg, dict(site_cfg, root=(site_cfg.get("root") + "/" if site_cfg.get("root") else "") + INQ_DIR))
         return None
 
-    def add_inquiry(f, type_=None, to=None):
+    def known_person(hid, f):
+
+        em_ = (f.get("email") or "").strip().lower()
+        nm_ = " ".join((f.get("name") or "").lower().split())
+        for p_ in q("SELECT id, name, email FROM people WHERE household_id=? ORDER BY id", (hid,)):
+            if (em_ and (p_["email"] or "").strip().lower() == em_) or (nm_ and " ".join((p_["name"] or "").lower().split()) == nm_):
+                return p_["id"]
+        return None
+
+    def add_inquiry(f, type_=None, to=None, add_contact=True):
 
         types = dict(form_types())
         type_ = f.get("type") if f.get("type") in types else (type_ if type_ in types else next(iter(types)))
+        added = None
         if to:
             hid, pid = to
+            mine_ = known_person(hid, f)
+            if mine_:
+                pid = mine_
+            elif add_contact and (f.get("name") or "").strip():
+                pid = added = x("INSERT INTO people (household_id, name, role, email, phone) VALUES (?,?,?,?,?)",
+                                (hid, f["name"].strip(), "adult", (f.get("email") or "").strip(), (f.get("phone") or "").strip()))
         else:
             hid = x("INSERT INTO households (id, name, source) VALUES (?,?,?)", (ctx.next_id("households"), f["name"], "Website"))
             pid = x("INSERT INTO people (household_id, name, role, email, phone) VALUES (?,?,?,?,?)",
@@ -2359,14 +2664,21 @@ def register(ctx):
         sid = ctx.create_session(hid, type_, "inquiry", "", f.get("date") or None, subject_ids=[pid] if pid else [])
         if f.get("date"):
             x("UPDATE sessions SET date_tentative=1 WHERE id=?", (sid,))
-        summary = "Inquiry from your website" + ("" if f.get("type") else " (kind of session not given)") \
+        summary = "Inquiry from your website" + (" (something else: see their message)" if f.get("type") == "other"
+                                               else "" if f.get("type") in types else " (kind of session: not sure yet)") \
             + (f" from {f['name']}" if to else "") \
             + (f", preferred date {f['date']}" if f.get("date") else "") + (":\n" + f["message"] if f.get("message") else "") \
             + (f"\n(The message was longer; only its first {INQ_CUT} characters were kept.)" if f.get("cut") else "")
-        x("INSERT INTO log (household_id, session_id, channel, summary, at) VALUES (?,?,?,?,?)",
-          (hid, sid, "email" if f.get("email") else "call", summary, ctx.now_local()))
-        ctx.audit("Inquiry from your website" + (" (added to an existing client)" if to else ""), sid=sid, who="Website")
-        return sid, hid
+        lid = x("INSERT INTO log (household_id, session_id, channel, summary, at) VALUES (?,?,?,?,?)",
+                (hid, sid, "email" if f.get("email") else "call", summary, ctx.now_local()))
+        if to:
+            cname_ = (q("SELECT name FROM households WHERE id=?", (hid,), one=True) or {"name": ""})["name"]
+            ctx.audit(f"Inquiry from {f['name']}, filed under {cname_}", sid=sid, who="Website")
+            if added:
+                ctx.audit(f"Added {f['name']} to {cname_} as a contact", sid=sid)
+        else:
+            ctx.audit("Inquiry from your website", sid=sid, who="Website")
+        return sid, hid, added, lid
 
     def arrived_today():
         return q("SELECT COUNT(*) n FROM studio_inquiries WHERE outcome IN ('waiting', 'added', 'spam') AND received LIKE ?",
@@ -2439,7 +2751,6 @@ def register(ctx):
         with app.app_context():
             put_setting("site_inq_at", datetime.now().strftime("%Y-%m-%d %H:%M"))
             put_setting("site_inq_note", ", ".join(t for t in (
-                f"{res['added']} new to review" if res["added"] else "",
                 "more waiting for the next check" if more else "",
                 f"{res['dropped']} dropped as spam or incomplete" if res["dropped"] else "",
                 f"{res['bad']} unreadable file{'' if res['bad'] == 1 else 's'} removed" if res["bad"] else "") if t))
@@ -2615,17 +2926,34 @@ def register(ctx):
         d = re.sub(r"\D", "", phone or "")
         return d[-10:] if len(d) >= 7 else ""
 
+    def inq_note_now():
+
+        n_ = q("SELECT COUNT(*) n FROM studio_inquiry_review", one=True)["n"]
+        kept_ = re.sub(r"^\d+ new to review(, )?", "", setting("site_inq_note") or "")
+        return ", ".join(t for t in (f"{n_} new to review" if n_ else "", kept_) if t)
+
     def review_rows():
 
         rows = []
-        for r_ in q("SELECT id, fields, received FROM studio_inquiry_review ORDER BY received, id"):
+        from urllib.parse import quote as _qu
+        sign_ = ctx.setting("photographer_name") or ctx.setting("business_name")
+        for r_ in q("SELECT id, fields, received, replied FROM studio_inquiry_review ORDER BY received, id"):
             try:
                 f_ = json.loads(r_["fields"])
             except ValueError:
                 f_ = {}
             f_ = f_ if isinstance(f_, dict) else {}
-            rows.append(dict(f_, id=r_["id"], received=r_["received"][:16].replace("T", " "),
-                             type_label=dict(form_types()).get(f_.get("type") or "", ""),
+            first_ = ((f_.get("name") or "").split() or [""])[0]
+            body_ = "\n\n".join([f"Hi {first_}," if first_ else "Hello,", f"Thank you,\n{sign_}" if sign_ else "Thank you"])
+            em_ = (f_.get("email") or "").strip()
+            ph_ = re.sub(r"[^0-9+]", "", f_.get("phone") or "")
+            reply_ = (f"mailto:{_qu(em_, safe='@')}?subject={_qu('Re: your inquiry')}&body={_qu(body_)}" if em_
+                      else f"sms:{ph_}?&body={_qu(body_)}" if len(ph_) >= 7 else "")
+            msg_ = " ".join((f_.get("message") or "").split())
+            rows.append(dict(f_, id=r_["id"], received=r_["received"][:16].replace("T", " "), at=r_["received"][:16],
+                             new=not r_["replied"], replied=r_["replied"] or "", reply=reply_, how="Website",
+                             first=msg_ if len(msg_) <= 80 else msg_[:80].rsplit(" ", 1)[0] + "...",
+                             type_label=dict(form_types(), other="Other").get(f_.get("type") or "", ""),
                              em=(f_.get("email") or "").strip().lower(), ph=_digits(f_.get("phone"))))
         if not rows:
             return rows
@@ -2644,18 +2972,19 @@ def register(ctx):
                 if m_["hid"] not in seen:
                     seen.add(m_["hid"])
                     ms.append(m_)
-            r_["matches"] = ms[:3]
+
+            r_["matches"] = [dict(m_, known=bool(known_person(m_["hid"], r_))) for m_ in ms[:3]]
             r_["twin"] = any(o_["id"] != r_["id"] and ((r_["em"] and o_["em"] == r_["em"]) or (r_["ph"] and o_["ph"] == r_["ph"]))
                              for o_ in rows)
         return rows
 
-    def review_one(rid, do, type_=None, to=None):
+    def review_one(rid, do, type_=None, to=None, add_contact=True):
 
         r_ = q("SELECT id, sha256, fields FROM studio_inquiry_review WHERE id=?", (rid,), one=True)
         if not r_:
             return False
         sid = hid = None
-        if do in ("add", "add_to"):
+        if do in ("add", "add_to", "add_existing"):
             f_ = json.loads(r_["fields"])
             dest = None
             if do == "add_to":
@@ -2663,11 +2992,159 @@ def register(ctx):
                 if not hit:
                     return False
                 dest = (hit[0]["hid"], hit[0]["pid"])
-            sid, hid = add_inquiry(f_, type_, dest)
+            elif do == "add_existing":
+                p_ = q("""SELECT p.id FROM people p JOIN households h ON h.id=p.household_id WHERE h.id=?
+                          AND COALESCE(h.demo, 0)=0 ORDER BY p.role='parent' DESC, p.role='adult' DESC, p.id LIMIT 1""",
+                       (to,), one=True) if to else None
+                if not p_:
+                    return False
+                dest = (to, p_["id"])
+            sid, hid, cid, lid = add_inquiry(f_, type_, dest, add_contact)
+            sender_ = json.dumps({k_: (f_.get(k_) or "").strip() for k_ in ("name", "email", "phone")})
+            x("UPDATE studio_inquiries SET sender=?, contact_id=?, log_id=?, filed=? WHERE sha256=?",
+              (sender_, cid, lid, "existing" if dest else "new", r_["sha256"]))
         x("UPDATE studio_inquiries SET outcome=?, session_id=?, household_id=? WHERE sha256=?",
           ("spam" if do == "spam" else "added", sid, hid, r_["sha256"]))
         x("DELETE FROM studio_inquiry_review WHERE id=?", (rid,))
         return True
+
+    def client_choices():
+
+        out = []
+        for h_ in q("""SELECT h.id, h.name, (SELECT COALESCE(NULLIF(p.email, ''), p.phone, '') FROM people p
+                       WHERE p.household_id=h.id ORDER BY p.role='parent' DESC, p.id LIMIT 1) AS reach
+                       FROM households h WHERE COALESCE(h.demo, 0)=0 ORDER BY h.name COLLATE NOCASE, h.id"""):
+            out.append((h_["id"], f"{h_['name']} #{h_['id']}", h_["reach"] or ""))
+        return out
+
+    def existing_client(text):
+
+        t_ = (text or "").strip()
+        m_ = re.search(r"#(\d+)\s*$", t_)
+        if m_:
+            hid_ = int(m_.group(1))
+            return hid_ if q("SELECT 1 FROM households WHERE id=? AND COALESCE(demo, 0)=0", (hid_,), one=True) else None
+        hits = q("SELECT id FROM households WHERE lower(name)=lower(?) AND COALESCE(demo, 0)=0", (t_,)) if t_ else []
+        return hits[0]["id"] if len(hits) == 1 else None
+
+    def filed_row(sid):
+
+        return q("""SELECT sha256, household_id, sender, contact_id, log_id FROM studio_inquiries WHERE session_id=?
+                    AND outcome='added' AND filed='existing'""", (sid,), one=True)
+
+    def sender_of(r_):
+        try:
+            f_ = json.loads(r_["sender"] or "{}")
+        except ValueError:
+            f_ = {}
+        return f_ if isinstance(f_, dict) else {}
+
+    def inquiry_sender(sid):
+
+        r_ = filed_row(sid)
+        f_ = sender_of(r_) if r_ else {}
+        return f_ if f_.get("name") else None
+
+    app.config["inquiry_sender"] = inquiry_sender
+
+    def refile_block(sid):
+
+        s_ = q("SELECT stage FROM sessions WHERE id=?", (sid,), one=True)
+        if not s_:
+            return "The session is gone."
+        if s_["stage"] not in ("inquiry", "quoted"):
+            return f"it is {C.STAGE_LABELS.get(s_['stage'], s_['stage'])} now; only an Inquiry or a quote can move"
+        if q("SELECT 1 FROM payments WHERE session_id=?", (sid,), one=True):
+            return "a payment is recorded on it"
+        if (q("SELECT 1 FROM doc_numbers WHERE session_id=?", (sid,), one=True)
+                or q("SELECT 1 FROM invoice_sent WHERE session_id=?", (sid,), one=True)
+                or q("SELECT 1 FROM documents WHERE session_id=? AND (sent IS NOT NULL OR signed IS NOT NULL)", (sid,), one=True)):
+            return "a document has been issued on it"
+        return ""
+
+    def refile_offer(s_):
+
+        r_ = filed_row(s_["id"])
+        if not r_:
+            return None
+        return dict(name=sender_of(r_).get("name") or "the sender", reason=refile_block(s_["id"]))
+
+    app.jinja_env.globals["refile_offer"] = refile_offer
+    app.jinja_env.globals["refile_clients"] = lambda: client_choices()
+
+    def refile(sid, to_hid=None):
+
+        r_ = filed_row(sid)
+        f_ = sender_of(r_)
+        old = q("SELECT household_id FROM sessions WHERE id=?", (sid,), one=True)["household_id"]
+        old_name = (q("SELECT name FROM households WHERE id=?", (old,), one=True) or {"name": ""})["name"]
+        name_ = (f_.get("name") or "").strip() or "No name given"
+        added = r_["contact_id"] if r_["contact_id"] and q("SELECT 1 FROM people WHERE id=? AND household_id=?",
+                                                           (r_["contact_id"], old), one=True) else None
+        if to_hid is None:
+            to_hid = x("INSERT INTO households (id, name, source) VALUES (?,?,?)", (ctx.next_id("households"), name_, "Website"))
+            if added:
+                x("UPDATE people SET household_id=? WHERE id=?", (to_hid, added))
+                pid = added
+            else:
+                pid = x("INSERT INTO people (household_id, name, role, email, phone) VALUES (?,?,?,?,?)",
+                        (to_hid, name_, "adult", f_.get("email") or "", f_.get("phone") or ""))
+            filed_, contact_ = "new", None
+        else:
+            pid = known_person(to_hid, f_)
+            if pid and added:
+                x("DELETE FROM session_people WHERE person_id=? AND session_id=?", (added, sid))
+                if not q("SELECT 1 FROM session_people WHERE person_id=?", (added,), one=True):
+                    x("DELETE FROM people WHERE id=?", (added,))
+                contact_ = None
+            elif added:
+                x("UPDATE people SET household_id=? WHERE id=?", (to_hid, added))
+                pid = contact_ = added
+            else:
+                contact_ = None
+                if not pid:
+                    p_ = q("""SELECT id FROM people WHERE household_id=? ORDER BY role='parent' DESC, role='adult' DESC, id
+                              LIMIT 1""", (to_hid,), one=True)
+                    pid = p_["id"] if p_ else None
+            filed_ = "existing"
+        x("UPDATE sessions SET household_id=? WHERE id=?", (to_hid, sid))
+        x("UPDATE log SET household_id=? WHERE session_id=?", (to_hid, sid))
+        x("UPDATE audit SET household_id=? WHERE session_id=?", (to_hid, sid))
+        x("DELETE FROM session_people WHERE session_id=? AND person_id NOT IN (SELECT id FROM people WHERE household_id=?)",
+          (sid, to_hid))
+        if pid:
+            x("INSERT OR IGNORE INTO session_people (session_id, person_id) VALUES (?,?)", (sid, pid))
+        x("UPDATE studio_inquiries SET household_id=?, contact_id=?, filed=? WHERE sha256=?",
+          (to_hid, contact_, filed_, r_["sha256"]))
+        new_name = (q("SELECT name FROM households WHERE id=?", (to_hid,), one=True) or {"name": ""})["name"]
+        ctx.audit(f"Inquiry from {name_} moved to {'a new client, ' if filed_ == 'new' else ''}{new_name}: it was filed "
+                  f"under the wrong client", hid=old)
+        ctx.audit(f"Inquiry from {name_} moved here from {old_name}" + (" as a new client" if filed_ == "new" else ""),
+                  sid=sid, hid=to_hid)
+        return to_hid
+
+    @app.post("/session/<int:sid>/refile", endpoint="inquiry_refile")
+    def inquiry_refile(sid):
+
+        from flask import g as _g
+        f = request.form
+        back_ = ctx.safe_back(f.get("back"))
+        if not filed_row(sid):
+            abort(404)
+        why_ = refile_block(sid)
+        to = None
+        if not why_ and f.get("do") == "move":
+            to = existing_client(f.get("client", ""))
+            cur_ = q("SELECT household_id FROM sessions WHERE id=?", (sid,), one=True)["household_id"]
+            why_ = ("pick a client from the list" if not to else "it is filed under that client already" if to == cur_ else "")
+        elif not why_ and f.get("do") != "new":
+            abort(400)
+        if why_:
+            _fs["notice"] = f"Not moved: {why_}."
+            _g.refused = True
+            return redirect(back_ or url_for("client_stage", hid=q("SELECT household_id FROM sessions WHERE id=?", (sid,), one=True)["household_id"], s=sid))
+        hid_ = refile(sid, to)
+        return redirect(url_for("client_stage", hid=hid_, s=sid))
 
     @app.post("/settings/studio-page/inquiries/review", endpoint="studio_page_review")
     def studio_page_review():
@@ -2678,20 +3155,37 @@ def register(ctx):
         to = f.get("add_to", "")
         if to.isdigit():
             do = "add_to"
-        if do not in ("add", "spam", "add_all", "spam_all", "add_to"):
+        if do == "add_existing":
+            to = existing_client(f.get("client", ""))
+            if not to:
+                _g.refused = True
+                return redirect(ctx.safe_back(f.get("back")) or url_for("home") + "#inbox")
+        if do == "reply":
+            rid_ = f.get("id", "")
+            r_ = q("SELECT id FROM studio_inquiry_review WHERE id=?", (int(rid_),), one=True) if rid_.isdigit() else None
+            if not r_:
+                abort(404)
+            x("UPDATE studio_inquiry_review SET replied=? WHERE id=? AND replied IS NULL", (ctx.now_local(), r_["id"]))
+            ctx.audit("Replied to a website inquiry")
+            draft_ = next((i_["reply"] for i_ in review_rows() if i_["id"] == r_["id"]), "")
+            if f.get("mail") and draft_:
+                return redirect(draft_, code=303)
+            return redirect(ctx.safe_back(f.get("back")) or url_for("home") + "#inbox")
+        if do not in ("add", "spam", "add_all", "spam_all", "add_to", "add_existing"):
             abort(400)
         ids = [int(i_) for i_ in f.getlist("id") if i_.isdigit()]
         if do == "add_all":
             pending = review_rows()
             ids = [i_["id"] for i_ in pending if not i_["matches"] and (not ids or i_["id"] in ids)]
+        add_contact_ = f.get("add_contact") == "1" if f.get("contact_asked") else True
         n = sum(1 for rid in ids if review_one(rid, {"add_all": "add", "spam_all": "spam"}.get(do, do),
-                                                f.get("type") or None, int(to) if to.isdigit() else None))
+                                                f.get("type") or None, int(to) if str(to).isdigit() else None, add_contact_))
         if not n:
             _g.refused = True
         elif do in ("spam", "spam_all"):
             ctx.audit(f"Website inquiries: {n} marked as spam and removed" if n > 1
                       else "Website inquiry marked as spam and removed")
-        return redirect(back("#inquiries"))
+        return redirect(ctx.safe_back(f.get("back")) or url_for("home") + "#inquiries")
 
     @app.post("/settings/studio-page/inquiries", endpoint="studio_page_inquiries")
     def studio_page_inquiries():
@@ -2714,7 +3208,9 @@ def register(ctx):
         out = []
         for r in q("""SELECT i.session_id, i.received, s.household_id, h.name FROM studio_inquiries i
                       JOIN sessions s ON s.id=i.session_id JOIN households h ON h.id=s.household_id
-                      WHERE i.outcome='added' AND s.stage='inquiry' ORDER BY i.received"""):
+                      WHERE i.outcome='added' AND s.stage='inquiry'
+                      AND (SELECT COUNT(*) FROM log l WHERE l.session_id=i.session_id) <= 1
+                      ORDER BY i.received"""):
             try:
                 if date.fromisoformat(r["received"][:10]).toordinal() < since:
                     continue
@@ -2729,15 +3225,15 @@ def register(ctx):
 
     def many_inquiries():
         out = []
-        n = q("SELECT COUNT(*) n FROM studio_inquiry_review", one=True)["n"]
-        if n:
-            out.append(dict(text=f"{n} website inquir{'y' if n == 1 else 'ies'} to review: Add or Spam",
-                            link=url_for("studio_page") + "#inquiries"))
         if arrived_today() > INQ_MANY_A_DAY:
-            out.append(dict(text="Many website inquiries at once; check for spam", link=url_for("studio_page") + "#inquiries"))
+            out.append(dict(text="Many website inquiries at once; check for spam", link=url_for("home") + "#inquiries"))
         return out
 
     ctx.hooks.today.append(many_inquiries)
+
+    app.config["inquiry_review"] = dict(rows=review_rows, types=form_types, cut=INQ_CUT, clients=client_choices,
+                                        count=lambda: q("SELECT COUNT(*) n FROM studio_inquiry_review WHERE replied IS NULL",
+                                                        one=True)["n"])
 
     def today_items():
 
@@ -2773,7 +3269,10 @@ def register(ctx):
         "studio_page_photo": "Changed a photo on the studio page", "studio_page_favicon": "Changed the studio page's icon",
         "studio_page_preview_build": "Built a preview of the studio page", "studio_page_upload": "Asked to upload the studio page",
         "studio_page_take_down": "Asked to take the studio page down",
+        "studio_page_replace": "Asked to upload the studio page, replacing files already on the web host",
+        "studio_page_put_back": "Asked to put the old files back on the studio page's web host",
         "studio_page_take_down_earlier": "Asked to take the studio page down from an earlier web host",
         "studio_page_forget_host": "Forgot an earlier web host of the studio page",
         "studio_page_inquiries": "Checked for inquiries from the website",
         "studio_page_review": "Reviewed inquiries from the website"})
+    app.config.setdefault("quiet_endpoints", set()).add("inquiry_refile")

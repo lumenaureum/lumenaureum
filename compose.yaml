@@ -11,7 +11,7 @@
 # Then: docker compose up -d, and open https://<that address>:8780 from another device on your network.
 services:
   lumenaureum:
-    image: ghcr.io/lumenaureum/lumenaureum:1.4.1     # a fixed version; change it deliberately to upgrade
+    image: ghcr.io/lumenaureum/lumenaureum:1.5.0     # a fixed version; change it deliberately to upgrade
     restart: unless-stopped
     user: "10001:10001"                              # the user and group that own the folders below
     ports:
@@ -24,11 +24,8 @@ services:
     # after the colon in setup (docs/where-it-runs.md, Folders outside the container). Give it the owner in "user".
     #  - /mnt/usb-backup/lumenaureum:/backup2              # a second backup copy on another disk: type /backup2 in setup
     #  - /srv/www/galleries:/galleries               # a folder a web server here serves: type /galleries in setup
-    # Optional: unattended unlock (see docs/security.md). The key file must be on another device than ./data (another disk, a USB key).
-    #  - /path/to/other-volume/lumenaureum-unlock:/unlock
     # Settings such as CRM_ALLOW_ONLY are lines under environment: (docs/where-it-runs.md, Settings in compose.yaml).
     # environment:
-    #   CRM_UNLOCK_KEY_FILE: /unlock/unlock.key
     #   CRM_ALLOW_ONLY: "192.168.1.0/24"             # only these addresses may connect
     #   CRM_HOSTNAMES: "nas.local"                   # names you reach it by, besides its address
     #   CRM_TLS_SAN: "192.168.1.10,nas.local"        # put these in the certificate, so the browser asks only once;

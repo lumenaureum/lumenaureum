@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% from "_macros.html" import help, sym with context %}
 {% block title %}Security - Lumen Aureum{% endblock %}
 {% block body %}
 <h1>Security</h1>
@@ -40,23 +40,35 @@
     <button class="quiet">Make new codes</button></form>
   {% endif %}
 
-  <h2 style="margin-top:20px">Unattended unlock</h2>
-  <p class="mute">Off by default. When on, Lumen Aureum unlocks itself after a restart using a key file kept on a separate volume
-    (CRM_UNLOCK_KEY_FILE). Anyone who has both that volume and the data can read everything, so keep the file somewhere a
-    thief would not also take, such as an encrypted dataset that is locked when the machine is off.</p>
-  {% if auto_refused %}<p style="color:var(--crit)" role="status">{{ auto_refused }}</p>{% endif %}
-  {% if auto %}
-  <form method="post" class="row" autocomplete="off" style="align-items:end"><input type="hidden" name="act" value="auto_off">
-    <div><label class="l" for="cur-auto_off">Current password</label><input type="password" id="cur-auto_off" name="current" autocomplete="current-password" required style="width:240px;margin:0"></div>
-    <button class="quiet">Turn off</button></form>
-  {% elif auto_file %}
-  <p>Key file: <span class="mono">{{ auto_file }}</span></p>
-  <form method="post" class="row" autocomplete="off" style="align-items:end"><input type="hidden" name="act" value="auto_on">
-    <div><label class="l" for="cur-auto_on">Current password</label><input type="password" id="cur-auto_on" name="current" autocomplete="current-password" required style="width:240px;margin:0"></div>
-    <button class="quiet">Turn on</button></form>
-  {% else %}
-  <p class="mute">Not available: CRM_UNLOCK_KEY_FILE is not set.</p>
+  <h2 style="margin-top:20px" id="notice">Locked-studio notice {{ help("While the studio is locked it can't read its encrypted settings, so the server address, topic and access token are also kept in a small plain file, ntfy.json in the data folder. Anyone who can read the data folder can read them: use a topic nobody could guess, and a token if your server takes one. The notice says only that the studio is locked and since when. It never carries a client's name, a count, an amount or a link.") }}</h2>
+  <p class="mute">Optional. A message to your phone through ntfy when the studio restarts and stays locked, then once a day until you sign in.</p>
+  <form method="post" action="{{ url_for('security_notice') }}" class="f" autocomplete="off">
+    <div><label class="l" for="ntfy-server">ntfy server</label><input type="url" id="ntfy-server" name="server" maxlength="300" placeholder="https://ntfy.sh" value="{{ ntfy.ntfy_server if ntfy else '' }}" required></div>
+    <div><label class="l" for="ntfy-topic">Topic</label><input id="ntfy-topic" name="topic" maxlength="64" pattern="[A-Za-z0-9_\-]{1,64}" value="{{ ntfy.ntfy_topic if ntfy else '' }}" required></div>
+    <div><label class="l" for="ntfy-token">Access token (optional)</label><input type="password" id="ntfy-token" name="token" maxlength="300" autocomplete="off"{% if ntfy and ntfy.ntfy_token %} placeholder="Saved. Leave blank to keep it."{% endif %}></div>
+    {% if ntfy and ntfy.ntfy_token %}<label class="ui-check"><input type="checkbox" name="drop_token" value="1">Remove the saved token</label>{% endif %}
+    <div class="ui-btnrow"><button class="ui-btn ui-btn-primary" name="act" value="save">Save the notice settings</button><button class="ui-btn ui-btn-quiet" name="act" value="test">Send a test notice</button></div></form>
+  {% if ntfy %}
+  <div id="notice-kinds"><label class="ui-check"><input type="checkbox" checked disabled>Studio locked after a restart</label></div>
+  <div class="ui-btnrow">
+    <form method="post" action="{{ url_for('security_notice') }}" class="ui-action"><input type="hidden" name="act" value="remove"><button class="ui-btn ui-btn-quiet">Stop the notices</button></form>
+  </div>
   {% endif %}
+
+  
+  {% set acts_ = account_activity() if account_activity is defined else [] %}
+  {% if acts_ %}{% import "_ui.html" as ui with context %}
+  {% call ui.fold('Account activity', id='activity', note='latest ' ~ nice(acts_[0].day), always=true, count=acts_|length) %}
+    {% set ns = namespace(day='') %}
+    <div class="hlist" id="account-activity">
+    {% for a_ in acts_ %}
+      {% if a_.day != ns.day %}{% set ns.day = a_.day %}<div class="hday">{{ nice(a_.day) }}</div>{% endif %}
+      <div class="hrow k-audit"><span class="htime">{{ a_.time }}</span>{{ sym(a_.icon, 'next', 18) }}<div class="htext"><span>{{ a_.text }}</span>{% if a_.note %}<em>{{ a_.note }}</em>{% endif %}</div></div>
+    {% endfor %}
+    </div>
+  {% endcall %}
+  {% else %}<h2 style="margin-top:20px" id="activity">Account activity</h2>
+  <p class="mute">Nothing yet. Sign-ins, password and code changes, master key checks and exports show here.</p>{% endif %}
 </div>
 {% endblock %}
 

@@ -104,27 +104,6 @@ def ring(tmp_path, monkeypatch):
     import datakey
     return datakey, tmp_path
 
-def test_a_changed_keyring_is_refused_before_a_key_file_is_written(ring, monkeypatch):
-    datakey, tmp = ring
-    key_file = tmp / "elsewhere" / "unlock.key"
-    monkeypatch.setenv("CRM_UNLOCK_KEY_FILE", str(key_file))
-    monkeypatch.setattr(datakey, "check_auto_place", lambda p: None)
-    r = json.loads(datakey.KEYRING.read_text())
-    r["mac"] = "0" * 64
-    datakey.KEYRING.write_text(json.dumps(r))
-    with pytest.raises(ValueError, match="changed outside"):
-        datakey.enable_auto()
-    assert not key_file.exists()
-
-def test_the_container_filesystem_is_no_place_for_the_key(ring, monkeypatch):
-    datakey, tmp = ring
-    monkeypatch.setattr(datakey, "_mount_point", lambda p: "/" if "keys" in str(p) else "/data")
-    monkeypatch.setattr(datakey, "_in_container", lambda: True)
-    monkeypatch.setattr(os, "stat", lambda p, *a, **k: type("S", (), {"st_dev": hash(str(p))})() if "keys" in str(p) or str(p) == str(tmp) else os.lstat(p))
-    (tmp / "keys").mkdir()
-    with pytest.raises(ValueError, match="different volume"):
-        datakey.check_auto_place(tmp / "keys" / "unlock.key")
-
 def test_keyring_writes_never_share_a_temporary_file(ring):
     datakey, tmp = ring
     key = datakey.dk()

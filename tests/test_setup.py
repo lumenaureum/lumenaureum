@@ -69,7 +69,7 @@ def test_money_types_documents_tax_feed_the_app(env):
     import config as C
     post(c, "/setup/money", deposit="150", event_pct="40", reschedule_fee="25", delivery_days="10", event_delivery_days="20",
          quote_term_days="21", mileage_rate="0.7", net_days="15", net_family="1", pay_cash="1", pay_other="Venmo")
-    assert C.DEPOSIT_AMOUNT == 150 and "$150 deposit" in C.TERMS[0][1]
+    assert C.DEPOSIT_AMOUNT == 150 and "$150.00 deposit" in C.TERMS[0][1]
     assert C.NET_TERMS_TYPES == ("family",) and C.PAYMENT_METHODS == ["cash", "Venmo"]
     r = post(c, "/setup/money", deposit="150", event_pct="40", reschedule_fee="25", delivery_days="10",
              event_delivery_days="20", net_days="15")
@@ -138,13 +138,13 @@ def test_finish_setting_up_list_on_today(env):
     post(c, "/setup/storage", primary_type="local", primary_path=str(vault), primary_init="1", backup_time="02:40")
     post(c, "/setup/network")
     page = c.get("/", environ_base=E).get_data(as_text=True)
-    for line in ("Finish setting up", "mark each one reviewed", "starter prices", "business email", "second backup location",
+    for line in ("Setting up", "approve each where you use it", "starter prices", "business email", "second backup location",
                  "online galleries", "first client"):
         assert line in page, line
     post(c, "/settings/review/agreement")
     post(c, "/contact/new", contact_name="Dana Harlow", household_name="Harlow Family")
     page = c.get("/", environ_base=E).get_data(as_text=True)
-    assert "mark each one reviewed" not in page and "first client" not in page
+    assert "approve each where you use it" not in page and "first client" not in page
     post(c, "/setup/hide-list")
     assert "Finish setting up" not in c.get("/", environ_base=E).get_data(as_text=True)
 

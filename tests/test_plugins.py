@@ -32,9 +32,9 @@ def test_readme_example_plugin(tmp_path, monkeypatch):
     con.commit(); con.close()
     page = c.get("/", environ_base=E).get_data(as_text=True)
     assert "Send Harlow Family a thank-you card" in page and "Renew the studio lease" in page
-    assert "Mark card sent" in c.get("/session/1", environ_base=E).get_data(as_text=True)
+    assert "Mark card sent" in c.get("/session/1/edit", environ_base=E).get_data(as_text=True)
     c.post("/thank-you/1", environ_base=E)
-    assert "Card sent" in c.get("/session/1", environ_base=E).get_data(as_text=True)
+    assert "Card sent" in c.get("/session/1/edit", environ_base=E).get_data(as_text=True)
     assert "Send Harlow Family a thank-you card" not in c.get("/", environ_base=E).get_data(as_text=True)
 
 def test_plugins_off(tmp_path, monkeypatch):

@@ -75,7 +75,7 @@ def test_a_full_refund_of_a_deposit_alone_defaults_to_hold(env):
 def test_the_refund_form_asks_with_the_default_preselected(env):
     A, c, freeze = env
     paid_in_full(A, c, freeze)
-    page = c.get("/session/1", environ_base=E).get_data(as_text=True)
+    page = c.get("/session/1/edit", environ_base=E).get_data(as_text=True)
     assert "After this refund, the gallery:" in page
     box = page.split("data-after-refund", 1)[1].split("</span></span>", 1)[0]
     assert RELEASE in box and HOLD in box
@@ -83,7 +83,7 @@ def test_the_refund_form_asks_with_the_default_preselected(env):
     household(A, 2, "Moss")
     session(A, 2, 2, "shot", "2026-06-01")
     line(c, 2, "Session", 350, taxable=False)
-    box = c.get("/session/2", environ_base=E).get_data(as_text=True).split("data-after-refund", 1)[1]
+    box = c.get("/session/2/edit", environ_base=E).get_data(as_text=True).split("data-after-refund", 1)[1]
     assert re.search(r'value="hold" checked', box.split("</span></span>", 1)[0])
 
 def test_a_partial_refund_can_hold_until_paid_again(env):
@@ -120,8 +120,8 @@ def test_the_refund_history_line_says_the_choice(env):
     refund(c, 40)
     refund(c, 10, after="hold")
     h = history(A)
-    assert f"Recorded refund $40 by cash. After this refund, the gallery {RELEASE}" in h
-    assert f"Recorded refund $10 by cash. After this refund, the gallery {HOLD}" in h
+    assert f"Recorded refund $40.00 by cash. After this refund, the gallery {RELEASE}" in h
+    assert f"Recorded refund $10.00 by cash. After this refund, the gallery {HOLD}" in h
     pay(c, 1, "balance", 10, "2026-07-12")
     assert not any("After this refund" in a for a in history(A) if a.startswith("Recorded balance"))
 
@@ -130,7 +130,7 @@ def test_the_panel_shows_held_after_refund_and_releases_in_one_click(env):
     paid_in_full(A, c, freeze)
     refund(c, 350)
     p = panel(c)
-    assert "Held after refund until paid again: $350 to pay." in p and "Release now" in p
+    assert "Held after refund until paid again: $350.00 to pay." in p and "Release now" in p
     post(c, "/session/1/after-refund", choice="release", back="/c/1?s=1")
     assert stored(A) == "release" and blocked(A) == 0
     p = panel(c)
@@ -153,7 +153,7 @@ def test_release_with_money_still_owed_says_so_on_the_button(env):
     refund(c, 50, after="hold")
     assert blocked(A) == 200
     p = panel(c)
-    assert "Held after refund until paid again: $200 to pay." in p and "Release once nothing is owed" in p
+    assert "Held after refund until paid again: $200.00 to pay." in p and "Release once nothing is owed" in p
     assert "Release now" not in p
     post(c, "/session/1/after-refund", choice="release", back="/c/1?s=1")
     assert blocked(A) == 150

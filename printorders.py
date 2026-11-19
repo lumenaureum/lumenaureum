@@ -294,7 +294,14 @@ def cut_ppi(rect, w, h):
     pw, ph = (l_, s) if W >= H else (s, l_)
     return int(min(W / pw, H / ph))
 
-def cut_jpeg(src, rect, quality=95, max_bytes=None):
+def print_ppi(rect, w, h):
+
+    _x, _y, W, H = rect
+    s, l_ = sorted((float(w), float(h)))
+    pw, ph = (l_, s) if W >= H else (s, l_)
+    return max(1, int(round(min(W / pw, H / ph))))
+
+def cut_jpeg(src, rect, quality=95, max_bytes=None, ppi=None):
 
     from PIL import Image
     with Image.open(io.BytesIO(src)) as im:
@@ -302,7 +309,12 @@ def cut_jpeg(src, rect, quality=95, max_bytes=None):
         x, y, W, H = rect
         cut = im.convert("RGB").crop((x, y, x + W, y + H))
         out = Image.frombytes("RGB", cut.size, cut.tobytes())
-    extra = {**({"exif": exif} if exif else {}), **({"xmp": xmp} if xmp else {})}
+    if ppi and exif:
+        ex_ = Image.Exif()
+        ex_.load(exif)
+        ex_[282], ex_[283], ex_[296] = float(ppi), float(ppi), 2
+        exif = ex_.tobytes()
+    extra = {**({"exif": exif} if exif else {}), **({"xmp": xmp} if xmp else {}), **({"dpi": (ppi, ppi)} if ppi else {})}
     for qv in [quality] + ([90, 85] if max_bytes else []):
         b = io.BytesIO()
         out.save(b, "JPEG", quality=qv, optimize=True, **extra)

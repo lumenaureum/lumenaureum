@@ -3,7 +3,8 @@
 A small public website for your studio, made from what Lumen Aureum already has, in the same look as your client
 galleries. It is one fixed design, not a website builder: a home page with a few photos you pick, shown one after
 another; an About page; a Contact page with an inquiry form, which also tells clients their gallery opens from its private
-link; a "not found" page; and the small files search engines and browsers look for (robots.txt, sitemap.xml, an icon).
+link; a "not found" page; and the small files search engines, modern search tools and browsers look for (robots.txt,
+sitemap.xml, llms.txt and an icon).
 
 It is off until you switch it on in **Settings, Studio page**.
 
@@ -46,10 +47,19 @@ says so and nothing is uploaded.
      two names in one entry such as "IMG_0042 and IMG_0043" or "IMG_0042.jpg IMG_0043.jpg", a range such as
      "IMG_0042 - IMG_0045" or "IMG_0042 thru 45", a name followed by words, a name that is none of the session's
      photos), it can't be matched safely, so none of that session's photos are offered, and the page says why. To
-     offer the others, write the list as the names of the photos not to show (session page, Delivery).
-6. **Icon**: the small picture on the browser tab. A square PNG works best.
+     offer the others, write the list as the names of the photos not to show (the client page, Delivery).
+6. **Icon**: the small picture on the browser tab and a phone's home screen. A square PNG works best. Without one,
+   the site uses the Lumen Aureum mark; **Remove the icon** brings the mark back.
 7. **Copyright mark**: on by default. A small `© <year> <your name>` in the bottom-left corner of each photo, in
    near-white letters with a dark outline, sized to the photo. The year is the year the photo first went online.
+
+8. **A summary for modern search tools (llms.txt)**: on by default. A short text file that modern search tools read: the studio's
+   name, the line under it, the line about your work, the first paragraph of About, the address the site shows, and
+   the site's pages with how to send an inquiry. It holds only what the site already shows, and never a gallery.
+   Untick the box to leave it out; the next upload removes it.
+
+The site always has its "not found" page. robots.txt, sitemap.xml and llms.txt need the site's address, which comes
+from your gallery address (see What it needs, above).
 
 ## Every photo, every time
 Each photo is decoded and saved again from its pixels at display size (at most 1100 pixels on its longest side,
@@ -71,9 +81,13 @@ among them) are read from your web host, so a list the client sent since the app
 can't be read, nothing is uploaded and the page says so.
 
 What it writes, and what it never touches:
-- It never writes over a file it didn't put there. If your host already has an `index.html` (an earlier website, say),
-  the upload stops before anything is written and names the files. Move them aside or delete them on your host, then
-  press Upload again. A file it did put there once, but which was changed on your host since and so let go, stops the
+- It never writes over a file it didn't put there without asking. If your host already has an `index.html` (an earlier
+  website, say), the upload stops before anything is written and names the files, with **Replace these files**. That
+  asks first, then keeps a copy of each old file in the app and puts the studio page's own files in their place. The
+  page then lists the files it replaced and when, with **Put the old files back**, which puts the kept copies back
+  on your host and stops counting those names as the studio page's own. A file larger than 20 MB can't be kept, so
+  it can't be replaced: move it aside or delete it on your host, then press Upload again. If the files on your host
+  change between the offer and your answer, nothing is replaced and the page says what changed. A file it did put there once, but which was changed on your host since and so let go, stops the
   upload the same way, and the page names it as such rather than as someone else's. So does a file it put there under
   earlier web host settings that couldn't be confirmed to reach this same folder (recognized by its fingerprint);
   and the page names first, on their own, any client photos on your host that their client no longer allows.
@@ -103,25 +117,27 @@ keep it closed to the web; an inquiry that couldn't be collected is left too, an
 form switched off does the same.
 
 **Switching the page off** in Settings doesn't take the site down. While its files are still on your host, the Studio
-page keeps showing the inquiries to review, **Take the site down** and any photo a client no longer allows; Today keeps
-its reminders; and inquiries sent through the form still online are still collected.
+page keeps showing **Take the site down** and any photo a client no longer allows; Today keeps its reminders; and
+inquiries sent through the form still online are still collected and wait on Today.
 
 ## The inquiry form
 On the Contact page. A visitor gives a name, an email or a phone number, the kind of session, a preferred date and a
 message. What they type is sealed in their browser to your studio's own key ([Sealed format](sealed-format.md), purpose
 inquiry), so only this app can read it: the web
 host keeps a sealed file it can't open, until Lumen Aureum collects it (every 15 minutes, or **Check for inquiries**).
-Collected inquiries wait in **Website inquiries to review** on the Studio page, and Today says how many. Press **Add**
-to make it a new client with an Inquiry session, with "Inquiry from your website" in its History and "New inquiry from
-the website" on Today; **Spam** removes it. Nothing from the form becomes a client record until you add it. The file
+Collected inquiries wait in the Inbox on Today, one line each, bold while new; tap one to open it. Press **Add as a client** to make it a new client
+with an Inquiry session, with "Inquiry from your website" in its History; **Spam** removes it. Nothing from the form becomes a client record until you add it. The file
 is removed from the host only once the inquiry is saved here.
 
 The review list helps with the rest:
 - An inquiry with the same email (case aside) or phone number as a client you have says **Matches** and the client's
-  name, with **Add to** that client: a new Inquiry session for them instead of a second household. One with the same
+  name, with **Add to** that client (**Add to an existing client...** finds any other client by name): a new Inquiry session for them instead of a second household. The
+  message keeps its real sender, and a sender who isn't a person on that client yet can be added as a contact (ticked
+  to start with). A misfiled one moves later from the client's page (Filed under the wrong client?). One with the same
   email or phone as another inquiry waiting says so.
-- When the visitor didn't pick a kind of session, it says "Kind of session: not given", and Add asks which (the first
-  kind is chosen to start with).
+- The form's kinds of session are your session types, "Not sure yet", and "Other (explain below)". When the visitor
+  didn't pick one, the line says "Kind of session: not given", and Add asks which (the first kind is chosen to start
+  with).
 - A message longer than 4000 characters is kept to its first 4000, and the list says so.
 - **Add all** asks first, and adds only the inquiries on the list as you saw it that match no client (those wait for
   your choice). **Spam all** asks first and removes only those shown, never one that arrived since.
@@ -169,4 +185,4 @@ file); each gallery page tells search engines not to index it.
 ## Building a draft by hand
 `build_site(out_dir, conf, photos)` in `plugins/studio_page.py` takes `draft=True` for a look before going live from
 any folder (for example `https://example.com/draft/`): every link is relative, every page says `noindex, nofollow`,
-there is no robots.txt, sitemap.xml, .htaccess or inquiry.php, and the form says sending is off.
+there is no robots.txt, sitemap.xml, llms.txt, .htaccess or inquiry.php, and the form says sending is off.

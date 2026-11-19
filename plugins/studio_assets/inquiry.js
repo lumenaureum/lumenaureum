@@ -241,6 +241,7 @@ const LAS = (() => {
       tried = null;
       f.reset();                       // sent: a page brought back from the browser's history starts empty
       f.hidden = true;
+      var intro = document.getElementById("inq-intro"); if (intro) intro.hidden = true;   // sent: the invitation to ask is done
       say(f.dataset.thanks, false);
     } catch (err) {
       say(f.dataset.fail, true);

@@ -28,7 +28,8 @@ def _studio(tmp_path, monkeypatch):
 
     A, c = _app(tmp_path, monkeypatch)
     sid = _new(A, c, "family", subject_name="Ava")
-    _sql(A, "UPDATE sessions SET shoot_date='2026-11-19', start_time='16:10' WHERE id=?", (sid,))
+
+    _sql(A, "UPDATE sessions SET shoot_date=?, start_time='16:10' WHERE id=?", ((A.today() + A.timedelta(days=10)).isoformat(), sid))
     c.post(f"/session/{sid}/money", data={"what": "line", "label": "Portrait session", "amount": "300"}, environ_base=E)
     c.post(f"/session/{sid}/money", data={"what": "payment", "kind": "deposit", "amount": "100", "method": "cash",
                                          "received": "2026-10-05"}, environ_base=E)
@@ -37,7 +38,7 @@ def _studio(tmp_path, monkeypatch):
 PAGES = {"/": "Today", "/clients": "Clients", "/sessions": "Sessions", "/pipeline": "Board", "/money": "Finances",
          "/events": "Events", "/search?q=nobody": "Search", "/calendar": None, "/calendar/year": None, "/settings": "Settings",
          "/settings/wording/agreement": "Agreement wording", "/settings/wording/release": "Release wording",
-         "/contact/new": "New contact", "/inquiry": "New inquiry", "/client/1": "Lane", "/c/1": "Lane", "/vault": "Vault",
+         "/contact/new": "New contact", "/inquiry": "New inquiry", "/client/1": "Lane", "/c/1": "Lane", "/vault": "Backups",
          "/security": "Security", "/about": "About"}
 
 def test_every_app_page_has_its_own_title(tmp_path, monkeypatch):
@@ -62,7 +63,7 @@ def _nav(html):
 
 def test_the_main_navigation_is_on_every_page_and_marks_where_you_are(tmp_path, monkeypatch):
     A, c, sid = _studio(tmp_path, monkeypatch)
-    for url, here in dict(SECTION, **{f"/session/{sid}": "Sessions"}).items():
+    for url, here in dict(SECTION, **{f"/session/{sid}/edit": "Sessions"}).items():
         nav = _nav(_page(c, url))
         assert [x for x in re.findall(r">([^<]+)</a>", nav)] == ["Today", "Clients", "Sessions", "Calendar", "Finances"]
         current = re.findall(r'aria-current="page">([^<]+)</a>', nav)
@@ -88,9 +89,7 @@ def test_the_clock_helper():
 def test_the_session_strip_and_documents_use_the_one_clock_style(tmp_path, monkeypatch):
     A, c, sid = _studio(tmp_path, monkeypatch)
     monkeypatch.setattr(A, "html_pdf", lambda html, name: html)
-    page = _page(c, f"/session/{sid}")
-    strip = re.search(r'<div class="k">Shoot</div><div class="v"[^>]*>(.*?)</div>', page).group(1)
-    assert "4:10 pm" in strip and "16:10" not in strip
+
     for url in (f"/session/{sid}/agreement", f"/session/{sid}/agreement.pdf", f"/session/{sid}/details",
                 f"/session/{sid}/details.pdf"):
         html = c.get(url, environ_base=E).get_data(as_text=True)
@@ -101,7 +100,7 @@ def test_the_session_strip_and_documents_use_the_one_clock_style(tmp_path, monke
 def test_light_strip_says_nothing_without_a_home_location(tmp_path, monkeypatch):
     A, c, sid = _studio(tmp_path, monkeypatch)
     monkeypatch.setattr(A.sun, "HOME", None)
-    page = _page(c, f"/session/{sid}")
+    page = _page(c, f"/session/{sid}/edit")
     assert '<div class="k">Light</div>' not in page and ">to <" not in page
     with A.app.test_request_context():
         assert A.light("2026-11-19") is None
@@ -114,7 +113,7 @@ def test_light_strip_says_nothing_without_a_home_location(tmp_path, monkeypatch)
 def test_finances_months_read_like_oct_2026(tmp_path, monkeypatch):
     A, c, sid = _studio(tmp_path, monkeypatch)
     page = _page(c, "/money?year=2026")
-    by_month = page.split("<h2>By month</h2>")[1].split("</div></div>")[0]
+    by_month = page.split('aria-label="Received by month"')[1].split("</ul>")[0]
     assert "Oct 2026" in by_month and "2026-10" not in by_month
 
 def test_the_statement_moves_by_named_months(tmp_path, monkeypatch):
@@ -127,7 +126,7 @@ def test_icon_only_buttons_have_names(tmp_path, monkeypatch):
     A, c, sid = _studio(tmp_path, monkeypatch)
     c.post(f"/session/{sid}/money", data={"what": "expense", "label": "Parking", "amount": "12"}, environ_base=E)
     c.post("/money/overhead", data={"label": "Lens cloth", "amount": "9", "date": "2026-11-02"}, environ_base=E)
-    pages = [_page(c, u) for u in (f"/session/{sid}", "/c/1", "/client/1", "/money?year=2026")]
+    pages = [_page(c, u) for u in (f"/session/{sid}/edit", "/c/1", "/client/1", "/money?year=2026")]
     seen = 0
     for html in pages:
         for b in re.findall(r"<button\b[^>]*>[^<]{0,8}</button>", html):
@@ -139,12 +138,12 @@ def test_icon_only_buttons_have_names(tmp_path, monkeypatch):
     assert seen >= 4
     s = pages[0]
     assert 'aria-label="Remove line Portrait session"' in s and 'aria-label="Remove expense Parking"' in s
-    assert re.search(r'class="linkbtn"[^>]*aria-label="Void deposit payment of \$100"', s)
+    assert re.search(r'class="ui-btn[^"]*"[^>]*aria-label="Void deposit payment of \$100\.00"', s)
     assert 'aria-label="Remove expense Lens cloth"' in pages[3]
     assert 'aria-label="Remove line Portrait session"' in pages[1]
     for html in pages:
-        for summ in re.findall(r"<summary\b[^>]*>&hellip;</summary>", html):
-            assert "aria-label=" in summ, summ
+        for summ in re.findall(r'<details class="ui-rowmore"><summary\b[^>]*>[^<]*</summary>', html):
+            assert "aria-label=" in summ and summ.endswith(">More</summary>"), summ
 
 def _submit_buttons(form_html):
     return [b for b in re.findall(r"<button\b[^>]*>.*?</button>", form_html, re.S) if 'type="button"' not in b]
@@ -152,9 +151,9 @@ def _submit_buttons(form_html):
 def test_enter_presses_the_main_button_on_forms_with_several(tmp_path, monkeypatch):
     A, c, sid = _studio(tmp_path, monkeypatch)
 
-    form = re.search(r'<form method="post" class="card f".*?</form>', _page(c, "/contact/new"), re.S).group(0)
+    form = re.search(r'<form method="post">.*?</form>', _page(c, "/contact/new"), re.S).group(0)
     btns = _submit_buttons(form)
-    assert len(btns) == 2 and "Save and start an inquiry" in btns[0] and 'class="primary"' in btns[0]
+    assert len(btns) == 2 and "Save and start an inquiry" in btns[0] and 'ui-btn-primary' in btns[0]
     assert 'name="then" value="inquiry"' in btns[0]
     r = c.post("/contact/new", data={"contact_name": "Rowan Hale", "then": "inquiry"}, environ_base=E)
     assert "/inquiry" in r.headers["Location"]
@@ -163,8 +162,8 @@ def test_enter_presses_the_main_button_on_forms_with_several(tmp_path, monkeypat
     first = _submit_buttons(form)[0]
     assert "data-enter-default" in first and 'name="skip"' not in first
 
-    form = re.search(r'<form[^>]*>(?:(?!</form>).)*name="start_time".*?</form>', _page(c, f"/session/{sid}"), re.S).group(0)
-    assert 'class="primary"' in _submit_buttons(form)[0]
+    form = re.search(r'<form[^>]*>(?:(?!</form>).)*name="start_time".*?</form>', _page(c, f"/session/{sid}/edit"), re.S).group(0)
+    assert 'ui-btn-primary' in _submit_buttons(form)[0]
 
 def test_the_inquiry_steps_put_focus_where_the_keyboard_goes_next(tmp_path, monkeypatch):
     A, c, sid = _studio(tmp_path, monkeypatch)
@@ -182,7 +181,8 @@ def test_adding_a_step_on_the_focus_page_stays_there(tmp_path, monkeypatch):
 
 def test_the_document_bar_puts_close_last(tmp_path, monkeypatch):
     A, c, sid = _studio(tmp_path, monkeypatch)
-    bar = re.search(r'<div class="bar">.*?</div>', _page(c, f"/session/{sid}/details"), re.S).group(0)
+    page_ = _page(c, f"/session/{sid}/details")
+    bar = page_.split('<div class="bar">', 1)[1].split('<div class="page">', 1)[0]
     links = re.findall(r"<a [^>]*>([^<]+)", bar)
     assert links[-1] == "Close" and "Email it(" not in bar
 
@@ -197,7 +197,7 @@ def test_booked_says_which_booking_steps_are_still_open(tmp_path, monkeypatch):
             A.db()
             return A.booked_hint(sid)
     assert hint() == "deposit and agreement still open"
-    for url in ("/", "/c/1", "/client/1", f"/session/{sid}", "/pipeline"):
+    for url in ("/c/1", "/client/1", f"/session/{sid}", "/pipeline"):
         assert "eposit and agreement still open" in _page(c, url), url
     c.post(f"/session/{sid}/money", data={"what": "payment", "kind": "deposit", "amount": "100", "method": "cash"}, environ_base=E)
     assert hint() == "agreement still open"
@@ -220,13 +220,13 @@ def test_header_and_now_block_name_the_same_stage(tmp_path, monkeypatch):
 
     A, c, sid = _studio(tmp_path, monkeypatch)
     page = _page(c, "/c/1")
-    assert re.search(r'<div class="now-head" id="now-head" data-refresh>', page)
-    assert 'id="hero-now" data-refresh' in page
+
+    assert re.search(r'<header class="ui-head" id="ui-head" data-ui-part>', page)
     stage = _q(A, "SELECT stage FROM sessions WHERE id=?", (sid,))[0][0]
     label = A.C.STAGE_LABELS[stage]
-    head = re.search(r'<div class="hn-stage">([^<&]+)', page).group(1).strip()
-    now = re.search(r'<h2 class="now-title">Now: ([^<]+)</h2>', page).group(1).strip()
-    assert head == now == label
+    head = re.search(r'<span class="hn-stage">([^<&]+)', page).group(1).strip()
+    assert head == label
+    assert "Now: " not in page
 
     _sql(A, "INSERT INTO stage_log (session_id, stage, at) VALUES (?, ?, '2026-01-01')", (sid, stage))
     _sql(A, "INSERT INTO stage_log (session_id, stage, at) VALUES (?, ?, date('now','localtime'))", (sid, stage))

@@ -4,11 +4,11 @@ from flask import abort, current_app, url_for
 
 STAGES = ("shot", "delivered", "closed")
 STEP = "QR letter mailed"
+FILES_STEP = "Files delivered"
 
 BLOCK = """<div id="letters" class="letters">
   <div class="row" style="gap:18px;flex-wrap:wrap">
-    {% if gal %}<a class="go" href="{{ url_for('letter_qr', sid=s.id) }}" target="_blank"{% if not link %} data-tip="No gallery link yet"{% endif %}>QR letter &rsaquo;</a>
-    {% if not link %}<span class="mute" style="font-size:13px" data-tip="No gallery link yet: prints with a blank box where the QR goes">draft</span>{% endif %}{% endif %}
+    {% if gal %}<a class="go" href="{{ url_for('letter_qr', sid=s.id) }}" target="_blank"{% if not link %} data-tip="No gallery link yet: prints marked DRAFT with a blank box where the QR goes, for checking the layout only"{% endif %}>{{ 'QR letter' if link else 'Print a draft letter' }} &rsaquo;</a>{% endif %}
     <a class="go" href="{{ url_for('letter_release', sid=s.id) }}" target="_blank">{{ 'Photo license' if lic else 'Copyright transfer' }} &rsaquo;</a>
     {% if C.delivery_method(s.type, s.delivery_method) == 'sd' %}<a class="go" href="{{ url_for('letter_labels', sid=s.id) }}" target="_blank">SD labels &rsaquo;</a>{% endif %}
   </div>
@@ -208,17 +208,63 @@ def register(ctx):
                                       or ctx.C.delivery_method(s["type"], s["delivery_method"]) == "link")
         return [("Letters", html)]
 
+    def client_first(s):
+
+        r_ = q("""SELECT name FROM people WHERE household_id=? AND role IN ('parent','adult') AND COALESCE(name,'') != ''
+                  ORDER BY role='parent' DESC, id LIMIT 1""", (s["household_id"],), one=True)
+        if r_ and first(r_["name"]):
+            return first(r_["name"])
+        h_ = q("SELECT name FROM households WHERE id=?", (s["household_id"],), one=True)
+        name = (h_["name"] if h_ else "") or "the client"
+        return name[4:] if name.lower().startswith("the ") else name
+
+    def link_mail(s):
+
+        mail_ = app.config.get("gallery_link_mail")
+        try:
+            draft = mail_(s) if callable(mail_) and gallery_link(s["id"]) else ""
+        except Exception:
+            draft = ""
+        cw_ = bool(ctx.C.POLICY[s["type"]].get("gallery_codeword")) and bool(
+            (s["gallery_codeword"] if "gallery_codeword" in s.keys() else "") or "")
+        return draft, cw_
+
+    def files_row(s):
+
+        draft, cw_ = link_mail(s)
+        key_ = ctx.C.delivery_method(s["type"], s["delivery_method"])
+        medium = ctx.C.DELIVERY_METHODS[key_][0]
+        return dict(what=f"Get the photos to {client_first(s)}", verb="Mark delivered", post=url_for("quick", sid=s["id"]),
+                    fields=dict(act="mark", field="sd_shipped"), note=("On an " if medium.startswith("SD") else "On a ") + medium,
+                    close=dict(sid=s["id"], step="sd_shipped"),
+                    deliver=dict(sid=s["id"], step="sd_shipped", mail=draft, codeword=cw_, usual=key_,
+                                 online=bool(gallery_link(s["id"]))))
+
     def step_action(label, s):
-        if label != STEP or s["letter_mailed"] or printed_on(s["id"]):
+
+        if label == FILES_STEP and not s["sd_shipped"] and ctx.C.delivery_method(s["type"], s["delivery_method"]) != "link":
+            return files_row(s)
+        if label != STEP or s["letter_mailed"]:
             return None
         proofs_ = app.config.get("gallery_proofs")
-        owed = 0 if proofs_ and proofs_(s["id"]) else ctx.release_blocked(s["id"])
+        proof_ = bool(proofs_ and proofs_(s["id"]))
+        owed = ctx.deposit_held(s["id"]) if proof_ else ctx.release_blocked(s["id"])
         if owed:
-            return dict(verb=f"Collect {ctx.money(owed)} first", href=url_for("client_stage", hid=s["household_id"]) + f"?s={s['id']}")
-        return dict(verb="Print letter",
-                    href=url_for("client_stage", hid=s["household_id"]) + f"?s={s['id']}#letters",
-                    alt=dict(verb="Mark mailed", post=url_for("quick", sid=s["id"]),
-                             fields=dict(act="mark", field="letter_mailed")))
+            if proof_:
+                return dict(what=f"Collect the {ctx.money(owed)} deposit first", verb=f"Record payment ({ctx.money(owed)})",
+                            form="deposit_paid", sid=s["id"], dep_amt=owed, deposit_first=True, collect=True)
+            return dict(what=f"Collect the {ctx.money(owed)} balance first", verb=f"Record payment ({ctx.money(owed)})",
+                        href=url_for("client_stage", hid=s["household_id"]) + f"?s={s['id']}", collect=True)
+        draft, cw_ = link_mail(s)
+        a = dict(what=f"Get the photos to {client_first(s)}", verb="Mark mailed", post=url_for("quick", sid=s["id"]),
+                 fields=dict(act="mark", field="letter_mailed"),
+                 deliver=dict(sid=s["id"], step="letter_mailed", mail=draft, codeword=cw_, usual="letter",
+                              online=bool(gallery_link(s["id"]))))
+        printed = printed_on(s["id"])
+        a["deliver"]["letter"] = dict(doc=url_for("letter_qr", sid=s["id"]), printed=(printed or "")[:10])
+        if printed:
+            a["note"] = f"QR letter printed {ctx.nice(printed[:10])}"
+        return a
 
     ctx.hooks.stage_blocks.append(block)
     ctx.hooks.step_actions.append(step_action)
@@ -230,6 +276,7 @@ body { margin: 0; font: 12.5pt/17.5pt "Times New Roman", Times, serif; color: #0
 .ret { left: 0.875in; top: 0.5in; } .ret b { font: bold 10pt Helvetica, Arial, sans-serif; display: block; }
 .ret span { font: 9.5pt Helvetica, Arial, sans-serif; color: #4d4d4d; }
 .draft { right: 1in; top: 0.5in; font: bold 10pt Helvetica, Arial, sans-serif; color: #737373; }
+.draft.nolink { left: 1in; top: 0.35in; font-size: 16pt; color: #a8323e; border: 2pt solid #a8323e; padding: 6pt 10pt; text-align: center; }
 .to { left: 0.875in; top: 2.0in; font: 11.5pt/15pt Helvetica, Arial, sans-serif; }
 .to i { color: #737373; font-size: 10pt; }
 .date { right: 1in; top: 2.0in; font-size: 12pt; }
@@ -245,7 +292,8 @@ body { margin: 0; font: 12.5pt/17.5pt "Times New Roman", Times, serif; color: #0
 </style></head><body>
 {% if logo %}<div class="abs logo"><img src="{{ logo }}" alt=""></div>{% endif %}
 <div class="abs ret"><b>{{ (studio or photographer)|upper }}</b>{% if photographer and studio %}<span>{{ photographer }}</span>{% endif %}</div>
-{% if draft %}<div class="abs draft">DRAFT</div>{% endif %}
+{% if draft and not qr %}<div class="abs draft nolink">DRAFT: not for mailing. The gallery is not online, so this letter has no QR code. For checking the layout only.</div>
+{% elif draft %}<div class="abs draft">DRAFT</div>{% endif %}
 <div class="abs to">{% for ln in lines %}{{ ln }}<br>{% endfor %}{% if lines|length == 1 %}<i>No mailing address on file</i>{% endif %}</div>
 <div class="abs date">{{ today }}</div>
 <div class="body">

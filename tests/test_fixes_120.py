@@ -62,8 +62,8 @@ def shoot_form(A, c, sid, **over):
 def test_delivery_method_is_chosen_on_the_shoot_form_from_the_quote_on(app_):
     A, c = app_
     sid = new_session(A, "family")
-    p = page(c, f"/session/{sid}")
-    assert 'id="dm-l">Files delivered by' in p and 'name="delivery_method" value="link"' in p
+    p = page(c, f"/session/{sid}/edit")
+    assert '<span>Files delivered by</span><select name="delivery_method">' in p and '<option value="link"' in p
     shoot_form(A, c, sid, delivery_method="link")
     assert q1(A, "SELECT delivery_method FROM sessions WHERE id=?", (sid,))[0] == "link"
     assert q1(A, "SELECT 1 FROM audit WHERE session_id=? AND action='Delivery changed from USB drive to Download link'", (sid,))
@@ -73,22 +73,22 @@ def test_delivery_method_is_chosen_on_the_shoot_form_from_the_quote_on(app_):
 def test_a_change_after_signing_warns_that_the_agreement_says_otherwise(app_):
     A, c = app_
     sid = new_session(A, "family", stage="booked")
-    page(c, f"/session/{sid}")
+    page(c, f"/session/{sid}/edit")
     con = A.connect()
     con.execute("UPDATE documents SET status='signed', signed=? WHERE session_id=? AND kind='agreement'",
                 (date.today().isoformat(), sid))
     con.commit(); con.close()
-    page(c, f"/session/{sid}")
+    page(c, f"/session/{sid}/edit")
     with A.app.test_request_context():
         A.db()
         A._snapshot_signed()
         A.g.db.commit()
     assert "on a USB drive" in json.loads(q1(A, "SELECT data FROM doc_snapshots WHERE kind='agreement' AND ref=?", (sid,))[0])["delivery"]
     shoot_form(A, c, sid, delivery_method="link")
-    p = page(c, f"/session/{sid}")
+    p = page(c, f"/session/{sid}/edit")
     assert "The signed agreement says you deliver the photos" in p and "USB drive" in p
     shoot_form(A, c, sid, delivery_method="usb")
-    assert "The signed agreement says" not in page(c, f"/session/{sid}")
+    assert "The signed agreement says" not in page(c, f"/session/{sid}/edit")
 
 def gallery_host(A, tmp_path):
     from vault import web as VW
@@ -108,11 +108,12 @@ def test_today_asks_for_the_download_gallery(app_, tmp_path):
     gallery_host(A, tmp_path)
     sid = new_session(A, "realestate", stage="delivered", shoot_date=(date.today() - timedelta(days=2)).isoformat())
     today = page(c, "/")
-    assert "Build the download gallery" in today and "Build download gallery" in today
-    n = today.count("Build the download gallery")
+
+    assert "Download gallery" in today and "Build download gallery" in today
+    n = today.count("Build download gallery")
     new_session(A, "realestate", stage="delivered", shoot_date=(date.today() - timedelta(days=2)).isoformat(),
                 delivery_method="usb")
-    assert page(c, "/").count("Build the download gallery") == n
+    assert page(c, "/").count("Build download gallery") == n
     assert sid
 
 @pytest.mark.parametrize("backup,changed,says", [
@@ -229,7 +230,7 @@ def test_the_backups_page_counts_the_update_backup(app_):
 def test_the_working_page_also_says_the_signed_agreement_differs(app_):
     A, c = app_
     sid = new_session(A, "family", stage="booked")
-    page(c, f"/session/{sid}")
+    page(c, f"/session/{sid}/edit")
     con = A.connect()
     con.execute("UPDATE documents SET status='signed', signed=? WHERE session_id=? AND kind='agreement'",
                 (date.today().isoformat(), sid))

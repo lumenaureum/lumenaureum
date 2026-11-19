@@ -206,9 +206,9 @@ def test_the_app_collects_inquiries(env, monkeypatch):
     con = A.connect()
     assert not con.execute("SELECT 1 FROM households WHERE source='Website'").fetchone()
     con.close()
-    page = c.get("/settings/studio-page", environ_base=E).get_data(as_text=True)
-    assert "Website inquiries to review" in page and "Ada Lovelace" in page and "Three of us." in page
-    assert "1 website inquiry to review: Add or Spam" in c.get("/", environ_base=E).get_data(as_text=True)
+    page = c.get("/", environ_base=E).get_data(as_text=True)
+    assert "1 website inquiry to review: Add or Spam" in page and "Ada Lovelace" in page and "Three of us." in page
+    assert "Ada Lovelace" not in c.get("/settings/studio-page", environ_base=E).get_data(as_text=True)
 
     import app as A_
     monkeypatch.setattr(A_, "create_session", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("disk full")))
@@ -235,7 +235,8 @@ def test_the_app_collects_inquiries(env, monkeypatch):
     assert "Inquiry from your website" in hist
     assert any("1 dropped" in a and "2 unreadable files removed" in a for a in hist)
     assert "buy now" not in json.dumps(hist)
-    assert "New inquiry from the website" in c.get("/", environ_base=E).get_data(as_text=True)
+    today_ = c.get("/", environ_base=E).get_data(as_text=True)
+    assert "Inquiry from your website" in today_ and ">New</span>" in today_
 
     again = put_inquiry(web, (S.seal_inquiry(pub, GOOD)))
     blob = again.read_bytes()

@@ -104,7 +104,7 @@ def test_session_document_drafts_carry_their_key_facts_and_promise_no_attachment
         body = _drafts(c.get(f"/quote/{vid[0]}", environ_base=E).data.decode())[0]
         assert "Your quote for" in body and "$" in body and "It is good through" in body
     body = _drafts(c.get(f"/session/{sid}/details", environ_base=E).data.decode())[0]
-    assert "Your session details: Family session" in body
+    assert "Your session sheet: Family session" in body
     body = _drafts(c.get("/fees/sheet?sid=%d" % sid, environ_base=E).data.decode())[0]
     assert "My prices" in body and "$" in body
 

@@ -4,14 +4,14 @@
 // print-order, mode 03: see sealed.php and docs/sealed-format.md), so only the app can open it and only someone
 // holding the gallery link could have made it. This host never holds a key that opens it.
 // In order: POST only; the gallery's window (as gate.php: a closed gallery takes no order); the key proof (as
-// gate.php, sharing its wrong-proof count); a gallery moved to another host refuses (409, with the studio's email);
+// gate.php, sharing its wrong-proof count);  a gallery moved to another host refuses (409, with the studio's email);
 // exactly the form fields d (the envelope, base64url) and w (8 bytes of proof of work, hex); the envelope's shape,
 // bound to this gallery (this folder's name) and the studio key's ID (offer-kid.php, written beside the offer when
-// the photographer turns prints on; without it this gallery takes no order); a proof of work of 17 bits; then the
+// the photographer turns prints on; without it this gallery takes no order); a proof of work of 17 bits; no order within 24 hours of the gallery closing (423); then the
 // limits: 5 orders an hour and 10 waiting from one sender (not behind a proxy: shared=1), 100 files and 6.5 MB waiting
 // in all. Each order is kept as orders/<first 32 hex of its SHA-256>.las, so the same envelope sent again is kept once.
 // There is no read path: no order is ever listed or served from here (orders/ holds an empty index.html).
-header('X-Host-Scripts: 1.4.0');
+header('X-Host-Scripts: 1.5.0');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') { http_response_code(405); exit; }
@@ -142,6 +142,13 @@ $h = hash('sha256', hash('sha256', $body, true) . hex2bin($_POST['w']), true);
 $need = 17;
 for ($i = 0; $need >= 8; $i++, $need -= 8) { if ($h[$i] !== "\0") { http_response_code(403); exit; } }
 if ($need > 0 && (ord($h[$i]) >> (8 - $need)) !== 0) { http_response_code(403); exit; }
+// Ordering prints closes 24 hours before the gallery does (1.5), so an order never arrives for a gallery about to go
+// dark. A page left open past that time is refused here too (423, X-Prints-Closed: when the gallery closes).
+if ($end - time() < 86400) {
+    http_response_code(423);
+    header('X-Prints-Closed: ' . gmdate('Y-m-d\TH:i:s\Z', $end));
+    exit;
+}
 $dir = __DIR__ . '/orders';
 if (!is_dir($dir) && !@mkdir($dir, 0775) && !is_dir($dir)) { http_response_code(500); exit; }
 // an empty index.html, so a web server that lists folders shows nothing here

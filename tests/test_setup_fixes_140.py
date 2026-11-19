@@ -174,7 +174,7 @@ def test_a_mounted_vault_is_filled_in_as_a_value(env, monkeypatch):
 def test_placeholders_read_as_examples(env):
     A, c, tmp = env
     pages = "".join(c.get(f"/setup/{s}", environ_base=E).get_data(as_text=True) for s in ("storage", "galleries"))
-    for ph in ("e.g. /vault", "e.g. /backup2", "e.g. https://example.com/g/", "e.g. /galleries", "Port (blank for 22)"):
+    for ph in ("e.g. /vault", "e.g. /backup2", "e.g. https://example.com/g/", "e.g. /galleries", "e.g. sftp.example.com", "e.g. example.com/g"):
         assert f'placeholder="{ph}"' in pages, ph
     for old in ('placeholder="/vault"', 'placeholder="https://example.com/g/"', 'placeholder="Port (22)"'):
         assert old not in pages

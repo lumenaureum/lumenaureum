@@ -1,8 +1,8 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% import "_ui.html" as ui with context %}{% import "_ui_pages.html" as pg with context %}
 {% block title %}{{ y }} - Lumen Aureum{% endblock %}
 {% block body %}
-<div class="mhead"><h1 class="grow">{{ y }}</h1><span class="mute" style="margin-right:12px">{{ free_sats }} Saturdays free</span>
-  <a class="go" href="{{ url_for('year_view', y=y - 1) }}">&lsaquo;</a><a class="go" href="{{ url_for('year_view', y=y + 1) }}">&rsaquo;</a></div>
+{% set nav_ %}{{ pg.pager(url_for('year_view', y=y - 1), y - 1, y, url_for('year_view', y=y + 1), y + 1, 'Year') }}{% endset %}
+{{ ui.page_head(y, status=free_sats ~ ' Saturdays free', sub=nav_) }}
 <div class="yeargrid">
   {% for mo in months %}<div class="ymonth"><a class="ytitle" href="{{ url_for('month_view', m='%d-%02d' % (y, mo.m)) }}">{{ mo.title }}</a>
     <div class="ydays">{% for dn in 'SMTWTFS' %}<span class="ydow">{{ dn }}</span>{% endfor %}

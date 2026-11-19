@@ -125,7 +125,7 @@ def test_a_plugin_that_raises_or_hangs_changes_nothing_and_says_so(e):
     ok, _w = in_req(e, api(e).hand_off, oid, "testlab")
     assert not ok and orders(e)[0]["state"] == "paid"
     import html
-    assert "Test Lab had a problem with Avery Sample's order" in html.unescape(e.c.get("/", environ_base=E).data.decode())
+    assert "Test Lab had a problem with Avery Sample's print order" in html.unescape(e.c.get("/", environ_base=E).data.decode())
     e.A.hooks.labs.remove(lab)
     lab, fake = fake_lab.make(None, hang={"send"})
     e.A.hooks.labs.append(lab)

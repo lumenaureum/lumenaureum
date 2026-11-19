@@ -49,7 +49,7 @@ Turning print orders **off** again (Settings, Plugins, Turn off):
      you write, never a figure the app works out. The settings show the range of lab shipping your last orders had.
    - **How prints arrive**: one line on the page and the invoice (by default "Prints come straight from our lab.").
 2. **Offer prints on download galleries**, and which kinds of session offer them. Each gallery also has its own
-   switch on the session ("Offer prints from this gallery").
+   switch in its Gallery block on the client page (**Offer prints from this gallery**).
 3. **Sales tax** (Settings, Sales tax): charge tax on prints (yes by default when you charge sales tax) and on
    shipping (no by default). Under a regional rate a print order is taxed where it ships (pick up: where the studio
    is). Whether to charge tax on prints and shipping, and at what rate, is your decision with your accountant;
@@ -62,15 +62,20 @@ Print ordering needs a web host that runs PHP 7.4 or later (Setup checks it). On
 
 On a download gallery, each photo has **Order prints**. Sizes that fit the whole photo come first; for any other
 shape, the client drags a frame over the photo to choose what prints, and can turn it. They choose how many, then
-**Your print order** collects them (on that device only: no name, address or price is stored there). Then their
-name, email, phone (optional), where the prints go (to me, to someone else, or pick up), a note, and one box: "I will
-get an invoice at the email above, and nothing is printed until it is paid." **Is this right?** shows every print as
-it will be cut, then **Send to** (your studio's name).
+**Your print order** collects them (on that device only: no name, address or price is stored there). Then **Ship
+to**: their name, email, phone (optional), where the prints go (to me, to someone else, or pick up), a note, and one
+box: "I'll get an invoice. Nothing is printed until it's paid." Without the tick, the page shows "Tick 'I'll get an
+invoice' to continue." beside the box. **Is this right?** shows every print as it will be cut, then **Send to** (your studio's name).
 
 The order is sealed in their browser so only your Lumen Aureum can open it. The sent screen shows the whole order
 (to print or save as a PDF) and says the invoice comes by email, usually within the days you set. Clients can't edit
-a sent order in the gallery: changes and cancellations go through you. Ordering closes when the gallery goes dark;
-an order sent before that is always collected, however late the app checks.
+a sent order in the gallery: changes and cancellations go through you.
+
+Ordering closes 24 hours before the gallery does, so no order arrives for a gallery about to come down. The closing
+notice on a gallery that offers prints adds "Order prints by" with the day and time. From then on the order button is
+gone, and the gallery says ordering has closed and to email you (your address, as a link) to ask for the gallery to be
+extended. A page left open past that time can't send an order either: `orders.php` refuses it. An order sent before
+then is always collected, however late the app checks. Extending the gallery opens ordering again.
 
 ## Reviewing an order
 

@@ -121,7 +121,9 @@ def test_the_review_link_on_today_leads_to_the_list(env):
     c.post("/settings/studio-page/switch", data={}, environ_base=E)
     today = c.get("/", environ_base=E).get_data(as_text=True)
     page = c.get("/settings/studio-page", environ_base=E).get_data(as_text=True)
-    assert "to review" not in today or 'id="inquiries"' in page
+
+    assert 'id="inquiries"' in today and "Add as a client</button>" in today and 'id="inquiries"' not in page
+    assert 'id="inquiries-on-today"' in page and 'href="/#inquiries"' in page
 
 def test_one_ipv6_subscriber_cannot_fill_the_folder(php_site, env):
     site, post = php_site
@@ -260,13 +262,14 @@ def test_switched_off_the_page_still_collects_and_offers_take_down(env):
     put_inquiry(web, S.seal_inquiry(pub, GOOD))
     assert A.app.config["studio_page_collect"]()["added"] == 1
     page = c.get("/settings/studio-page", environ_base=E).get_data(as_text=True)
-    assert 'id="inquiries"' in page and "Take the site down" in page and "still online" in page
+    assert 'id="inquiries-on-today"' in page and "Take the site down" in page and "still online" in page
     assert 'name="site_about"' not in page and "studio_page_upload" not in page
     c.post("/settings/studio-page/take-down", environ_base=E)
     wait(S)
     assert not (web / "index.html").exists() and not (web / "inquiry.php").exists()
     page = c.get("/settings/studio-page", environ_base=E).get_data(as_text=True)
-    assert "Take the site down" not in page and 'id="inquiries"' in page
+    assert "Take the site down" not in page and 'id="inquiries-on-today"' in page
+    assert 'id="inquiries"' in c.get("/", environ_base=E).get_data(as_text=True)
     assert A.app.config["studio_page_collect"]() is None
 
 def _review(A, c, S, web, *fields):
@@ -280,7 +283,7 @@ def _review(A, c, S, web, *fields):
                                            for r in q(A, "SELECT id, fields FROM studio_inquiry_review"))}
 
 def review_page(c):
-    page = c.get("/settings/studio-page", environ_base=E).get_data(as_text=True)
+    page = c.get("/", environ_base=E).get_data(as_text=True)
     return page[page.index('id="inquiries"'):]
 
 def test_review_flags_a_known_client_and_adds_to_it(env):
@@ -327,7 +330,7 @@ def test_review_shows_a_missing_kind_and_a_cut_message_and_add_asks_the_kind(env
     A, c, S, tmp, web = env
     ids = _review(A, c, S, web, dict(name="No Kind", type="", date="", message="x" * 5000))
     sec = review_page(c)
-    assert "Kind of session: not given" in sec and "only the first 4000 were kept" in sec
+    assert "Kind of session: Not sure yet" in sec and "only the first 4000 were kept" in sec
     kinds = re.findall(r'<select id="rv-type-\d+" name="type"[^>]*>(.*?)</select>', sec)[0]
     first = re.search(r'<option value="([^"]+)"', kinds).group(1)
     other = re.findall(r'<option value="([^"]+)"', kinds)[-1]

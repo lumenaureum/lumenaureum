@@ -1,19 +1,39 @@
-{% extends "base.html" %}{% from "_macros.html" import seg with context %}
+{% extends "base.html" %}{% from "_macros.html" import seg, help with context %}{% import "_ui.html" as ui with context %}
 {% block title %}New contact - Lumen Aureum{% endblock %}
+
 {% block body %}
-<div class="row"><h1 class="grow">New contact</h1></div>
-<form method="post" class="card f" style="max-width:640px;margin-top:16px">
-  <div class="f3"><input name="contact_name" maxlength="200" placeholder="Name (required)" aria-label="Name" required autofocus><input type="email" name="email" maxlength="200" placeholder="Email" aria-label="Email"><input type="tel" name="phone" maxlength="200" placeholder="Phone" aria-label="Phone"></div>
-  <div class="f3"><input name="contact_relation" list="rels" placeholder="Role (mother, agent, owner)" aria-label="Role">
-    <span class="row" style="gap:6px"><span class="mute" style="font-size:12px" id="gender-l">Their gender</span>{{ seg('contact_gender', ['F','M'], by='gender-l') }}</span>
-    <span class="agebox"><input type="number" name="contact_age" min="0" max="120" placeholder="Age" aria-label="Age (optional)"><label><input type="checkbox" name="contact_age_approx" value="1">approximate</label></span></div>
-  <datalist id="rels">{% for r in RELATIONS %}<option value="{{ r }}">{% endfor %}</datalist>
-  <input name="household_name" maxlength="200" placeholder="Family or company (blank: their name)" aria-label="Family or company">
-  <div class="f2"><input name="source" placeholder="How they found you" aria-label="How they found you">
-    <select name="referred_by" aria-label="Referred by"><option value="">Not referred</option>{% for h in households %}<option value="{{ h.id }}">{{ h.name }}</option>{% endfor %}</select></div>
-  <div class="row">{{ seg('channel', ['email','text','call','in person'], label='How they got in touch') }}
-    <input name="note" class="grow" style="width:auto" placeholder="What they said" aria-label="What they said"></div>
-  <div class="row"><button class="primary" name="then" value="inquiry">Save and start an inquiry</button><button>Save contact only</button></div>
+<div class="ui-page" data-ui-layout="contact-new">
+{{ ui.page_head('New contact', kicker='Clients') }}
+{% if dupes %}{% call ui.needs('Already a client?', id='dupes') %}
+  <p>{{ dupes|length }} {{ 'client is' if dupes|length == 1 else 'clients are' }} already named {{ vals.contact_name }}:</p>
+  {% for d_ in dupes %}{{ ui.list_row(url_for('client_view', hid=d_.hid), d_.household, ([d_.email, d_.phone]|select|join(', ')) or 'no email or phone on file') }}{% endfor %}
+  <p class="ui-mute">Open one of them to add a session, or save this as a new contact below.</p>
+{% endcall %}{% endif %}
+<form method="post">{% if dupes %}<input type="hidden" name="same_ok" value="1">{% endif %}
+  {% call ui.section('Who') %}
+    <div class="ui-form-grid">
+      <label><span>Name (required)</span><input name="contact_name" maxlength="200" required autofocus value="{{ vals.contact_name or '' }}"></label>
+      <label><span>Email</span><input type="email" name="email" maxlength="200" value="{{ vals.email or '' }}"></label>
+      <label><span>Phone</span><input type="tel" name="phone" maxlength="200" value="{{ vals.phone or '' }}"></label>
+      <label><span>Role{{ help("Who they are to the client, such as mother, agent or owner.") }}</span><input name="contact_relation" list="rels" value="{{ vals.contact_relation or '' }}"></label>
+      <label><span>Family name (optional){{ help("The name the client is listed under, such as The Ellis Family. Blank: their own name.") }}</span><input name="household_name" maxlength="200" value="{{ vals.household_name or '' }}"></label>
+      <label><span>Company, if they bill as one (optional){{ help("A company is listed and sorted by its own name, and gets business options such as a PO number.") }}</span><input name="company" maxlength="200" value="{{ vals.company or '' }}"></label>
+    </div>
+    <datalist id="rels">{% for r in RELATIONS %}<option value="{{ r }}">{% endfor %}</datalist>
+    <div class="ui-form-row"><span class="ui-mute" id="gender-l">Their gender</span>{{ seg('contact_gender', ['F','M'], by='gender-l') }}
+      <input type="number" name="contact_age" min="0" max="120" placeholder="Age" aria-label="Age (optional)" class="ui-input-qty">
+      <label class="ui-check"><input type="checkbox" name="contact_age_approx" value="1">approximate</label></div>
+  {% endcall %}
+  {% call ui.section('How they found you') %}
+    <div class="ui-form-grid">
+      <label><span>Source</span><input name="source" value="{{ vals.source or '' }}"></label>
+      <label><span>Referred by</span><select name="referred_by"><option value="">Not referred</option>{% for h in households %}<option value="{{ h.id }}"{{ ' selected' if vals.referred_by == h.id|string }}>{{ h.name }}{% if h.reach %} ({{ h.reach }}){% endif %}</option>{% endfor %}</select></label>
+    </div>
+    <div class="ui-form-row">{{ seg('channel', ['email','text','call','in person'], label='How they got in touch') }}
+      <label class="ui-grow"><span>What they said</span><input name="note" value="{{ vals.note or '' }}"></label></div>
+  {% endcall %}
+  <div class="ui-btnrow"><button class="ui-btn ui-btn-primary" name="then" value="inquiry">{{ 'Save as a new contact and start an inquiry' if dupes else 'Save and start an inquiry' }}</button><button class="ui-btn ui-btn-quiet">{{ 'Save as a new contact only' if dupes else 'Save contact only' }}</button></div>
 </form>
+</div>
 {% endblock %}
 

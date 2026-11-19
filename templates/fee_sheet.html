@@ -1,10 +1,10 @@
-{% from "_doc_bar.html" import doc_bar, draft with context %}<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Price list{% if who %} - {{ who }}{% endif %}</title>
+{% from "_doc_bar.html" import doc_bar, draft with context %}{% import "_ui.html" as ui with context %}<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Price list{% if who %} - {{ who }}{% endif %}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 {% include "_doc_style.html" %}</head><body>
-{% if not pdf %}{% set edit_ %}<a href="{{ url_for('settings_view', tab='fees') }}" target="_blank">Edit prices and terms</a>{% endset %}{{ doc_bar(url_for('fee_sheet_pdf', type=stype) if stype else url_for('fee_sheet_pdf'), back_url, send, before=edit_) }}{% endif %}
+{% if not pdf %}{{ doc_bar(url_for('fee_sheet_pdf', type=stype) if stype else url_for('fee_sheet_pdf'), back_url, send, more=ui.button_link(url_for('settings_view', tab='fees'), 'Edit prices and terms', blank=true)) }}{% endif %}
 <div class="page">
   {% include "_doc_logo.html" %}
-  {% if not reviewed %}{{ draft(url_for('settings_view', tab='fees') ~ '#terms', 'price list') }}{% endif %}
+  {% if not reviewed %}{{ draft(url_for('settings_view', tab='fees') ~ '#terms', 'price list', dict(doc='terms', type=stype or none), pdf) }}{% endif %}
   <h1>{{ who or 'Photography' }} - {{ (type_label ~ ' price list') if type_label else 'price list' }}</h1>
   <p class="sub">Prices as of {{ as_of }}{% if who and studio and studio != who %} - {{ studio }}{% endif %}. A quote holds its prices for {{ hold_days }} days.</p>
   <div class="promise"><b>Every edited image is included.</b></div>
@@ -13,7 +13,7 @@
   <table>{% for head, txt in terms %}<tr><td style="width:170px">{% set hp_ = head.split(': ', 1) %}<b>{{ hp_[0] }}</b>{% if hp_|length > 1 %}<br><span style="font-size:.88em;color:#555">{{ hp_[1] }}</span>{% endif %}</td><td>{{ txt }}</td></tr>{% endfor %}</table>
   <h2>What editing includes</h2>
   <div class="ed">{% for head, pts in editing %}<b>{{ head }}</b><ul>{% for p_ in pts %}<li>{{ p_ }}</li>{% endfor %}</ul>{% endfor %}</div>
-  <p class="foot">Fee schedule #{{ sch.id }}. A written quote for your session lists the exact price, including any discount, and how long it is good for.</p>
+  <p class="foot">{{ sched_name(sch.id) ~ (' (' ~ sched_code(sch.id) ~ ')' if sched_code(sch.id) else '') }}. A written quote for your session lists the exact price, including any discount, and how long it is good for.</p>
 {% include "_credit.html" %}
 </div>{% if not pdf %}<script src="{{ url_for('static', filename='ui.js', v=static_v('ui.js')) }}"></script>{% endif %}</body></html>
 

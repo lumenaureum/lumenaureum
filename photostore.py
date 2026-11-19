@@ -316,9 +316,19 @@ def delete(con, row, commit=True):
     destroy_files([row["id"]])
     return []
 
+ON_GONE = []
+
+def _gone(fid):
+    for fn in list(ON_GONE):
+        try:
+            fn(fid)
+        except Exception:
+            pass
+
 def destroy_files(fids):
 
     for fid in fids:
+        _gone(fid)
         p = path_of(fid)
         try:
             n = p.stat().st_size
@@ -453,6 +463,7 @@ def seal_to_vault(con, rows, backends, master_pub, label=""):
         con.commit()
         path_of(r["id"]).unlink(missing_ok=True)
         key_path(r["id"]).unlink(missing_ok=True)
+        _gone(r["id"])
         n += 1
     return n
 
@@ -509,9 +520,31 @@ def fetch_back(r, backend):
         except Exception:
             kp.with_name(kp.name + ".fetch").unlink(missing_ok=True)
 
+def _mark(kind, root="", host="", port="", bucket="", prefix="", endpoint=""):
+    where = "|".join(str(v or "") for v in (kind, root, host, port, bucket, prefix, endpoint))
+    return kind + ":" + hashlib.sha256(where.encode()).hexdigest()[:16]
+
+def location_mark(backend):
+
+    return _mark(backend.kind, getattr(backend, "root", ""), getattr(backend, "host", ""),
+                 getattr(backend, "port", "") if backend.kind == "sftp" else "", getattr(backend, "bucket", ""),
+                 getattr(backend, "prefix", ""), getattr(backend, "endpoint", ""))
+
+def config_mark(cfg):
+
+    t = (cfg or {}).get("type")
+    if t == "local":
+        return _mark("local", os.path.abspath(cfg.get("path") or ""))
+    if t == "sftp":
+        return _mark("sftp", (cfg.get("root") or "").rstrip("/"), cfg.get("host"), cfg.get("port", 22))
+    if t == "s3":
+        return _mark("s3", bucket=cfg.get("bucket"), prefix=(cfg.get("prefix") or "").strip("/"), endpoint=cfg.get("endpoint") or "")
+    return None
+
 def mirror_pass(con, backend, audit=False):
 
     copied = fetched = removed = 0
+    mark = location_mark(backend)
     rows = con.execute("SELECT * FROM photo_files WHERE state='done'").fetchall()
     for r in rows:
         p, name = path_of(r["id"]), MIRROR + f"{r['id']}.lap"
@@ -519,7 +552,12 @@ def mirror_pass(con, backend, audit=False):
             fetch_back(r, backend)
             fetched += 1
             continue
-        if r["mirrored"] == backend.kind and (not audit or backend.stat(name) == r["ct_len"]):
+        if r["mirrored"] == mark and (not audit or backend.stat(name) == r["ct_len"]):
+            continue
+        if r["mirrored"] == backend.kind and backend.stat(name) == r["ct_len"] and _remote_sha(backend, name) == _file_sha(p):
+
+            con.execute("UPDATE photo_files SET mirrored=? WHERE id=?", (mark, r["id"]))
+            con.commit()
             continue
         with open(p, "rb") as f:
             backend.put_stream(name, f)
@@ -529,7 +567,7 @@ def mirror_pass(con, backend, audit=False):
         if backend.stat(name) != r["ct_len"] or _remote_sha(backend, name) != _file_sha(p):
             backend.delete(name)
             raise IOError(f"the mirror copy of {r['name']} did not verify")
-        con.execute("UPDATE photo_files SET mirrored=? WHERE id=?", (backend.kind, r["id"]))
+        con.execute("UPDATE photo_files SET mirrored=? WHERE id=?", (mark, r["id"]))
         con.commit()
         copied += 1
     deleted = [r[0] for r in con.execute("SELECT id FROM photo_deleted")]

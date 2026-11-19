@@ -27,8 +27,8 @@ def test_paid_in_full_then_a_partial_refund_releases_delivery(env):
     A, c, freeze = env
     paid_in_full(A, c, freeze)
     pay(c, 1, "refund", 40, "2026-07-10")
-    page = text(c.get("/session/1", environ_base=E).get_data(as_text=True))
-    assert "$40 refunded, not owed again" in page
+    page = text(c.get("/session/1/edit", environ_base=E).get_data(as_text=True))
+    assert "$40.00 refunded, not owed again" in page
     assert blocked(A) == 0
 
 def test_a_partial_refund_with_sales_tax_releases_delivery(env):
@@ -110,8 +110,9 @@ def test_a_refund_of_an_overpayment_is_no_credit_line(env):
     assert "Total paid $375" in doc and "not owed again" not in doc
 
 def _header(c):
-    page = c.get("/session/1", environ_base=E).get_data(as_text=True)
-    head = page.split('<div class="surface highlights">', 1)[1].split("<section", 1)[0]
+
+    page = c.get("/session/1/edit", environ_base=E).get_data(as_text=True)
+    head = page.split('id="money"', 1)[1].split('<table class="ui-money" aria-label="Summary">', 1)[1].split("</table>", 1)[0]
     return text(head)
 
 def test_a_canceled_booking_header_says_what_the_money_panel_says(env):

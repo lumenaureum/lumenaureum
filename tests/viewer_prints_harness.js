@@ -63,12 +63,12 @@ async function run(c) {
   const sessionStorage = { getItem: k => (smem.has(k) ? smem.get(k) : null), setItem: (k, v) => smem.set(k, String(v)), removeItem: k => smem.delete(k) };
   const posts = [], gets = [];
   const statuses = (c.statuses || [204]).slice();
-  const bin = b => ({ ok: true, status: 200, headers: { get: () => "application/octet-stream" }, arrayBuffer: async () => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) });
+  const bin = (b, hd) => ({ ok: true, status: 200, headers: { get: n => (hd && n in hd ? hd[n] : "application/octet-stream") }, arrayBuffer: async () => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) });
   const status = a => { const s = typeof a === "object" ? a.s : a, hd = (typeof a === "object" && a.h) || {};
     return { ok: s >= 200 && s < 300, status: s, headers: { get: n => hd[n] || "" }, arrayBuffer: async () => new ArrayBuffer(0), json: async () => ({}) }; };
   const fetch = async (u, o = {}) => {
     gets.push(u);
-    if (u === "gate.php?f=manifest.bin") return bin(man);
+    if (u === "gate.php?f=manifest.bin") return bin(man, c.manifest_headers);
     if (u === "gate.php?f=offer.bin") return off ? bin(off) : status(404);
     if (u === "seen.php") return status(204);
     if (u === "orders.php") { posts.push({ proof: (o.headers || {})["X-Proof"] || "", body: String(o.body) }); return status(statuses.length ? statuses.shift() : 204); }
@@ -85,7 +85,8 @@ async function run(c) {
   const press = async (text) => { const b = buttons().find(b_ => b_.textContent.startsWith(text)); if (!b) throw new Error("no button " + text + " in: " + box().textContent);
     const p_ = b.onclick({ stopPropagation() {} }); if (p_ && p_.catch) p_.catch(() => {}); await new Promise(r => setTimeout(r, 30)); };
   const out = { prline: els.prline ? els.prline.textContent : "", prbar_hidden: els.prbar ? els.prbar.hidden : true, sizes: [], said: [] };
-  if (c.email_only || c.no_offer) return out;
+  out.sswhen = els.sswhen ? els.sswhen.textContent : ""; out.pp_wired = !!(els.pp && els.pp.onclick);
+  if (c.email_only || c.no_offer || c.window_only) return out;
   els.grid.children[0].onclick({ target: {} });     // open photo 1
   await new Promise(r => setTimeout(r, 50));
   els.pp.onclick({ stopPropagation() {} });          // Order prints
@@ -107,6 +108,14 @@ async function run(c) {
   radio.checked = true; radio.onchange();
   if ((c.how || "pickup") !== "pickup") {
     field("pf-addr1", "12 Elm St"); field("pf-city", "Springfield"); field("pf-state", "IL"); field("pf-zip", "62704");
+  }
+  if (c.ack_first) {                                 // everything but the invoice checkbox: refused AT the checkbox
+    await press("Continue");
+    const w = walk(box()), lab = w.find(e => e.tagName === "label" && e.className.split(" ").includes("ack"));
+    const a = w.find(e => e.id === "pf-ack"), i = w.indexOf(lab), errs = w.filter(e => e.className === "err");
+    out.ack = { focused: !!a.focused, want: lab.className.includes("want"), invalid: a.attrs["aria-invalid"] === "true",
+                err: errs.map(e => e.textContent), err_after_box: errs.length === 1 && w.indexOf(errs[0]) > i,
+                label: lab.textContent, heading: (w.find(e => e.id === "prdt") || {}).textContent };
   }
   const ack = walk(box()).find(e => e.id === "pf-ack"); ack.checked = true; ack.onchange();
   await press("Continue");

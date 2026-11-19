@@ -63,7 +63,7 @@ def _finances(A, c, year):
     return dict(total=round(seen["total"], 2), refunds=round(seen["refunds"], 2), tax_due=round(seen["tax_due"], 2),
                 received={r["type"]: round(r["v"], 2) for r in seen["received"]},
                 by_month={r["mo"]: round(r["v"], 2) for r in seen["by_month"]},
-                outstanding={str(o["s"]["id"]): round(o["t"]["due"], 2) for o in seen["outstanding"]},
+                outstanding={str(o["s"]["id"]): round(o["t"]["due"], 2) for o in seen["outstanding"] + seen.get("to_invoice", [])},
                 upcoming={str(o["s"]["id"]): round(o["t"]["due"], 2) for o in seen["upcoming"]})
 
 @pytest.fixture
@@ -76,7 +76,7 @@ def test_the_fixture_is_a_1_0_0_database():
 
 def test_upgrade_takes_a_backup_and_reaches_the_current_version(upgraded):
     A, c, taken, _ = upgraded
-    assert A.SCHEMA_VERSION == 8
+    assert A.SCHEMA_VERSION == 9
     assert taken == ["upgrade"]
     assert _q(A, "PRAGMA user_version")[0][0] == A.SCHEMA_VERSION
 
@@ -91,7 +91,7 @@ def test_every_record_is_still_there(upgraded):
     assert [r[0] for r in _q(A, """SELECT h.name FROM sessions s JOIN households h ON h.id=s.household_id
                                    WHERE s.event_id=? ORDER BY h.name""", (ev["id"],))] == ev["families"]
     for sid in EXPECTED["sessions"]:
-        assert c.get(f"/session/{sid}", environ_base=E).status_code == 200
+        assert c.get(f"/session/{sid}/edit", environ_base=E).status_code == 200
 
 def test_refunds_become_credits_and_balances_match_1_0_0(upgraded):
     A, c, taken, _ = upgraded
@@ -217,9 +217,9 @@ def test_the_1_0_0_invoice_reads_as_1_0_0_issued_it(upgraded):
     again = c.get(f"/session/{lane}/invoice", environ_base=E).get_data(as_text=True)
     for doc in (html, page.get_data(as_text=True), again):
         lines, total = _services(doc)
-        assert lines == [(lab, money(a)) for lab, a in as_1_0_0] and total == money(310) == "$310"
-        assert _balance_due(doc) == "$0"
-    assert number in html and ("Refund", "-$40") in _services(html)[0]
+        assert lines == [(lab, money(a)) for lab, a in as_1_0_0] and total == money(310) == "$310.00"
+        assert _balance_due(doc) == "$0.00"
+    assert number in html and ("Refund", "-$40.00") in _services(html)[0]
 
     t = _in_request(A, lambda: A.totals(lane))
     assert round(t["quoted"], 2) == want["quoted_without_refund_lines"] and round(t["due"], 2) == want["due"]

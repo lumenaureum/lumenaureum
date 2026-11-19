@@ -69,7 +69,7 @@ def _finances(A, c, year):
     return dict(total=round(seen["total"], 2), refunds=round(seen["refunds"], 2), tax_due=round(seen["tax_due"], 2),
                 received={r["type"]: round(r["v"], 2) for r in seen["received"]},
                 by_month={r["mo"]: round(r["v"], 2) for r in seen["by_month"]},
-                outstanding={str(o["s"]["id"]): round(o["t"]["due"], 2) for o in seen["outstanding"]},
+                outstanding={str(o["s"]["id"]): round(o["t"]["due"], 2) for o in seen["outstanding"] + seen.get("to_invoice", [])},
                 upcoming={str(o["s"]["id"]): round(o["t"]["due"], 2) for o in seen["upcoming"]})
 
 def _bill(A, sid, receipt):
@@ -117,7 +117,7 @@ def test_the_schema_moves_only_if_it_changed(upgraded):
     assert A.SCHEMA_VERSION >= V111_SCHEMA
     assert _q(A, "PRAGMA user_version")[0][0] == A.SCHEMA_VERSION
     assert taken == (["upgrade"] if A.SCHEMA_VERSION > V111_SCHEMA else [])
-    assert A.SCHEMA_VERSION == 8 and taken == ["upgrade"]
+    assert A.SCHEMA_VERSION == 9 and taken == ["upgrade"]
     cols = {t: [r[1] for r in _q(A, f"PRAGMA table_info({t})")] for t in ("bill_snapshots", "sessions", "galleries")}
     assert "html" in cols["bill_snapshots"] and "priced_on" in cols["sessions"]
     assert {"proof", "prune_due"} <= set(cols["galleries"])
@@ -131,7 +131,9 @@ def test_today_says_once_that_it_was_updated(upgraded):
     first, second = _page(c, "/"), _page(c, "/")
     assert f"Updated to Lumen Aureum {now}." in first
     assert "A backup of your data from before the update is under" in first
-    assert "Updated to Lumen Aureum" not in second
+    assert "Updated to Lumen Aureum" in second
+    c.post("/today/update-notice-hide", data={"back": "/"}, environ_base=E)
+    assert "Updated to Lumen Aureum" not in _page(c, "/")
 
 def test_every_record_is_still_there(upgraded):
     A, c, taken, _ = upgraded
@@ -144,7 +146,7 @@ def test_every_record_is_still_there(upgraded):
     assert [r[0] for r in _q(A, """SELECT h.name FROM sessions s JOIN households h ON h.id=s.household_id
                                    WHERE s.event_id=? ORDER BY h.name""", (ev["id"],))] == ev["families"]
     for sid in EXPECTED["sessions"]:
-        assert c.get(f"/session/{sid}", environ_base=E).status_code == 200
+        assert c.get(f"/session/{sid}/edit", environ_base=E).status_code == 200
 
 def test_balances_and_refund_credits_match_1_1_1(upgraded):
     A, c, taken, _ = upgraded

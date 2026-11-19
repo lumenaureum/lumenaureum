@@ -22,8 +22,8 @@ def test_a_stale_session_tab_is_refused_and_keeps_what_was_typed(tmp_path, monke
     sid = _new(A, c, "family", subject_name="Ava")
     form = {"title": "", "type": "family", "shoot_date": "2027-12-04", "start_time": "", "stops": "", "notes": ""}
     c.post(f"/session/{sid}", data=form, environ_base=E)
-    tab_a = _seen(c, f"/session/{sid}")
-    tab_b = _seen(c, f"/session/{sid}")
+    tab_a = _seen(c, f"/session/{sid}/edit")
+    tab_b = _seen(c, f"/session/{sid}/edit")
     r = c.post(f"/session/{sid}", data={**form, "seen": tab_b, "shoot_date": "2027-12-05", "start_time": "15:30",
                                         "notes": "gate code 9911"}, environ_base=E)
     assert r.status_code == 302
@@ -42,12 +42,12 @@ def test_a_stale_session_tab_is_refused_and_keeps_what_was_typed(tmp_path, monke
 def test_saving_twice_from_one_tab_and_other_forms_are_not_clashes(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
     sid = _new(A, c, "family", subject_name="Ava")
-    seen = _seen(c, f"/session/{sid}")
+    seen = _seen(c, f"/session/{sid}/edit")
     c.post(f"/session/{sid}/delivery", data={"favorites": "12, 14"}, environ_base=E)
     _line(c, sid)
     r = c.post(f"/session/{sid}", data={"seen": seen, "title": "One", "type": "family"}, environ_base=E)
     assert r.status_code == 302
-    r = c.post(f"/session/{sid}", data={"seen": _seen(c, f"/session/{sid}"), "title": "Two", "type": "family"}, environ_base=E)
+    r = c.post(f"/session/{sid}", data={"seen": _seen(c, f"/session/{sid}/edit"), "title": "Two", "type": "family"}, environ_base=E)
     assert r.status_code == 302 and _q(A, "SELECT title FROM sessions WHERE id=?", (sid,))[0][0] == "Two"
 
 def test_a_stale_client_tab_is_refused(tmp_path, monkeypatch):
@@ -135,9 +135,9 @@ def test_a_session_holding_payments_is_not_deleted(tmp_path, monkeypatch):
     c.post(f"/session/{sid}/money", data={"what": "payment", "kind": "deposit", "amount": "788.64", "method": "card"},
            environ_base=E)
     r = c.post(f"/session/{sid}/delete", environ_base=E)
-    assert r.status_code == 302 and r.location.endswith(f"/session/{sid}#money")
+    assert r.status_code == 302 and r.location.endswith(f"/session/{sid}/edit#money")
     assert _q(A, "SELECT 1 FROM sessions WHERE id=?", (sid,))
-    page = c.get(f"/session/{sid}", environ_base=E).get_data(as_text=True)
+    page = c.get(f"/session/{sid}/edit", environ_base=E).get_data(as_text=True)
     assert "still holds $788.64 in recorded payments" in page
     assert not _q(A, "SELECT 1 FROM audit WHERE action LIKE 'Deleted the%session%'")
     pid = _q(A, "SELECT id FROM payments WHERE session_id=?", (sid,))[0][0]

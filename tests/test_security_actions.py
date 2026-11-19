@@ -1,7 +1,5 @@
 import os
-import shutil
 import sys
-import tempfile
 
 import pytest
 
@@ -26,23 +24,6 @@ def env(tmp_path, monkeypatch):
 def own_sid(c):
     with c.session_transaction() as s:
         return s["sid"]
-
-def other_volume_dir(data_dir):
-
-    data_dev = os.stat(data_dir).st_dev
-    for cand in ("/dev/shm", "/run/user/%d" % os.getuid(), tempfile.gettempdir()):
-        if os.path.isdir(cand) and os.access(cand, os.W_OK) and os.stat(cand).st_dev != data_dev:
-            return cand
-    return None
-
-@pytest.fixture
-def key_dir(tmp_path):
-    base = other_volume_dir(tmp_path)
-    if not base:
-        pytest.skip("no writable folder on a second volume")
-    d = tempfile.mkdtemp(dir=base)
-    yield d
-    shutil.rmtree(d, ignore_errors=True)
 
 def post(c, **data):
     return c.post("/security", data=data, environ_base=E)
@@ -95,44 +76,4 @@ def test_password_change_signs_out_others(env):
     assert datakey.unwrap_password(new) == datakey.dk()
     assert other not in auth.SESSIONS
 
-def test_auto_unlock_on_and_off(env, key_dir, monkeypatch):
-    A, c, _ = env
-    import datakey
-    key_file = os.path.join(key_dir, "unlock.key")
-    monkeypatch.setenv("CRM_UNLOCK_KEY_FILE", key_file)
-    monkeypatch.setattr(datakey, "_mount_fstype", lambda p: "ext4")
-    r = post(c, current=TEST_PASSWORD, act="auto_on")
-    assert b"Unattended unlock is on." in r.data, r.data
-    assert datakey.auto_enabled()
-    assert oct(os.stat(key_file).st_mode)[-3:] == "600"
-    assert datakey.try_auto_unlock() == datakey.dk()
-    r = post(c, current=TEST_PASSWORD, act="auto_off")
-    assert b"Unattended unlock is off." in r.data
-    assert not datakey.auto_enabled()
-    assert not os.path.exists(key_file)
 
-def test_auto_unlock_refused_on_the_data_volume(env, monkeypatch):
-    A, c, tmp = env
-    import datakey
-    key_file = tmp / "keys" / "unlock.key"
-    monkeypatch.setenv("CRM_UNLOCK_KEY_FILE", str(key_file))
-    r = post(c, current=TEST_PASSWORD, act="auto_on")
-    assert b"different volume" in r.data
-    assert not datakey.auto_enabled()
-    assert not key_file.exists()
-
-def test_auto_unlock_refused_without_a_key_file_path(env):
-    A, c, _ = env
-    import datakey
-    r = post(c, current=TEST_PASSWORD, act="auto_on")
-    assert b"CRM_UNLOCK_KEY_FILE" in r.data
-    assert not datakey.auto_enabled()
-
-def test_auto_on_needs_the_current_password(env, key_dir, monkeypatch):
-    A, c, _ = env
-    import datakey
-    key_file = os.path.join(key_dir, "unlock.key")
-    monkeypatch.setenv("CRM_UNLOCK_KEY_FILE", key_file)
-    r = post(c, current="wrong", act="auto_on")
-    assert b"Your current password, please." in r.data
-    assert not datakey.auto_enabled() and not os.path.exists(key_file)

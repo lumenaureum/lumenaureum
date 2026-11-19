@@ -66,13 +66,14 @@ def test_e5_waived_balance_is_written_off(env):
         ym = A.year_money(2026)
     assert ym["written_off"] == 50 and ym["total"] == 450
     page = c.get("/money?year=2026", environ_base=E).get_data(as_text=True)
-    assert "Written off" in page and "$50" in page
+    assert "Balances waived" in page and "$50.00" in page
     files = get_zip(c, 2026)
     assert [r["amount written off"] for r in files["write-offs.csv"]] == ["50.00"]
     total = files["summary.csv"][-1]
     assert total["written off (not received)"] == "50.00" and total["received"] == f"{ym['total']:.2f}"
     assert round(sum(float(m["written off (not received)"]) for m in files["summary.csv"][:-1]), 2) == 50.0
 
+    A.app.config["gallery_link"] = lambda sid: "https://photos.example/g/x"
     c.post("/session/1/quick", data={"act": "mark", "field": "letter_mailed"}, environ_base=E)
     assert one(A, "SELECT letter_mailed FROM sessions WHERE id=1")[0]
 
@@ -95,7 +96,7 @@ def test_e6_canceled_paid_in_full_keeps_only_the_deposit(env):
         assert 5 < A.year_money(2026)["tax_due"] <= 6.0
     page = c.get("/c/1", environ_base=E).get_data(as_text=True)
     assert "You keep the deposit, $100" in page and "Refund due: $430" in page
-    assert "Refund $430" in c.get("/", environ_base=E).get_data(as_text=True)
+    assert "Refund owed: $430.00" in c.get("/", environ_base=E).get_data(as_text=True)
     c.post("/session/1/money", data={"what": "payment", "kind": "refund", "amount": "430", "received": "2026-11-10"},
            environ_base=E)
     with A.app.test_request_context():
@@ -171,7 +172,7 @@ def test_e2_tip_kind_kept_overpayment(env):
     assert ym["tips"] == 50 and ym["total"] == 580 and round(ym["tax_due"], 2) == 30.0
     page = c.get("/money?year=2026", environ_base=E).get_data(as_text=True)
     assert "Tips" in page and "$50" in page
-    assert "Credit" not in c.get("/session/1", environ_base=E).get_data(as_text=True)
+    assert "Credit" not in c.get("/session/1/edit", environ_base=E).get_data(as_text=True)
     files = get_zip(c, 2026)
     assert files["summary.csv"][-1]["tips (in received, not taxed)"] == "50.00"
     assert sorted(p["kind"] for p in files["payments.csv"]) == ["balance", "tip"]
@@ -208,27 +209,40 @@ def test_e14_price_list_quantity_and_discount_after_booking(env):
     A, c = env
     run(A, """
         INSERT INTO sessions (id, household_id, type, stage, shoot_date) VALUES (1, 1, 'portrait', 'booked', '2026-12-01');
-        INSERT INTO lines (session_id, label, amount, kind) VALUES (1, 'Session', 500, 'custom');
+        INSERT INTO lines (session_id, label, amount, kind, qty, unit) VALUES (1, 'Session', 500, 'custom', 1, 500);
         INSERT INTO quote_versions (session_id, at, data) VALUES (1, '2026-10-01', '{"deposit": 100, "total": 500}');
         INSERT INTO payments (session_id, kind, amount, received) VALUES (1, 'deposit', 100, '2026-10-02');""")
     page = c.get("/c/1", environ_base=E).get_data(as_text=True)
-    assert "/session/1/quote/fee" in page and "/session/1/quote/discount" in page
+    assert "/session/1/quote/fee" not in page and "/session/1/quote/discount" not in page
+    lid = one(A, "SELECT id FROM lines WHERE label='Session'")[0]
+
+    for url, data in (("/session/1/quote/fee", {"fee_key": "custom", "label": "Extra hour", "amount": "150", "qty": "1"}),
+                      (f"/line/{lid}/qty", {"qty": "2"}), ("/session/1/quote/discount", {"pct": "10", "reason": ""}),
+                      ("/session/1/money", {"what": "line", "label": "Extra", "amount": "50"}),
+                      (f"/money/line/{lid}/delete", {}), ("/session/1/quote/exempt", {"tax_exempt": "1"})):
+        c.post(url, data=data, environ_base=E)
+    assert [tuple(r) for r in A.connect().execute("SELECT label, amount, qty FROM lines WHERE session_id=1")] == [("Session", 500, 1)]
+
+    c.post("/session/1/quote/replace", data={"back": "/c/1?s=1"}, environ_base=E)
+    assert one(A, "SELECT stage FROM sessions WHERE id=1")[0] == "booked"
     c.post("/session/1/quote/fee", data={"fee_key": "custom", "label": "Extra hour", "amount": "150", "qty": "1"},
            environ_base=E)
-    lid = one(A, "SELECT id FROM lines WHERE label='Extra hour'")[0]
-    run(A, "UPDATE sessions SET stage='shot', shoot_date='2026-11-01' WHERE id=1")
-    c.post(f"/line/{lid}/qty", data={"qty": "2"}, environ_base=E)
-    assert one(A, "SELECT amount FROM lines WHERE id=?", (lid,))[0] == 300
+    lid2 = one(A, "SELECT id FROM lines WHERE label='Extra hour'")[0]
+    c.post(f"/line/{lid2}/qty", data={"qty": "2"}, environ_base=E)
+    assert one(A, "SELECT amount FROM lines WHERE id=?", (lid2,))[0] == 300
     c.post("/session/1/quote/discount", data={"pct": "10", "reason": ""}, environ_base=E)
+    c.post("/session/1/quick", data={"act": "rebook"}, environ_base=E)
     with A.app.test_request_context():
         t = A.totals(1)
-    assert t["quoted"] == 720 and t["deposit_req"] == 100 and t["deposit_short"] == 0
+        assert A.replacing(1) is None and A.quote_locked(1)
+    assert t["quoted"] == 720 and t["paid"] == 100
     con = A.connect()
     hist = [r[0] for r in con.execute("SELECT action FROM audit WHERE session_id=1 ORDER BY id")]
     con.close()
-    assert any("Added 'Extra hour'" in h and "after booking" in h for h in hist)
+    assert any(h.startswith("Canceled the booked quote") and "kept in History" in h for h in hist)
     assert any("Changed the quantity of 'Extra hour' from 1 to 2" in h for h in hist)
     assert any("Set the discount to 10%" in h for h in hist)
+    assert any(h.startswith("Booked the new quote") and "$720" in h for h in hist)
 
 def test_e15_date_move_reopens_details_and_counts_reschedules(env):
     A, c = env
@@ -244,7 +258,7 @@ def test_e15_date_move_reopens_details_and_counts_reschedules(env):
     assert [r[0] for r in con.execute("SELECT done FROM tasks WHERE session_id=1 AND title IN (?, ?)", titles)] == [None, None]
     con.close()
     run(A, "UPDATE tasks SET done='2026-11-12', outcome='done' WHERE session_id=1 AND title IN (?, ?)", titles)
-    s = c.get("/session/1", environ_base=E).get_data(as_text=True)
+    s = c.get("/session/1/edit", environ_base=E).get_data(as_text=True)
     stamp = s.split('name="seen" value="')[1].split('"')[0] if 'name="seen" value="' in s else ""
     c.post("/session/1", data={"title": "", "type": "portrait", "shoot_date": "2026-12-20", "start_time": "16:00",
                                "stops": "Riverside park", "seen": stamp}, environ_base=E)
@@ -287,7 +301,7 @@ def test_e32_reopen_stays_at_the_chosen_stage_despite_a_past_date(env):
     run(A, "INSERT INTO step_closes (session_id, step, outcome) SELECT 1, key, 'na' FROM (SELECT 'agreement_signed' key "
            "UNION SELECT 'deposit_paid' UNION SELECT 'releases_signed' UNION SELECT 'logged' UNION SELECT 'quote_built')")
     c.post("/session/1/stage", data={"stage": "lost", "lost_reason": "Canceled"}, environ_base=E)
-    assert "Reopen at" in c.get("/session/1", environ_base=E).get_data(as_text=True)
+    assert "Reopen at" in c.get("/session/1/edit", environ_base=E).get_data(as_text=True)
     c.post("/session/1/stage", data={"stage": "booked"}, environ_base=E)
     with A.app.test_request_context():
         A.advance(1)
@@ -302,6 +316,10 @@ def test_e26_mark_signed_with_several_pending_opens_the_paperwork(env):
               INSERT INTO sessions (id, household_id, type, stage, shoot_date) VALUES (1, 1, 'wedding', 'booked', '2027-06-01');
               INSERT INTO documents (session_id, kind, about_person, signer) VALUES (1, 'agreement', 1, 'Ann Lane');
               INSERT INTO documents (session_id, kind, about_person, signer) VALUES (1, 'agreement', 2, 'Bo Lane');""")
+    with A.app.test_request_context():
+        a = next(a for a in A.build_actions() if a.get("what") == "Send the agreement")
+    assert a.get("doc") == "/session/1/agreement" and not a.get("theirs")
+    c.post("/session/1/docs/sent?kind=agreement", environ_base=E)
     with A.app.test_request_context():
         a = next(a for a in A.build_actions() if a.get("what") == "Agreement signed")
     assert a.get("doc", "").endswith("#paperwork") and a.get("doc_verb") == "Mark who signed" and not a.get("post")

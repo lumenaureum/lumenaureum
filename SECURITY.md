@@ -14,7 +14,8 @@ fix ships, you'll be credited in the release notes unless you'd rather not be.
 
 ## Supported versions
 
-Fixes go into the next release of the current version. Please test against the latest release before reporting.
+Only the latest release gets security fixes. Fixes go into the next release; older releases are not patched, so
+update to the latest release and test against it before reporting.
 
 ## In scope
 

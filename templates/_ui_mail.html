@@ -1,0 +1,8 @@
+
+{% macro mail_action(url, mailto, label, back=None, kind='quiet', fields=None) -%}
+<form method="post" action="{{ url }}" class="ui-action" data-ui-inplace data-ui-mail="{{ mailto }}"><input type="hidden" name="mail" value="1">
+{%- if back %}<input type="hidden" name="back" value="{{ back }}">{% endif -%}
+{%- for k_, v_ in (fields or {}).items() %}<input type="hidden" name="{{ k_ }}" value="{{ v_ }}">{% endfor -%}
+<button class="ui-btn ui-btn-{{ kind }}">{{ label }}</button></form>
+{%- endmacro %}
+
