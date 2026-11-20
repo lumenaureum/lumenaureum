@@ -42,7 +42,9 @@ def test_a_draft_invoice_emails_through_issue_and_keeps_issue_under_more(tmp_pat
     A, c, sid = _studio(tmp_path, monkeypatch)
     bar = _bar(_page(c, f"/session/{sid}/invoice"))
     primary = bar.split('class="ui-more"', 1)[0]
-    assert 'name="then" value="email"><button class="ui-btn ui-btn-primary">Email it' in primary
+
+    assert re.search(r'name="then" value="email"><button class="ui-btn ui-btn-primary"[^>]*>Issue and email it<', primary)
+    assert "Issue this invoice now?" in primary
     more = bar.split('class="ui-more-pop"', 1)[1]
     assert "Issue this invoice" in more and 'value="download"' in more and 'value="print"' in more
 
@@ -100,8 +102,8 @@ def test_settings_on_a_phone_is_a_grouped_list_then_a_page_with_back(tmp_path, m
     nav = home.split('<nav class="settabs', 1)[1].split("</nav>", 1)[0]
     assert nav.startswith(' set-home"') and '<h1 class="set-title">Settings</h1>' in nav
     assert len(re.findall(r'<a href="[^"]+" class="ui-row', nav)) >= 15
-    assert 'href="/settings?tab=general"' in nav
-    for url in ("/settings?tab=general", "/settings?tab=fees", "/settings/type/family", "/settings/wording/agreement"):
+    assert 'href="/settings?tab=profile"' in nav
+    for url in ("/settings?tab=profile", "/settings?tab=prices", "/settings/type/family", "/settings/wording/agreement"):
         nav = _page(c, url).split('<nav class="settabs', 1)[1].split("</nav>", 1)[0]
         assert nav.startswith('"') and 'class="ui-go set-back" href="/settings">&lsaquo; Settings</a>' in nav, url
         assert nav.count('aria-current="page"') == 1, url

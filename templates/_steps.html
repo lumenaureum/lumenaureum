@@ -1,0 +1,10 @@
+
+{% macro switch(k, r) -%}
+{% if r.locked %}<button type="button" class="ui-btn ui-btn-quiet step-sw" disabled title="{{ r.locked }}">Turn off</button> <small class="mute">{{ r.locked }}</small>
+{%- else %}<input type="hidden" name="{{ k }}_on" value="{{ '0' if r.off else '1' }}" data-step-on><button type="button" class="ui-btn ui-btn-quiet step-sw" data-step-sw aria-pressed="{{ 'false' if r.off else 'true' }}"{% if r.warn %} data-warn="{{ r.warn }}"{% endif %} aria-label="{{ ('Turn on ' if r.off else 'Turn off ') ~ r.label }}">{{ 'Turn on' if r.off else 'Turn off' }}</button>{% endif %}
+{%- endmacro %}
+
+{% macro reuse_lines(items) -%}
+{% if items %}<div class="reuse mute" style="font-size:12px;margin:2px 0 8px">Your other types: {% for it in items %}<button type="button" class="ui-btn ui-btn-inline" data-fill="{{ it.fill|tojson|forceescape }}" title="Use this answer here">{{ it.words }}</button>{{ '; ' if not loop.last }}{% endfor %}</div>{% endif %}
+{%- endmacro %}
+

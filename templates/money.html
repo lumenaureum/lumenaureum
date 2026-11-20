@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% import "_ui.html" as ui with context %}{% import "_ui_bars.html" as bars with context %}{% import "_ui_pages.html" as pg with context %}{% from "_macros.html" import help %}
+{% extends "base.html" %}{% import "_ui.html" as ui with context %}{% import "_ui_bars.html" as bars with context %}{% import "_ui_pages.html" as pg with context %}{% import "_ui_mail.html" as uim with context %}{% from "_macros.html" import help %}
 {% block title %}Finances {{ year }} - Lumen Aureum{% endblock %}
 
 {% block body %}
@@ -33,7 +33,7 @@
     {% else %}{% call ui.money_row(money(total)) %}Received{% endcall %}{% endif %}
     {% if travel.v %}{% call ui.money_row(money(travel.v), 'ui-money-sub') %}Travel charged to clients{{ help("The travel lines on this year's booked sessions (" ~ travel.n ~ "). Counted in Received as clients pay them.") }}{% endcall %}{% endif %}
     {% call ui.money_row(money(-exp.a) if exp.a else money(0)) %}Business expenses{% endcall %}
-    {% call ui.money_row(money(-mileage) if mileage else money(0)) %}Mileage, {{ exp.m|round|int }} miles{% if not rate %}{{ help("No mileage rate is set, so the miles count $0.00. Set it in Settings, General.") }}{% endif %}{% endcall %}
+    {% call ui.money_row(money(-mileage) if mileage else money(0)) %}Mileage, {{ exp.m|round|int }} miles{% if not rate %}{{ help("No mileage rate is set, so the miles count $0.00. Set it in Settings, Payments and terms.") }}{% endif %}{% endcall %}
     {% if pr_cost %}{% call ui.money_row(money(-pr_cost)) %}Print lab cost{% endcall %}{% endif %}
     {% call ui.money_row(money(-tax_all) if tax_all else money(0)) %}Sales tax to remit{% if pr_tax %}{{ help("Includes " ~ money(pr_tax) ~ " on print invoices.") }}{% endif %}{% if tax_due and tax_adjusted|abs > 0.005 %}{{ help(('Includes ' if tax_adjusted > 0 else 'After ') ~ money(tax_adjusted|abs) ~ (' added' if tax_adjusted > 0 else ' taken back') ~ ' this year on money received earlier: a price changed after payment, a booking called off or reopened.') }}{% endif %}{% endcall %}
     {{ ui.money_total('Net, after sales tax', money(net_)) }}
@@ -55,9 +55,14 @@
   {% call ui.money_table('Received by session type') %}{% for r in received %}{% call ui.money_row(money(r.v)) %}{{ type_label[r.type] }}{% endcall %}{% else %}{% call ui.money_row('') %}<span class="ui-mute">Nothing yet</span>{% endcall %}{% endfor %}{% endcall %}
 {% endcall %}
 
+
 {% if upcoming %}{% call ui.section('Balances on booked shoots', id='upcoming') %}
-  {% for o in upcoming %}{{ ui.list_row(url_for('client_stage', hid=o.s.household_id, s=o.s.id, bill=1) ~ '#billing', o.s.household,
-      type_label[o.s.type] ~ ' - ' ~ (nice(o.s.shoot_date) or 'No date'), ui.chip(money(o.t.due))) }}{% endfor %}
+  {% for o in upcoming %}{% set r_ = o.rem %}<div class="ui-remind-row">
+    {{ ui.list_row(url_for('client_stage', hid=o.s.household_id, s=o.s.id, bill=1) ~ '#billing', o.s.household,
+      type_label[o.s.type] ~ ' - ' ~ ((('shot ' if o.s.shoot_date < today_iso else '') ~ nice(o.s.shoot_date)) if o.s.shoot_date else 'No date')
+        ~ (' - ' ~ r_.words if r_ else ''),
+      ui.chip(('Overdue ' if o.late else '') ~ money(o.t.due), 'late' if o.late else 'neutral')) }}
+    {% if r_ and r_.mailto %}{{ uim.mail_action(url_for('session_remind', sid=o.s.id), r_.mailto, 'Remind them', url_for('money_view', year=year) ~ '#upcoming', 'quiet', fields=dict(kind=r_.kind)) }}{% endif %}</div>{% endfor %}
 {% endcall %}{% endif %}
 
 {% set ox_ = overhead|map(attribute='amount')|map('float')|sum %}{% set om_ = overhead|selectattr('session_id', 'none')|map(attribute='miles')|map('float')|sum %}
@@ -81,7 +86,7 @@
   {% endfor %}{{ ui.money_total((tm_|round(1)|string)|replace('.0', '') ~ ' mi', money(tc_)) }}{% endcall %}
 {% endcall %}{% endif %}
 
-{% if prints and prints.any %}{% call ui.fold('Print orders: ' ~ money(prints.profit / 100) ~ ' profit', id='prints', note=help("The print orders in Received above, in detail.")) %}
+{% if prints and prints.any %}{% call ui.fold('Print orders: ' ~ money(prints.profit / 100) ~ ' profit', id='prints') %}
   {% call ui.money_table('Print orders') %}
     {% call ui.money_row(money(prints.received / 100)) %}Received for prints{% endcall %}
     {% call ui.money_row(money(prints.sales / 100)) %}Print sales{% endcall %}

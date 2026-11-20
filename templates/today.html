@@ -57,7 +57,7 @@
 
 {% set n_lines_ = n_work + B.quiet|length + loose|length %}
 {% if n_lines_ > 1 %}{{ uf.filter_bar('today', today_iso, groups=[dict(key='kind', label='Kind', values=kinds.kind + (['Other'] * loose|length)), dict(key='label', label='Labels', values=kinds.label)],
-                                placeholder='Find a name or a task', scope='work') }}{% endif %}
+                                placeholder='Filter by name or task', scope='work') }}{% endif %}
 
 
 {% if n_work or loose or B.quiet %}{% call sect('Tasks', 'work') %}
@@ -71,6 +71,13 @@
   {% if B.quiet %}{% call ui.fold('Waiting on the client or nothing to do now', id='quiet', count=B.quiet|length) %}
     {% for l in B.quiet %}<div {{ uf.item(l.f.status, l.f.due, dict(label=l.f.labels)) }}>{{ ui.list_row(l.href, l.name, l.kind ~ ', ' ~ stage_label[l.stage] ~ ('. ' ~ l.note if l.note else '')) }}</div>{% endfor %}
   {% endcall %}{% endif %}
+{% endcall %}{% endif %}
+
+{% if raw_held %}{% call sect('Deletion dates', 'raw-held') %}
+  <p class="ui-needs-line">{{ raw_held|length }} session{{ ' the update moved on has' if raw_held|length == 1 else 's the update moved on have' }} no deletion date for the RAWs and outtakes.{{ help("The 1.5 update moved these sessions to Delivered or Closed. Their files are kept until you set a date, or until a new delivery starts the usual clock. The usual date counts from the delivery, as it would have without the update.") }}</p>
+  {% for h_ in raw_held %}<div class="ui-form-row" id="raw-held-{{ h_.sid }}"><span class="ui-grow"><a href="{{ h_.link }}">{{ h_.name }}</a> <span class="ui-mute">{{ h_.kind }}{% if h_.usual and not h_.usual_ok %}. The usual date, {{ nice(h_.usual) }}, has passed{% endif %}</span></span>
+    {% if h_.usual_ok %}{{ ui.action(url_for('retention_set_date', sid=h_.sid), 'Use the usual date (' ~ nice(h_.usual) ~ ')', {'until': h_.usual}, back, inplace=false) }}{% endif %}{{ ui.button_link(h_.link, 'Set a date') }}</div>{% endfor %}
+  <div class="ui-btnrow">{{ ui.action(url_for('retention_held_hide'), 'Hide this list', {}, back, inplace=false) }}</div>
 {% endcall %}{% endif %}
 {% if ns.first %}{% call sect('Today', 'work') %}<p class="ui-needs-line">Nothing waits on you today.</p>{% endcall %}{% endif %}
 
@@ -102,10 +109,10 @@
   {% if prices_sample %}<div id="review-prices"><p><b>Review your prices.</b> They are still the starter prices that came with the app (SAMPLE). Look them over, change any that are not yours, and approve them: from then on they print as your prices.</p>
     <div class="ui-btnrow">{{ ui.button_link(url_for('fees_view', sched_id=prices_sample), 'Review your prices') }}</div></div>{% endif %}
   {% if master_due %}<div id="master-key-check"><p><b>Check you still have your master key.</b> It is the only way back in if your password is lost, so make sure you can still find it.</p>
-    <div class="ui-btnrow">{{ ui.button_link(url_for('master_key_check'), 'Check your master key') }}{{ ui.action(url_for('master_key_later'), 'Ask again in a week', {}, None) }}</div></div>{% endif %}
+    <div class="ui-btnrow">{{ ui.button_link(url_for('master_key_check'), 'Check your master key') }}{{ ui.action(url_for('master_key_later'), 'Ask next week', {}, None) }}</div></div>{% endif %}
   
-  {% if wo_ %}<p><b>Fine-tune your session types.</b>{{ help("Each one takes a few minutes and covers deposits, delivery, how long you keep files, the gallery and portfolio use. The defaults already work, so this is optional.") }}</p>
-    <div class="ui-btnrow">{% for k_, lab_ in wo_ %}{{ ui.button_link(url_for('type_walk', key=k_, n=0), 'Walk through ' ~ lab_) }}{% endfor %}</div>{% endif %}
+  {% if wo_ %}<p><b>Walk through your session types.</b>{{ help("Each one takes a few minutes and covers deposits, delivery, how long you keep files, the gallery and portfolio use. The defaults already work, so this is optional.") }}</p>
+    <div class="ui-btnrow">{% for k_, lab_ in wo_ %}{{ ui.button_link(url_for('type_walk', key=k_, n=0), lab_) }}{% endfor %}</div>{% endif %}
   {% if finish %}{% for text, link in finish %}{{ ui.list_row(link, text) }}{% endfor %}{% endif %}
   <div class="ui-btnrow">{{ ui.action(url_for('setup_dismiss'), 'Dismiss', {}, back, confirm='Dismiss Setting up for good? Anything in it that becomes urgent will show on Today by itself.') }}</div>
 {% endcall %}{% elif setup_dismissed %}<div id="setup" data-ui-part hidden></div>{% endif %}

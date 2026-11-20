@@ -36,7 +36,7 @@ says "Send" failed in that moment, ask them to reload the page: their choices ar
 - **Unattended unlock is removed.** An install that had it on starts locked, and the sign-in page says once why.
   The old key file is no longer used: delete it from its separate volume or USB key, and take the
   `CRM_UNLOCK_KEY_FILE` line and its volume line out of `compose.yaml` (1.5 ignores them). To hear about a locked restart instead, set up
-  the notice in Settings, Security (see [Notices while locked](security.md#notices-while-locked)).
+  the notice in Settings, Notifications (see [Notices while locked](security.md#notices-while-locked)).
 - **Signing in.** The update signs every device out; each one asks you to sign in again.
 - **Galleries.** Every gallery online gets 1.5's page and scripts the usual way (above): print ordering now closes 24
   hours before a gallery does, and the gallery credit carries the Lumen Aureum mark, including on galleries built

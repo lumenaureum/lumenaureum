@@ -212,7 +212,7 @@ def test_before_the_send_each_client_step_is_the_photographers_action(env):
         assert "waiting on the client" not in r_
     assert 'href="/session/1/agreement" target="_blank">Send the agreement</a>' in agr
     assert 'href="/session/1/invoice" target="_blank">Send the deposit invoice</a>' in dep
-    assert "Agreement signed" not in page.split('id="more"', 1)[0] and "Deposit paid" not in page.split('id="more"', 1)[0]
+    assert "Agreement signed" not in page.split('id="more"', 1)[0] and "Collect the deposit" not in page.split('id="more"', 1)[0]
     with A.app.test_request_context():
         s = A.q("SELECT * FROM sessions WHERE id=1", one=True)
         rows = A.focus_rows([a for a in A.build_actions(only_sid=1) if a["who"]["link"] == "/session/1"], s, A.totals(1))
@@ -222,9 +222,13 @@ def test_before_the_send_each_client_step_is_the_photographers_action(env):
 def test_the_intake_questions_go_out_as_a_draft_then_wait_on_the_client(env):
     A, c = env
     _session(A, "inquiry", days=None, msg=WEB_MSG)
-    intk = _row(_page(c), "Send the intake questions")
+    page = _page(c)
+    intk = _row(page, "Send the intake questions")
     assert intk and "waiting on the client" not in intk and "Fill in their answers" not in intk
-    assert 'action="/session/1/intake/send"' in intk and "data-ui-mail=" in intk and ">Send the intake questions</button>" in intk
+
+    assert 'data-ui-open="f-intake_done-1"' in intk
+    box = page.split('id="f-intake_done-1"', 1)[1].split("</form>", 1)[0]
+    assert 'action="/session/1/intake/send"' in box and "data-ui-mail=" in box and ">Send the intake questions</button>" in box
     r = c.post("/session/1/intake/send", data={"mail": "1", "back": "/c/1?s=1"}, environ_base=E)
     assert r.status_code == 303 and r.headers["Location"].startswith("mailto:alex.morgan.long.address@example.com")
     from urllib.parse import unquote
@@ -258,7 +262,7 @@ def test_mark_sent_on_the_deposit_invoice_then_it_waits_on_the_client(env):
     c.post(mark, data={"set": "1", "back": "/session/1/invoice"}, environ_base=E)
     assert _q(A, "SELECT COUNT(*) FROM invoice_sent WHERE session_id=1")[0][0] == 1
     assert "class=\"ui-action marksent\"" not in c.get("/session/1/invoice", environ_base=E).get_data(as_text=True)
-    row = _row(_page(c), "Deposit paid")
+    row = _row(_page(c), "Collect the deposit")
     assert "waiting on the client" in row and "Send the deposit invoice" not in _page(c)
 
 def test_the_deposit_invoice_route_when_no_invoice_step_is_open(env):
@@ -313,7 +317,7 @@ def test_prices_ship_as_sample_and_are_approved_on_the_quote(env):
     r = c.post(f"/fees/{sid_}/approve", data={"back": "/c/1?s=1"}, environ_base=E)
     assert r.status_code == 302 and r.headers["Location"].endswith("/c/1?s=1")
     t = A.today()
-    name, code = "Prices as of " + t.strftime("%b %-d, %Y"), t.strftime("%Y%m%d") + "-1"
+    name, code = "Prices as of " + t.strftime("%b %-d, %Y"), t.strftime("%Y%m%d") + "01"
     with A.app.test_request_context():
         assert A.prices_approved(sid_) and A.sched_name(sid_) == name and A.sched_code(sid_) == code
     assert any(h[0].startswith(f"Approved the prices: {name} ({code})") for h in _q(A, "SELECT action FROM audit"))
@@ -334,11 +338,11 @@ def test_the_price_list_itself_approves_and_a_changed_version_stays_yours(env):
     data = {"fees_posted": "1"}
     for i, it in enumerate(sch["items"]):
         data.update({f"fee_label_{i}": it["label"], f"fee_amt_{i}": str(it["amount"] + (5 if i == 0 else 0))})
-    c.post("/settings?tab=fees", data=data, environ_base=E)
+    c.post("/settings?tab=prices", data=data, environ_base=E)
     with A.app.test_request_context():
         new_ = A.current_schedule()["id"]
         assert new_ != sch["id"] and A.prices_approved(new_)
-        assert A.sched_code(new_) == A.today().strftime("%Y%m%d") + "-2"
+        assert A.sched_code(new_) == A.today().strftime("%Y%m%d") + "02"
     fees = c.get(f"/fees/{new_}", environ_base=E).get_data(as_text=True)
     assert ">Approve these prices</button>" not in fees
 
@@ -372,7 +376,7 @@ def test_the_upgrade_approves_only_prices_used_on_a_sent_quote(env):
         A.db().commit()
         cur = A.current_schedule()["id"]
         assert got == [sid_, cur] and A.prices_approved(cur)
-        assert A.sched_code(cur) == "20261002-1"
+        assert A.sched_code(cur) == "2026100201"
         assert A.price_approval_upgrade() is None
     assert "Review your prices." not in c.get("/", environ_base=E).get_data(as_text=True)
 
@@ -442,11 +446,12 @@ def test_adding_a_line_says_what_was_added_and_never_looks_like_a_button(browser
     try:
         p.goto(BASE + "/c/1?s=1")
         p.evaluate("window.__stay = 1")
-        sel = p.locator("form.qnewf select[name=fee_key]")
+        qf = p.locator("form.qnewf").first
+        sel = qf.locator("select[name=fee_key]")
         opt = sel.locator("option[value]:not([value='']):not([value='custom'])").first
         label = opt.inner_text().split(" - ")[0]
         sel.select_option(opt.get_attribute("value"))
-        p.locator("form.qnewf").get_by_role("button", name="Add").click()
+        qf.get_by_role("button", name="Add").click()
         note = p.locator(".ui-note")
         note.wait_for()
         assert p.evaluate("window.__stay") == 1
@@ -466,9 +471,10 @@ def test_the_quantity_sits_with_add_never_alone_on_a_phone(browser, env):
     ctx, p = _tab(browser, c, width=390)
     try:
         p.goto(BASE + "/c/1?s=1")
-        qty = p.locator("form.qnewf input[name=qty]").bounding_box()
-        add = p.locator("form.qnewf").get_by_role("button", name="Add").bounding_box()
-        sel = p.locator("form.qnewf select[name=fee_key]").bounding_box()
+        qf = p.locator("form.qnewf").first
+        qty = qf.locator("input[name=qty]").bounding_box()
+        add = qf.get_by_role("button", name="Add").bounding_box()
+        sel = qf.locator("select[name=fee_key]").bounding_box()
         assert abs((qty["y"] + qty["height"] / 2) - (add["y"] + add["height"] / 2)) < 6
         assert qty["y"] >= sel["y"] + sel["height"] - 1
     finally:

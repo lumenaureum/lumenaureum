@@ -97,7 +97,7 @@ Deposit to hold a date, deposit for events (a percent of the price), when the ba
 the session, on delivery, or after an invoice), payment methods, reschedule fee, how long a quote is good for, and
 travel and mileage. The payment terms name the business checks are made out to (your business name from step 2).
 These answers apply to every session type they cover, weddings included. A type's own deposit
-(Settings, Session types) is used only once you change it on that type's page.
+(Settings, What you shoot) is used only once you change it on that type's page.
 Changes apply to new quotes; a quote already sent keeps the terms it was sent with.
 
 ### 6. Sales tax (optional)
@@ -286,7 +286,7 @@ newborns, engagements, headshots, pets, and group events. They are also for any 
 link** (the default for real estate, products, and food; choose it per session under **Files delivered by**). Without
 either, deliver the photos yourself (**Find a file** under Photos finds any one of them).
 
-A gallery is one of three kinds. The proof mark in Settings, General, Client galleries chooses between the first two,
+A gallery is one of three kinds. The proof mark in Settings, Branding, Client galleries chooses between the first two,
 and delivery by Download link makes the third:
 - **Proofing gallery (a proof mark on).** The photos carry your mark, and the client picks the ones to retouch. The
   gallery goes online once the deposit is in, without waiting for the balance. Until then the Gallery block says

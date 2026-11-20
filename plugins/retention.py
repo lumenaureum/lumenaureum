@@ -574,6 +574,48 @@ def register(ctx):
 
     if not os.environ.get("CRM_TESTING"):
         threading.Thread(target=loop, name="retention", daemon=True).start()
+    HELD_HIDDEN = "raw_held_hidden"
+
+    def _held_hidden():
+        import json
+        r_ = q("SELECT value FROM settings WHERE key=?", (HELD_HIDDEN,), one=True)
+        try:
+            return {int(i_) for i_ in json.loads((r_["value"] if r_ else "") or "[]")}
+        except (TypeError, ValueError):
+            return set()
+
+    def held_list():
+
+        moved_all = {r_[0]: r_[1] for r_ in q(upgrade_moved())}
+        if not moved_all:
+            return []
+        hidden = _held_hidden()
+        out = []
+        for s in q(f"""SELECT s.*, h.name AS household FROM sessions s JOIN households h ON h.id=s.household_id
+                       WHERE s.stage IN ('delivered','closed') AND s.id IN ({','.join('?' * len(moved_all))})
+                       ORDER BY h.name, s.id""", tuple(moved_all)):
+            r = row(s["id"])
+            if s["id"] in hidden or (r and r["purged_at"]) or not upgrade_held(s):
+                continue
+            dv = delivered_from(s, None, moved_all[s["id"]])
+            usual = date.fromisoformat(dv) + timedelta(days=keep_days(s, r)) if dv else None
+            out.append(dict(sid=s["id"], name=s["household"], kind=ctx.C.SESSION_TYPES.get(s["type"], s["type"]),
+                            link=back_of(s) + "#raw-date", usual=usual.isoformat() if usual else "",
+                            usual_ok=bool(usual and usual > date.today())))
+        return out
+
+    @app.post("/today/raw-held/hide", endpoint="retention_held_hide")
+    def retention_held_hide():
+
+        import json
+        ids_ = sorted(_held_hidden() | {h_["sid"] for h_ in held_list()})
+        x("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+          (HELD_HIDDEN, json.dumps(ids_)))
+        return redirect(ctx.safe_back(request.form.get("back")) or url_for("home"))
+
+    app.config["raw_held_list"] = held_list
+    app.config.setdefault("ep_words", {})["retention_held_hide"] = "Hid the list of sessions with no deletion date"
+    app.config.setdefault("quiet_endpoints", set()).add("retention_set_date")
     app.config["retention_pass"] = pass_once
     app.config["retention_due"] = lambda sid: due_date(q("SELECT * FROM sessions WHERE id=?", (sid,), one=True), row(sid))
     app.config["retention_purge_now"] = lambda sid: purge(q("SELECT * FROM sessions WHERE id=?", (sid,), one=True), row(sid), why="with the session")
@@ -624,13 +666,7 @@ def register(ctx):
             else:
                 dv = delivered_from(s, delivered.get(s["id"]), entered.get(s["id"]), moved_.get(s["id"]), fresh_.get(s["id"]))
                 due = date.fromisoformat(dv) + timedelta(days=keep_days(s, r)) if dv else None
-                if not dv and moved_.get(s["id"]) and not delivered.get(s["id"]):
-                    out.append(dict(text="No deletion date set for the RAWs and outtakes", when=None, link=back_of(s) + "#raw-date",
-                                    verb="Set a deletion date",
-                                    help="The 1.5 update moved this session on, so its files are kept until you set a date or "
-                                         "a new delivery starts the usual clock.",
-                                    who=dict(name=s["household"], sub=ctx.C.SESSION_TYPES.get(s["type"], s["type"]),
-                                             link=back_of(s), type=s["type"], hid=s["household_id"])))
+
             sd_ = seal_date(s)
             if sd_ and not (r and r["sealed_at"]) and (sd_ - date.today()).days <= 3 and (s["id"] in with_uploads or plain_folders(s, r)):
                 if master is None:

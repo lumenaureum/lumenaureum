@@ -7,7 +7,7 @@
 {{ ui.page_head(sched_name(sch.id), status=status_, sub=ui.go(url_for('fees_view', sched_id=current), 'See the current prices (' ~ sched_name(current) ~ ')') if sch.id != current else '') }}
 
 {% if not code_ %}{% call ui.needs('Sample prices', id='approve-prices') %}
-  <p class="ui-needs-line">These are the starter prices that came with the app, not yet approved by you. Approving them makes them your prices: every quote and price list prints them as yours from now on. Change any that are not yours first, under {{ ui.go(url_for('settings_view', tab='fees') ~ '#fees', 'Settings, Fees') }}</p>
+  <p class="ui-needs-line">These are the starter prices that came with the app, not yet approved by you. Approving them makes them your prices: every quote and price list prints them as yours from now on. Change any that are not yours first, under {{ ui.go(url_for('settings_view', tab='prices') ~ '#fees', 'Settings, Prices') }}</p>
   <div class="ui-btnrow">{{ ui.action(url_for('fees_approve', sched_id=sch.id), 'Approve these prices', {}, request.path, 'primary', inplace=false,
      confirm='Approve these prices as they are? Approving counts as your review: they are final, stop printing SAMPLE, and print as your prices on every quote from now on.') }}</div>
 {% endcall %}{% endif %}

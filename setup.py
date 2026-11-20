@@ -124,6 +124,25 @@ def backend_from_form(f, prefix, old=None):
         return {k: v for k, v in c.items() if v is not None}
     return None
 
+def conn_rows(c):
+
+    c = c or {}
+    t = c.get("type")
+    if t == "local":
+        return [("Kind", "A folder on this machine or a mounted share"), ("Folder", c.get("path", ""))]
+    if t == "sftp":
+        port = f":{c['port']}" if c.get("port") else ""
+        return [("Kind", "SFTP server"), ("Server", f"{c.get('user', '')}@{c.get('host', '')}{port}"),
+                ("Folder", c.get("root") or "its home folder"),
+                ("Sign-in key", "A key file: " + c["key_file"] if c.get("key_file") else "The app's own key")]
+    if t == "s3":
+        return [("Kind", "S3-compatible storage"), ("Bucket", c.get("bucket", "") + (f" / {c['prefix']}" if c.get("prefix") else "")),
+                ("Endpoint", c.get("endpoint") or "AWS"), ("Access key", c.get("access_key", ""))]
+    return []
+
+def conn_plain_http(c):
+    return bool(c and c.get("type") == "s3" and (c.get("endpoint") or "").lower().startswith("http://"))
+
 def app_ssh_key():
 
     priv = _get("ssh_app_key")
@@ -391,6 +410,23 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
         finally:
             con.close()
 
+    def conn_status():
+
+        try:
+            return json.loads(get("conn_status", "{}") or "{}")
+        except ValueError:
+            return {}
+
+    def conn_mark(which, ok, why=""):
+        st = conn_status()
+        st[which] = dict(at=time.strftime("%Y-%m-%d %H:%M"), ok=bool(ok), why=(why or "")[:300])
+        put(conn_status=json.dumps(st))
+
+    app.jinja_env.globals["conn_status"] = conn_status
+    app.jinja_env.globals["conn_rows"] = conn_rows
+    app.jinja_env.globals["conn_plain_http"] = conn_plain_http
+    app.config["conn_mark"] = conn_mark
+
     def rules():
         try:
             return json.loads(get("rules", "{}"))
@@ -632,6 +668,20 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             rows.append(dict(addr=a_, host=webtls.host_of(a_), pinned=pin, seen=s_))
         return rows
 
+    def s3_seen_prune():
+
+        cfg = VW.config()
+        used = {S3.cert_address(cfg.get(p_)) for p_ in ("primary", "secondary", "gallery_host")} - {""}
+        stale = [a_ for a_ in s3_seen() if a_ not in used]
+        if not stale:
+            return
+        con = connect()
+        try:
+            con.executemany("DELETE FROM settings WHERE key=?", [(S3.SEEN_KEY + a_,) for a_ in stale])
+            con.commit()
+        finally:
+            con.close()
+
     def s3_cert_action(step, f):
 
         from flask import g
@@ -741,6 +791,8 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
     app.config.setdefault("ep_words", {})["setup_test"] = "Tested a storage connection"
     app.config["ep_words"]["setup_host_check"] = "Checked what the web host can do"
 
+    EMBED_BACKS = ("/vault#where", "/settings?tab=profile#location", "/settings?tab=general#where-home")
+
     def nxt(step):
         i = SLUGS.index(step)
         if not complete() and i + 1 < len(SLUGS):
@@ -751,6 +803,9 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
     def setup_step(step):
         if step not in SLUGS:
             abort(404)
+        if request.method == "GET" and step == "business" and complete():
+
+            return redirect(url_for("settings_view", tab="profile") + "#location")
         err = None
         f = request.form
         held = None
@@ -771,6 +826,7 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             if not err:
                 if step in STEP_PREFIXES:
                     drop_secrets(STEP_PREFIXES[step])
+                    s3_seen_prune()
                 mark(step)
                 if step == "galleries" and f.get("gallery_type") and any(
                         r_["seen"] and not r_["seen"].get("refused") for r_ in cert_rows()):
@@ -785,9 +841,44 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
                         audit("Setup finished")
                         return redirect(url_for("home"))
                 else:
+                    back_ = (f.get("back") or "")
+                    if complete() and back_ in EMBED_BACKS:
+                        from flask import session as fs_
+                        if back_.startswith("/vault"):
+                            fs_["vault_result"] = [("Backup destinations", True, "Saved.")]
+                        else:
+                            fs_["notice"] = "Saved."
+                        return redirect(back_)
                     return nxt(step)
         return render_template("setup.html", step=step, steps=STEPS, done=done(),
                                complete=complete(), err=err, required=dict((s, r) for s, _, r in STEPS)[step], saved=request.args.get("saved"), **context(step))
+
+    @app.post("/setup/connection/<which>/test", endpoint="setup_conn_test")
+    def setup_conn_test(which):
+
+        from flask import session as fs
+        part = {"primary": "primary", "secondary": "secondary", "gallery": "gallery_host"}.get(which) or abort(404)
+        cfg = VW.config().get(part)
+        if not cfg:
+            abort(404)
+        msg = test_backend(cfg, keep=False)
+        conn_mark(which, not msg, msg)
+        if which == "gallery" and not msg:
+            check_host()
+        fs["notice"] = f"Tested: it works." if not msg else f"The test failed: {msg}"
+        back_ = request.form.get("back") or ""
+        if not back_.startswith("/") or back_.startswith("//") or "\\" in back_:
+            back_ = url_for("setup_step", step="galleries" if which == "gallery" else "storage")
+        return redirect(back_)
+
+    app.config.setdefault("ep_words", {})["setup_conn_test"] = "Tested a connection"
+
+    def embed(step, back):
+
+        return render_template("setup.html", step=step, steps=STEPS, done=done(), complete=complete(), err=None,
+                               required=dict((s, r) for s, _, r in STEPS)[step], saved=None, embed=back, **context(step))
+
+    app.config["setup_embed"] = embed
 
     @app.post("/setup/test/<which>", endpoint="setup_test")
     def setup_test(which):
@@ -819,7 +910,7 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
         cfg = VW.config()
         items = []
         if not get("timezone"):
-            items.append(("Set your time zone, so evening work gets today's date", url_for("settings_view") + "#tz"))
+            items.append(("Set your time zone, so evening work gets today's date", url_for("settings_view", tab="profile") + "#tz"))
         if get("atrest_upgraded"):
             items.append(("Delete the unencrypted snapshots and copies made before the upgrade", url_for("security")))
         if get("doc_reviews") in (None, "", "{}"):
@@ -827,7 +918,8 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
                           url_for("settings_view", tab="documents")))
 
         if not get("business_email"):
-            items.append(("Add your business email (clients' gallery picks are sent there)", url_for("setup_step", step="business")))
+            items.append(("Add your business email (clients' gallery picks are sent there)",
+                          url_for("settings_view", tab="profile") + "#f-business_email"))
         if backups_share_disk(cfg):
             items.append(("Your backups are on the same disk as your data: move the vault or add a second location",
                           url_for("setup_step", step="storage")))
@@ -873,13 +965,13 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
         if tz not in zoneinfo.available_timezones():
             g.refused = True
             fs["notice"] = "Pick your time zone from the list. Nothing was changed."
-            return redirect(url_for("settings_view") + "#tz")
+            return redirect(url_for("settings_view", tab="profile") + "#tz")
         put(timezone=tz)
         apply_settings()
         app.config["clock_rezone"](lambda k_, v_: put(**{k_: v_}))
         audit(f"Set the time zone to {tz}")
         fs["notice"] = f"Time zone set to {tz}. Documents already issued keep their dates."
-        return redirect(url_for("settings_view"))
+        return redirect(url_for("settings_view", tab="profile"))
 
     @app.post("/setup/hide-list", endpoint="setup_hide_list")
     def setup_hide_list():
@@ -917,19 +1009,31 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             return None
         if step == "storage":
             cfg = VW.config()
-            prim = backend_from_form(f, "primary_", cfg.get("primary"))
-            sec = backend_from_form(f, "secondary_", cfg.get("secondary")) if f.get("secondary_type") else None
-            msg = offer_trust([("Primary location: ", "primary_", prim), ("Second location: ", "secondary_", sec)])
+
+            only = "secondary" if f.get("remove") == "secondary" else f.get("only", "") if complete() else ""
+            if only not in ("", "primary", "secondary", "neither") or (only and not cfg.get("primary")):
+                only = ""
+            fresh = [w_ for w_ in ("primary", "secondary") if only in ("", w_)]
+            prim = backend_from_form(f, "primary_", cfg.get("primary")) if "primary" in fresh else cfg.get("primary")
+            if "secondary" in fresh:
+                sec = (backend_from_form(f, "secondary_", cfg.get("secondary"))
+                       if f.get("secondary_type") and f.get("remove") != "secondary" else None)
+            else:
+                sec = cfg.get("secondary")
+            msg = offer_trust([(w_, p_, c_) for w_, p_, c_ in (("Primary location: ", "primary_", prim),
+                                                                  ("Second location: ", "secondary_", sec))
+                               if p_[:-1] in fresh])
             if msg:
                 return msg
             seen = []
-            msg = test_backend(prim, init_local=f.get("primary_init") == "1", seen=seen)
-            if msg:
-                offer_changed_key("primary_", seen)
-                return "Primary location: " + msg
+            if "primary" in fresh:
+                msg = test_backend(prim, init_local=f.get("primary_init") == "1", seen=seen)
+                if msg:
+                    offer_changed_key("primary_", seen)
+                    return "Primary location: " + msg
             cfg["primary"] = prim
             if sec:
-                msg = test_backend(sec, init_local=f.get("secondary_init") == "1", seen=seen)
+                msg = test_backend(sec, init_local=f.get("secondary_init") == "1", seen=seen) if "secondary" in fresh else ""
                 if msg:
                     offer_changed_key("secondary_", seen)
                     return "Second location: " + msg
@@ -949,6 +1053,9 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
                         " not against that disk failing. Pick a folder on another disk or dataset, add a second copy below"
                         " (a USB drive or an online account), or press Continue anyway and add one later.")
             write_storage(cfg)
+            for w_ in fresh:
+                if cfg.get(w_):
+                    conn_mark(w_, True)
             t = f.get("backup_time", "")
             if re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", t):
                 put(backup_time=t)
@@ -975,6 +1082,9 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             kv["BEFORE_TYPES"] = [t for t in C.SESSION_TYPES if f.get("bal_" + t) == "before"]
             save_rules(**kv)
             put(mileage_rate=rate, quote_term_days=term)
+            for k_ in ("pay_details", "bank_details"):
+                if k_ in f:
+                    put(**{k_: f.get(k_, "")})
             return None
         if step == "tax":
             mode = f.get("tax_mode", "none")
@@ -1028,6 +1138,9 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             except (KeyError, ValueError):
                 return "Days are whole numbers."
             cfg = VW.config()
+            if f.get("keep_host") and complete():
+                save_rules(**kv)
+                return None
             if f.get("gallery_type"):
                 gh = backend_from_form(f, "gallery_", cfg.get("gallery_host") or cfg.get("gallery_host_off"))
                 from plugins.gallery import folder_names, studio_page_clash
@@ -1058,6 +1171,7 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             write_storage(cfg)
             save_rules(**kv)
             if f.get("gallery_type"):
+                conn_mark("gallery", True)
                 check_host()
             return None
         if step == "network":
@@ -1084,6 +1198,8 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
                         fv=form_value, fc=form_ticked)
         r = dict(C.current_rules())
         base = dict(get=get, rules=r, types=C.SESSION_TYPES, fv=form_value, fc=form_ticked, **extra_)
+
+        base.update(primary_saved=cfg.get("primary"), secondary_saved=cfg.get("secondary"), gallery_saved=cfg.get("gallery_host"))
         if step in STEP_PREFIXES:
             base.update(trust=trust_boxes(STEP_PREFIXES[step]), pending=pending_secrets())
         if step == "business":

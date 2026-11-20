@@ -161,7 +161,7 @@ def test_setting_up_has_one_dismiss_and_stays_gone_and_urgent_items_get_their_ow
     _studio(A)
     page = _today(c)
     setup = page.split('id="setup"', 1)[1].split("</section>", 1)[0]
-    assert ">Dismiss</button>" in setup and setup.count("<button") == setup.count(">Dismiss</button>") + setup.count("Ask again in a week")
+    assert ">Dismiss</button>" in setup and setup.count("<button") == setup.count(">Dismiss</button>") + setup.count(">Ask next week</button>")
     assert "Hide this suggestion" not in page and "Hide this list" not in page
     A.app.config["urgent_items"] = lambda: [("Your backups are on the same disk as your data: move the vault or add a second location", "/setup/storage")]
     r = c.post("/today/setup-dismiss", data={"back": "/"}, environ_base=E)

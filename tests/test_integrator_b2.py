@@ -47,8 +47,8 @@ def test_check_in_wait_is_a_setting_default_six_months(env):
     _set(A, "check_in_snooze_months", "")
     _checked_in(A, 60)
     assert not due()
-    page = _page(c, "/settings")
-    assert 'name="check_in_snooze_months"' in page and 'value="6"' in page and "After a check-in, wait (months)" in page
+    page = _page(c, "/settings?tab=clients")
+    assert 'name="check_in_snooze_months"' in page and 'value="6"' in page and "Months until a checked-in client is back in Time to check in" in page
     c.post("/settings", data={"main_posted": "1", "credit": "1", "check_in_snooze_months": "1", "idle_signout_hours": "8"}, environ_base=E)
     with A.app.test_request_context():
         assert A.check_in_snooze() == 1 and A.idle_hours() == 8

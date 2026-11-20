@@ -78,7 +78,7 @@
            confirm="Replace this gallery's link? The old link stops working for good (what the client sent is collected first). The gallery is built again at a new link; you put it online and send the client a new QR letter.") }}{% endif %}
     {% endcall %}
   {% elif us == 'awaiting' %}{% call ph.fact_row('Waiting for your approval to upload') %}{% endcall %}
-  {% elif us == 'uploading' %}{% call ph.fact_row('Uploading') %}{% endcall %}<span hidden data-poll-up="{{ url_for('gallery_status', sid=s.id) }}"></span>
+  {% elif us == 'uploading' %}{% set up_t %}<span id="gal-up-count" role="status">Uploading</span>{% endset %}{% call ph.fact_row(up_t) %}{% endcall %}<span hidden data-poll-up="{{ url_for('gallery_status', sid=s.id) }}" data-label="gal-up-count"></span>
   {% elif us == 'removed' %}
   {% elif not has_host %}{% call ph.fact_row('Previews work here; putting it online needs a web host.') %}{{ ui.button_link(url_for('setup_step', step='galleries'), 'Set up galleries') }}{% endcall %}
   {% elif owed and proof %}{% call ph.fact_row('Collect the ' ~ money(owed) ~ ' deposit first: the proofs go online once it is in.') %}
@@ -105,6 +105,9 @@
   {% endif %}
 
   
+  {% if photos_home and not (job and job.state == 'running') %}{% call ph.fact_row('Its photos are only in the gallery, not in this session yet') %}{{ ui.action(url_for('gallery_photos_home', sid=s.id), 'Bring the photos home', {}, None, 'quiet', inplace=false,
+       confirm="Save the gallery's full-size photos as this session's edited photos? They are the gallery's copies (camera details removed), under the names they had; your original exports are better if you still have them. They are backed up like any upload.") }}{% endcall %}{% endif %}
+  
   {% if us == 'removed' %}
     {% call ph.fact_row('Closed ' ~ nice(g.removed_at) ~ ', off the web', id='gal-phase') %}{% if can_restore %}{{ ui.opener('gal-back-' ~ s.id, 'Put back online') }}{% endif %}{% endcall %}
     {% if can_restore %}{% call ui.inline_form('gal-back-' ~ s.id, 'Put back online') %}<div class="ui-btnrow">
@@ -113,14 +116,23 @@
       {% if can_once %}{{ ui.action(url_for('gallery_back_online', sid=s.id), 'For one download', dict(mode='once'), None, 'quiet', inplace=false,
            confirm="Put this gallery back online for one download? The client's link works until Download all has finished, then it goes dark (or after " ~ once_days ~ " days if it isn't used).") }}{% endif %}
     </div>{% endcall %}{% endif %}
-  {% elif expires and us == 'up' %}
+  {% elif us == 'up' %}
+  
+  {% set close_ctl %}{% if not once_on %}{{ ui.opener('gal-close-' ~ s.id, 'Change closing day') }}{{ ui.action(url_for('gallery_close_now', sid=s.id), 'Close now', {}, None, 'quiet', inplace=false,
+       confirm="Close this gallery now? The client's link stops working and says the gallery has closed. What the client sent is collected first. You can bring it back later.") }}{% endif %}{% endset %}
+  {% set close_form %}{% if not once_on %}{% call ui.inline_form('gal-close-' ~ s.id, 'Change closing day') %}<form method="post" action="{{ url_for('gallery_closing_day', sid=s.id) }}" class="ui-form-row">
+    <label class="ui-check">Last day <input type="date" name="day" required value="{{ expires.isoformat() if expires and expires > today else '' }}" min="{{ close_min }}" max="{{ close_max }}"></label>
+    <button class="ui-btn ui-btn-primary">Set</button></form>
+    <p class="ui-mute">The link works through that day. The client sees the closing notice in its last days.</p>{% endcall %}{% endif %}{% endset %}
+  {% if expires %}
     {% set left = (expires - today).days %}
     {% set phase_ %}{% if once_on %}One download, then off the web &middot; at the latest {{ nice(expires.isoformat()) }}{% elif left < 0 %}Closed {{ nice(expires.isoformat()) }} &middot; comes off the web at the next check{% elif left <= sunset %}Closing {{ nice(expires.isoformat()) }} &middot; {{ 'today' if left == 0 else 'in ' ~ left ~ (' day' if left == 1 else ' days') }} &middot; the client sees a warning{% else %}Online until {{ nice(expires.isoformat()) }} &middot; {{ left }} days left{% endif %}{% endset %}
     {% call ph.fact_row(phase_, id='gal-phase', tone='attention' if 0 <= left <= sunset and not once_on else '') %}
-      {% if not s.extension_used and not g.restored_at and left >= 0 %}{{ ui.action(url_for('quick', sid=s.id), 'Extend to ' ~ nice(ext_date.isoformat()), dict(act='extend'), back, 'quiet') }}{% endif %}
+      {% if ext_date and not s.extension_used and not g.restored_at and left >= 0 %}{{ ui.action(url_for('quick', sid=s.id), 'Extend to ' ~ nice(ext_date.isoformat()), dict(act='extend'), back, 'quiet') }}{% endif %}{{ close_ctl }}
     {% endcall %}
-  {% elif us == 'up' %}
-    {% call ph.fact_row('Online · its ' ~ days ~ ' days start when the client first opens it', id='gal-phase') %}{% endcall %}
+  {% else %}
+    {% call ph.fact_row('Online · its ' ~ days ~ ' days start when the client first opens it', id='gal-phase') %}{{ close_ctl }}{% endcall %}
+  {% endif %}{{ close_form }}
   {% endif %}
 
   

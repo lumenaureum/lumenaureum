@@ -25,8 +25,16 @@
   {{ pg.pager('#', 2025, 2026, '#', 2027, 'Year') }}
 {% endcall %}
 
-{% call ui.section('Settings search') %}
-  {{ pg.settings_find([dict(text='Mileage rate', sub='Settings, General', link='#', words='mileage rate miles')], '', None) }}
+{% import "_settings_ui.html" as sui with context %}
+{% call ui.section('Settings components') %}
+  <div class="f">
+  {% call sui.section('A section', help_text='A tip in a bubble, in sentence case.') %}
+    {{ sui.field('demo_rate', 'Mileage rate', '0.70', type='number', unit='per mile', width='90px', hard=true, hint='A hint under the field.') }}
+    {{ sui.field('demo_name', 'Your name', '', error='Not saved: type a name.') }}
+    {{ sui.switch('demo_on', 'Credit Lumen Aureum', true, 'One small line at the bottom of quotes and invoices.') }}
+  {% endcall %}
+  {{ sui.save_bar('demo-form', sticky=false) }}</div>
+  {% call sui.status_fold('Backup destinations: 2', 'demo-status') %}<p>This computer: /backups</p><p>An S3 bucket: backups.example.com</p>{% endcall %}
 {% endcall %}
 
 {% call ui.section('Status chips') %}

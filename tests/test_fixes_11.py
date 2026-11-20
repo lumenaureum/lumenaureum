@@ -81,7 +81,7 @@ def test_rebuild_of_an_online_gallery_goes_online(env):
     assert row(A, "SELECT upload_state FROM galleries WHERE session_id=1")[0] == "up"
     old = {p.name for p in (host / gid).glob("*.bin")}
     (host / gid / "picks.las").write_bytes(b"LAS1 the client's picks")
-    host_write(host / gid, "seen.txt", "2026-10-05T12:00:00Z")
+    host_write(host / gid, "seen.txt", "2026-10-05T12:00:00Z")   # fixed date: already past, stays past
     block = gallery_block(c)
     assert "older than this build" not in block
     link = re.search(r'<span hidden id="gal-link-1">([^<]+)</span>', block).group(1)

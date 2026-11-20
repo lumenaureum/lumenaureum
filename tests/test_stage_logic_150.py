@@ -165,21 +165,21 @@ def test_follow_up_after_5_days_only_and_resets_on_sent(env):
     _session(A, "quoted", days=30)
     _price(A, c)
     c.post("/session/1/quote/send", environ_base=E)
-    vid = _sql(A, "SELECT id FROM quote_versions WHERE session_id=1")[0][0]
+    vid, qno = _sql(A, "SELECT id, number FROM quote_versions WHERE session_id=1")[0]
     _sql(A, "INSERT INTO quote_marks (vid, session_id, at) VALUES (?, 1, ?)", (vid, _day(A, -4)))
     _sql(A, "DELETE FROM log")
     assert not [a for a in _acts(A) if a.get("followup")]
     _sql(A, "UPDATE quote_marks SET at=? WHERE vid=?", (_day(A, -5), vid))
     fu = [a for a in _acts(A) if a.get("followup")]
     assert len(fu) == 1
-    assert fu[0]["doc"].startswith("mailto:alex@example.com?subject=Following%20up") and f"quote {vid}" in fu[0]["what"]
+    assert fu[0]["doc"].startswith("mailto:alex@example.com?subject=Following%20up") and f"quote {qno}" in fu[0]["what"]
     assert "%24400" in fu[0]["doc"] and "good%20through" in fu[0]["doc"]
     page = c.get("/c/1?s=1", environ_base=E).get_data(as_text=True)
     needs = page.split('id="quote-now"', 1)[1].split("</section>", 1)[0]
     assert ">Follow up</a>" in needs and ">I sent the follow-up</button>" in needs
     r = c.post("/session/1/followup", data={"vid": str(vid), "back": "/c/1?s=1"}, environ_base=E)
     assert r.status_code == 302 and r.headers["Location"].endswith("/c/1?s=1")
-    assert _sql(A, "SELECT summary FROM log WHERE session_id=1")[-1][0] == f"Followed up on quote {vid}"
+    assert _sql(A, "SELECT summary FROM log WHERE session_id=1")[-1][0] == f"Followed up on quote {qno}"
     assert not [a for a in _acts(A) if a.get("followup")]
     _sql(A, "UPDATE log SET at=?", (_day(A, -5) + " 10:00:00",))
     assert [a for a in _acts(A) if a.get("followup")]

@@ -4,7 +4,7 @@
 
 {% macro today_do(do, back, kind='quiet') -%}
 {%- set a = do.a -%}
-{%- if a.mail and a.post -%}{{ uim.mail_action(a.post, a.mail, a.verb, back, kind, fields=a.fields) }}
+{%- if a.mail and a.post and not a.preview -%}{{ uim.mail_action(a.post, a.mail, a.verb, back, kind, fields=a.fields) }}
 {%- elif a.confirm and a.post -%}{{ ui.action(a.post, a.verb, a.fields or {}, back, kind, confirm=a.confirm) }}
 {%- else -%}{{ ui.step_action(a, back, kind, menu=false) }}{%- endif -%}
 {%- endmacro %}
@@ -17,14 +17,14 @@
     <span class="ui-tline-who"><a class="ui-tline-name" href="{{ line.href }}">{{ line.name }}</a>
       {%- if line.new %} {{ ui.chip('New', 'attention') }}{% endif %}
       {%- if line.kind or line.stage %} <span class="ui-tline-stage">{{ line.kind }}{% if line.stage in stage_label %}{{ ', ' if line.kind }}{{ stage_label[line.stage] }}{% endif %}</span>{% endif %}</span>
-    {%- if do %}<span class="ui-tline-what">{{ do.what }}</span>{% if do.help %}{{ help(do.help) }}{% endif %}
-      {%- if do.when %} {{ ui.due_words(nice(do.when), do.late) }}{% endif %}
+    {%- if do %}<span class="ui-tline-what">{{ do.what }}{% if do.help %}{{ help(do.help) }}{% endif %}
+      {%- if do.when %} {{ ui.due_words(nice(do.when), do.late) }}{% endif %}</span>
       {%- if do.detail %}<small class="ui-todo-line ui-todo-detail">{{ do.detail }}</small>{% endif %}{% endif %}
     {%- if line.note %}<small class="ui-todo-line">{{ line.note }}</small>{% endif %}
   </span>
   <span class="ui-tline-act">{% if do and do.a %}{{ today_do(do, back, 'primary' if do.late else 'quiet') }}{% endif %}</span>
 </li>
-{%- if do and do.a and do.a.form %}{{ ui.step_form(do.a, back) }}{% endif -%}
+{%- if do and do.a and (do.a.form or do.a.preview) %}{{ ui.step_form(do.a, back) }}{% endif -%}
 {%- endmacro %}
 
 {% macro shoot_block(sh, back) -%}

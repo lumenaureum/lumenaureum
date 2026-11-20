@@ -25,7 +25,7 @@
   <table>{% if v.license_terms %}<tr><td style="width:170px"><b>License</b></td><td>{{ v.license_terms }}</td></tr>{% endif %}{% for head, txt in v.terms %}<tr><td style="width:170px"><b>{{ head }}</b></td><td>{{ txt }}</td></tr>{% endfor %}</table>
   <h2>What editing includes</h2>
   <div class="ed">{% for head, pts in v.editing %}<b>{{ head }}</b><ul>{% for p_ in pts %}<li>{{ p_ }}</li>{% endfor %}</ul>{% endfor %}</div>
-  <p class="foot">Quote {{ v.id or "(numbered when sent)" }}, {{ sched_name(v.schedule_id)|lower if not sched_code(v.schedule_id) else sched_name(v.schedule_id) ~ ' (' ~ sched_code(v.schedule_id) ~ ')' }}. Prices on this quote hold until {{ v.expires_long }}.</p>
+  <p class="foot">Quote {{ v.no or "(numbered when sent)" }}, {{ sched_name(v.schedule_id)|lower if not sched_code(v.schedule_id) else sched_name(v.schedule_id) ~ ' (' ~ sched_code(v.schedule_id) ~ ')' }}. Prices on this quote hold until {{ v.expires_long }}.</p>
 {% include "_credit.html" %}
 </div>{% if not pdf %}<script src="{{ url_for('static', filename='ui.js', v=static_v('ui.js')) }}"></script>{% endif %}</body></html>
 

@@ -39,7 +39,7 @@ def test_a_row_names_the_step_and_its_button_the_action(env):
     assert not [b for b in rows.values() if b.startswith("Open ")]
     today = _today(c)
     line = today.split('id="line-s1"', 1)[1].split("</li>", 1)[0]
-    what = re.search(r'class="ui-tline-what">([^<]*)<', line).group(1)
+    what = re.search(r'class="ui-tline-what">([^<]*)<', line).group(1).strip()
     assert what in rows and ">" + rows[what] + "<" in line
 
 def test_the_quote_button_says_send_the_quote(env):
@@ -131,7 +131,7 @@ def test_an_empty_today_says_so_once_and_setting_up_has_one_heading(env):
     assert today.count("Nothing waits on you today.") == 1
     setup = today.split('id="setup"', 1)[1].split("</section>", 1)[0]
     assert "Finish setting up" not in setup and "<h3" not in setup
-    if "Fine-tune your session types" in setup:
+    if "Walk through your session types" in setup:
         bare = re.sub(r'<span class="qh".*?</span></span>', "", setup, flags=re.S)
         assert "The defaults already work" in setup and "The defaults already work" not in bare
 
@@ -140,7 +140,7 @@ def test_the_sessions_list_names_the_same_next_action_as_today(env):
     _usb_delivered(A, c)
     today = _today(c)
     line = today.split('id="line-s1"', 1)[1].split("</li>", 1)[0]
-    what = re.search(r'class="ui-tline-what">([^<]*)<', line).group(1).replace("Sent their picks: ", "")
+    what = re.search(r'class="ui-tline-what">([^<]*)<', line).group(1).replace("Sent their picks: ", "").strip()
     sessions = c.get("/sessions", environ_base=E).get_data(as_text=True)
     row = sessions.split('href="/c/1?s=1"', 1)[1].split("</a>", 1)[0]
     assert what in row, (what, row)

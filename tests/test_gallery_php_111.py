@@ -67,7 +67,7 @@ def test_picks_php_refuses_writes_once_the_window_has_closed(host):
     picks, draft = sealed(G, key, "picks"), sealed(G, key, "draft")
     assert call(base + "picks.php", picks, proof)[0] == 204
     hosted(d, "picks.las").unlink()
-    host_write(d, "seen.txt", "2026-01-01T12:00:00Z")
+    host_write(d, "seen.txt", "2026-01-01T12:00:00Z")                           # fixed date: long past on purpose; opened long ago, 30 days are over
     assert call(base + "picks.php", picks, proof)[0] == 410
     assert call(base + "picks.php?kind=draft", draft, proof)[0] == 410
     assert call(base + "gate.php?f=manifest.bin", proof=proof)[0] == 410

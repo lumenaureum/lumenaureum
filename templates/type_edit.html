@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% from "_macros.html" import help with context %}{% import "_ui.html" as ui with context %}
+{% extends "base.html" %}{% from "_macros.html" import help with context %}{% import "_ui.html" as ui with context %}{% import "_steps.html" as sw %}
 {% block title %}{{ t.label }} - Lumen Aureum{% endblock %}
 {% block body %}
 {{ ui.page_head(t.label, kicker='Session type', face=ui.type_mark(t.key, 'ui-type-face')) }}
@@ -7,26 +7,28 @@
 <form method="post" class="ui-sec f" style="max-width:720px">
   <h2 class="ui-sec-title">Steps</h2>
   <p class="mute" style="margin:0 0 6px;font-size:13px">Day: days from the shoot (-7 is a week before). Blank: no due date.</p>
-  {% for stage in stages %}
+  {% for stage, rows in step_rows %}
   <h3 style="margin:14px 0 4px">{{ stage_label[stage] }}</h3>
-  <table class="data steps"><tbody>
-    {% for st in flow.get(stage, []) %}{% set k = stage ~ '_' ~ loop.index0 %}
-    <tr>{% if st[0] == 'auto' %}
+  <table class="data steps"><tbody data-stage-warn="{{ C.stage_off_warning(stage) }}">
+    {% for r in rows %}{% set st = r.step %}{% set k = stage ~ '_' ~ loop.index0 %}
+    <tr class="{{ 'step-off' if r.off }}">{% if st[0] == 'auto' %}
       <td><input type="hidden" name="{{ k }}_kind" value="auto"><input type="hidden" name="{{ k }}_key" value="{{ st[1] }}">
-        <span class="mute">{{ auto_label.get(st[1], st[1]) }}</span> <small class="mute">(automatic)</small></td><td></td>
+        <span class="mute step-name">{{ r.label }}</span> <small class="mute">(automatic)</small> {{ help(r.help) }}</td><td></td>
     {% else %}
-      <td><input type="hidden" name="{{ k }}_kind" value="{{ st[0] }}">{% if st[1] in C.BUILTIN_STEPS %}<input type="hidden" name="{{ k }}_label" value="{{ st[1] }}"><span>{{ st[1] }}</span> <small class="mute" title="The app recognizes this step by name, so its wording is fixed. You can drop it.">(built in)</small>{% else %}<input name="{{ k }}_label" value="{{ st[1] }}" maxlength="80" aria-label="Step">{% endif %}</td>
+      <td><input type="hidden" name="{{ k }}_kind" value="{{ st[0] }}">{% if st[1] in C.BUILTIN_STEPS %}<input type="hidden" name="{{ k }}_label" value="{{ st[1] }}"><span class="step-name">{{ st[1] }}</span> <small class="mute">(built in)</small> {{ help(r.help ~ " The app knows this step by name, so its wording can't be changed.") }}{% else %}<input name="{{ k }}_label" value="{{ st[1] }}" maxlength="80" aria-label="Step" class="step-name">{% if not r.own %} {{ help(r.help) }}{% endif %}{% endif %}</td>
       <td style="width:90px"><input type="number" name="{{ k }}_days" value="{{ st[2] if st[2] is not none }}" placeholder="Day"></td>
     {% endif %}
-      <td style="width:70px"><label class="row" style="gap:4px;font-size:12px"><input type="checkbox" name="{{ k }}_drop" value="1">drop</label></td></tr>
+      <td class="step-sw-cell" style="width:110px">{{ sw.switch(k, r) }}</td></tr>
     {% endfor %}
     <tr><td><input name="{{ stage }}_new" placeholder="New step" maxlength="80"></td>
       <td style="width:90px"><input type="number" name="{{ stage }}_new_days" placeholder="Day"></td><td></td></tr>
-    {% set have = flow.get(stage, [])|selectattr(0, 'equalto', 'auto')|map(attribute=1)|list %}
+    {% set have = rows|map(attribute='step')|selectattr(0, 'equalto', 'auto')|map(attribute=1)|list %}
     <tr><td colspan="3"><select name="{{ stage }}_auto" aria-label="Add an automatic step to {{ stage_label[stage] }}"><option value="">Add an automatic step</option>
       {% for ak, al in auto_label.items() if ak not in have %}<option value="{{ ak }}">{{ al }}</option>{% endfor %}</select></td></tr>
   </tbody></table>
   {% endfor %}
+  <div class="ui-btnrow" style="margin-top:10px"><button class="ui-btn ui-btn-quiet" formaction="{{ url_for('type_steps_reset', key=t.key) }}" formnovalidate
+    data-confirm="Put {{ t.label }}'s steps back to the defaults? Steps you added are removed, names and days go back to the defaults, and every step is on again. Open sessions of this type change too.">Reset steps to the defaults</button></div>
 
   <h2 class="ui-sec-title" style="margin-top:20px">Intake questions</h2>
   <p class="mute" style="margin:0 0 6px;font-size:13px">One per line, asked of every client of this type. Answers stay with a question while its words stay the same.</p>
@@ -37,26 +39,35 @@
   <label class="row" style="gap:6px"><input type="checkbox" name="free_reschedule" value="1"{{ ' checked' if policy.free_reschedule }} style="width:auto;margin:0">One free reschedule, with
     <input type="number" name="notice_hours" min="0" value="{{ policy.notice_hours }}" style="width:80px;display:inline;margin:0"> hours' notice</label>
   <label class="row" style="gap:6px">No-show after <input type="number" name="late_minutes" min="0" value="{{ policy.late_minutes }}" style="width:80px;display:inline;margin:0"> minutes late <span class="mute">(0: none)</span></label>
+  {{ sw.reuse_lines(reuse('reschedule')) }}
   {% for k, sentence, blank in C.FILL_INS %}{% if k != 'license_use' or t.key in C.LICENSE_TYPES %}{% set before, after = sentence.split('___') %}
   <label class="row" style="gap:6px;flex-wrap:wrap">{{ before }}<input name="{{ k }}" maxlength="200" value="{{ policy.get(k) or '' }}" placeholder="{{ blank|lower }}" class="grow" style="width:auto;min-width:240px;margin:0">{{ after }}</label>
+  {{ sw.reuse_lines(reuse(k)) }}
   {% else %}<input type="hidden" name="{{ k }}" value="{{ policy.get(k) or '' }}">{% endif %}{% endfor %}
   <label class="row" style="gap:6px;flex-wrap:wrap">I keep the unedited files for <input type="number" name="keep_raw_days" min="1" max="3650" value="{{ C.raw_keep_days(t.key) }}" style="width:90px;display:inline;margin:0"> days after delivery, then delete them.{{ help("One number for both: the agreement says it, and the RAWs and outtakes are deleted on that day (Today warns a week ahead).") }}</label>
+  {{ sw.reuse_lines(reuse('keep_raw')) }}
   <label class="row" style="gap:6px;flex-wrap:wrap">Files are delivered by default
     <select name="delivery_method" style="width:auto;display:inline;margin:0">{% for k_, v_ in C.DELIVERY_METHODS.items() %}<option value="{{ k_ }}"{{ ' selected' if k_ == C.delivery_method(t.key) }}>{{ v_[0] }}</option>{% endfor %}</select>
     {{ help("Each session can choose another way; its agreement says which. A download link is one you send from your own service.") }}</label>
+  {{ sw.reuse_lines(reuse('method')) }}
   <label class="row" style="gap:6px;flex-wrap:wrap">Photos ready within <input type="number" name="delivery_days" min="1" max="365" value="{{ C.delivery_days(t.key) }}" style="width:90px;display:inline;margin:0"> days of the session.</label>
+  {{ sw.reuse_lines(reuse('delivery_days')) }}
   <label class="row" style="gap:6px;flex-wrap:wrap">The gallery stays up for <input type="number" name="gallery_days" min="1" max="3650" value="{{ C.gallery_days(t.key) }}" style="width:90px;display:inline;margin:0"> days after the client first opens it.{{ help("Blank or the general number (Online galleries) follows the general setting.") }}</label>
+  {{ sw.reuse_lines(reuse('gallery_days')) }}
   <label class="row" style="gap:6px"><input type="checkbox" name="outfits" value="1"{{ ' checked' if policy.outfits }} style="width:auto;margin:0">Outfits and props lines</label>
   <label class="row" style="gap:6px;flex-wrap:wrap">What to wear and bring: "You plan the look: <input name="wear" maxlength="200" value="{{ policy.wear or C.DEFAULT_WEAR }}" class="grow" style="width:auto;min-width:240px;margin:0">, and any props."</label>
+  {{ sw.reuse_lines(reuse('wear')) }}
   <div class="ui-btnrow">{{ ui.go(url_for('wording_edit', doc='agreement', type=t.key), 'Agreement wording for ' ~ t.label) }}{{ ui.go(url_for('wording_edit', doc='release', type=t.key), 'Release wording for ' ~ t.label) }}</div>
   <div class="row" style="gap:8px;flex-wrap:wrap"><span id="dep-l">Deposit for this type</span>
     <input type="number" name="deposit_value" aria-labelledby="dep-l" min="0" value="{{ '' if dep_setup else (t.get('deposit_pct') if t.get('deposit_pct') is not none else (t.get('deposit_amount') if t.get('deposit_amount') is not none else '')) }}" placeholder="{{ (dep_rule[1] ~ '%' if dep_rule[0] == 'pct' else '$' ~ dep_rule[1]) if dep_setup and dep_rule else 'from setup' }}" style="width:130px">
     <select name="deposit_mode" aria-label="Deposit in" style="width:auto"><option value="amt"{{ ' selected' if t.get('deposit_amount') is not none }}>dollars</option><option value="pct"{{ ' selected' if t.get('deposit_pct') is not none }}>% of the price</option></select>
     <span class="mute" style="font-size:12px">Blank uses your answer in Payments and terms.</span></div>
+  {{ sw.reuse_lines(reuse('deposit')) }}
   <div class="row" style="gap:8px;flex-wrap:wrap"><span id="folio-l">Portfolio permission discount</span>
     <input type="number" name="portfolio_value" aria-labelledby="folio-l" min="0" value="{{ t.portfolio_pct or t.portfolio_amount or '' }}" placeholder="none" style="width:110px">
     <select name="portfolio_mode" aria-label="Discount in" style="width:auto"><option value="amt"{{ ' selected' if t.portfolio_amount }}>dollars</option><option value="pct"{{ ' selected' if t.portfolio_pct }}>% of the price</option></select>
-    {{ help("Off unless you set it. A client who lets you show up to " ~ C.MARKETING_PICKS ~ " photos (you choose; they may suggest favorites and say no to any) gets this off the price. A client who declines pays full price, and nothing from the session is ever shown. Some photographers don't offer it when children are photographed.") }}</div>
+    {{ help("Off unless you set it. A client who lets you show up to " ~ C.MARKETING_PICKS ~ " photos (you choose; they may suggest favorites and say no to any) gets this off the price, before tax. A client who declines pays full price, and nothing from the session is ever shown. Some photographers don't offer it when children are photographed.") }}</div>
+  {{ sw.reuse_lines(reuse('portfolio')) }}
   <label class="row" style="gap:6px"><input type="checkbox" id="f-gallery_codeword" name="gallery_codeword" value="1"{{ ' checked' if policy.get('gallery_codeword') }} style="width:auto;margin:0">Ask for a gallery codeword{{ help("The client picks three words at booking, in person or on the phone. Their gallery opens only with the link and the words together; short or common words are refused, since anyone holding the link could try to guess them. On for every type unless you turn it off. The words are never written into any email the app drafts.") }}</label>
   <label class="row" style="gap:6px"><input type="checkbox" name="indoors" value="1"{{ ' checked' if t.indoors }} style="width:auto;margin:0">Shot indoors{{ help("No golden hour or sunset times. Studio, newborn and food sessions don't need sunset times; they are left off this type's pages and documents.") }}</label>
   <label class="row" style="gap:6px"><input type="checkbox" name="all_sign" value="1"{{ ' checked' if t.all_sign }} style="width:auto;margin:0">Every adult on the client record signs the agreement{{ help("For couples and weddings: each adult gets a signature line, and a signer needs no separate release.") }}</label>
@@ -69,5 +80,6 @@
   <form method="post" action="{{ url_for('doc_review', doc='terms') }}" class="reviewbox {{ 'ok' if rs.reviewed }}"><input type="hidden" name="type" value="{{ t.key }}"><input type="hidden" name="back" value="{{ url_for('type_edit', key=t.key) }}#terms">
   {% if rs.reviewed %}<span class="grow"><b>Reviewed {{ rs.when }}.</b> Changes you make later keep it reviewed.</span><button class="ui-btn ui-btn-quiet" name="revert" value="1" data-confirm="Put {{ t.label }}'s terms back to the shipped defaults (reschedule, no-show, fill-ins, deposit) and mark them SAMPLE again?">Revert to default</button>
   {% else %}<span class="grow"><b>These terms print as SAMPLE</b> until you review them here. Saving does not count.</span><button class="ui-btn ui-btn-quiet" name="revert" value="1" data-confirm="Put {{ t.label }}'s terms back to the shipped defaults and keep them marked SAMPLE?">Revert to default</button><button class="ui-btn ui-btn-primary">Reviewed - remove SAMPLE</button>{% endif %}</form></div>
+<script src="{{ url_for('static', filename='typesteps.js', v=static_v('typesteps.js')) }}"></script>
 {% endblock %}
 

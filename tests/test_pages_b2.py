@@ -120,7 +120,7 @@ def test_settings_search_finds_the_setting_itself_by_label_help_and_common_words
             assert r, term
             return r[0]["link"]
         assert first("mileage") == "/setup/money#f-mileage_rate"
-        assert first("checks").startswith("/settings?tab=general#f-business_address") or any(
+        assert first("checks").startswith("/settings?tab=profile#f-business_address") or any(
             r_["link"] == "/setup/money#pay-methods" for r_ in A.settings_find("checks"))
         assert any(r_["link"].endswith("#f-sales_tax_pct") for r_ in A.settings_find("tax"))
         assert any(r_["link"].endswith("#f-backup_time") for r_ in A.settings_find("backup"))
@@ -129,16 +129,14 @@ def test_settings_search_finds_the_setting_itself_by_label_help_and_common_words
 
         assert any(r_["link"].endswith("#f-timezone") for r_ in A.settings_find("deadline"))
         assert A.settings_find("zzzz") == []
-    for page in ("/settings", "/settings?tab=fees", "/setup/money"):
-        html = _page(c, page)
-        nav = html.split('class="settabs', 1)[1]
-        assert nav.index("data-ui-find") < nav.index('class="sg"'), page
-        assert 'class="ui-find-index"' in nav and '"#f-mileage_rate' not in nav
+    for page in ("/settings", "/settings?tab=prices", "/setup/money"):
+        nav = _page(c, page).split('class="settabs', 1)[1].split("</nav>", 1)[0]
+        assert "data-ui-find" not in nav and 'class="ui-find-index"' not in nav, page
 
-    html = _page(c, "/settings?find=mileage")
-    out = html.split('class="ui-find-out"', 1)[1].split("</div>", 1)[0]
+    html = _page(c, "/search?q=mileage")
+    out = html.split('id="setting-hits"', 1)[1].split("</section>", 1)[0]
     assert 'href="/setup/money#f-mileage_rate"' in out and "Mileage rate" in out
-    assert "No setting matches" in _page(c, "/settings?find=zzzz")
+    assert "Nothing found." in _page(c, "/search?q=zzzz")
 
 def test_every_searched_anchor_is_on_its_page(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
@@ -147,11 +145,15 @@ def test_every_searched_anchor_is_on_its_page(tmp_path, monkeypatch):
     con.commit(); con.close()
     with A.app.test_request_context():
         links = {e_["link"] for e_ in A.settings_find_entries() if "#" in e_["link"] and not e_["link"].endswith("#demo")}
+    import settings_registry as R
+    sometimes = {f_["anchor"] for f_ in R.fields() if f_.get("optional")}
     pages = {}
     for link in sorted(links):
         url, anchor = link.split("#", 1)
+        if anchor in sometimes:
+            continue
         if url not in pages:
-            pages[url] = _page(c, url)
+            pages[url] = c.get(url, environ_base=E, follow_redirects=True).get_data(as_text=True)
         assert f'id="{anchor}"' in pages[url], link
 
 def test_calendar_day_cell_is_one_target_and_a_crowded_day_shows_more(tmp_path, monkeypatch):

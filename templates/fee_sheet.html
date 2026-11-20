@@ -1,10 +1,10 @@
 {% from "_doc_bar.html" import doc_bar, draft with context %}{% import "_ui.html" as ui with context %}<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Price list{% if who %} - {{ who }}{% endif %}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 {% include "_doc_style.html" %}</head><body>
-{% if not pdf %}{{ doc_bar(url_for('fee_sheet_pdf', type=stype) if stype else url_for('fee_sheet_pdf'), back_url, send, more=ui.button_link(url_for('settings_view', tab='fees'), 'Edit prices and terms', blank=true)) }}{% endif %}
+{% if not pdf %}{{ doc_bar(url_for('fee_sheet_pdf', type=stype) if stype else url_for('fee_sheet_pdf'), back_url, send, more=ui.button_link(url_for('settings_view', tab='prices'), 'Edit prices and terms', blank=true)) }}{% endif %}
 <div class="page">
   {% include "_doc_logo.html" %}
-  {% if not reviewed %}{{ draft(url_for('settings_view', tab='fees') ~ '#terms', 'price list', dict(doc='terms', type=stype or none), pdf) }}{% endif %}
+  {% if not reviewed %}{{ draft(url_for('settings_view', tab='prices') ~ '#terms', 'price list', dict(doc='terms', type=stype or none), pdf) }}{% endif %}
   <h1>{{ who or 'Photography' }} - {{ (type_label ~ ' price list') if type_label else 'price list' }}</h1>
   <p class="sub">Prices as of {{ as_of }}{% if who and studio and studio != who %} - {{ studio }}{% endif %}. A quote holds its prices for {{ hold_days }} days.</p>
   <div class="promise"><b>Every edited image is included.</b></div>

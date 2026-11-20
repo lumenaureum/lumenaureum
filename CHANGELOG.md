@@ -2,6 +2,41 @@
 
 New features, behavior changes, security fixes, and other fixes in each release.
 
+## 1.5.2 (2026-11-19)
+
+### New
+- Close a gallery now, or set the day it closes. Clients see the closing notice before it.
+- Bring an adopted gallery's photos home as the session's own edited photos.
+- Remind them: a reminder email for an unpaid deposit or balance, from the client page and Finances.
+- Client labels can be renamed and merged.
+- One search box for everything, always in the top bar, on phones too.
+- Session types: reuse an answer you gave for another type with one tap.
+- The session type walk-through shows every step on one screen and ends with approving the type's document.
+
+### Changed
+- Backup destinations, the web host and the notification server show as locked cards with Test now and Replace.
+- Backups list each copy with a check for every destination.
+- New quotes and price lists are numbered by date, such as 2026112001.
+- On a draft invoice, the email, download and print buttons say they issue it, and ask first.
+- Galleries and print orders show your brand name, with your business name on agreements and invoices.
+- Gallery uploads show their progress, file by file.
+- Finances marks overdue balances and says whether each is a deposit or a balance.
+- Notifications can use a plain http:// server on your own network.
+- Phone layouts: fewer short lines stacked where one line fits.
+- A session type's steps turn off and on in place, and can be reset to the defaults.
+- The walk-through shows what the client reads as you type, and has Next, Back and Accept all defaults.
+
+### Fixed
+- On two pages, field tooltips were always shown, covering their fields.
+- Recording a deposit opened with the whole balance as the amount.
+- Sessions moved on by the 1.5 update showed "since today".
+- Today could say a group event's families were done while steps were still open.
+- On a phone, the background job notice could cover a Save button.
+
+### Before you update
+- Steps that a session needs, such as the agreement or deposit, now ask before you turn them off; the gallery step stays on.
+- Home base is no longer used: your home ZIP code sets sunset times and the free travel distance.
+
 ## 1.5.1 (2026-11-19)
 
 ### New

@@ -36,7 +36,7 @@
     <p><label class="ui-check"><input type="checkbox" name="date_tentative" value="1"{{ ' checked' if s.date_tentative }}>Date not final yet</label></p>
     
     {% if business_client(s) %}
-    <div class="ui-form-grid"><label><span>PO or reference{{ help("Printed on the invoice.") }}</span><input name="po_number" maxlength="80" value="{{ s.po_number or '' }}"></label></div>{% endif %}
+    <div class="ui-form-grid"><label><span>PO or reference, printed on the invoice</span><input name="po_number" maxlength="80" value="{{ s.po_number or '' }}"></label></div>{% endif %}
     <h3 class="ui-sub-title" id="subjects-l">Subjects</h3><input type="hidden" name="subjects_present" value="1">
     {% set subj_ids = subjects|map(attribute='id')|list %}
     <div class="ui-form-row" role="group" aria-labelledby="subjects-l">{% for m in members %}<label class="ui-check"><input type="checkbox" name="subjects" value="{{ m.id }}"{{ ' checked' if m.id in subj_ids }}>{{ m.name }}{% if m.is_minor %} (minor){% endif %}</label>{% else %}<small class="ui-mute">No one on this client yet.</small>{% endfor %}</div>
@@ -175,7 +175,7 @@
   </form>
   {% if s.gallery_id %}{% call ui.fold('Check a picks email', id='picks-email') %}
     <form method="post" action="{{ url_for('picks_paste', sid=s.id) }}"><input type="hidden" name="back" value="{{ here }}#delivery">
-      <p class="ui-mute">Paste the whole email the client sent from the gallery. Its fingerprint line shows whether the list is what they picked in the gallery. If they changed it while writing, the picks are still recorded and a to-do reminds you to ask which are final.</p>
+      <p class="ui-mute">Paste the whole email the client sent from the gallery.{{ help("Its fingerprint line shows whether the list is what they picked in the gallery. If they changed it while writing, the picks are still recorded and a to-do reminds you to ask which are final.") }}</p>
       <textarea name="text" rows="6" maxlength="20000" aria-label="The picks email"></textarea>
       <div class="ui-btnrow"><button class="ui-btn ui-btn-primary">Check and record</button></div></form>{% endcall %}{% endif %}
 {% endcall %}{% endif %}

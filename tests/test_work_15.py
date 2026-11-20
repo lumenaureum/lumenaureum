@@ -176,7 +176,7 @@ def _booked_with_quote(A, c):
 def test_replace_the_quote_cancels_and_keeps_it_and_book_it_clears_it(env):
     A, c = env
     _booked_with_quote(A, c)
-    old_vid = _sql(A, "SELECT id FROM quote_versions WHERE session_id=1")[0][0]
+    old_vid, old_no = _sql(A, "SELECT id, number FROM quote_versions WHERE session_id=1")[0]
     _sql(A, "INSERT INTO documents (session_id, kind, status, sent, signed) VALUES (1, 'agreement', 'signed', ?, ?)",
          (_day(A, -2), _day(A, -1)))
     with A.app.test_request_context():
@@ -192,7 +192,7 @@ def test_replace_the_quote_cancels_and_keeps_it_and_book_it_clears_it(env):
     c.post("/session/1/quote/replace", data={"back": "/c/1?s=1"}, environ_base=E)
     assert _stage(A) == "booked"
     h = _history(A)[-1]
-    assert h.startswith(f"Canceled the booked quote {old_vid} ($400.00) to replace it: kept in History") and "stays on file" in h
+    assert h.startswith(f"Canceled the booked quote {old_no or old_vid} ($400.00) to replace it: kept in History") and "stays on file" in h
     assert tuple(_sql(A, "SELECT status, sent, signed FROM documents WHERE session_id=1 AND kind='agreement'")[0]) == ("needed", None, None)
     _page(c)
     assert _sql(A, "SELECT COUNT(*) FROM doc_snapshots_old WHERE kind='agreement' AND ref=1")[0][0] == 1
@@ -210,10 +210,11 @@ def test_replace_the_quote_cancels_and_keeps_it_and_book_it_clears_it(env):
     assert t["deposit_short"] == max(0, t["deposit_req"] - dep)
     new_vid = _sql(A, "SELECT new_vid FROM quote_replacements WHERE session_id=1")[0][0]
     assert new_vid and new_vid != old_vid and _sql(A, "SELECT 1 FROM quote_marks WHERE vid=?", (new_vid,))
-    assert _history(A)[-1].startswith(f"Booked the new quote {new_vid} ($700.00), replacing the canceled one ($400.00)")
+    new_no = _sql(A, "SELECT number FROM quote_versions WHERE id=?", (new_vid,))[0][0]
+    assert _history(A)[-1].startswith(f"Booked the new quote {new_no} ($700.00), replacing the canceled one ($400.00)")
     page = _page(c)
     assert not [w for w in _words(page) if w.startswith("New quote waiting")]
-    assert re.search(rf"Quote {old_vid}, [^<]*, canceled", page) and not re.search(rf"Quote {new_vid}, [^<]*, canceled", page)
+    assert re.search(rf"Quote {old_no or old_vid}, [^<]*, canceled", page) and not re.search(rf"Quote {new_no}, [^<]*, canceled", page)
 
     n = len(_history(A))
     c.post("/session/1/quick", data={"act": "rebook"}, environ_base=E)

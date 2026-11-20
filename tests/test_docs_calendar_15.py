@@ -94,9 +94,9 @@ def test_a_draft_invoice_explains_issuing_in_a_bubble(env):
     _session(A, stage="booked", days=5)
     page = c.get("/session/1/invoice", environ_base=E).get_data(as_text=True)
     bar = page.split('<div class="bar">', 1)[1].split('<div class="page">', 1)[0]
-    assert "Not issued yet" in bar
+    assert "Draft, no number yet" in bar
     assert "Issuing gives it the next invoice number" in bar.split('class="qh-pop"', 1)[1]
-    assert "Not issued yet. Issuing" not in bar
+    assert "Draft, no number yet. Issuing" not in bar
 
 @pytest.fixture(scope="module")
 def browser():

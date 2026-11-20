@@ -116,7 +116,7 @@ def test_gate_says_when_it_sunsets_only_in_the_last_days_and_only_to_the_key_hol
 
 def test_gate_names_the_photographers_email_once_the_gallery_has_gone_dark(php_host):
     base, d, proof, G, key = php_host
-    host_write(d, "seen.txt", "2026-01-01T12:00:00Z")
+    host_write(d, "seen.txt", "2026-01-01T12:00:00Z")   # fixed date: long past on purpose
     host_write(d, "limits.txt", 'days=30\nunopened_until=2099-01-01\nproof=1\ncontact="hello@studio.example"\n')
     code, h, body = get(base + "gate.php?f=manifest.bin")
     assert code == 410 and json.loads(body) == {"contact": "hello@studio.example"}
@@ -162,12 +162,12 @@ def test_only_a_gallery_that_came_down_can_be_put_back(env):
 
 def test_gate_keeps_a_fixed_last_day_for_a_gallery_put_back(php_host):
     base, d, proof, G, key = php_host
-    host_write(d, "seen.txt", "2026-01-01T12:00:00Z")
+    host_write(d, "seen.txt", "2026-01-01T12:00:00Z")                 # fixed date: long past on purpose; its first visit is long past
     soon = (datetime.now(timezone.utc) + timedelta(days=3)).date().isoformat()
     host_write(d, "limits.txt", f"days=30\nunopened_until=2099-01-01\nproof=1\nwarn_days=7\nuntil={soon}\n")
     code, h, _ = get(base + "gate.php?f=manifest.bin", proof)
     assert code == 200 and h["X-Sunset"] == soon + "T23:59:59Z"
-    host_write(d, "limits.txt", "days=30\nunopened_until=2099-01-01\nproof=1\nuntil=2026-01-02\n")
+    host_write(d, "limits.txt", "days=30\nunopened_until=2099-01-01\nproof=1\nuntil=2026-01-02\n")   # fixed date: long past on purpose
     assert get(base + "gate.php?f=manifest.bin", proof)[0] == 410
 
 def wait_up(A):

@@ -125,7 +125,7 @@ def test_review_links_for_a_removed_type_go_to_the_general_wording(env):
         was = C.TYPES
         C.TYPES = [t for t in was if t["key"] != "event"]
         try:
-            assert A.review_url("terms", "event") == A.url_for("settings_view", tab="fees") + "#terms"
+            assert A.review_url("terms", "event") == A.url_for("settings_view", tab="prices") + "#terms"
             assert A.review_url("agreement", "event") == A.url_for("wording_edit", doc="agreement")
         finally:
             C.TYPES = was

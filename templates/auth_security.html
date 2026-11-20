@@ -1,74 +1,64 @@
-{% extends "base.html" %}{% from "_macros.html" import help, sym with context %}
+{% extends "base.html" %}{% from "_macros.html" import help, sym with context %}{% import "_ui.html" as ui with context %}{% import "_settings_ui.html" as sui with context %}
 {% block title %}Security - Lumen Aureum{% endblock %}
+
 {% block body %}
-<h1>Security</h1>
-{% if msg %}<p style="color:var(--gold)">{{ msg }}</p>{% endif %}{% if err %}<p style="color:var(--crit)">{{ err }}</p>{% endif %}
+{{ sui.head('Security') }}
+{% if msg %}<p class="sui-saved" role="status">{{ msg }}</p>{% endif %}{% if err %}<p class="sui-err" role="alert">{{ err }}</p>{% endif %}
+<p class="sui-tip">Client records, settings and backups are encrypted. Signing in unlocks it; after a restart it stays
+  locked until you sign in again. Your master key (on paper) opens it if your password is lost.</p>
 
-
-<div class="card f" style="max-width:760px;margin-top:16px">
-  <p class="mute">Client records, settings and backups are encrypted. Signing in unlocks it; after a restart it stays
-    locked until you sign in again. Your master key (on paper) opens it if your password is lost.</p>
-  <h2>Change password</h2>
+{% call sui.section('Password', id='password') %}
   <form method="post" class="f" autocomplete="off"><input type="hidden" name="act" value="password">
     <div><label class="l" for="pw-current">Current password</label><input type="password" id="pw-current" name="current" autocomplete="current-password" required></div>
     <div><label class="l" for="pw-new">New password ({{ min_pw }}+ characters)</label><input type="password" id="pw-new" name="password" autocomplete="new-password" minlength="{{ min_pw }}" required></div>
     <div><label class="l" for="pw-new2">New password again</label><input type="password" id="pw-new2" name="password2" autocomplete="new-password" required></div>
-    <button class="primary">Change password</button></form>
-  {% if pw_work %}<p class="mute" id="pw-strength">How costly each guess is, for someone with a stolen copy of your data, depends on this
+    <div class="sui-save"><button class="ui-btn ui-btn-primary">Change password</button></div></form>
+  {% if pw_work %}<p class="sui-hint" id="pw-strength">How costly each guess is, for someone with a stolen copy of your data, depends on this
     computer's speed when the password was last set (scrypt work factor {{ pw_work }}{% if pw_work < std_work %}, below the
     {{ std_work }} the standard age tool uses{% endif %}). A long password matters more on a slow machine.{% if pw_work < std_work %}
     To strengthen it, run <span class="mono">python -m vault.cli rewrap-password</span> on a faster computer with a copy of
     keyring.json, then put the copy back (see Security in the docs).{% endif %}</p>{% endif %}
+{% endcall %}
 
-  <h2 style="margin-top:20px">Master key</h2>
-  <p class="mute">Kept on paper and in your password manager, never by the app. Check now and then that you can still find it.</p>
-  <p><a class="btn quiet" href="{{ url_for('master_key_check') }}">Check your master key</a></p>
-
-  <h2 style="margin-top:20px">Signed-in devices</h2>
-  <form method="post" class="row" autocomplete="off" style="align-items:end"><input type="hidden" name="act" value="others">
-    <div><label class="l" for="cur-others">Current password</label><input type="password" id="cur-others" name="current" autocomplete="current-password" required style="width:240px;margin:0"></div>
-    <button class="quiet">Sign out every other device</button></form>
-
-  <h2 style="margin-top:20px">Recovery codes</h2>
+{% call sui.section('Two-factor and recovery codes', id='recovery') %}
   {% if codes %}
   <p>New codes. Print them or save them in your password manager; they won't be shown again, and the old ones no longer work.</p>
   <div class="codes" style="columns:2;font:600 15px/1.9 ui-monospace,Menlo,monospace">{% for c in codes %}<div>{{ c }}</div>{% endfor %}</div>
   {% else %}
-  <p class="mute">{{ left }} unused. Each one stands in for your phone's code once. They never unlock the data on their own: your password is still needed.</p>
-  <form method="post" class="row" autocomplete="off" style="align-items:end"><input type="hidden" name="act" value="codes">
+  <p class="sui-tip">Signing in asks for the code from your phone's authenticator app. {{ left }} recovery codes unused. Each one stands in for your phone's code once. They never unlock the data on their own: your password is still needed.</p>
+  <form method="post" class="ui-form-row" autocomplete="off" style="align-items:end"><input type="hidden" name="act" value="codes">
     <div><label class="l" for="cur-codes">Current password</label><input type="password" id="cur-codes" name="current" autocomplete="current-password" required style="width:240px;margin:0"></div>
-    <button class="quiet">Make new codes</button></form>
+    <button class="ui-btn ui-btn-quiet">Make new codes</button></form>
   {% endif %}
+{% endcall %}
 
-  <h2 style="margin-top:20px" id="notice">Locked-studio notice {{ help("While the studio is locked it can't read its encrypted settings, so the server address, topic and access token are also kept in a small plain file, ntfy.json in the data folder. Anyone who can read the data folder can read them: use a topic nobody could guess, and a token if your server takes one. The notice says only that the studio is locked and since when. It never carries a client's name, a count, an amount or a link.") }}</h2>
-  <p class="mute">Optional. A message to your phone through ntfy when the studio restarts and stays locked, then once a day until you sign in.</p>
-  <form method="post" action="{{ url_for('security_notice') }}" class="f" autocomplete="off">
-    <div><label class="l" for="ntfy-server">ntfy server</label><input type="url" id="ntfy-server" name="server" maxlength="300" placeholder="https://ntfy.sh" value="{{ ntfy.ntfy_server if ntfy else '' }}" required></div>
-    <div><label class="l" for="ntfy-topic">Topic</label><input id="ntfy-topic" name="topic" maxlength="64" pattern="[A-Za-z0-9_\-]{1,64}" value="{{ ntfy.ntfy_topic if ntfy else '' }}" required></div>
-    <div><label class="l" for="ntfy-token">Access token (optional)</label><input type="password" id="ntfy-token" name="token" maxlength="300" autocomplete="off"{% if ntfy and ntfy.ntfy_token %} placeholder="Saved. Leave blank to keep it."{% endif %}></div>
-    {% if ntfy and ntfy.ntfy_token %}<label class="ui-check"><input type="checkbox" name="drop_token" value="1">Remove the saved token</label>{% endif %}
-    <div class="ui-btnrow"><button class="ui-btn ui-btn-primary" name="act" value="save">Save the notice settings</button><button class="ui-btn ui-btn-quiet" name="act" value="test">Send a test notice</button></div></form>
-  {% if ntfy %}
-  <div id="notice-kinds"><label class="ui-check"><input type="checkbox" checked disabled>Studio locked after a restart</label></div>
-  <div class="ui-btnrow">
-    <form method="post" action="{{ url_for('security_notice') }}" class="ui-action"><input type="hidden" name="act" value="remove"><button class="ui-btn ui-btn-quiet">Stop the notices</button></form>
-  </div>
-  {% endif %}
+{% call sui.section('Master key', id='master-key', tip="Kept on paper and in your password manager, never by the app. Check now and then that you can still find it.") %}
+  <div class="ui-btnrow">{{ ui.button_link(url_for('master_key_check'), 'Check your master key') }}</div>
+{% endcall %}
 
+{% call sui.section('Signing out', id='devices') %}
   
-  {% set acts_ = account_activity() if account_activity is defined else [] %}
-  {% if acts_ %}{% import "_ui.html" as ui with context %}
-  {% call ui.fold('Account activity', id='activity', note='latest ' ~ nice(acts_[0].day), always=true, count=acts_|length) %}
-    {% set ns = namespace(day='') %}
-    <div class="hlist" id="account-activity">
-    {% for a_ in acts_ %}
-      {% if a_.day != ns.day %}{% set ns.day = a_.day %}<div class="hday">{{ nice(a_.day) }}</div>{% endif %}
-      <div class="hrow k-audit"><span class="htime">{{ a_.time }}</span>{{ sym(a_.icon, 'next', 18) }}<div class="htext"><span>{{ a_.text }}</span>{% if a_.note %}<em>{{ a_.note }}</em>{% endif %}</div></div>
-    {% endfor %}
-    </div>
-  {% endcall %}
-  {% else %}<h2 style="margin-top:20px" id="activity">Account activity</h2>
-  <p class="mute">Nothing yet. Sign-ins, password and code changes, master key checks and exports show here.</p>{% endif %}
-</div>
+  <form method="post" action="{{ url_for('settings_view') }}" class="f" id="idle"><input type="hidden" name="idle_posted" value="1"><input type="hidden" name="back" value="{{ url_for('security') }}#idle">
+    {{ sui.field('idle_signout_hours', 'Sign out when idle', idle_hours(), type='number', unit='hours', width='90px', help="With no tap and no page opened for this long, the app signs out. A warning comes 2 minutes before, with Stay signed in. What you typed and did not save is kept.", attrs='min="1" max="72"') }}
+    <div class="sui-save"><button class="ui-btn ui-btn-primary">Save</button></div></form>
+  <form method="post" class="ui-form-row" autocomplete="off" style="align-items:end;margin-top:14px"><input type="hidden" name="act" value="others">
+    <div><label class="l" for="cur-others">Current password</label><input type="password" id="cur-others" name="current" autocomplete="current-password" required style="width:240px;margin:0"></div>
+    <button class="ui-btn ui-btn-quiet">Sign out every other device</button></form>
+{% endcall %}
+
+
+{% set acts_ = account_activity() if account_activity is defined else [] %}
+{% if acts_ %}
+{% call ui.fold('Account activity', id='activity', note='latest ' ~ nice(acts_[0].day), always=true, count=acts_|length) %}
+  {% set ns = namespace(day='') %}
+  <div class="hlist" id="account-activity">
+  {% for a_ in acts_ %}
+    {% if a_.day != ns.day %}{% set ns.day = a_.day %}<div class="hday">{{ nice(a_.day) }}</div>{% endif %}
+    <div class="hrow k-audit"><span class="htime">{{ a_.time }}</span>{{ sym(a_.icon, 'next', 18) }}<div class="htext"><span>{{ a_.text }}</span>{% if a_.note %}<em>{{ a_.note }}</em>{% endif %}</div></div>
+  {% endfor %}
+  </div>
+{% endcall %}
+{% else %}{% call sui.section('Account activity', id='activity') %}
+<p class="ui-mute">Nothing yet. Sign-ins, password and code changes, master key checks and exports show here.</p>{% endcall %}{% endif %}
 {% endblock %}
 

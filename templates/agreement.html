@@ -14,11 +14,11 @@
     <tr><td>Client</td><td>{{ a.company or a.signer or a.client }}{% if a.company and a.signer %}<br>Signed for by {{ a.signer }}{% endif %}</td></tr>
     {% if a.job_address %}<tr><td>Where</td><td>{{ a.job_address }}</td></tr>{% endif %}
     {% if a.people %}<tr><td>Photographed</td><td>{{ a.people }}</td></tr>{% endif %}
-    {% if a.plan %}<tr><td>Sessions</td><td>{% for p_ in a.plan %}{{ p_.label }}{% if p_.when %}, {{ p_.when }}{% endif %}: {{ money(p_.price) }}{% if p_.quote_id %} (quote {{ p_.quote_id }}){% endif %}{% if not loop.last %}<br>{% endif %}{% endfor %}<br><span style="font-size:12px">This agreement covers every session listed.</span></td></tr>
+    {% if a.plan %}<tr><td>Sessions</td><td>{% for p_ in a.plan %}{{ p_.label }}{% if p_.when %}, {{ p_.when }}{% endif %}: {{ money(p_.price) }}{% if p_.quote_id %} (quote {{ quote_no(p_.quote_id) }}){% endif %}{% if not loop.last %}<br>{% endif %}{% endfor %}<br><span style="font-size:12px">This agreement covers every session listed.</span></td></tr>
     {% else %}<tr><td>Session</td><td>{{ a.type_label }}{% if a.shoot_date_long %}, {{ a.shoot_date_long }}{% if a.start_time %} at {{ a.start_time }}{% endif %}{% endif %}</td></tr>{% endif %}
     {% if a.stops %}<tr><td>Locations</td><td>{{ a.stops }}</td></tr>{% endif %}
     {% if a.scope %}<tr><td>Quoted</td><td>{{ a.scope|join('<br>'|safe) }}</td></tr>{% endif %}
-    <tr><td>Price</td><td>{{ money(a.total) }}{% if a.plan %} for every session{% endif %}{% if a.quote_id %} (quote {{ a.quote_id }}){% endif %}</td></tr>
+    <tr><td>Price</td><td>{{ money(a.total) }}{% if a.plan %} for every session{% endif %}{% if a.quote_id %} (quote {{ quote_no(a.quote_id) }}){% endif %}</td></tr>
     {% if a.deposit %}<tr><td>Deposit</td><td>{{ money(a.deposit) }}, due when you sign</td></tr>{% endif %}
     <tr><td>Balance</td><td>{{ money(a.total - a.deposit) }}, {{ a.balance_rule }}</td></tr>
   </table>

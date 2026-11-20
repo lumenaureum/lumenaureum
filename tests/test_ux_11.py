@@ -158,7 +158,7 @@ def test_enter_presses_the_main_button_on_forms_with_several(tmp_path, monkeypat
     r = c.post("/contact/new", data={"contact_name": "Rowan Hale", "then": "inquiry"}, environ_base=E)
     assert "/inquiry" in r.headers["Location"]
 
-    form = re.search(r'<form method="post" class="card f" id="f".*?</form>', _page(c, "/setup/business"), re.S).group(0)
+    form = re.search(r'<form method="post"[^>]*class="card f" id="f".*?</form>', _page(c, "/setup/money"), re.S).group(0)
     first = _submit_buttons(form)[0]
     assert "data-enter-default" in first and 'name="skip"' not in first
 
@@ -170,7 +170,9 @@ def test_the_inquiry_steps_put_focus_where_the_keyboard_goes_next(tmp_path, monk
     types = _page(c, "/inquiry?hid=1")
     first = re.search(r'<a class="btn quiet" href="[^"]*type=(\w+)"( autofocus)?>', types)
     assert first.group(1) == "family" and first.group(2)
-    assert re.search(r'name="shoot_date"[^>]*autofocus', _page(c, "/inquiry?hid=1&type=family"))
+    form = _page(c, "/inquiry?hid=1&type=family")
+    assert re.search(r'name="title"[^>]*autofocus', form)
+    assert not re.search(r'name="shoot_date"[^>]*autofocus', form)
     focus = _page(c, "/c/1")
     assert '<a href="#billing">Skip to billing</a>' in focus and "data-focus-after" in focus
 

@@ -3,9 +3,12 @@
 
 {% block body %}
 {% set f = face(h.id) %}
+
+{% set adults_ = people|selectattr('role', 'in', ['parent', 'adult'])|list %}
+{% set reach_ = [adults_|selectattr('email')|map(attribute='email')|first|default(''), adults_|selectattr('phone')|map(attribute='phone')|first|default('')]|select|join(' · ') %}
 <div class="ui-page" data-ui-layout="client-details">
 {{ ui.page_head(h.name, kicker='Client details', face=avatar(h.id, 56),
-   status=(sessions|length ~ (' session' if sessions|length == 1 else ' sessions')) if sessions else 'No sessions yet',
+   status=((sessions|length ~ (' session' if sessions|length == 1 else ' sessions')) if sessions else 'No sessions yet') ~ (' · ' ~ reach_ if reach_ else ''),
    sub=ui.go(url_for('client_stage', hid=h.id), 'Back to ' ~ h.name) if sessions else '') }}
 
 
@@ -70,7 +73,7 @@
   <datalist id="rels">{% for r in RELATIONS %}<option value="{{ r }}">{% endfor %}</datalist>
 
 
-  {% for p in people %}{% set wl_ = who_is(p) %}
+  {% for p in people %}{% set fb_ = p.name.split()[0] if p.name.split()|length > 1 else p.name %}{% set wl_ = p.name ~ who_is(p)[fb_|length:] %}
   {% call ui.fold(wl_ ~ ((', ' ~ p.phone) if p.phone else ''), id='person-' ~ p.id, open=(offer and offer.p.id == p.id)) %}
     <form method="post" action="{{ url_for('person_save', pid=p.id) }}" id="p{{ p.id }}"><input type="hidden" value="{{ edit_stamp('people', p.id) }}" name="seen">
       {{ person_fields(p, 'p' ~ p.id) }}

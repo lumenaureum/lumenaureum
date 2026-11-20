@@ -412,6 +412,8 @@ def _types(raw):
             clean["questions"] = _questions(t["questions"], f"rules.TYPES[{i}].questions")
         if t.get("steps"):
             clean["steps"] = _steps(t["steps"], f"rules.TYPES[{i}].steps")
+        if t.get("steps_off"):
+            clean["steps_off"] = _steps_off(t["steps_off"], f"rules.TYPES[{i}].steps_off")
         if t.get("policy"):
             clean["policy"] = _policy(t["policy"], f"rules.TYPES[{i}].policy")
         for k_ in ("portfolio_pct", "portfolio_amount"):
@@ -473,6 +475,26 @@ def _steps(raw, where):
                     raise ImportProblem(f"{w}: days from the shoot, -365 to 365, or null")
                 rows.append([st[0], _text(st[1] if len(st) > 1 else "", w, 80), days])
         out[stage] = rows
+    return out
+
+def _steps_off(raw, where):
+
+    if not isinstance(raw, dict) or not set(raw) <= set(C.STEP_STAGES):
+        raise ImportProblem(f"{where}: stages are {', '.join(C.STEP_STAGES)}")
+    out = {}
+    for stage, ids in raw.items():
+        if not isinstance(ids, list) or len(ids) > 30:
+            raise ImportProblem(f"{where}.{stage}: a short list of steps")
+        rows = []
+        for j, st in enumerate(ids):
+            w = f"{where}.{stage}[{j}]"
+            if not isinstance(st, list) or len(st) != 2 or st[0] not in ("do", "auto"):
+                raise ImportProblem(f"{w}: [\"do\", label] or [\"auto\", step]")
+            if st[0] == "auto" and st[1] not in C.AUTO_KEYS:
+                raise ImportProblem(f"{w}: automatic steps are {', '.join(C.AUTO_KEYS)}")
+            rows.append([st[0], st[1] if st[0] == "auto" else _text(st[1], w, 80)])
+        if rows:
+            out[stage] = rows
     return out
 
 def _policy(raw, where):

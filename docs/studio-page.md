@@ -24,7 +24,7 @@ says so and nothing is uploaded.
    your About text. In the About text, a blank line starts a new paragraph (the first one is shown larger), a line
    starting with `## ` is a small heading, and `[words](https://example.com)` is a link. Leave it empty for no About
    page.
-3. **Contact**: your email, phone and mailing address come from Settings, General. You can leave the phone or the
+3. **Contact**: your email, phone and mailing address come from Settings, Profile. You can leave the phone or the
    address off the site.
 4. **Look**: the font and colors follow your client galleries' look. The background can be the galleries' own or any
    of the four swatches. To use your own font (one you already use for your brand), add its file in Settings,

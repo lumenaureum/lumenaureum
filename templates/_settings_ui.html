@@ -1,0 +1,108 @@
+
+{% from "_macros.html" import help with context %}{% import "_ui.html" as ui with context %}
+
+{% macro head(title, what=none) -%}
+{%- set here_ = settings_here() -%}
+{%- set what_ = what if what is not none else (here_.what if here_ else '') -%}
+<header class="ui-head sui-head" id="ui-head">
+  <div class="ui-head-text"><h1>{{ title }}</h1>{% if what_ %}<p class="sui-what">{{ what_ }}</p>{% endif %}</div>
+</header>
+{%- endmacro %}
+
+
+{% macro section(title='', id='', help_text='', tip='', cls='') -%}
+<section class="ui-sec sui-sec {{ cls }}"{% if id %} id="{{ id }}"{% endif %}>
+  {% if title %}<h2 class="ui-sec-title">{{ title }}{% if help_text %}<span class="sui-nocaps">{{ help(help_text) }}</span>{% endif %}</h2>{% endif %}
+  {% if tip %}<p class="sui-tip">{{ tip }}</p>{% endif %}
+  {{ caller() }}
+</section>
+{%- endmacro %}
+
+{% macro _help(t) %}{{ help(t) }}{% endmacro %}
+
+
+{% macro field(name, label, value='', type='text', help='', unit='', hint='', error=none, hard=false, attrs='', width='',
+               options=[], rows=2, placeholder='', form=none, id=none) -%}
+{%- set id_ = id or ('f-' ~ name) -%}{%- set err_ = error if error is not none else field_error(name) -%}
+<div class="sui-field{{ ' sui-bad' if err_ }}{{ ' sui-narrow' if width }}">
+  <label class="l" for="{{ id_ }}">{{ label }}{% if hard %} <b class="sui-hard">hard to change later</b>{% endif %}{% if help %}{{ _help(help) }}{% endif %}</label>
+  <div class="sui-input">
+  {%- if type == 'textarea' %}<textarea id="{{ id_ }}" name="{{ name }}" rows="{{ rows }}"{% if form %} form="{{ form }}"{% endif %}{% if placeholder %} placeholder="{{ placeholder }}"{% endif %}{% if err_ %} aria-invalid="true" aria-describedby="{{ id_ }}-err"{% endif %} {{ attrs|safe }}>{{ value }}</textarea>
+  {%- elif type == 'select' %}<select id="{{ id_ }}" name="{{ name }}"{% if form %} form="{{ form }}"{% endif %} {{ attrs|safe }}>{% for v_, w_ in options %}<option value="{{ v_ }}"{{ ' selected' if (v_|string) == (value|string) }}>{{ w_ }}</option>{% endfor %}</select>
+  {%- elif type == 'static' %}<span class="sui-static" id="{{ id_ }}">{{ value }}</span>
+  {%- else %}<input type="{{ type }}" id="{{ id_ }}" name="{{ name }}" value="{{ value }}"{% if form %} form="{{ form }}"{% endif %}{% if placeholder %} placeholder="{{ placeholder }}"{% endif %}{% if width %} style="width:{{ width }}"{% endif %}{% if err_ %} aria-invalid="true" aria-describedby="{{ id_ }}-err"{% endif %} {{ attrs|safe }}>{% endif %}
+  {%- if unit %}<span class="sui-unit">{{ unit }}</span>{% endif %}</div>
+  {% if hint %}<p class="sui-hint">{{ hint }}</p>{% endif %}
+  {% if err_ %}<p class="sui-err" id="{{ id_ }}-err" role="alert">{{ err_ }}</p>{% endif %}
+</div>
+{%- endmacro %}
+
+
+{% macro save_bar(form_id, label='Save', sticky=true) -%}
+{%- set saved_ = request.args.get('saved') in (form_id, '1') -%}
+<div class="sui-save{{ ' sui-sticky' if sticky }}" id="save-{{ form_id }}"><button class="ui-btn ui-btn-primary">{{ label }}</button>
+  {%- if saved_ %}<span class="sui-saved" role="status">Saved.</span>{% endif %}</div>
+{%- endmacro %}
+
+
+{% macro upload_slot(title, id, action, name, have, accept, button, remove='', none_words='None uploaded.', fields={}, help_text='', form=none) -%}
+<div class="sui-upload" id="{{ id }}">
+  <div class="l">{{ title }}{% if help_text %}{{ help(help_text) }}{% endif %}</div>
+  <div class="sui-upload-now">{% if have %}{{ caller() }}{% else %}<span class="ui-mute">{{ none_words }}</span>{% endif %}</div>
+  {% if form %}<div class="ui-form-row"><input type="file" name="{{ name }}" form="{{ form }}" accept="{{ accept }}" style="width:auto" aria-label="{{ title }}">
+    <button class="ui-btn ui-btn-quiet" form="{{ form }}">{{ button }}</button>{% if have and remove %}<button class="ui-btn ui-btn-quiet" form="{{ form }}" name="remove" value="1">{{ remove }}</button>{% endif %}</div>
+  {% else %}<form method="post" action="{{ action }}" enctype="multipart/form-data" class="ui-form-row">{% for k_, v_ in fields.items() %}<input type="hidden" name="{{ k_ }}" value="{{ v_ }}">{% endfor %}
+    <input type="file" name="{{ name }}" accept="{{ accept }}" style="width:auto" required aria-label="{{ title }}"><button class="ui-btn ui-btn-quiet">{{ button }}</button></form>
+  {% if have and remove %}<form method="post" action="{{ action }}" class="ui-form-row">{% for k_, v_ in fields.items() %}<input type="hidden" name="{{ k_ }}" value="{{ v_ }}">{% endfor %}<button class="ui-btn ui-btn-quiet" name="remove" value="1">{{ remove }}</button></form>{% endif %}{% endif %}
+</div>
+{%- endmacro %}
+
+
+{% macro status_fold(summary, id, open=false) -%}
+{%- set body_ = caller() -%}
+{% call ui.fold(summary, id=id, open=open, always=true, cls='sui-status') %}{{ body_ }}{% endcall %}
+{%- endmacro %}
+
+
+{% macro switch(name, label, on, consequence, id=none) -%}
+{%- set id_ = id or ('f-' ~ name) -%}
+<div class="sui-switch"><label class="sui-switch-row" for="{{ id_ }}"><input type="checkbox" id="{{ id_ }}" name="{{ name }}" value="1"{{ ' checked' if on }}><span>{{ label }}</span></label>
+  <p class="sui-hint">{{ consequence }}</p></div>
+{%- endmacro %}
+
+
+{% macro plugin_off(label, about, name, can, back) -%}
+<section class="ui-sec sui-off" id="plugin-off">
+  <p class="sui-off-state"><b>{{ label }} is off.</b></p>
+  {% if about %}<p>{{ about }}</p>{% endif %}
+  {% if can %}<form method="post" action="{{ url_for('plugins_settings') }}" class="ui-action"><input type="hidden" name="name" value="{{ name }}"><input type="hidden" name="turn" value="on"><input type="hidden" name="back" value="{{ back }}">
+    <button class="ui-btn ui-btn-primary">Turn on</button></form>
+  {% else %}<p class="ui-mute">An administrator keeps it off for this install (CRM_PLUGINS_OFF), so it can't be turned on here.</p>{% endif %}
+</section>
+{%- endmacro %}
+
+
+{% macro connection_card(title, id, rows, status=none, test_url='', replace_href='', remove=none, plain_http=false,
+                         in_form=false, test_fields={}, test_label='Test now') -%}
+<div class="sui-conn" id="{{ id }}">
+  <div class="sui-conn-head"><b>{{ title }}</b>
+    {%- if status and status.ok %}<span class="sui-conn-state sui-ok"><span class="ms" aria-hidden="true">check_circle</span>Tested {{ status.at }}: it works</span>
+    {%- elif status %}<span class="sui-conn-state sui-warn"><span class="ms" aria-hidden="true">warning</span>The test on {{ status.at }} failed{{ ': ' ~ status.why if status.why }}</span>
+    {%- else %}<span class="sui-conn-state ui-mute">Not tested here yet</span>{% endif %}</div>
+  <dl class="sui-conn-facts">{% for k_, v_ in rows %}<div><dt>{{ k_ }}</dt><dd>{{ v_ }}</dd></div>{% endfor %}</dl>
+  {% if plain_http %}<p class="sui-hint">Plain http://: the requests cross your network unencrypted.</p>{% endif %}
+  <div class="ui-btnrow">
+    {%- if test_url %}{% if in_form %}<button class="ui-btn ui-btn-quiet" formaction="{{ test_url }}" formnovalidate>{{ test_label }}</button>
+      {%- else %}<form method="post" action="{{ test_url }}" class="ui-action">{% for k_, v_ in test_fields.items() %}<input type="hidden" name="{{ k_ }}" value="{{ v_ }}">{% endfor %}<button class="ui-btn ui-btn-quiet">{{ test_label }}</button></form>{% endif %}{% endif %}
+    {%- if replace_href %}{{ ui.button_link(replace_href, 'Replace') }}{% endif %}
+    {%- if remove %}{% if in_form %}<button class="ui-btn ui-btn-quiet" name="{{ remove.name }}" value="{{ remove.value }}" formnovalidate>{{ remove.label }}</button>
+      {%- else %}<form method="post" action="{{ remove.url }}" class="ui-action">{% for k_, v_ in remove.fields.items() %}<input type="hidden" name="{{ k_ }}" value="{{ v_ }}">{% endfor %}<button class="ui-btn ui-btn-quiet">{{ remove.label }}</button></form>{% endif %}{% endif %}
+  </div>
+</div>
+{%- endmacro %}
+
+
+{% macro danger_zone(title='Delete and reset', id='danger') -%}
+<section class="ui-sec sui-danger" id="{{ id }}"><h2 class="ui-sec-title">{{ title }}</h2>{{ caller() }}</section>
+{%- endmacro %}
+

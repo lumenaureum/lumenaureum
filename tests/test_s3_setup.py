@@ -96,7 +96,7 @@ def test_plain_http_only_on_the_owners_network(env, monkeypatch):
     VW.write_config({"primary": {"type": "s3", "bucket": "b", "endpoint": "http://192.168.20.5:9000",
                                  "access_key": "AK", "secret_key": "s"}})
     page = c.get("/setup/storage", environ_base=E).get_data(as_text=True).replace('&#39;', "'")
-    assert "This address uses plain http://. The app accepts it only for storage on your own network" in page
+    assert "Plain http://: allowed only for storage on your own network." in page
     assert "(plain http, accepted only on your own network)" in VW.describe(VW.config()["primary"])
 
 def test_plain_http_s3_on_the_lan_works_end_to_end(env):
@@ -121,3 +121,89 @@ def test_settings_import_takes_lan_http_and_addressing():
             settings_io.parse(json.dumps({"lumen_aureum_settings": 1, "storage": {
                 "primary": dict({"type": "s3", "bucket": "b"}, **bad)}}), {})
 
+def test_moving_off_a_self_signed_https_endpoint_forgets_its_certificate_and_keeps_the_secret(env, tmp_path):
+
+    A, c, tmp = env
+    tls = FakeS3(tls=make_cert(tmp_path))
+    plain = FakeS3()
+    try:
+        r = c.post("/setup/storage", data=s3_form(tls.endpoint), environ_base=E)
+        assert r.status_code == 200 and "The S3 storage's certificate isn't trusted" in r.get_data(as_text=True).replace('&#39;', "'")
+        r = c.post("/setup/storage", data=s3_form(plain.endpoint, secret="", primary_addressing="path"), environ_base=E)
+        assert r.status_code == 302, r.get_data(as_text=True).replace('&#39;', "'")[-3000:]
+        from vault import web as VW
+        assert VW.config()["primary"]["endpoint"] == plain.endpoint
+        con = A.connect()
+        assert con.execute("SELECT 1 FROM settings WHERE key LIKE 's3_cert_seen:%'").fetchone() is None
+        con.close()
+        page = c.get("/setup/storage", environ_base=E).get_data(as_text=True).replace('&#39;', "'")
+        assert "The S3 storage's certificate isn't trusted" not in page
+
+        assert ">Secret key · saved</label>" in page and 'placeholder="Leave blank to keep the saved key"' in page
+        assert "blank keeps it" not in page
+    finally:
+        tls.close()
+        plain.close()
+
+def test_the_backup_list_has_one_check_column_per_destination(env, tmp_path):
+
+    A, c, tmp = env
+    f = FakeS3()
+    try:
+        vault = tmp_path / "vault"
+        vault.mkdir()
+        r = c.post("/setup/storage", data=dict(primary_type="local", primary_path=str(vault), primary_init="1",
+                                               secondary_type="s3", secondary_bucket="test-bucket",
+                                               secondary_endpoint=f.endpoint, secondary_addressing="path",
+                                               secondary_access_key=ACCESS, secondary_secret_key=SECRET,
+                                               backup_time="02:40"), environ_base=E)
+        assert r.status_code == 302, r.get_data(as_text=True).replace('&#39;', "'")[-2000:]
+        con = A.connect()
+        con.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('setup_complete', '1')")
+        con.commit()
+        con.close()
+        c.post("/vault/backup-now", environ_base=E)
+        page = c.get("/vault", environ_base=E).get_data(as_text=True)
+        assert "vault-list" in page, page[-3000:]
+        assert 'id="where"' in page and "Backup destinations: 2" in page
+        fold = page.split('id="where"', 1)[1].split("</details>", 1)[0]
+
+        assert 'id="f-primary_type"' in fold and 'id="f-secondary_type"' in fold and "test-bucket" in fold
+        assert 'name="secondary_bucket"' not in fold and 'type="password"' not in fold and SECRET not in fold
+        assert ">Test now<" in fold and 'href="/vault?replace=secondary#where"' in fold
+        fold = c.get("/vault?replace=secondary", environ_base=E).get_data(as_text=True).split('id="where"', 1)[1].split("</details>", 1)[0]
+        assert 'action="/setup/storage?replace=secondary"' in fold and 'name="back" value="/vault#where"' in fold
+        assert 'name="secondary_bucket" ' in fold and 'name="primary_type"' not in fold and "Test and save" in fold
+        r = c.post("/setup/storage", data=dict(primary_type="local", primary_path=str(vault), secondary_type="s3",
+                                               secondary_bucket="test-bucket", secondary_endpoint=f.endpoint,
+                                               secondary_addressing="path", secondary_access_key=ACCESS,
+                                               secondary_secret_key="", backup_time="02:40", back="/vault#where"),
+                   environ_base=E)
+        assert r.status_code == 302 and r.location.endswith("/vault#where"), r.get_data(as_text=True)[-1500:]
+        assert "Backup destinations: Saved." in c.get("/vault", environ_base=E).get_data(as_text=True)
+        table = page.split('class="data vault-list"', 1)[1].split("</table>", 1)[0]
+        assert ">Folder</th>" in table and ">S3</th>" in table
+        assert "; also " not in table, table
+        assert "plain http" not in table.split("<tbody>", 1)[1]
+        assert table.count('aria-label="In S3"') >= 1 and table.count('aria-label="In Folder"') >= 1 and 'Not in' not in table
+    finally:
+        f.close()
+
+def test_backups_is_one_settings_entry_and_explains_the_master_key(env, tmp_path):
+
+    A, c, tmp = env
+    con = A.connect()
+    con.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('setup_complete', '1')")
+    con.commit()
+    con.close()
+    page = c.get("/vault", environ_base=E).get_data(as_text=True)
+    nav = page.split('class="settabs', 1)[1] if 'class="settabs' in page else page
+    assert 'href="/setup/storage"' not in nav and ">Backups<" in nav
+    assert "Master key set" in page
+    pill = page.split("Master key set", 1)[1][:900]
+    assert 'class="qh"' in pill and "shown once when you set up Lumen Aureum" in pill and "print" in pill
+    import settings_index
+    with A.app.test_request_context():
+        from flask import url_for
+        hits = [e for e in settings_index.entries({}, url_for) if e["text"] == "Where backups go"]
+    assert hits and hits[0]["link"].endswith("/vault#f-primary_type")

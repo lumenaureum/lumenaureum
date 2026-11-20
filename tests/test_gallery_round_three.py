@@ -169,18 +169,22 @@ def test_an_upload_that_fails_after_a_take_down_stays_removed_and_leaves_nothing
     G = _G(site)
     real = G["upload_gallery"]
 
+    ran = []
+
     def taken_down_then_fails(g, *a, **k):
         real(g, *a, **k)
         site.q("UPDATE galleries SET upload_state='removed', removed_at=? WHERE session_id=?", (date.today().isoformat(), sid))
+        ran.append(1)
         raise IOError("the host dropped the connection")
     monkeypatch.setitem(G, "upload_gallery", taken_down_then_fails)
     site.c.post(f"/session/{sid}/gallery/back-online", data={"days": "7"}, environ_base=E)
-    for _ in range(200):
-        if not (site.host / gid).exists():
+
+    state = lambda: site.q("SELECT upload_state FROM galleries WHERE session_id=?", (sid,))[0][0]
+    for _ in range(600):
+        if ran and state() != "uploading" and not (site.host / gid).exists():
             break
         time.sleep(0.05)
-    time.sleep(0.2)
-    assert site.q("SELECT upload_state FROM galleries WHERE session_id=?", (sid,))[0][0] == "removed"
+    assert state() == "removed"
     assert _files(site.host, gid) == []
 
 def test_a_failed_upload_gallery_on_an_earlier_host_is_listed_and_comes_down_with_a_delete(site):

@@ -43,16 +43,17 @@ def test_a_quote_unanswered_five_days_follows_up_with_the_mail_action(env):
     _session(A, "quoted", days=30)
     _price(A, c)
     c.post("/session/1/quote/send", environ_base=E)
-    vid = _sql(A, "SELECT id FROM quote_versions WHERE session_id=1")[0][0]
+    vid, qno = _sql(A, "SELECT id, number FROM quote_versions WHERE session_id=1")[0]
+    assert qno == A.today().strftime("%Y%m%d") + "01"
     _sql(A, "INSERT INTO quote_marks (vid, session_id, at) VALUES (?, 1, ?)", (vid, _day(A, -6)))
     _sql(A, "DELETE FROM log")
     line = _line(_today(c))
     assert 'action="/session/1/followup"' in line and 'data-ui-mail="mailto:alex@example.com?subject=Following' in line
-    assert ">Follow up</button>" in line and f'name="vid" value="{vid}"' in line and f"quote {vid}" in line
+    assert ">Follow up</button>" in line and f'name="vid" value="{vid}"' in line and f"quote {qno}" in line
 
     r = c.post("/session/1/followup", data={"vid": str(vid), "mail": "1"}, environ_base=E)
     assert r.status_code == 303 and r.headers["Location"].startswith("mailto:alex@example.com")
-    assert _sql(A, "SELECT summary FROM log WHERE session_id=1")[-1][0] == f"Followed up on quote {vid}"
+    assert _sql(A, "SELECT summary FROM log WHERE session_id=1")[-1][0] == f"Followed up on quote {qno}"
     assert 'action="/session/1/followup"' not in _line(_today(c))
 
 def test_a_shoot_past_its_day_is_shoot_done_with_the_stage_rule_post(env):

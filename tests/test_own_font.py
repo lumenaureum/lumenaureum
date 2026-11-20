@@ -49,7 +49,7 @@ def test_upload_picks_it_and_the_gallery_carries_it(env):
     upload(c, regular=ttf_bytes(), light=font_bytes())
     assert base64.b64decode(setting(A, "brand_font_400"))[:4] == b"wOF2"
     assert setting(A, "gallery_font") == "own" and setting(A, "brand_font_name").startswith("Cormorant Garamond")
-    page = c.get("/settings?tab=gallery", environ_base=E).get_data(as_text=True)
+    page = c.get("/settings?tab=branding", environ_base=E).get_data(as_text=True)
     assert 'value="own" checked' in page and "Cormorant Garamond" in page
     assert c.get("/settings/gallery-font/own.woff2", environ_base=E).data[:4] == b"wOF2"
     out, key = build(A, c, G)
@@ -104,3 +104,15 @@ def test_studio_page_build_uses_the_own_font():
     css = (out / "assets" / "site.css").read_text()
     assert (out / "assets" / "own-400.woff2").exists() and (out / "assets" / "own-300.woff2").exists()
     assert '"Site Own"' in css and "url(own-400.woff2)" in css and "googleapis" not in css
+
+def test_the_page_says_which_weights_are_uploaded(env):
+
+    A, c, G, tmp, src = env
+    upload(c, regular=ttf_bytes())
+    page = c.get("/settings?tab=branding", environ_base=E).get_data(as_text=True)
+    have = page.split('id="own-font-have"', 1)[1].split("</p>", 1)[0]
+    assert "regular" in have and "No light weight" in have
+    upload(c, regular=ttf_bytes(), light=font_bytes())
+    page = c.get("/settings?tab=branding", environ_base=E).get_data(as_text=True)
+    have = page.split('id="own-font-have"', 1)[1].split("</p>", 1)[0]
+    assert "regular and light" in have

@@ -201,12 +201,22 @@ def test_inquiry_rate_list_prints_nothing_and_a_proxy_turns_nobody_away(tmp_path
     srv, base = _serve(php, site)
     form = {"Content-Type": "application/x-www-form-urlencoded"}
     try:
-        def post(i, bits):
+        def short_of(env, have, need):
+
+            inner, i = hashlib.sha256(env).digest(), 0
+            while True:
+                v = int.from_bytes(hashlib.sha256(inner + i.to_bytes(8, "big")).digest()[:4], "big")
+                if v >> (32 - have) == 0 and v >> (32 - need) != 0:
+                    return i.to_bytes(8, "big").hex()
+                i += 1
+
+        def post(i, bits, weak_of=0):
             env = S.seal_inquiry(pub_b64, {"v": 1, "id": f"{i:032x}", "name": "Ada", "email": "ada@example.com",
                                           "message": f"hello {i}", "t": 9000})
             d = base64.urlsafe_b64encode(env).rstrip(b"=").decode()
-            return call(base + "inquiry.php", data=f"w={S.solve_work(env, bits)}&d={d}".encode(), headers=form)
-        st, h, _b = post(0, 8)
+            w = short_of(env, bits, weak_of) if weak_of else S.solve_work(env, bits)
+            return call(base + "inquiry.php", data=f"w={w}&d={d}".encode(), headers=form)
+        st, h, _b = post(0, 8, weak_of=12)
         assert st == 429 and h.get("X-Work") == "12"
         assert [post(i, 12)[0] for i in range(7)] == [204] * 7
         assert call(base + "inquiries/.rate.php")[2] == b""

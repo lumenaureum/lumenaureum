@@ -20,7 +20,7 @@
 {% set when_a_ = shoot_row_ or dict(form='date_set', sid=s.id, prefill=true, where=x_.place, verb='Change the date, time or place', what='when') %}
 {% set when_form_ = ui.step_form_id(when_a_)|trim if s.stage in ('inquiry', 'quoted', 'booked') and not s.event_id else '' %}
 {% set shot_line = fst == 'shot' and s.shoot_date and when_words.startswith('Shot ') %}
-{% set status_ %}{% if shot_line %}<span class="hn-stage">{{ when_words }}</span>{% else %}<span class="hn-stage">{% if s.stage == 'lost' %}Lost{% else %}{{ stage_label[s.stage] }}{% endif %}</span> <span class="ui-mute">{% if days_in == 0 %}since today{% elif days_in == 1 %}since yesterday{% else %}for {{ days_in }} days{% endif %}</span>{% endif %}
+{% set status_ %}{% if shot_line %}<span class="hn-stage">{{ when_words }}</span>{% else %}<span class="hn-stage">{% if s.stage == 'lost' %}Lost{% else %}{{ stage_label[s.stage] }}{% endif %}</span> {% if days_in is not none %}<span class="ui-mute">{% if days_in == 0 %}since today{% elif days_in == 1 %}since yesterday{% else %}for {{ days_in }} days{% endif %}</span>{% endif %}{% endif %}
   {%- set bh_ = booked_hint(s.id) %}{% if bh_ %} <span class="stage-hint">&middot; {{ bh_ }}</span>{% endif %}
   {%- if s.shoot_date and fst in ('inquiry', 'quoted', 'booked', 'shoot_day', 'shot') and not shot_line %}<br><span class="hn-when">
     {%- if when_form_ %}<a class="ui-factlink" href="#{{ when_form_ }}" data-ui-open="{{ when_form_ }}" aria-controls="{{ when_form_ }}" aria-expanded="false" data-tip="Tap to change the date, time or place">{{ when_words }}{% if x_.place and fst in ('booked', 'shoot_day') %}, {{ x_.place }}{% endif %}</a>
@@ -84,10 +84,12 @@
 {% endcall %}
 {% elif s.stage == 'inquiry' %}{% call ui.needs('Their message', id='message') %}{{ message_ }}
   <div class="ui-btnrow">
-    {% set reply_ = reply_draft(s.id) %}{% if reply_ %}{{ uim.mail_action(url_for('session_reply', sid=s.id), reply_, 'Reply', back, 'primary') }}{% endif %}
-    {{ ui.button_link('#billing', 'Build a quote', 'quiet' if reply_ else 'primary') }}
+    
+    {% set reply_ = reply_draft(s.id) %}{% set replied_ = replied_on(s.id) if reply_ else '' %}
+    {% if reply_ %}{{ uim.mail_action(url_for('session_reply', sid=s.id), reply_, 'Reply again' if replied_ else 'Reply', back, 'quiet' if replied_ else 'primary') }}{% endif %}
+    {{ ui.button_link('#billing', 'Build a quote', 'quiet' if reply_ and not replied_ else 'primary') }}
     {{ dont_book() }}
-  </div>{{ dont_book_form() }}{% endcall %}
+  </div>{% if reply_ %}<p class="ui-mute">{% if replied_ %}You replied {{ nice(replied_) }}. {% endif %}Reply opens an email to {{ mail_preview(reply_).to }} in your mail app.</p>{% endif %}{{ dont_book_form() }}{% endcall %}
 {% elif s.stage == 'quoted' %}{% call ui.needs('The quote', id='quote-now') %}
   <p class="ui-needs-line">{% if lines %}{{ money(t.quoted) }}{% if versions %}, sent {{ nice(versions[0].at[:10]) }}{% else %}, not sent yet{% endif %}{% if t.deposit_short > 0.005 %} &middot; deposit {{ money(t.deposit_short) }} due{% endif %}{% else %}No quote lines yet{% endif %}</p>
   <div class="ui-btnrow">
@@ -108,6 +110,21 @@
 {% set timeline_ %}{% if T.timeline == 1 %}{% call ui.section('Timeline', id='timeline', part=true) %}{% include "_journey.html" %}{% endcall %}{% endif %}{% endset %}
 {% if fst in ('shoot_day',) %}{{ timeline_ }}{% endif %}
 
+
+{% macro line_form(own, add, rest, first, primary, custom) -%}
+  {% macro fee_opt(it) %}<option value="{{ it.key }}">{{ it.label|replace(', every edited image included', '') }} - {% if it.unit == 'mile' and not it.amount %}mileage rate{% else %}{{ money(it.amount) }}{% if it.unit == 'hour' %} per hour{% elif it.unit == 'mile' %} per mile{% elif it.unit == 'each' %} each{% endif %}{% endif %}</option>{% endmacro %}
+  <form method="post" action="{{ url_for('quote_fee', sid=s.id) }}" class="qnewf ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="once" value="{{ form_once() }}">
+    <select name="fee_key"{% if custom %} data-show-custom{% endif %} data-focus-after aria-label="Line to add" class="ui-grow">
+      <option value="">{{ first }}</option>
+      {% if own %}<optgroup label="{{ type_label[s.type] }}">{% for it in own %}{{ fee_opt(it) }}{% endfor %}</optgroup>{% endif %}
+      {% if add %}<optgroup label="Add-ons and travel">{% for it in add %}{{ fee_opt(it) }}{% endfor %}</optgroup>{% endif %}
+      {% if rest %}<optgroup label="Other session types">{% for it in rest %}{{ fee_opt(it) }}{% endfor %}</optgroup>{% endif %}
+      {% if custom %}<optgroup label="Not on the price list"><option value="custom">Something else (type it)</option></optgroup>{% endif %}
+    </select>
+    {% if custom %}<span class="qcustom" hidden><input name="label" maxlength="200" placeholder="What it is" aria-label="What it is"><input type="number" step="0.01" name="amount" placeholder="$ each" aria-label="Price each, in dollars" class="ui-input-money">{% if tax_rate %}<input type="hidden" name="taxable_shown" value="1"><label class="ui-check"><input type="checkbox" name="taxable" value="1" checked>taxed</label>{% endif %}</span>{% endif %}
+    
+    <label class="ui-qty-l"><span>How many</span><input type="number" step="0.5" min="0.5" name="qty" value="1" class="ui-input-qty"></label><button class="ui-btn {{ 'ui-btn-primary' if primary else 'ui-btn-quiet' }}">Add the line</button><span class="qmsg ui-mute" role="alert" hidden>Pick a line from the list first.</span></form>
+{%- endmacro %}
 
 {% set bill_ %}
   
@@ -138,18 +155,13 @@
     <div class="ui-btnrow">{{ ui.opener(ui.step_form_id(pay_), 'Record payment') }}</div>{{ ui.step_form(pay_, back, s) }}
   {% endif %}
   {% if edit_q %}{% set mine_ = fee_sched['items']|selectattr('type', 'defined')|selectattr('type', 'equalto', s.type)|map(attribute='key')|list %}
-  <form method="post" action="{{ url_for('quote_fee', sid=s.id) }}" class="qnewf ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="once" value="{{ form_once() }}">
-    <select name="fee_key" data-show-custom data-focus-after aria-label="Line to add" class="ui-grow">
-      <option value="">{{ 'Add a line' if lines else 'Pick the first line' }}</option>
-      {% macro fee_opt(it) %}<option value="{{ it.key }}">{{ it.label|replace(', every edited image included', '') }} - {% if it.unit == 'mile' and not it.amount %}mileage rate{% else %}{{ money(it.amount) }}{% if it.unit == 'hour' %} per hour{% elif it.unit == 'mile' %} per mile{% elif it.unit == 'each' %} each{% endif %}{% endif %}</option>{% endmacro %}
-      {% set own_ = fee_sched['items']|selectattr('key', 'in', mine_)|list %}{% if own_ %}<optgroup label="{{ type_label[s.type] }}">{% for it in own_ %}{{ fee_opt(it) }}{% endfor %}</optgroup>{% endif %}
-      {% set add_ = fee_sched['items']|selectattr('key', 'in', C.ADDON_FEES)|list %}{% if add_ %}<optgroup label="Add-ons and travel">{% for it in add_ %}{{ fee_opt(it) }}{% endfor %}</optgroup>{% endif %}
-      {% set rest_ = fee_sched['items']|rejectattr('key', 'in', mine_)|rejectattr('key', 'in', C.ADDON_FEES)|list %}{% if rest_ %}<optgroup label="Other session types">{% for it in rest_ %}{{ fee_opt(it) }}{% endfor %}</optgroup>{% endif %}
-      <optgroup label="Not on the price list"><option value="custom">Something else (type it)</option></optgroup>
-    </select>
-    <span class="qcustom" hidden><input name="label" maxlength="200" placeholder="What it is" aria-label="What it is"><input type="number" step="0.01" name="amount" placeholder="$ each" aria-label="Price each, in dollars" class="ui-input-money">{% if tax_rate %}<input type="hidden" name="taxable_shown" value="1"><label class="ui-check"><input type="checkbox" name="taxable" value="1" checked>taxed</label>{% endif %}</span>
-    
-    <input type="number" step="0.5" min="0.5" name="qty" value="1" aria-label="Quantity" class="ui-input-qty"><button class="ui-btn {{ 'ui-btn-primary' if not lines else 'ui-btn-quiet' }}">Add the line</button><span class="qmsg ui-mute" role="alert" hidden>Pick a line from the list first.</span></form>{% endif %}
+  {% set own_ = fee_sched['items']|selectattr('key', 'in', mine_)|list %}{% set add_ = fee_sched['items']|selectattr('key', 'in', C.ADDON_FEES)|list %}
+  {% set rest_ = fee_sched['items']|rejectattr('key', 'in', mine_)|rejectattr('key', 'in', C.ADDON_FEES)|list %}
+  
+  {% set split_ = own_ and rest_ %}
+  {{ line_form(own_, add_, [] if split_ else rest_, 'Add a line' if lines else 'Pick the first line', not lines, true) }}
+  {% if split_ %}{% call ui.fold('Lines from other session types', id='other-lines', count=rest_|length) %}{{ line_form([], [], rest_, 'Lines from other session types', false, false) }}{% endcall %}{% endif %}
+  {% endif %}
   {% if lines and t.deposit_short > 0.005 and s.stage in ('quoted', 'booked') %}<p>{% if t.paid > 0.005 %}Deposit <b>{{ money(t.deposit_short) }}</b> short of {{ money(t.deposit_req) }}{% else %}Deposit <b>{{ money(t.deposit_req) }}</b> due{% endif %}</p>{% endif %}
   {% if not lines and not edit_q %}<p class="ui-mute">No quote yet. {{ ui.go(url_for('fee_sheet', type=s.type, sid=s.id), 'Send the ' ~ C.SESSION_TYPES.get(s.type, '') ~ ' price list', blank=true) }}</p>{% endif %}
   {% if edit_q %}{% call ui.fold('Discount' ~ (', portfolio' if C.TYPE_KIND.get(s.type) != 'property' else '') ~ (', tax' if tax_rate else ''), id='bill-options') %}
@@ -184,16 +196,19 @@
     - {{ ui.go(url_for('fees_view', sched_id=quote.schedule_id), sched_name(quote.schedule_id)) }}
     {% if quote.expired and open_q %}{{ ui.action(url_for('quote_requote', sid=s.id), 'Requote at current fees', {}, back) }}{% endif %}</p>{% endif %}
   <div class="ui-btnrow">{% if lines and open_q %}{% set qcls_ = 'primary' if s.stage == 'quoted' and not versions or s.stage == 'inquiry' else 'quiet' %}
-    {%- if quote_same %}<a class="ui-btn ui-btn-{{ qcls_ }}" href="{{ url_for('quote_doc', vid=quote_same.id) }}" target="_blank" title="Nothing changed since quote {{ quote_same.id }} was made: open it to email, print, or mark sent">Send the quote</a>
+    {%- if quote_same %}<a class="ui-btn ui-btn-{{ qcls_ }}" href="{{ url_for('quote_doc', vid=quote_same.id) }}" target="_blank" title="Nothing changed since quote {{ quote_same.number or quote_same.id }} was made: open it to email, print, or mark sent">Send the quote</a>
     {%- else %}<form method="post" action="{{ url_for('quote_send', sid=s.id) }}" class="ui-action" data-quote-send title="Numbers the quote and opens it to email, print, or mark sent. Nothing is emailed yet."><input type="hidden" name="total" value="{{ '%.2f'|format(t.quoted) }}"><button class="ui-btn ui-btn-{{ qcls_ }}">{{ 'Prepare updated quote' if versions else 'Prepare quote' }}</button></form>
     {{ ui.go(url_for('quote_preview', sid=s.id), 'Preview', blank=true) }}{% endif %}{% endif %}
-    {% for v in versions %}{{ ui.go(url_for('quote_doc', vid=v.id), 'Quote ' ~ v.id ~ ', ' ~ nice(v.at[:10]) ~ (', canceled' if v.id in canceled_vids else ''), blank=true) }}{% endfor %}
+    {% for v in versions %}{{ ui.go(url_for('quote_doc', vid=v.id), 'Quote ' ~ (v.number or v.id) ~ ', ' ~ nice(v.at[:10]) ~ (', canceled' if v.id in canceled_vids else ''), blank=true) }}{% endfor %}
     {% if lines and s.stage not in ('inquiry', 'quoted', 'lost') %}{% if t.due > 0.005 %}{{ ui.go(url_for('invoice', sid=s.id), 'Invoice', blank=true) }}{% elif t.paid > 0.005 %}{{ ui.go(url_for('receipt', sid=s.id), 'Receipt', blank=true) }}{% endif %}{% endif %}</div>
+  
+  {% if lines and open_q and (s.stage == 'inquiry' or replacing) %}<p class="ui-mute">The quote opens in a new tab. Press Email it there, then Mark sent once it has gone.</p>{% endif %}
 {% endset %}
 {% set bill_sum %}{% if s.stage == 'quoted' and lines %}Quote {{ money(t.quoted) }}{% if versions %}, sent {{ nice(versions[0].at[:10]) }}{% endif %}{% if t.deposit_short > 0.005 %} &middot; deposit {{ money(t.deposit_short) }} due{% endif %}{% elif lines %}{{ money(t.paid) }} of {{ money(t.quoted) }} paid{% if t.written_off > 0.005 %}, {{ money(t.written_off) }} waived{% endif %}{% if t.due > 0.005 %}, balance {{ money(t.due) }}{% endif %}{% elif s.plan_of %}Billing: on the quote of {{ plan_head_label(s.id) }}{% else %}Billing: no quote yet{% endif %}{% endset %}
 
 {% set rows_ = acts|reject('sameas', follow_)|list %}{% set todo_first = fst in ('booked', 'shot', 'delivered') %}
-{% set lead_ = (rows_|selectattr('primary')|rejectattr('theirs')|first) or (rows_|rejectattr('theirs')|first) if todo_first else none %}
+
+{% set lead_ = (rows_|selectattr('primary')|rejectattr('theirs')|first) or (rows_|rejectattr('theirs')|rejectattr('carried')|first) or (rows_|rejectattr('theirs')|first) if todo_first else none %}
 {% set todo_ %}
   {% with clash_form='todo' %}{% include "_edit_clash.html" %}{% endwith %}
   
@@ -296,44 +311,7 @@
     {% if T.paperwork == 4 and j.docs %}{{ ui.go(url_for('session_edit', sid=s.id) ~ '#paperwork', 'Paperwork') }}{% endif %}
   </div>
   
-  {% if fst != 'closed' %}<div class="ui-flat" id="new-session-more"><h3 class="ui-sub-title">New session for {{ h.name }}</h3><div class="ui-btnrow">{% for k, v in C.SESSION_TYPES.items() %}{% if k in C.NEW_SESSION_TYPES %}{{ ui.go(url_for('inquiry', hid=h.id, type=k), v) }}{% endif %}{% endfor %}</div></div>{% endif %}
-  <div class="ui-btnrow">
-    {% if wf.next_stage and s.stage != 'lost' and not wf.wait_close and not (wf.ready and can_move) %}{{ ui.action(url_for('quick', sid=s.id), 'Skip to ' ~ stage_label[wf.next_stage], dict(act='stage', stage=wf.next_stage), back, 'quiet',
-        confirm='Skip to ' ~ stage_label[wf.next_stage] ~ '?' ~ ((' Still open: ' ~ open_steps|join(', ') ~ '. They carry along to ' ~ stage_label[wf.next_stage] ~ '.') if open_steps else '')) }}{% endif %}
-    {% if wf.wait_close %}{{ ui.action(url_for('quick', sid=s.id), 'Close it now', dict(act='stage', stage='closed'), back, 'quiet', confirm='Close this session now? The gallery stays up until its days have run.') }}{% endif %}
-    {% if s.stage == 'inquiry' %}{{ ui.action(url_for('quick', sid=s.id), 'Book without a quote', dict(act='book'), back, 'quiet', confirm='Book ' ~ h.name ~ ' without a quote? It moves to Booked now.') }}{% endif %}
-    {% if q_locked and s.stage in ('booked', 'shot', 'delivered') and not s.event_id %}{% if lines %}{{ ui.action(url_for('quote_replace', sid=s.id), 'Replace the quote', {}, back, 'quiet',
-        confirm=h.name ~ ' agreed to ' ~ money(t.quoted) ~ '. Replace the quote? The booked quote is canceled and kept in History, and the new one needs Book it again'
-                ~ (' and a fresh signature on the agreement' if j.docs|selectattr('kind', 'equalto', 'agreement')|list else '') ~ '.'
-                ~ (' The ' ~ money(t.paid) ~ ' paid carries over to it.' if t.paid > 0.005 else '') ~ ' The shoot stays on the calendar.') }}
-    {%- else %}{{ ui.action(url_for('quote_replace', sid=s.id), 'Build a quote', {}, back, 'quiet',
-        confirm='Build a quote for ' ~ h.name ~ '? It needs Book it once they say yes, and the shoot stays on the calendar.') }}{% endif %}{% endif %}
-    {% if s.stage not in ('lost', 'closed', 'inquiry', 'quoted') %}{{ ui.opener('cancel-booking', 'Cancel the booking') }}{% endif %}
-  </div>
-  {% if s.stage not in ('lost', 'closed', 'inquiry', 'quoted') %}{% call ui.inline_form('cancel-booking', 'Cancel the booking') %}<form method="post" action="{{ url_for('session_stage', sid=s.id) }}" class="ui-form-row" data-ui-inplace data-confirm="Cancel this booking? It can be reopened.">
-    <input type="hidden" name="stage" value="lost"><input type="hidden" name="back" value="{{ back }}">
-    {{ why_lost(C.CANCEL_REASONS, 'cb-why', 'Why') }}
-    <button class="ui-btn ui-btn-quiet">Cancel the booking</button></form>{% endcall %}{% endif %}
-  
-  {% set rf_ = refile_offer(s) if refile_offer is defined else none %}{% if rf_ %}<div class="ui-flat" id="refile"><h3 class="ui-sub-title">Filed under the wrong client?</h3>
-    {% if rf_.reason %}<p class="ui-mute">It can't move now: {{ rf_.reason }}.</p>
-    {% else %}<div class="ui-btnrow">{{ ui.opener('refile-move', 'Move to another client') }}
-      {{ ui.action(url_for('inquiry_refile', sid=s.id), 'Make it a new client', dict(do='new'), back, 'quiet', inplace=false,
-                   confirm='Make ' ~ rf_.name ~ ' a client of their own? This inquiry, their message and their contact details move there.') }}</div>
-    {% call ui.inline_form('refile-move', 'Move to another client') %}<form method="post" action="{{ url_for('inquiry_refile', sid=s.id) }}" class="ui-action ui-form-row"><input type="hidden" name="do" value="move"><input type="hidden" name="back" value="{{ back }}">
-      <datalist id="refile-clients">{% for hid_, label_, reach_ in refile_clients() if hid_ != h.id %}<option value="{{ label_ }}">{{ reach_ }}</option>{% endfor %}</datalist>
-      <input type="search" name="client" list="refile-clients" class="ui-grow" placeholder="Type a client's name" aria-label="The client to move this to" autocomplete="off" required>
-      <button class="ui-btn ui-btn-quiet">Move to this client</button></form>{% endcall %}{% endif %}</div>{% endif %}
-  {% call ui.fold('Add a step', id='add-step') %}<form method="post" action="{{ url_for('task_add', sid=s.id) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ back }}"><input name="title" maxlength="200" placeholder="Add a step" aria-label="Add a step" required class="ui-grow"><button class="ui-btn ui-btn-quiet">Add the step</button></form>{% endcall %}
-  {% if gallery_adopt_offer is defined and gallery_adopt_offer(s) %}{% call ui.fold('Adopt a gallery already online', id='adopt-gallery') %}<form method="post" action="{{ url_for('gallery_adopt', sid=s.id) }}" class="ui-form-row"><input type="hidden" name="back" value="{{ back }}#gallery"><input name="link" inputmode="url" maxlength="600" placeholder="Paste the client link" aria-label="The gallery's client link" required class="ui-grow">{% set a_close = gallery_adopt_close(s) %}<label class="ui-check">Closes after <input type="date" name="until" value="{{ a_close.until }}" min="{{ a_close.tomorrow }}" required aria-label="The adopted gallery's last day" class="ui-input-date"></label><button class="ui-btn ui-btn-quiet">Adopt a gallery already online</button>{{ help("For a download gallery already on your web host: it becomes this session's gallery with the same link. The app checks the folder is on your web host, that it can write there with its own login, and that the link's key opens it. Nothing on your web host changes until you bring it up to date. It stays online until the day you set, which starts as today plus this session type's usual gallery days.") }}</form>{% endcall %}{% endif %}
-  {% if T.shoot == 4 and s.shoot_date %}{% call ui.fold('The shoot', id='shoot') %}{{ shoot_ }}{% endcall %}{% endif %}
-  {% if T.intake == 4 and intake_q and n_answered %}{% call ui.fold('What they want', id='intake-box') %}{% for k, label in intake_q %}{% if intake.get(k) %}{{ ui.fact(label, intake[k]) }}{% endif %}{% endfor %}{% endcall %}{% endif %}
-  {% if T.gallery == 4 and 'Gallery' in block_by %}{% call ui.fold('Gallery', id='gallery-sec') %}{{ block_by['Gallery'] }}{% endcall %}{% endif %}
-  {% if T.picks == 4 and (s.retouch_picks or s.favorites or s.veto) %}{% call ui.fold('Picks', id='picks', part=true) %}{% if s.retouch_picks %}<p class="ui-pre">{{ s.retouch_picks }}</p>{% endif %}{% if s.favorites %}{{ ui.fact('Portfolio', s.favorites) }}{% endif %}{% if s.veto %}{{ ui.fact("Don't show", s.veto) }}{% endif %}{% endcall %}{% endif %}
-  {% if T.delivery == 4 and s.stage in ('shot', 'delivered', 'closed') %}{% call ui.fold('Delivery', id='delivery', part=true) %}{{ delivery_ }}{% endcall %}{% endif %}
-  {% if T.storage == 4 and 'Photo storage' in block_by %}{% call ui.fold('Photo storage', id='storage') %}{{ block_by['Photo storage'] }}{% endcall %}{% endif %}
-  {% if T.timeline == 4 %}{% call ui.fold('Timeline', id='timeline') %}{% include "_journey.html" %}{% endcall %}{% endif %}
-  {% call ui.fold('History', id='history', part=true, count=history|length) %}
+  {% call ui.fold('History', id='history', part=true, count=history|length, open=true) %}
     <form method="post" action="{{ url_for('client_note', hid=h.id) }}" class="note-form" data-ui-inplace>
       <input type="hidden" name="session_id" value="{{ s.id }}"><input type="hidden" name="back" value="{{ back }}#history">
       <textarea name="text" rows="2" placeholder="Note" aria-label="Note" required></textarea>
@@ -356,6 +334,45 @@
     {% endfor %}
     </div>
   {% endcall %}
+  
+  {% if fst != 'closed' %}<div class="ui-flat" id="new-session-more"><h3 class="ui-sub-title">New session for {{ h.name }}</h3><div class="ui-btnrow">{% for k, v in C.SESSION_TYPES.items() %}{% if k in C.NEW_SESSION_TYPES %}{{ ui.go(url_for('inquiry', hid=h.id, type=k), v) }}{% endif %}{% endfor %}</div></div>{% endif %}
+  <div class="ui-btnrow">
+    {% if wf.next_stage and s.stage != 'lost' and not wf.wait_close and not (wf.ready and can_move) %}{{ ui.action(url_for('quick', sid=s.id), 'Skip to ' ~ stage_label[wf.next_stage], dict(act='stage', stage=wf.next_stage), back, 'quiet',
+        confirm='Skip to ' ~ stage_label[wf.next_stage] ~ '?' ~ ((' Still open: ' ~ open_steps|join(', ') ~ '. They carry along to ' ~ stage_label[wf.next_stage] ~ '.') if open_steps else '')) }}{% endif %}
+    {% if wf.wait_close %}{{ ui.action(url_for('quick', sid=s.id), 'Close it now', dict(act='stage', stage='closed'), back, 'quiet', confirm='Close this session now? The gallery stays up until its days have run.') }}{% endif %}
+    {% if s.stage == 'inquiry' %}{{ ui.action(url_for('quick', sid=s.id), 'Book without a quote', dict(act='book'), back, 'quiet', confirm='Book ' ~ h.name ~ ' without a quote? It moves to Booked now.') }}{% endif %}
+    {% if q_locked and s.stage in ('booked', 'shot', 'delivered') and not s.event_id %}{% if lines %}{{ ui.action(url_for('quote_replace', sid=s.id), 'Replace the quote', {}, back, 'quiet',
+        confirm=h.name ~ ' agreed to ' ~ money(t.quoted) ~ '. Replace the quote? The booked quote is canceled and kept in History, and the new one needs Book it again'
+                ~ (' and a fresh signature on the agreement' if j.docs|selectattr('kind', 'equalto', 'agreement')|list else '') ~ '.'
+                ~ (' The ' ~ money(t.paid) ~ ' paid carries over to it.' if t.paid > 0.005 else '') ~ ' The shoot stays on the calendar.') }}
+    {%- else %}{{ ui.action(url_for('quote_replace', sid=s.id), 'Build a quote', {}, back, 'quiet',
+        confirm='Build a quote for ' ~ h.name ~ '? It needs Book it once they say yes, and the shoot stays on the calendar.') }}{% endif %}{% endif %}
+  </div>
+  
+  {% set rf_ = refile_offer(s) if refile_offer is defined else none %}{% if rf_ %}<div class="ui-flat" id="refile"><h3 class="ui-sub-title">Filed under the wrong client?</h3>
+    {% if rf_.reason %}<p class="ui-mute">It can't move now: {{ rf_.reason }}.</p>
+    {% else %}<div class="ui-btnrow">{{ ui.opener('refile-move', 'Move to another client') }}
+      {{ ui.action(url_for('inquiry_refile', sid=s.id), 'Make it a new client', dict(do='new'), back, 'quiet', inplace=false,
+                   confirm='Make ' ~ rf_.name ~ ' a client of their own? This inquiry, their message and their contact details move there.') }}</div>
+    {% call ui.inline_form('refile-move', 'Move to another client') %}<form method="post" action="{{ url_for('inquiry_refile', sid=s.id) }}" class="ui-action ui-form-row"><input type="hidden" name="do" value="move"><input type="hidden" name="back" value="{{ back }}">
+      <datalist id="refile-clients">{% for hid_, label_, reach_ in refile_clients() if hid_ != h.id %}<option value="{{ label_ }}">{{ reach_ }}</option>{% endfor %}</datalist>
+      <input type="search" name="client" list="refile-clients" class="ui-grow" placeholder="Type a client's name" aria-label="The client to move this to" autocomplete="off" required>
+      <button class="ui-btn ui-btn-quiet">Move to this client</button></form>{% endcall %}{% endif %}</div>{% endif %}
+  {% call ui.fold('Add a step', id='add-step') %}<form method="post" action="{{ url_for('task_add', sid=s.id) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ back }}"><input name="title" maxlength="200" placeholder="Add a step" aria-label="Add a step" required class="ui-grow"><button class="ui-btn ui-btn-quiet">Add the step</button></form>{% endcall %}
+  {% if gallery_adopt_offer is defined and gallery_adopt_offer(s) %}{% call ui.fold('Adopt a gallery already online', id='adopt-gallery') %}<form method="post" action="{{ url_for('gallery_adopt', sid=s.id) }}" class="ui-form-row"><input type="hidden" name="back" value="{{ back }}#gallery"><input name="link" inputmode="url" maxlength="600" placeholder="Paste the client link" aria-label="The gallery's client link" required class="ui-grow">{% set a_close = gallery_adopt_close(s) %}<label class="ui-check">Closes after <input type="date" name="until" value="{{ a_close.until }}" min="{{ a_close.tomorrow }}" required aria-label="The adopted gallery's last day" class="ui-input-date"></label><button class="ui-btn ui-btn-quiet">Adopt a gallery already online</button>{{ help("For a download gallery already on your web host: it becomes this session's gallery with the same link. The app checks the folder is on your web host, that it can write there with its own login, and that the link's key opens it. Nothing on your web host changes until you bring it up to date. It stays online until the day you set, which starts as today plus this session type's usual gallery days.") }}</form>{% endcall %}{% endif %}
+  {% if T.shoot == 4 and s.shoot_date %}{% call ui.fold('The shoot', id='shoot') %}{{ shoot_ }}{% endcall %}{% endif %}
+  {% if T.intake == 4 and intake_q and n_answered %}{% call ui.fold('What they want', id='intake-box') %}{% for k, label in intake_q %}{% if intake.get(k) %}{{ ui.fact(label, intake[k]) }}{% endif %}{% endfor %}{% endcall %}{% endif %}
+  {% if T.gallery == 4 and 'Gallery' in block_by %}{% call ui.fold('Gallery', id='gallery-sec') %}{{ block_by['Gallery'] }}{% endcall %}{% endif %}
+  {% if T.picks == 4 and (s.retouch_picks or s.favorites or s.veto) %}{% call ui.fold('Picks', id='picks', part=true) %}{% if s.retouch_picks %}<p class="ui-pre">{{ s.retouch_picks }}</p>{% endif %}{% if s.favorites %}{{ ui.fact('Portfolio', s.favorites) }}{% endif %}{% if s.veto %}{{ ui.fact("Don't show", s.veto) }}{% endif %}{% endcall %}{% endif %}
+  {% if T.delivery == 4 and s.stage in ('shot', 'delivered', 'closed') %}{% call ui.fold('Delivery', id='delivery', part=true) %}{{ delivery_ }}{% endcall %}{% endif %}
+  {% if T.storage == 4 and 'Photo storage' in block_by %}{% call ui.fold('Photo storage', id='storage') %}{{ block_by['Photo storage'] }}{% endcall %}{% endif %}
+  {% if T.timeline == 4 %}{% call ui.fold('Timeline', id='timeline') %}{% include "_journey.html" %}{% endcall %}{% endif %}
+  
+  {% if s.stage not in ('lost', 'closed', 'inquiry', 'quoted') %}<div class="ui-btnrow ui-danger-row">{{ ui.opener('cancel-booking', 'Cancel the booking', 'danger') }}</div>{% endif %}
+  {% if s.stage not in ('lost', 'closed', 'inquiry', 'quoted') %}{% call ui.inline_form('cancel-booking', 'Cancel the booking') %}<form method="post" action="{{ url_for('session_stage', sid=s.id) }}" class="ui-form-row" data-ui-inplace data-confirm="Cancel this booking? It can be reopened.">
+    <input type="hidden" name="stage" value="lost"><input type="hidden" name="back" value="{{ back }}">
+    {{ why_lost(C.CANCEL_REASONS, 'cb-why', 'Why') }}
+    <button class="ui-btn ui-btn-danger">Cancel the booking</button></form>{% endcall %}{% endif %}
 {% endcall %}
 
 </div>

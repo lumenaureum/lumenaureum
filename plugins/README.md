@@ -34,13 +34,15 @@ statements and the accountant export). Online galleries (`gallery`) and print or
 **Settings, Plugins** lists every plugin and its state. A plugin that calls `ctx.switchable(default=..., label=...,
 about=..., before_off=fn)` gets an on/off switch there, stored as the setting `plugin_on_<name>` and read at each use
 (no restart). The plugin stays loaded and checks `ctx.active()` wherever it acts; `before_off()` returns words to show
-(with "Turn off anyway") when turning it off needs a second thought, or "". `ctx.plugin_on(name)` tells any plugin
+(with "Turn off anyway") when turning it off needs a second thought, or "". Optional `when_on=fn` returns words shown
+under the switch while the plugin is on (where its work shows up, what to set up next), with `links=[(words,
+endpoint)]` beside them. `ctx.plugin_on(name)` tells any plugin
 whether another is on. `CRM_PLUGINS_OFF` always wins: a plugin it names is not loaded, and its switch can't turn it on.
 Print orders (`prints`) are switchable and **off by default**: on a new install and after the 1.4 update.
 
 If a plugin needs a Python package the image doesn't have, build your own image on top of this one:
 ```dockerfile
-FROM ghcr.io/lumenaureum/lumenaureum:1.5.1     # the version you run
+FROM ghcr.io/lumenaureum/lumenaureum:1.5.2     # the version you run
 USER root
 RUN pip install some-package
 USER lumenaureum

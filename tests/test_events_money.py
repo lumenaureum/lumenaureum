@@ -32,7 +32,8 @@ def test_family_price_and_paid_column(tmp_path, monkeypatch):
     con.execute("INSERT INTO payments (session_id, kind, amount, received) VALUES (1, 'balance', 60, '2027-04-01')")
     con.commit(); con.close()
     page = c.get("/event/1", environ_base=E).get_data(as_text=True)
-    assert "<th>Paid</th>" in page and ">paid<" in page and "of $60" in page
+
+    assert "<th>Payment</th>" in page and "$60.00 paid in full" in page and "$60.00 owed" in page and "$99.00 owed" in page
 
 def test_year_view_shows_booked_days(tmp_path, monkeypatch):
     monkeypatch.setenv("CRM_DB", str(tmp_path / "crm.db"))

@@ -124,7 +124,7 @@
   {%- elif a.deliver %}{{ ui.opener('f-deliver-' ~ a.deliver.sid, 'Choose how to deliver', kind_) }}{{ ui.row_more(a, back, [a.alt] if a.alt else []) }}
   {%- else %}{{ ui.step_action(a, back, kind_) }}{% endif -%}
 {% endcall %}
-{%- if a.form %}{{ ui.step_form(a, back, s) }}{% endif -%}
+{%- if a.form or a.preview %}{{ ui.step_form(a, back, s) }}{% endif -%}
 {%- if a.deliver %}{{ deliver_ways(a, back) }}{% endif -%}
 {%- if a.drop and s %}<li class="ui-todo-carry">
   {%- if a.retouch %}<ul class="ui-picks" aria-label="The client's retouch picks">{% for p_ in a.retouch %}<li>{% if p_.done %}{{ ui.chip('In', 'done') }} {% endif %}{% if p_.name %}<b>{{ p_.name }}</b>{% endif %}{% if p_.name and p_.note %}: {% endif %}{{ p_.note }}</li>{% endfor %}</ul>{% endif -%}

@@ -286,7 +286,7 @@ def test_the_gallery_look_logos_and_time_zone_are_kept(upgraded):
     for k, digest in EXPECTED["logos"].items():
         v = _q(A, "SELECT value FROM settings WHERE key=?", (k,))
         assert v and hashlib.sha256(v[0][0].encode()).hexdigest() == digest, k
-    page = _page(c, "/settings?tab=gallery")
+    page = _page(c, "/settings?tab=branding")
     assert 'value="elegant"' in page and EXPECTED["settings"]["proof_mark_text"] in page
     assert getattr(A.TZ, "key", None) == EXPECTED["settings"]["timezone"]
 

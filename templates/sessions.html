@@ -3,16 +3,17 @@
 
 {% block body %}
 <div class="ui-page" data-ui-layout="sessions">
-{{ ui.page_head('Sessions', status=views[view][0] if view in views else views['open'][0], sub=ui.go(url_for('pipeline'), 'Board by stage')) }}
+{{ ui.page_head('Sessions') }}
 
-<nav class="ui-btnrow" aria-label="Which sessions">{% for k, v in views.items() %}{% if k == view %}<b aria-current="page">{{ v[0] }}</b>{% else %}{{ ui.go(url_for('sessions', view=k), v[0]) }}{% endif %}{% endfor %}</nav>
+
+<nav class="ui-views" aria-label="Which sessions">{% for k, v in views.items() %}{% if not loop.first %}<span aria-hidden="true"> &middot; </span>{% endif %}{% if k == view %}<b aria-current="page">{{ v[0] }}</b>{% else %}<a href="{{ url_for('sessions', view=k) }}">{{ v[0] }}</a>{% endif %}{% endfor %}<span aria-hidden="true"> &middot; </span><a href="{{ url_for('pipeline') }}">Board by stage</a></nav>
 
 
 {% set stages_ = [] %}{% set types_ = [] %}{% set owing_ = [] %}{% set labs_ = [] %}
 {% for r in rows %}{% set _ = stages_.append(stage_label[r.s.stage]) %}{% set _ = types_.append(type_label[r.s.type] if not r.s.event_name else 'Group event') %}{% if r.f.owing %}{% set _ = owing_.append('Owing') %}{% endif %}{% set _ = labs_.extend(r.f.labels) %}{% endfor %}
 {{ uf.filter_bar('sessions', today_iso, groups=[dict(key='stage', label='Stage', values=stages_), dict(key='type', label='Type', values=types_),
                  dict(key='money', label='Money', values=owing_), dict(key='label', label='Labels', values=labs_)],
-                 q=request.args.get('q', ''), placeholder='Name, title or event', noun='sessions', keep=dict(view=view), server=true) }}
+                 q=request.args.get('q', ''), placeholder='Filter by name, title or event', noun='sessions', keep=dict(view=view), server=true) }}
 
 {% call ui.section(rows|length ~ (' session' if rows|length == 1 else ' sessions'), id='session-rows') %}
 {% for r in rows %}{% set s = r.s %}{% set nx = r.wf.next_step %}

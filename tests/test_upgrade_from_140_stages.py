@@ -122,7 +122,8 @@ def test_the_1_4_0_prices_used_on_sent_quotes_count_as_approved_once(tmp_path, m
                                    WHERE s.stage IN ('booked','shot','delivered','closed')""")}
     assert used and used <= {int(k) for k in ap} and str(cur) in ap
     created = _q(A, "SELECT created FROM fee_schedules WHERE id=?", (cur,))[0][0][:10]
-    assert ap[str(cur)]["on"] == created and ap[str(cur)]["code"].startswith(created.replace("-", "") + "-")
+    code_ = ap[str(cur)]["code"]
+    assert ap[str(cur)]["on"] == created and code_.startswith(created.replace("-", "")) and code_.isdigit() and len(code_) == 10
     assert "Review your prices." not in c.get("/", environ_base={"REMOTE_ADDR": "127.0.0.1"}).get_data(as_text=True)
     assert _in_request(A, A.price_approval_upgrade) is None
     A2, c2, _ = _open(tmp_path, monkeypatch)
@@ -155,7 +156,7 @@ def test_a_session_the_pass_moved_keeps_its_files_until_a_date_is_set_or_a_new_e
     assert "RAWs and outtakes: no deletion date set" in page and "Set the deletion date" in page
     assert "Readable copies for editing: encrypted and removed a week after delivery" in page or "encrypted and removed" not in page
     today_ = c.get("/", environ_base={"REMOTE_ADDR": "127.0.0.1"}).get_data(as_text=True)
-    assert "No deletion date set for the RAWs and outtakes" in today_
+    assert "no deletion date for the RAWs and outtakes" in today_
 
     with A.app.app_context():
         A.app.config["retention_pass"]()
@@ -167,7 +168,7 @@ def test_a_session_the_pass_moved_keeps_its_files_until_a_date_is_set_or_a_new_e
     r = c.post(f"/session/{REYES}/raw/date", data={"until": until, "back": f"/c/{hid}?s={REYES}"}, environ_base={"REMOTE_ADDR": "127.0.0.1"})
     assert r.status_code in (302, 303)
     assert _due(A, REYES) == A.d(until)
-    assert "No deletion date set for the RAWs and outtakes" not in c.get("/", environ_base={"REMOTE_ADDR": "127.0.0.1"}).get_data(as_text=True)
+    assert "no deletion date for the RAWs and outtakes" not in c.get("/", environ_base={"REMOTE_ADDR": "127.0.0.1"}).get_data(as_text=True)
 
     c.post(f"/session/{REYES}/raw/date", data={"until": A.today().isoformat()}, environ_base={"REMOTE_ADDR": "127.0.0.1"})
     assert _due(A, REYES) == A.d(until)

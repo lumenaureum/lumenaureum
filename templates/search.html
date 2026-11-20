@@ -4,25 +4,35 @@
 {% block body %}
 <div class="ui-page" data-ui-layout="search">
 {{ ui.page_head(('"' ~ term ~ '"') if term else 'Everyone', kicker='Search') }}
+<form class="ui-filter-find sui-searchbox" role="search" method="get" action="{{ url_for('search') }}">
+  <input type="search" name="q" value="{{ term }}" placeholder="Search everything" aria-label="Search" class="ui-grow"{% if not term %} autofocus{% endif %} autocomplete="off">
+  <button class="ui-btn ui-btn-quiet">Search</button></form>
 
-{% call ui.section(id='hits') %}
-{% for x in hits %}
-  {% if x.kind == 'client' %}
-    {%- set sub_ %}{% for p in x.people %}{{ p.name }}{% if p.phone %} {{ p.phone }}{% endif %}{{ ', ' if not loop.last }}{% endfor %}
-      {%- for m in x.matched %}{{ ' · ' if loop.first and x.people }}<mark>{{ m }}</mark>{{ ' · ' if not loop.last }}{% endfor %}{% endset -%}
-    {%- if x.sessions|length == 1 %}{% set s = x.sessions[0] %}{% set sub1_ %}{{ sub_ }}{% if s.hit %}{{ ' · ' if sub_|trim }}<mark>{{ s.hit }}</mark>{% endif %}{% endset %}
-    {{ ui.list_row(url_for('client_stage', hid=x.h.id, s=s.id), x.h.name, sub1_, ui.chip(type_label[s.type] ~ ', ' ~ stage_label[s.stage], 'done' if s.stage in ('closed', 'lost') else 'neutral')) }}
-    {%- else %}
-    {{ ui.list_row(url_for('client_stage', hid=x.h.id), x.h.name, sub_, ui.chip(x.sessions|length ~ ' sessions') if x.sessions else '') }}
-      {%- for s in x.sessions %}{% set ssub_ %}{{ nice(s.shoot_date) or 'No date' }}{% if s.hit %} · <mark>{{ s.hit }}</mark>{% endif %}{% endset %}
-      {{ ui.list_row(url_for('client_stage', hid=x.h.id, s=s.id), x.h.name ~ ': ' ~ type_label[s.type], ssub_, ui.chip(stage_label[s.stage], 'done' if s.stage in ('closed', 'lost') else 'neutral')) }}{% endfor %}
-    {%- endif %}
-  {% else %}{{ ui.list_row(url_for('event_view', eid=x.e.id), x.e.name, ((nice(x.e.date) or '') ~ ' ' ~ (x.e.venue or ''))|trim, ui.chip('Event')) }}{% endif %}
-{% else %}{% if not extra %}<p class="ui-mute">Nothing found.</p>{% endif %}{% endfor %}
-{% endcall %}
+{% set clients_ = hits|selectattr('kind', 'equalto', 'client')|list %}
+{% set events_ = hits|selectattr('kind', 'equalto', 'event')|list %}
+{% if clients_ %}{% call ui.section('Clients', id='hits') %}
+{% for x in clients_ %}
+  {%- set sub_ %}{% for p in x.people %}{{ p.name }}{% if p.phone %} {{ p.phone }}{% endif %}{{ ', ' if not loop.last }}{% endfor %}
+    {%- for m in x.matched %}{{ ' · ' if loop.first and x.people }}<mark>{{ m }}</mark>{{ ' · ' if not loop.last }}{% endfor %}{% endset -%}
+  {{ ui.list_row(url_for('client_stage', hid=x.h.id), x.h.name, sub_, ui.chip(x.sessions|length ~ (' session' if x.sessions|length == 1 else ' sessions')) if x.sessions else '') }}
+{% endfor %}
+{% endcall %}{% endif %}
 
-{% for sec in extra %}{% call ui.section(sec.title) %}{% for r in sec.rows %}
+{% set sess_n_ = (clients_|map(attribute='sessions')|map('length')|sum if term else 0) + events_|length %}
+{% if sess_n_ %}{% call ui.section('Sessions', id='session-hits') %}
+{% if term %}{% for x in clients_ %}{% for s in x.sessions %}{% set ssub_ %}{{ nice(s.shoot_date) or 'No date' }}{% if s.hit %} · <mark>{{ s.hit }}</mark>{% endif %}{% endset %}
+  {{ ui.list_row(url_for('client_stage', hid=x.h.id, s=s.id), x.h.name ~ ': ' ~ type_label[s.type], ssub_, ui.chip(stage_label[s.stage], 'done' if s.stage in ('closed', 'lost') else 'neutral')) }}{% endfor %}{% endfor %}{% endif %}
+{% for x in events_ %}{{ ui.list_row(url_for('event_view', eid=x.e.id), x.e.name, ((nice(x.e.date) or '') ~ ' ' ~ (x.e.venue or ''))|trim, ui.chip('Event')) }}{% endfor %}
+{% endcall %}{% endif %}
+
+{% if docs %}{% call ui.section('Documents', id='doc-hits') %}
+{% for d in docs %}{{ ui.list_row(d.link, d.text, d.sub) }}{% endfor %}
+{% endcall %}{% endif %}
+
+{% for sec in extra %}{% call ui.section(sec.title, id=('setting-hits' if sec.title == 'Settings' else '')) %}{% for r in sec.rows %}
   {% if r.link %}{{ ui.list_row(r.link, r.text, r.sub or '') }}{% else %}{{ ui.fact(r.text, r.sub or '') }}{% endif %}{% endfor %}{% endcall %}{% endfor %}
+
+{% if not hits and not docs and not extra %}<p class="ui-mute">Nothing found.{% if term and term|lower != term|upper %} {{ ui.go(url_for('contact_new', name=term), 'Add ' ~ term ~ ' as a new contact') }}{% endif %}</p>{% endif %}
 </div>
 {% endblock %}
 

@@ -96,6 +96,91 @@ def settings_find(term):
 app.jinja_env.globals["settings_find_entries"] = settings_find_entries
 app.jinja_env.globals["settings_find"] = settings_find
 
+def _settings_page_href(p_):
+
+    if p_.get("plugin"):
+        if plugin_on(p_["plugin"]) and p_["ep"] in app.view_functions:
+            return url_for(p_["ep"], **p_["args"])
+        return url_for("plugin_page", name=p_["plugin"])
+    return url_for(p_["ep"], **p_["args"])
+
+def _settings_page_shown(p_, here):
+    if p_.get("plugin"):
+
+        return p_["plugin"] in DISABLED_PLUGINS or any(x_["name"] == p_["plugin"] for x_ in PLUGINS_LOADED)
+    if p_.get("show") == "transfer":
+        return bool([t_ for t_ in C.SESSION_TYPES if t_ not in C.LICENSE_TYPES]) or here
+    return True
+
+def settings_nav():
+
+    import settings_registry as R_
+    ep_, va_, args_ = request.endpoint, request.view_args or {}, _settings_args()
+    out = []
+    for g_ in R_.GROUPS:
+        rows = []
+        for p_ in g_["pages"]:
+            on = R_.matches(p_, ep_, va_, args_)
+            if not _settings_page_shown(p_, on):
+                continue
+            kids = []
+            if p_["id"] == "shoot":
+                kids = [dict(key=k_, label=l_, href=url_for("type_edit", key=k_),
+                             on=ep_ in ("type_edit", "type_walk") and va_.get("key") == k_)
+                        for k_, l_ in C.SESSION_TYPES.items()]
+            rows.append(dict(label=p_["label"], sub=p_.get("sub", ""), href=_settings_page_href(p_), on=on, children=kids))
+        if g_["id"] == "app":
+            known = {p_["ep"] for p_ in R_.pages()}
+            for l_, e_, s_ in hooks.settings_tabs:
+                if e_ not in known:
+                    rows.insert(1, dict(label=l_, sub=s_, href=url_for(e_), on=ep_ == e_, children=[]))
+        out.append(dict(title=g_["title"], pages=rows))
+    return out
+
+def settings_here():
+
+    import settings_registry as R_
+    try:
+        return R_.current(request.endpoint, request.view_args or {}, _settings_args())
+    except RuntimeError:
+        return None
+
+def _settings_args():
+
+    a_ = request.args.to_dict()
+    if request.endpoint == "settings_view" and not a_.get("tab"):
+        a_["tab"] = "profile"
+    return a_
+
+def field_error(name):
+
+    if "field_errors" not in g:
+        g.field_errors = session.pop("field_errors", None) or {}
+    return g.field_errors.get(name)
+
+def _field_refused(name, words):
+    session.setdefault("field_errors", {})[name] = words
+    session.modified = True
+
+def settings_moved():
+
+    import settings_registry as R_
+    out = {}
+    for f_ in R_.fields():
+        p_ = f_["page"]
+        if f_.get("anchor") and f_["anchor"] not in out and not p_.get("plugin"):
+            try:
+                out[f_["anchor"]] = url_for(p_["ep"], **p_["args"]) + "#" + f_["anchor"]
+            except Exception:
+                continue
+    return out
+
+app.jinja_env.globals["settings_moved"] = settings_moved
+app.jinja_env.globals["has_endpoint"] = lambda ep_: ep_ in app.view_functions
+app.jinja_env.globals["settings_nav"] = settings_nav
+app.jinja_env.globals["settings_here"] = settings_here
+app.jinja_env.globals["field_error"] = field_error
+
 def setup_done():
     try:
         return setting("setup_complete") == "1"
@@ -103,7 +188,7 @@ def setup_done():
         return False
 
 SETTINGS_ENDPOINTS = {"settings_view", "wording_edit", "type_edit", "type_walk", "vault_view", "security", "master_key_check", "setup_step", "about",
-                      "plugins_settings"}
+                      "plugins_settings", "plugin_page"}
 app.jinja_env.globals["setup_done"] = setup_done
 app.jinja_env.globals["SETTINGS_ENDPOINTS"] = SETTINGS_ENDPOINTS
 app.jinja_env.globals["plugin_on"] = lambda name_: plugin_on(name_)
@@ -420,9 +505,10 @@ class PluginContext:
         UNLOCK_HOOKS.append(fn)
         return fn
 
-    def switchable(self, default=False, label="", about="", before_off=None):
+    def switchable(self, default=False, label="", about="", before_off=None, when_on=None, links=()):
 
-        SWITCHES[self.name] = dict(default=default, label=label or self.name, about=about, before_off=before_off)
+        SWITCHES[self.name] = dict(default=default, label=label or self.name, about=about, before_off=before_off,
+                                   when_on=when_on, links=list(links))
 
     def active(self):
         return plugin_on(self.name)
@@ -744,7 +830,7 @@ def describe(ep, va, f):
         act = EP_WORDS.get(ep) or (w_(f) if callable(w_) else w_) or ep.replace("_", " ").capitalize()
     return act, sid, hid, eid
 
-EP_WORDS = {"quote_license": "Changed the license terms on the quote", "quote_send": "Prepared the quote to send", "quote_fee": "Added a fee to the quote", "quote_discount": "Set the discount", "type_walk": "Walked through a session type's settings", "walk_dismiss": "Dismissed the settings walkthrough", "portfolio_set": "Changed portfolio permission",
+EP_WORDS = {"quote_license": "Changed the license terms on the quote", "quote_send": "Prepared the quote to send", "quote_fee": "Added a fee to the quote", "quote_discount": "Set the discount", "type_walk": "Walked through a session type's settings", "walk_dismiss": "Dismissed the settings walkthrough", "type_steps_reset": "Reset a session type's steps to the defaults", "type_walk_approve": "Approved a session type's terms at the end of the walk-through", "portfolio_set": "Changed portfolio permission",
             "quote_requote": "Requoted at current fees", "quote_exempt": "Changed the sales tax setting",
             "upload_gallery_req": "Asked to upload the gallery", "build_gallery": "Started building the gallery",
             "gallery_sync_now": "Checked the gallery", "retention_raw": "Picked the RAW folder",
@@ -931,7 +1017,7 @@ def _audit_after(resp):
             r = q("SELECT id, household_id FROM sessions ORDER BY id DESC LIMIT 1", one=True)
             sid, hid = (r["id"], r["household_id"]) if r else (None, None)
         try:
-            audit(act, sid, hid, eid, note=note, route=request.path)
+            audit(act, sid, hid, eid, note=note, route=request.path, data=g.pop("audit_data", "") or "")
         except Exception:
             app.logger.exception("audit write failed")
     for line_ in g.pop("after_audit", []):
@@ -1227,8 +1313,12 @@ def approve_prices(sched_id, on=None, quiet=False):
     if str(sched_id) in ap_:
         return False
     day = on or today().isoformat()
-    n_ = 1 + sum(1 for v_ in ap_.values() if (v_ or {}).get("code", "").startswith(day.replace("-", "") + "-"))
-    ap_[str(sched_id)] = dict(on=day, code=f"{day.replace('-', '')}-{n_}")
+    day_ = day.replace("-", "")
+    taken_ = {(v_ or {}).get("code", "") for v_ in ap_.values()}
+    n_ = 1 + sum(1 for c_ in taken_ if c_.startswith(day_))
+    while f"{day_}{n_:02d}" in taken_:
+        n_ += 1
+    ap_[str(sched_id)] = dict(on=day, code=f"{day_}{n_:02d}")
     _put_setting(PRICE_APPROVALS, json.dumps(ap_, sort_keys=True))
     if not quiet:
         audit(f"Approved the prices: {sched_name(sched_id)} ({ap_[str(sched_id)]['code']}); they print as yours from now on")
@@ -1259,8 +1349,8 @@ def price_approval_upgrade():
     if used:
         for r_ in q("SELECT id, created FROM fee_schedules WHERE id >= ? ORDER BY id", (min(used),)):
             day = (r_["created"] or today().isoformat())[:10]
-            n_ = 1 + sum(1 for v_ in ap_.values() if v_["code"].startswith(day.replace("-", "") + "-"))
-            ap_[str(r_["id"])] = dict(on=day, code=f"{day.replace('-', '')}-{n_}")
+            n_ = 1 + sum(1 for v_ in ap_.values() if v_["code"].startswith(day.replace("-", "")))
+            ap_[str(r_["id"])] = dict(on=day, code=f"{day.replace('-', '')}{n_:02d}")
     _put_setting(PRICE_APPROVALS, json.dumps(ap_, sort_keys=True))
     if ap_:
         audit("Updated to 1.5: your prices were already used on a sent quote, so they count as approved", who="Lumen Aureum")
@@ -1314,7 +1404,7 @@ def _reapply_portfolio(sid, force=False):
     amt = round(min(base * rule[1] / 100 if rule[0] == "pct" else rule[1], base), 2)
     if amt > 0.005:
         x("INSERT INTO lines (session_id, label, amount, kind, taxable) VALUES (?,?,?, 'portfolio', 1)",
-          (sid, f"Portfolio permission ({C.portfolio_discount_words(s_['type'])} off): I may show up to {C.MARKETING_PICKS}"
+          (sid, f"Portfolio permission ({C.portfolio_discount_words(s_['type'])} off, before tax): I may show up to {C.MARKETING_PICKS}"
                 f" photos; you may suggest favorites and say no to any before it is shown", -amt))
     g.pop("tot_cache", None)
 
@@ -2011,6 +2101,10 @@ def balance_rule(stype):
 
 def gallery_expires(s):
 
+    co_ = app.config.get("gallery_close_on")
+    set_ = co_(s["id"]) if callable(co_) else None
+    if set_:
+        return set_
     back_ = gallery_restored(s["id"])
     if back_:
         return back_
@@ -2820,7 +2914,7 @@ MARKABLE = {"gallery_built": "Mark built", "letter_mailed": "Mark mailed", "firs
 THEIR_STEPS = {"Intake answered", "Client said yes", "Agreement signed", "Releases signed", "Deposit received",
                "Client opened the gallery", "Picks received", "Paid in full"}
 THEIR_WORDS = {"Intake answered": "Intake answers", "Client said yes": "Quote accepted", "Agreement signed": "Agreement signed",
-               "Releases signed": "Releases signed", "Deposit received": "Deposit paid", "Client opened the gallery": "Gallery opened",
+               "Releases signed": "Releases signed", "Deposit received": "Collect the deposit", "Client opened the gallery": "Gallery opened",
                "Picks received": "Picks sent", "Paid in full": "Balance paid"}
 def todo_word(label):
 
@@ -2878,6 +2972,15 @@ def intake_draft(sid):
     return mail_["mailto"] if mail_["to"] else ""
 
 app.jinja_env.globals["intake_draft"] = intake_draft
+
+def mail_preview(mailto):
+
+    from urllib.parse import unquote, urlsplit, parse_qs
+    parts_ = urlsplit(mailto or "")
+    qs_ = parse_qs(parts_.query, keep_blank_values=True)
+    return dict(to=unquote(parts_.path), subject=(qs_.get("subject") or [""])[0], body=(qs_.get("body") or [""])[0])
+
+app.jinja_env.globals["mail_preview"] = mail_preview
 app.jinja_env.globals["length_words"] = lambda m_: length_words(m_)
 
 def _theirs_after_send(a, s, key, tt):
@@ -2892,7 +2995,8 @@ def _theirs_after_send(a, s, key, tt):
             for k_ in ("form", "href"):
                 a.pop(k_, None)
             a.update(what="Send the intake questions", verb="Send the intake questions", mail=draft_,
-                     post=url_for("session_intake_send", sid=sid), fields={}, sid=sid)
+                     post=url_for("session_intake_send", sid=sid), fields={}, sid=sid,
+                     preview=True)
         else:
             a.update(what="Ask the intake questions (no email on file)")
     elif key == "agreement_signed":
@@ -3047,7 +3151,7 @@ def follow_up(s):
              + (f" It is good through {nice(qo_['expires'])}." if qo_.get("expires") else ""),
              "Would you like to go ahead? I'm happy to answer any questions, or to change anything that doesn't fit."]
     mail_ = _send_ctx(s["id"], "followup", "Following up on your quote", lines)
-    return dict(what=f"Follow up on quote {m_['vid']} (sent {nice(m_['at'][:10])})", when=None, verb="I sent it",
+    return dict(what=f"Follow up on quote {quote_no(m_['vid'])} (sent {nice(m_['at'][:10])})", when=None, verb="I sent it",
                 doc=mail_["mailto"], doc_verb="Follow up", doc_here=True, post=url_for("session_followup", sid=s["id"]),
                 fields=dict(vid=m_["vid"]), followup=True, sid=s["id"], hid=s["household_id"],
                 alt=dict(verb="Do not book", post=url_for("session_stage", sid=s["id"]), fields=dict(stage="lost")))
@@ -3059,7 +3163,7 @@ def session_followup(sid):
     vid_ = request.form.get("vid", type=int)
     draft_ = (follow_up(s_) or {}).get("doc") if request.form.get("mail") else None
     x("INSERT INTO log (household_id, session_id, channel, summary, at) VALUES (?,?,?,?,?)",
-      (s_["household_id"], sid, "email", f"Followed up on quote {vid_}" if vid_ else "Followed up on the quote",
+      (s_["household_id"], sid, "email", f"Followed up on quote {quote_no(vid_)}" if vid_ else "Followed up on the quote",
        datetime.now(TZ).strftime("%Y-%m-%d %H:%M:%S")))
     if request.headers.get("X-Fetch"):
         return ("", 204)
@@ -3089,6 +3193,13 @@ def reply_draft(sid):
     return mail_["mailto"] if mail_["to"] else ""
 
 app.jinja_env.globals["reply_draft"] = reply_draft
+
+def replied_on(sid):
+
+    r_ = q("SELECT MAX(at) m FROM log WHERE session_id=? AND summary='Replied to their message'", (sid,), one=True)
+    return (r_["m"] or "")[:10] if r_ else ""
+
+app.jinja_env.globals["replied_on"] = replied_on
 
 def refund_words(name, reason, owed, kept):
 
@@ -3211,6 +3322,60 @@ def waive_item(sid):
                 ask="Why (required)", ask_name="note_why",
                 confirm="Waive the balance? It is written off, not paid: Finances count it as a write-off, not income.")
 
+REMINDER_SENT = "Sent a payment reminder"
+
+def deposit_step_due(sid):
+
+    w_ = workflow(sid)
+    return next((st_.get("due") for st_ in ((w_["current"]["steps"] if w_["current"] else []) + w_["carried"])
+                 if st_.get("key") == "deposit_paid" and not st_["done"]), None)
+
+def payment_reminder(s, tt=None, due=None, kind=None):
+
+    sid = s["id"]
+    tt = tt or totals(sid)
+    if kind is None:
+        kind = "deposit" if (s["stage"] in ("inquiry", "quoted", "booked") and tt["deposit_short"] > 0.005
+                             and deposit_held(sid) > 0.005) else "balance"
+    amount = round(tt["deposit_short"] if kind == "deposit" else tt["due"], 2)
+    if amount <= 0.005:
+        return None
+    if due is None:
+        due = deposit_step_due(sid) if kind == "deposit" else balance_due_date(s["shoot_date"], s["type"], sid=sid)
+    due = str(due)[:10] if due else None
+    late = bool(due and due < today().isoformat())
+    for_ = what_for(s)
+    title_ = ((s["title"] if "title" in s.keys() else "") or "").strip()
+    when_ = (f" It was due {nice(due)}." if late else f" It is due {nice(due)}.") if due else ""
+    lines = [f"A quick reminder: the {money(amount)} {kind} for your {for_ if title_ else for_.lower()} is still open.{when_}",
+             how_to_pay_line()]
+    mail_ = _send_ctx(sid, "reminder", f"Reminder: {kind} of {money(amount)}", lines)
+    words = f"{kind.capitalize()} {money(amount)}" + (((", was due " if late else ", due ") + nice(due)) if due else "")
+    return dict(kind=kind, amount=amount, due=due, late=late, mailto=mail_["mailto"] if mail_["to"] else "", words=words)
+
+def remind_item(s, tt=None, due=None, kind=None):
+
+    r_ = payment_reminder(s, tt, due, kind)
+    if not r_ or not r_["mailto"]:
+        return None
+    return dict(verb="Remind them", post=url_for("session_remind", sid=s["id"]), fields=dict(kind=r_["kind"]), mail=r_["mailto"])
+
+app.config.setdefault("quiet_endpoints", set()).add("session_remind")
+
+@app.post("/session/<int:sid>/remind")
+def session_remind(sid):
+
+    s_ = q("SELECT s.*, h.name AS household FROM sessions s JOIN households h ON h.id=s.household_id WHERE s.id=?",
+           (sid,), one=True) or abort(404)
+    kind_ = request.form.get("kind") if request.form.get("kind") in ("deposit", "balance") else None
+    r_ = payment_reminder(s_, kind=kind_)
+    x("INSERT INTO log (household_id, session_id, channel, summary, at) VALUES (?,?,?,?,?)",
+      (s_["household_id"], sid, "email", REMINDER_SENT + (f": {r_['words']}" if r_ else ""),
+       datetime.now(TZ).strftime("%Y-%m-%d %H:%M:%S")))
+    if request.form.get("mail") and r_ and r_["mailto"]:
+        return redirect(r_["mailto"], code=303)
+    return redirect(safe_back(request.form.get("back")) or url_for("home"))
+
 SETTLED_BY = {"Cull": "gallery_built", "Edit": "gallery_built"}
 
 def settle_steps(sid):
@@ -3314,6 +3479,8 @@ def build_actions(only_sid=None):
             acts.append(dict(who=who, what="Set the shoot date, time and place", detail=", ".join(missing_).capitalize(),
                              when=None, stage=s["stage"], verb="Set date, time and place", form="date_set", sid=s["id"],
                              prefill=True, where=focus_place(s), shoot_facts=True,
+
+                             shoot_date=s["shoot_date"], start_time=s["start_time"], date_tentative=s["date_tentative"],
                              seq=(0, 2)))
         rp_ = replacing(s["id"]) if s["stage"] not in ("inquiry", "quoted") else None
         if rp_:
@@ -3416,6 +3583,10 @@ def build_actions(only_sid=None):
                      dep_amt=(tt["deposit_short"] if tt["deposit_short"] > 0.005 else tt["deposit_req"]))
                     if key == "deposit_paid" and a["dep_amt"] > 0.005:
                         a["verb"] = f"Record payment ({money(a['dep_amt'])})"
+                        if tt["paid"] > 0.005 and tt["deposit_short"] > 0.005 and not a.get("detail"):
+
+                            a["detail"] = (f"{money(tt['deposit_short'])} left of the {money(tt['deposit_req'])} deposit; "
+                                           f"{money(tt['paid'])} paid so far.")
                 elif key:
                     a.update(verb="Mark done", post=url_for("close_step"), fields=dict(sid=s["id"], step=key, outcome="done"))
                 else:
@@ -3427,6 +3598,12 @@ def build_actions(only_sid=None):
                 _photo_row(a, st, s)
             if a.get("collect") and not a.get("more_items"):
                 a["more_items"] = [waive_item(s["id"])]
+            if not custom and ((st.get("key") == "deposit_paid" and a.get("theirs"))
+                               or ((st.get("key") == "balance_paid" or a.get("collect")) and inv_)):
+                rem_ = remind_item(s, tt, None if a.get("collect") else st.get("due"),
+                                   "deposit" if st.get("key") == "deposit_paid" else "balance")
+                if rem_:
+                    a["more_items"] = [rem_] + (a.get("more_items") or [])
             acts.append(a)
         for fn in hooks.session_actions:
             for a_ in fn(s) or []:
@@ -3449,7 +3626,7 @@ def build_actions(only_sid=None):
                                  doc=url_for("invoice", sid=s["id"]), doc_verb="Send the invoice", doc_here=False))
             else:
                 acts.append(dict(who=who, what=owes_words(s, tt, inv_), theirs=True, since=s["shoot_date"],
-                                 more_items=[waive_item(s["id"])],
+                                 more_items=[m_ for m_ in (remind_item(s, tt, bdue, "balance"), waive_item(s["id"])) if m_],
                                  when=bdue, stage=s["stage"], detail=owed_detail(s["id"], s, tt, inv_),
                                  verb=f"Record payment ({money(tt['due'])})", href=url_for("session_edit", sid=s["id"]) + "#money"))
         if s["stage"] == "booked" and not s["date_tentative"] and shoot_started(s):
@@ -3678,13 +3855,64 @@ def event_actions(s):
                 acts.append(dict(who=who, what=f"{n} of {len(fam)} {label}", when=None, stage=stage,
                                  verb="Mark all " + ("built" if field == "gallery_built" else "mailed"),
                                  post=url_for("event_mark", eid=eid), fields=dict(field=field)))
-    if not acts and stage in C.STAGES and C.STAGES.index(stage) + 1 < len(C.STAGES) and \
-            can_enter(C.STAGES[C.STAGES.index(stage) + 1], s["shoot_date"]):
-        nxt = C.STAGES[C.STAGES.index(stage) + 1]
+
+    open_ = [o_ for o_ in event_family_open(eid) if o_["key"] != "releases_signed"]
+    can_move = stage in C.STAGES and C.STAGES.index(stage) + 1 < len(C.STAGES) and \
+        can_enter(C.STAGES[C.STAGES.index(stage) + 1], s["shoot_date"])
+    nxt = C.STAGES[C.STAGES.index(stage) + 1] if can_move else None
+    if open_:
+        what_ = family_open_words(open_)
+        when_ = min((o_["due"] for o_ in open_ if o_["due"]), default=None)
+        if can_move and not acts:
+            acts.append(dict(who=who, what=what_, when=when_, stage=stage, verb=f"Move all to {C.STAGE_LABELS[nxt]}",
+                             post=url_for("event_stage", eid=eid), fields=dict(stage=nxt), primary=True,
+                             confirm=f"{what_}. Move all to {C.STAGE_LABELS[nxt]} anyway?"))
+        else:
+            acts.append(dict(who=who, what=what_, when=when_, stage=stage, verb="See the families",
+                             href=url_for("event_view", eid=eid) + "#families"))
+    elif not acts and can_move:
         acts.append(dict(who=who, what=f"Everything in {C.STAGE_LABELS[stage]} is done", when=None, stage=stage,
                          verb=f"Move all to {C.STAGE_LABELS[nxt]}", post=url_for("event_stage", eid=eid),
                          fields=dict(stage=nxt), primary=True))
     return acts
+
+FAMILY_OPEN_WORDS = {"agreement_signed": ("agreement still unsigned", "agreements still unsigned"),
+                     "releases_signed": ("family's releases still unsigned", "families' releases still unsigned"),
+                     "deposit_paid": ("deposit still unpaid", "deposits still unpaid"),
+                     "balance_paid": ("balance still owed", "balances still owed")}
+
+def event_family_open(eid):
+
+    fam = q("SELECT * FROM sessions WHERE event_id=? AND stage NOT IN ('lost','closed')", (eid,))
+    idx = [C.STAGES.index(f["stage"]) for f in fam if f["stage"] in C.STAGES]
+    if not idx:
+        return []
+    low = C.STAGES[min(idx)]
+    out = {}
+    for f in fam:
+        if f["stage"] != low:
+            continue
+        w = workflow(f["id"])
+        for st_ in (w["current"]["steps"] if w["current"] else []) + w["carried"]:
+            if st_["done"] or st_.get("shared") or _past_its_moment(f, st_):
+                continue
+            k_ = st_.get("key") or st_["label"]
+            o_ = out.setdefault(k_, dict(key=k_, label=st_["label"], n=0, due=None))
+            o_["n"] += 1
+            if st_.get("due") and (not o_["due"] or st_["due"] < o_["due"]):
+                o_["due"] = st_["due"]
+    for o_ in out.values():
+        n = o_["n"]
+        if o_["key"] in FAMILY_OPEN_WORDS:
+            o_["words"] = f"{n} {FAMILY_OPEN_WORDS[o_['key']][0 if n == 1 else 1]}"
+        else:
+            o_["words"] = f"{todo_word(o_['label'])}, {n} famil{'y' if n == 1 else 'ies'}"
+    return list(out.values())
+
+def family_open_words(open_):
+
+    s_ = ", ".join(o_["words"] for o_ in open_)
+    return s_[:1].upper() + s_[1:]
 
 def start_time_in(v, keep=""):
 
@@ -3919,6 +4147,7 @@ def home():
                            kinds=today_filter_kinds(board_), today_iso=t.isoformat(),
                            master_due=owner_auth.master_check_due(db(), t), unconfirmed=unconfirmed_deletions(),
                            finish=app.config["finish_items"](), loose=[it for fn in hooks.today for it in (fn() or []) if not it.get("who")],
+                           raw_held=app.config["raw_held_list"]() if "raw_held_list" in app.config else [],
                            prices_sample=None if prices_approved(current_schedule()["id"]) else current_schedule()["id"],
                            board=board_, days=days_, review=rv_["rows"]() if rv_ else [],
                            review_types=rv_["types"]() if rv_ else [], review_cut=rv_["cut"] if rv_ else 0,
@@ -4169,7 +4398,10 @@ app.jinja_env.globals["inbox_count"] = inbox_count
 
 def stage_dates(sr, docs, pays):
 
-    got = {r["stage"]: r["at"][:10] for r in q("SELECT stage, MIN(at) at FROM stage_log WHERE session_id=? GROUP BY stage", (sr["id"],))}
+    got = {r["stage"]: r["at"][:10] for r in q("""SELECT stage, MIN(at) at FROM stage_log WHERE session_id=?
+                                                    AND COALESCE(era, '') != 'upgrade' GROUP BY stage""", (sr["id"],))}
+    upg = {r["stage"]: r["at"][:10] for r in q("""SELECT stage, MIN(at) at FROM stage_log WHERE session_id=?
+                                                    AND era='upgrade' GROUP BY stage""", (sr["id"],))}
     signed = sorted(d_["signed"] for d_ in docs if d_["signed"])
     paid = sorted(p_["received"] for p_ in pays if p_["received"])
     created = (sr["created"] or today().isoformat())[:10]
@@ -4184,7 +4416,7 @@ def stage_dates(sr, docs, pays):
     out = {}
     for i, st in enumerate(C.STAGES):
         if i <= idx:
-            out[st] = got.get(st) or guess.get(st)
+            out[st] = got.get(st) or guess.get(st) or upg.get(st)
     if "quoted" in out and not out["quoted"]:
         out["quoted"] = out.get("inquiry")
     return out
@@ -4192,12 +4424,19 @@ def stage_dates(sr, docs, pays):
 def days_in_stage(sr):
 
     sr = q("SELECT * FROM sessions WHERE id=?", (sr["id"],), one=True) or sr
-    last_ = q("SELECT MAX(at) a FROM stage_log WHERE session_id=? AND stage=?", (sr["id"], sr["stage"]), one=True)["a"]
-    if last_:
-        return max(0, (today() - d(last_[:10])).days)
+    last_ = q("SELECT at, era FROM stage_log WHERE session_id=? AND stage=? ORDER BY at DESC, id DESC LIMIT 1",
+              (sr["id"], sr["stage"]), one=True)
+    if last_ and last_["at"] and last_["era"] != "upgrade":
+        return max(0, (today() - d(last_["at"][:10])).days)
     docs = q("SELECT kind, status, signed FROM documents WHERE session_id=?", (sr["id"],))
     pays = q("SELECT received FROM payments WHERE session_id=?", (sr["id"],))
-    since = stage_dates(sr, docs, pays).get(sr["stage"]) or (sr["stage_changed"] or "")[:10] or today().isoformat()
+    since = stage_dates(sr, docs, pays).get(sr["stage"])
+    if since and last_ and since >= last_["at"][:10]:
+        since = None
+    if not since and not last_:
+        since = (sr["stage_changed"] or "")[:10] or None
+    if not since:
+        return None
     return max(0, (today() - d(since)).days)
 
 def journey(sr, acts):
@@ -4234,8 +4473,8 @@ def journey(sr, acts):
     qt_ = q("SELECT created FROM quotes WHERE session_id=?", (sid,), one=True)
     if qt_ and qt_["created"]:
         past.append(dict(d=qt_["created"][:10], kind="money", label="Quote built", sub="", size=9))
-    for v_ in q("SELECT id, at FROM quote_versions WHERE session_id=?", (sid,)):
-        past.append(dict(d=v_["at"][:10], kind="money", label=f"Quote {v_['id']} sent", sub="", size=10))
+    for v_ in q("SELECT id, at, number FROM quote_versions WHERE session_id=?", (sid,)):
+        past.append(dict(d=v_["at"][:10], kind="money", label=f"Quote {v_['number'] or v_['id']} sent", sub="", size=10))
     for a in acts:
         if a.get("when"):
             st_ = status_of(a["when"])
@@ -4315,7 +4554,7 @@ def journey(sr, acts):
         b["label"] = b["w"] >= 8 and not (b["a"] - 2 < tpos < b["a"] + 10) and b["a"] - last_lab_ >= 8
         if b["label"]:
             last_lab_ = b["a"]
-    return dict(past=past, future=future, today=tpos, shoot=spos, shoot_d=shoot, shoot_label=spos is None or abs(spos - tpos) > 7,
+    return dict(past=past, future=future, today=tpos, shoot=spos, shoot_d=shoot, shoot_label=spos is None or abs(spos - tpos) > 14,
                 bands=bands, ticks=ticks, docs=docs, pays=pays, stage_dates=sd)
 
 def _same_day(marks, future):
@@ -4554,7 +4793,8 @@ def focus_rows(acts, s, t):
         a = dict(a)
         verb = a.get("verb") or ""
         fld = (a.get("fields") or {}).get("field")
-        if (a.get("href") or "").endswith("#money") and verb.startswith("Record payment"):
+        if (a.get("href") or "").endswith("#money") and verb.startswith("Record payment") and not a.get("form"):
+
             a.update(form="pay_balance", pay_amt=t["due"], sid=s["id"])
         elif owed > 0.005 and not (a.get("wait") or a.get("form") or a.get("doc")) and (
                 fld in ("sd_shipped", "letter_mailed") or a.get("collect")):
@@ -4674,7 +4914,7 @@ def client_stage(hid):
                            block_key=FOCUS_BLOCK_KEY, x_=focus_extra(sr, full, t_),
                            can_shot=sr["stage"] == "booked" and can_enter("shot", sr["shoot_date"], sr["id"]),
                            photos=photo_summary(sr["id"]) if sr["stage"] in ("booked", "shot", "delivered", "closed") else None,
-                           versions=q("SELECT id, at FROM quote_versions WHERE session_id=? ORDER BY id DESC", (sr["id"],)),
+                           versions=q("SELECT id, at, number FROM quote_versions WHERE session_id=? ORDER BY id DESC", (sr["id"],)),
                            quote_same=_quote_unchanged(sr["id"]) if sr["stage"] in ("inquiry", "quoted") or replacing(sr["id"]) else None,
                            replacing=replacing(sr["id"]), q_locked=quote_locked(sr["id"]), canceled_vids={r_["old_vid"] for r_ in q(
                                "SELECT old_vid FROM quote_replacements WHERE session_id=? AND old_vid IS NOT NULL", (sr["id"],))},
@@ -4867,6 +5107,13 @@ VIEWS = {
     "all": ("All", "1=1"),
 }
 
+def soonest_first(rows):
+
+    t_ = today().isoformat()
+    day_ = lambda r_: (r_["s"]["shoot_date"] or "")[:10]
+    return ([r_ for r_ in rows if day_(r_) >= t_] + [r_ for r_ in rows if not day_(r_)]
+            + [r_ for r_ in rows if day_(r_) and day_(r_) < t_][::-1])
+
 @app.get("/sessions")
 def sessions():
     view = request.args.get("view", "open")
@@ -4881,6 +5128,7 @@ def sessions():
     rows = session_rows(where, args)
     if request.args.get("owing"):
         rows = [r for r in rows if owed_billed(r["s"], r["t"])]
+    rows = soonest_first(rows)
     labels_ = client_labels()
     nexts_ = session_nexts([r["s"] for r in rows])
     for r in rows:
@@ -4920,7 +5168,7 @@ def search():
                              sessions=q("SELECT id, type, stage, shoot_date FROM sessions WHERE household_id=? ORDER BY COALESCE(shoot_date,'9999') DESC", (h["id"],))))
         for e in q("SELECT * FROM events ORDER BY date DESC"):
             hits.append(dict(kind="event", e=e))
-        return render_template("search.html", term=term, hits=hits, extra=[])
+        return render_template("search.html", term=term, hits=hits, docs=[], extra=[])
     if term:
         for h in q("""SELECT DISTINCT h.id, h.name FROM households h LEFT JOIN people p ON p.household_id=h.id
                       LEFT JOIN sessions s ON s.household_id=h.id
@@ -4940,9 +5188,15 @@ def search():
             if any(digits in ph or (ph and ph in digits) for ph in phones):
                 ses = q("SELECT id, type, stage, shoot_date FROM sessions WHERE household_id=? ORDER BY COALESCE(shoot_date,'9999') DESC", (h["id"],))
                 hits.append(dict(kind="client", h=h, sessions=ses, people=q("SELECT name, phone, email FROM people WHERE household_id=?", (h["id"],))))
+    docs = []
     if term:
         known = {x_["h"]["id"]: x_ for x_ in hits if x_["kind"] == "client"}
         more = {}
+
+        def doc_hit(hid_, sid_, text_):
+            h_ = q("SELECT name FROM households WHERE id=?", (hid_,), one=True)
+            if h_ and not any(d_["text"] == text_ for d_ in docs):
+                docs.append(dict(text=text_, sub=h_["name"], link=stage_url(sid_), hid=hid_))
 
         def hit(hid_, line):
             more.setdefault(hid_, [])
@@ -4961,13 +5215,15 @@ def search():
             for k_, v in json.loads(r_["intake"] or "{}").items():
                 if k_ not in ("address", "venue") and term.lower() in str(v or "").lower():
                     hit(r_["household_id"], f"Intake: {cut(v)}")
-        for r_ in q("""SELECT s.household_id, d.number FROM doc_numbers d JOIN sessions s ON s.id=d.session_id WHERE d.number LIKE ?""", (like,)):
-            hit(r_["household_id"], ("Receipt " if r_["number"].startswith("R-") else "Invoice ") + r_["number"])
+        for r_ in q("""SELECT s.household_id, s.id AS sid, d.number FROM doc_numbers d JOIN sessions s ON s.id=d.session_id WHERE d.number LIKE ?""", (like,)):
+            doc_hit(r_["household_id"], r_["sid"], ("Receipt " if r_["number"].startswith("R-") else "Invoice ") + r_["number"])
         if term.isdigit():
-            for r_ in q("SELECT s.household_id, v.id FROM quote_versions v JOIN sessions s ON s.id=v.session_id WHERE v.id=?", (int(term),)):
-                hit(r_["household_id"], f"Quote {r_['id']}")
-        for r_ in q("""SELECT s.household_id, p.ref, p.amount FROM payments p JOIN sessions s ON s.id=p.session_id WHERE p.ref LIKE ?""", (like,)):
-            hit(r_["household_id"], f"Check #{r_['ref']}, {money(r_['amount'])}")
+
+            for r_ in q("""SELECT s.household_id, s.id AS sid, v.id, v.number FROM quote_versions v JOIN sessions s ON s.id=v.session_id
+                           WHERE v.number=? OR (v.number IS NULL AND v.id=?)""", (term, int(term))):
+                doc_hit(r_["household_id"], r_["sid"], f"Quote {r_['number'] or r_['id']}")
+        for r_ in q("""SELECT s.household_id, s.id AS sid, p.ref, p.amount FROM payments p JOIN sessions s ON s.id=p.session_id WHERE p.ref LIKE ?""", (like,)):
+            doc_hit(r_["household_id"], r_["sid"], f"Check #{r_['ref']}, {money(r_['amount'])}")
         for r_ in q("SELECT household_id, name, notes FROM people WHERE notes LIKE ?", (like,)):
             hit(r_["household_id"], f"{r_['name']}: {cut(r_['notes'])}")
         for hid_, lines in more.items():
@@ -4982,18 +5238,23 @@ def search():
     extra = []
     import settings_index
     found_settings = settings_index.find(term, C.SESSION_TYPES, url_for, settings_index.help_words())
-    if found_settings:
-        extra.append(dict(title="Settings", rows=found_settings))
     for fn in hooks.search:
         try:
             extra += [sec for sec in (fn(term) or []) if sec.get("rows")]
         except Exception:
             app.logger.exception("plugin search")
-    if len(hits) == 1 and hits[0]["kind"] == "client" and len(hits[0]["sessions"]) == 1 and not extra:
+    only_ = not extra and not found_settings
+    if only_ and len(hits) == 1 and hits[0]["kind"] == "client" and len(hits[0]["sessions"]) == 1 and all(
+            d_["hid"] == hits[0]["h"]["id"] for d_ in docs):
         return redirect(stage_url(hits[0]["sessions"][0]["id"]))
-    if len(hits) == 1 and not extra and hits[0]["kind"] == "event":
+    if only_ and len(hits) == 1 and hits[0]["kind"] == "event" and not docs:
         return redirect(url_for("event_view", eid=hits[0]["e"]["id"]))
-    return render_template("search.html", term=term, hits=hits, extra=extra)
+    if only_ and not hits and len(docs) == 1:
+        return redirect(docs[0]["link"])
+
+    if found_settings:
+        extra.insert(0, dict(title="Settings", rows=found_settings))
+    return render_template("search.html", term=term, hits=hits, docs=docs, extra=extra)
 
 @app.get("/pipeline")
 def pipeline():
@@ -5076,6 +5337,21 @@ def rolodex_match(row, term):
         return False
     return True
 
+def rolodex_why(row, term):
+
+    name_, out = row["name"].lower(), []
+    for w_ in (term or "").lower().split():
+        if w_ in name_:
+            continue
+        d_ = _digits(w_) if not re.search(r"[a-z]", w_) else ""
+        for lab_, v_ in row["why_src"]:
+            if w_ in v_.lower() or (d_ and lab_ == "Phone" and d_ in _digits(v_)):
+                line_ = f"{lab_}: {v_}"
+                if line_ not in out:
+                    out.append(line_)
+                break
+    return out
+
 def where_they_stand(sessions_, t):
 
     open_ = [s_ for s_ in sessions_ if s_["stage"] not in ("closed", "lost")]
@@ -5134,18 +5410,25 @@ def clients():
                         owes=money(due_) if due_ > 0.005 else "", late=due_ > 0.005 and h["id"] in late,
                         to_invoice=money(ti_) if ti_ > 0.005 else "",
                         find=" ".join(labels.get(h["id"], []) + [p_["name"] or "" for p_ in ppl]),
+                        why_src=[("Person", p_["name"]) for p_ in ppl if p_["name"]] + [("Phone", phone_), ("Email", email_)]
+                        + [("Label", l_) for l_ in labels.get(h["id"], [])]
+                        + [("Where they stand", stand_), ("Owes", money(due_) if due_ > 0.005 else ""),
+                           ("To invoice", money(ti_) if ti_ > 0.005 else "")],
                         sort=dict(name=client_sort_name(h["name"], h["company"] if "company" in h.keys() else "",
                                                         [p_["name"] or "" for p_ in ppl], is_business_client(h["id"])),
                                   phone=_digits(phone_), email=email_.lower(), stand=stand_key, owed="%.2f" % due_,
                                   toinv="%.2f" % ti_)))
     shown = [r_ for r_ in out if rolodex_match(r_, term)] if term else out
+    for r_ in out:
+        r_["text"] = " ".join([r_["name"], r_["phone"], r_["email"], r_["stand"], r_["owes"], r_["to_invoice"], r_["find"]]).lower()
+        r_["why"] = rolodex_why(r_, term) if term else []
     num_ = sort in ("owed", "toinv")
     shown.sort(key=lambda r_: r_["sort"]["name"])
     shown.sort(key=lambda r_: float(r_["sort"][sort]) if num_ else r_["sort"][sort], reverse=desc)
     if not num_:
         shown.sort(key=lambda r_: not r_["sort"][sort])
     return render_template("clients.html", rows=shown, n_all=len(out), term=term, sort=sort, desc=desc, cols=ROLODEX_COLS,
-                           today_iso=t)
+                           today_iso=t, add_name=term if re.search(r"[^\d\s()+.\-]", term) else "")
 
 CHECK_IN_MONTHS = 10
 CHECK_IN_SNOOZE = 6
@@ -5282,6 +5565,45 @@ def client_label(hid):
             session["notice"] = f'Labeled "{lab_}".'
     return redirect(safe_back(request.form.get("back")) or url_for("client_view", hid=hid) + "#labels")
 
+@app.post("/settings/labels")
+def settings_labels():
+
+    old = request.form.get("label", "")
+    back_ = url_for("settings_view", tab="clients") + "#labels"
+    n_ = q("SELECT COUNT(*) n FROM client_labels WHERE label=?", (old,), one=True)["n"]
+    if not n_:
+        session["notice"] = "No client carries that label now. Nothing was changed."
+        g.refused = True
+        return redirect(back_)
+    if request.form.get("act") == "merge":
+        into = request.form.get("into", "")
+        if not q("SELECT 1 FROM client_labels WHERE label=? LIMIT 1", (into,), one=True) or into == old:
+            session["notice"] = "Pick another label to merge it into. Nothing was changed."
+            g.refused = True
+            return redirect(back_)
+    else:
+        typed = " ".join((request.form.get("new") or "").split())[:40].strip()
+        if not typed:
+            session["notice"] = "Type the label's new name. Nothing was changed."
+            g.refused = True
+            return redirect(back_)
+
+        into = typed if typed.lower() == old.lower() else label_clean(typed)
+    if into == old:
+        g.refused = True
+        return redirect(back_)
+    joins = bool(q("SELECT 1 FROM client_labels WHERE label=? LIMIT 1", (into,), one=True))
+    x("INSERT OR IGNORE INTO client_labels (household_id, label) SELECT household_id, ? FROM client_labels WHERE label=?",
+      (into, old))
+    x("DELETE FROM client_labels WHERE label=?", (old,))
+    who = f"{n_} client{'' if n_ == 1 else 's'}"
+    g.audit_note = f'"{old}" to "{into}", {who}'
+    session["notice"] = (f'Merged "{old}" into "{into}" on {who}.' if joins else f'Renamed "{old}" to "{into}" on {who}.')
+    return redirect(back_)
+
+app.config.setdefault("ep_words", {})["settings_labels"] = lambda f: (
+    "Merged a client label" if f.get("act") == "merge" else "Renamed a client label")
+
 @app.post("/client/<int:hid>/end-contact")
 def client_end_contact(hid):
 
@@ -5312,7 +5634,9 @@ def contact_new():
                WHERE p.household_id=h.id AND p.role IN ('parent','adult') ORDER BY p.id LIMIT 1) AS reach
                FROM households h ORDER BY h.name""")
     if request.method == "GET":
-        return render_template("contact_new.html", households=hh_, vals={}, dupes=[])
+
+        name_ = " ".join(request.args.get("name", "").split())[:200]
+        return render_template("contact_new.html", households=hh_, vals=dict(contact_name=name_) if name_ else {}, dupes=[])
     f = request.form
     name = f.get("contact_name", "").strip()
     if not name:
@@ -5347,6 +5671,19 @@ def contact_message(hid, lid):
         return None
     return q("SELECT id, summary, channel, at FROM log WHERE id=? AND household_id=? AND session_id IS NULL", (lid, hid), one=True)
 
+def contact_standing():
+
+    by_ = {}
+    for s_ in q("SELECT household_id, stage FROM sessions WHERE event_id IS NULL"):
+        by_.setdefault(s_["household_id"], set()).add(s_["stage"])
+    out = {}
+    for hid_, st_ in by_.items():
+        on_ = [x_ for x_ in C.STAGES if x_ in st_ and x_ != "closed"]
+        out[hid_] = (C.STAGE_LABELS[next(x_ for x_ in reversed(on_) if x_ not in ("inquiry", "quoted"))]
+                     if any(x_ not in ("inquiry", "quoted") for x_ in on_) else "Lead" if on_
+                     else "Past client" if "closed" in st_ else "Not booked")
+    return out
+
 @app.route("/inquiry", methods=["GET", "POST"])
 def inquiry():
 
@@ -5360,6 +5697,7 @@ def inquiry():
         return render_template("inquiry.html", h=h, type_=t_ if t_ in C.SESSION_TYPES else "", last_type=last_["type"] if last_ else "",
                                msg=contact_message(hid, request.args.get("msg", type=int)),
                                households=sorted(q("SELECT id, name FROM households"), key=lambda r_: re.sub(r"^the\s+", "", r_["name"].lower())),
+                               standing=contact_standing() if not h else {},
                                people=q("SELECT * FROM people WHERE household_id=? ORDER BY role='parent' DESC, id",
                                         (hid,)) if h else [],
                                plans=q("""SELECT id, title, type, shoot_date FROM sessions WHERE household_id=? AND plan_of IS NULL
@@ -7214,7 +7552,8 @@ def quote_send(sid):
         g.refused = True
         return {"ok": True, "url": url_for("quote_doc", vid=same["id"])} if by_script else redirect(url_for("quote_doc", vid=same["id"]))
     vid = _number_quote(sid, data)
-    g.audit_note = f"quote {vid}, {money(t['quoted'])}"
+    g.audit_note = f"quote {quote_no(vid)}, {money(t['quoted'])}"
+    g.audit_data = json.dumps({"quote_id": vid})
     return {"ok": True, "url": url_for("quote_doc", vid=vid)} if by_script else redirect(url_for("quote_doc", vid=vid))
 
 def _number_quote(sid, data):
@@ -7224,8 +7563,8 @@ def _number_quote(sid, data):
     qt = q("SELECT * FROM quotes WHERE session_id=?", (sid,), one=True)
     for _ in range(5):
         try:
-            vid = x("INSERT INTO quote_versions (id, session_id, at, schedule_id, expires, data) VALUES (?,?,?,?,?,?)",
-                    (next_quote_number(), sid, sent, qt["schedule_id"], expires, json.dumps(data)))
+            vid = x("INSERT INTO quote_versions (id, session_id, at, schedule_id, expires, data, number) VALUES (?,?,?,?,?,?,?)",
+                    (next_quote_number(), sid, sent, qt["schedule_id"], expires, json.dumps(data), next_quote_doc_number(sent)))
             break
         except sqlite3.IntegrityError:
             continue
@@ -7255,7 +7594,7 @@ def quote_replace(sid):
     signed_ = [d_ for d_ in docs_ if d_["status"] == "signed"]
     if docs_:
         x("UPDATE documents SET status='needed', sent=NULL, signed=NULL WHERE session_id=? AND kind='agreement'", (head_,))
-    audit((f"Canceled the booked quote{' ' + str(lq_['id']) if lq_ else ''} ({money(t_['quoted'])}) to replace it: kept in History"
+    audit((f"Canceled the booked quote{' ' + quote_no(lq_['id']) if lq_ else ''} ({money(t_['quoted'])}) to replace it: kept in History"
            if lines_ else "Started a quote for a session booked without one")
           + (f"; the agreement signed {nice(signed_[0]['signed'])} stays on file, and the new quote needs a fresh signature"
              if signed_ and signed_[0]["signed"] else "; the new quote needs the agreement signed" if docs_ else "")
@@ -7290,7 +7629,7 @@ def quote_rebook(sid, s_):
     lock_deposit(sid)
     _rebook_write_off(sid)
     t2_ = totals(sid)
-    audit(f"Booked the new quote {vid} ({money(t2_['quoted'])})"
+    audit(f"Booked the new quote {quote_no(vid)} ({money(t2_['quoted'])})"
           + (f", replacing the canceled one ({money(rp_['old_total'])})" if json.loads(rp_["old_lines"] or "[]") else "")
           + (f"; deposit {money(t2_['deposit_req'])}, {money(t2_['deposit_short'])} still to pay" if t2_["deposit_short"] > 0.005 else ""),
           sid=sid)
@@ -7486,6 +7825,27 @@ def _decodes(photostore, con, fid):
         return True
     except Exception:
         return False
+
+def store_photo(sid, kind, name, data):
+
+    import io as _io
+    import photostore
+    from vault import keys as VK
+    if not data or not _image_head(data[:8]):
+        raise photostore.UploadError(_NOT_AN_IMAGE.format(name=name, what=photostore.KINDS[kind]))
+    con = connect()
+    try:
+        row = photostore.start(con, sid, kind, name, len(data), create=True, master_pub=VK.master_pub(con),
+                               label=_photo_label(sid))
+        if row["state"] == "done":
+            return "had"
+        photostore.append(con, row, row["received"], _io.BytesIO(data[row["received"]:]), len(data) - row["received"],
+                          master_pub=VK.master_pub(con), label=_photo_label(sid))
+        return "added"
+    finally:
+        con.close()
+
+app.config["store_photo"] = store_photo
 
 def _photo_label(sid):
 
@@ -8100,7 +8460,7 @@ def quote_version(vid):
     r = q("SELECT * FROM quote_versions WHERE id=?", (vid,), one=True) or abort(404)
     v = json.loads(r["data"])
     v.setdefault("license", v["type"] in C.LICENSE_TYPES)
-    v.update(id=r["id"], sid=r["session_id"], schedule_id=r["schedule_id"], sent_long=long_date(r["at"]), at=r["at"],
+    v.update(id=r["id"], no=r["number"] or str(r["id"]), sid=r["session_id"], schedule_id=r["schedule_id"], sent_long=long_date(r["at"]), at=r["at"],
              expires_long=long_date(r["expires"]), type_label=v.get("type_label") or C.SESSION_TYPES.get(v["type"], v["type"]),
              shoot_date_long=long_date(v.get("shoot_date")), back=stage_url(r["session_id"]),
 
@@ -8150,7 +8510,7 @@ def quote_mark_sent(vid):
         _mark_quote_sent(vid, v_["session_id"])
         x("UPDATE tasks SET done=?, outcome='done' WHERE session_id=? AND title=? AND done IS NULL",
           (today().isoformat(), v_["session_id"], SEND_TASKS["quote"]))
-        g.audit_note = f"quote {vid}"
+        g.audit_note = f"quote {quote_no(vid)}"
         quote_went(v_["session_id"])
     return redirect(safe_back(request.form.get("back")) or url_for("quote_doc", vid=vid))
 
@@ -8339,7 +8699,7 @@ def _number_marks():
     try:
         raw_ = json.loads(NUMBERS_JSON.read_text())
         marks = {k_: int(v_) for k_, v_ in raw_.items()
-                 if isinstance(k_, str) and re.fullmatch(r"(INV|R)-\d{4}-|Q|S|H|T|E", k_) and str(v_).isdigit() and 0 <= int(v_) < 10**9}
+                 if isinstance(k_, str) and re.fullmatch(r"(INV|R)-\d{4}-|Q|Q-\d{8}|S|H|T|E", k_) and str(v_).isdigit() and 0 <= int(v_) < 10**9}
     except (OSError, ValueError, AttributeError):
         pass
     try:
@@ -8381,7 +8741,7 @@ def _merge_restored_side_files():
             except (OSError, ValueError):
                 raw_ = {}
             for k_, v_ in (raw_.items() if isinstance(raw_, dict) else []):
-                if isinstance(k_, str) and re.fullmatch(r"(INV|R)-\d{4}-|Q|S|H|T|E", k_) and str(v_).isdigit() and 0 <= int(v_) < 10**9:
+                if isinstance(k_, str) and re.fullmatch(r"(INV|R)-\d{4}-|Q|Q-\d{8}|S|H|T|E", k_) and str(v_).isdigit() and 0 <= int(v_) < 10**9:
                     marks[k_] = max(int(v_), int(marks.get(k_, 0)))
             _save_number_marks(marks)
             NUMBERS_RESTORED.unlink(missing_ok=True)
@@ -8428,14 +8788,24 @@ def _seed_number_marks_locked():
         if pre and n_.isdigit() and int(n_) > int(marks.get(pre + "-", 0)):
             marks[pre + "-"] = int(n_)
             changed = True
+    sent_ = q("SELECT note, data FROM audit WHERE route LIKE '/session/%/quote/send'")
     qn = max([q("SELECT COALESCE(MAX(id), 0) n FROM quote_versions", one=True)["n"]] +
-             [int(m_.group(1)) for r_ in q("SELECT note FROM audit WHERE route LIKE '/session/%/quote/send'")
-              if (m_ := re.match(r"quote (\d+),", r_["note"] or ""))])
+             [int(m_.group(1)) for r_ in sent_
+              if (m_ := re.match(r"quote (\d{1,9}),", r_["note"] or ""))] +
+             [_audit_quote_id(r_["data"]) for r_ in sent_])
     if qn > int(marks.get("Q", 0)):
         marks["Q"] = qn
         changed = True
     if changed:
         _save_number_marks(marks)
+
+def _audit_quote_id(data):
+
+    try:
+        d_ = json.loads(data or "{}")
+        return int(d_.get("quote_id") or 0) if isinstance(d_, dict) else 0
+    except (ValueError, TypeError):
+        return 0
 
 def _save_number_marks(marks):
 
@@ -8443,6 +8813,33 @@ def _save_number_marks(marks):
         _write_plain(NUMBERS_JSON, json.dumps(marks))
     except Exception:
         app.logger.exception("saving the document number marks")
+
+def quote_no(vid):
+
+    if not vid:
+        return ""
+    r_ = q("SELECT number FROM quote_versions WHERE id=?", (vid,), one=True)
+    return (r_["number"] if r_ and r_["number"] else str(vid))
+
+app.jinja_env.globals["quote_no"] = quote_no
+
+def next_quote_doc_number(sent):
+
+    day = sent[:10].replace("-", "")
+    with _ID_LOCK:
+        marks = _number_marks()
+        n = int(marks.get("Q-" + day, 0))
+        for r_ in q("SELECT number FROM quote_versions WHERE number LIKE ?", (day + "%",)):
+            tail_ = (r_["number"] or "")[8:]
+            n = max(n, int(tail_) if tail_.isdigit() else 0)
+        for r_ in q("SELECT note FROM audit WHERE route LIKE '/session/%/quote/send' AND note LIKE ?", (f"quote {day}%",)):
+            m_ = re.match(r"quote " + day + r"(\d{2,}),", r_["note"] or "")
+            n = max(n, int(m_.group(1)) if m_ else 0)
+        n += 1
+        marks = {k_: v_ for k_, v_ in marks.items() if not (k_.startswith("Q-") and k_ < "Q-" + day)}
+        marks["Q-" + day] = n
+        _save_number_marks(marks)
+    return f"{day}{n:02d}"
 
 def next_quote_number():
 
@@ -8769,20 +9166,29 @@ def statement_pdf(hid):
     v = statement_ctx(hid, request.args.get("m") or today().strftime("%Y-%m"))
     return html_pdf(render_template("statement.html", v=v, pdf=True), file_slug("statement", v["bill_to"], v["month"]) + ".pdf")
 
-PLUGINS_PAGE = """{% extends "base.html" %}{% block title %}Plugins - Lumen Aureum{% endblock %}{% block body %}
-<h1>Plugins</h1>
-<p class="mute" style="max-width:760px">Parts of Lumen Aureum you can turn on or off. Turning one off keeps everything it
-recorded; turning it on again brings it all back. An administrator can also keep a plugin off for this whole install
-(CRM_PLUGINS_OFF): then its switch here can't turn it on.</p>
+PLUGINS_PAGE = """{% extends "base.html" %}{% from "_macros.html" import help with context %}{% import "_settings_ui.html" as sui with context %}{% block title %}Plugins - Lumen Aureum{% endblock %}{% block body %}
+{{ sui.head('Plugins') }}
+<p class="sui-tip" style="max-width:760px">Turning one off keeps everything it recorded; turning it on again brings it all back.{{ help("An administrator can keep a plugin off for this whole install with the CRM_PLUGINS_OFF setting. Then the switch here can't turn the plugin on.") }}</p>
 {% if ask %}<div class="card f" style="max-width:760px;border-left:3px solid var(--warn)" role="alert"><p style="margin:0">{{ ask.words }}</p>
   <div class="row" style="gap:8px;margin-top:8px"><a class="go" href="{{ ask.finish }}">Finish them first &rsaquo;</a>
   <form method="post" action="{{ url_for('plugins_settings') }}" class="inline"><input type="hidden" name="name" value="{{ ask.name }}"><input type="hidden" name="anyway" value="1"><button class="danger">Turn off anyway</button></form></div></div>{% endif %}
-{% for p in rows %}<div class="card f" style="max-width:760px">
-  <div class="row" style="gap:10px;align-items:center"><span class="grow"><b>{{ p.label }}</b> <span class="mute" style="font-size:13px">{{ p.status }}</span></span>
-  {% if p.switch %}<form method="post" action="{{ url_for('plugins_settings') }}" class="inline"><input type="hidden" name="name" value="{{ p.name }}">{% if p.on %}<button class="quiet">Turn off</button>{% else %}<input type="hidden" name="turn" value="on"><button class="primary">Turn on</button>{% endif %}</form>{% endif %}</div>
+{% for p in rows %}<div class="card f" style="max-width:760px" id="plg-{{ p.name }}">
+  <div class="row" style="gap:10px;align-items:center"><span class="grow"><b>{{ p.label }}</b> <span class="mute" style="font-size:13px">{{ p.status }}</span>{{ help(p.tech) }}</span>
+  {% if p.switch %}<form method="post" action="{{ url_for('plugins_settings') }}" class="inline" data-busy-says="{{ 'Turning off...' if p.on else 'Turning on...' }}"><input type="hidden" name="name" value="{{ p.name }}">{% if p.on %}<button class="quiet">Turn off</button>{% else %}<input type="hidden" name="turn" value="on"><button class="primary">Turn on</button>{% endif %}</form>{% endif %}</div>
   {% if p.about %}<p class="sub" style="margin:4px 0 0">{{ p.about }}</p>{% endif %}
+  {% if p.next %}<p style="margin:8px 0 0;border-left:3px solid var(--gold);padding:2px 10px">{{ p.next }}{% for w_, href_ in p.links %} <a class="go" href="{{ href_ }}">{{ w_ }} &rsaquo;</a>{% endfor %}</p>{% endif %}
 </div>{% endfor %}
 {% endblock %}"""
+
+PLUGIN_WORDS = {
+    "gallery": ("Online galleries", "Builds each client's private gallery and puts it on your web host."),
+    "letters": ("Delivery letters", "Prints the gallery letter with its QR code, the copyright transfer, and SD card labels."),
+    "print_core": ("Print order safekeeping", "Collects every print order a client sends and keeps print money in "
+                                              "Finances, even while Print orders is off."),
+    "retention": ("Keeping and deleting shoot files", "Deletes a shoot's unedited files on the day your agreement names, "
+                                                      "with a reminder on Today a week before."),
+    "studio_page": ("Studio page", "A small public website for your studio, with home, about, and contact pages."),
+}
 
 def _plugin_rows():
     names = [p_["name"] for p_ in PLUGINS_LOADED] + sorted(n_ for n_ in DISABLED_PLUGINS
@@ -8790,16 +9196,31 @@ def _plugin_rows():
     rows = []
     for n_ in names:
         sw = SWITCHES.get(n_)
+        got = next((p_ for p_ in PLUGINS_LOADED if p_["name"] == n_), None)
+        where = f"File: {got['label'] if got else n_}.py."
         if n_ in CORE_PLUGINS:
-            status, switch = "Core: always on", False
+            status, switch, tech = "Always on", False, f"Part of the core of Lumen Aureum: it can't be turned off. {where}"
         elif n_ in DISABLED_PLUGINS:
-            status, switch = "Off for this install (CRM_PLUGINS_OFF): the switch can't turn it on", False
-        elif sw:
-            status, switch = ("On" if plugin_on(n_) else "Off"), True
+            status, switch = "Off for this install", False
+            tech = (f"An administrator turned this plugin off with CRM_PLUGINS_OFF, so the switch here can't turn the "
+                    f"plugin on. {where}")
         else:
-            status, switch = "On (an administrator can turn it off with CRM_PLUGINS_OFF)", False
-        rows.append(dict(name=n_, label=(sw or {}).get("label") or n_, about=(sw or {}).get("about") or "", status=status,
-                         switch=switch, on=plugin_on(n_)))
+            status, switch = (("On" if plugin_on(n_) else "Off"), True) if sw else ("On", False)
+            tech = f"An administrator can keep this plugin off for the whole install with CRM_PLUGINS_OFF. {where}"
+        label, about = PLUGIN_WORDS.get(n_, (n_, ""))
+        if got and not got["built_in"]:
+            about = about or f"Your own plugin, from {got['folder']}."
+        on = plugin_on(n_)
+        nxt, links = "", []
+        if sw and on and sw.get("when_on"):
+            try:
+                nxt = sw["when_on"]() or ""
+                links = [(w_, url_for(e_)) for w_, e_ in sw.get("links") or []] if nxt else []
+            except Exception:
+                app.logger.exception("plugin %s: when_on failed", n_)
+                nxt, links = "", []
+        rows.append(dict(name=n_, label=(sw or {}).get("label") or label, about=(sw or {}).get("about") or about,
+                         status=status, tech=tech, switch=switch, on=on, next=nxt, links=links))
     return rows
 
 @app.route("/settings/plugins", methods=["GET", "POST"])
@@ -8835,8 +9256,25 @@ def plugins_settings():
             x("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
               (f"plugin_off_n_{name}", str(int(setting(f"plugin_off_n_{name}") or 0) + 1)))
         session["notice"] = f"{sw['label']} turned {'on' if on else 'off'}."
-        return redirect(url_for("plugins_settings"))
+        return redirect(safe_back(request.form.get("back")) or url_for("plugins_settings"))
     return render_template_string(PLUGINS_PAGE, rows=_plugin_rows(), ask=ask)
+
+@app.get("/settings/plugin/<name>")
+def plugin_page(name):
+
+    import settings_registry as R_
+    p_ = next((p_ for p_ in R_.pages() if p_.get("plugin") == name), None)
+    loaded = any(x_["name"] == name for x_ in PLUGINS_LOADED)
+    if not p_ or not (loaded or name in DISABLED_PLUGINS):
+        abort(404)
+    if plugin_on(name) and p_["ep"] in app.view_functions:
+        return redirect(url_for(p_["ep"], **p_["args"]))
+    sw = SWITCHES.get(name) or {}
+    label = sw.get("label") or PLUGIN_WORDS.get(name, (p_["label"], ""))[0]
+    about = sw.get("about") or PLUGIN_WORDS.get(name, ("", ""))[1]
+    can = bool(sw) and loaded and name not in DISABLED_PLUGINS
+    return render_template("plugin_off.html", page=p_, label=label, about=about, name=name, can=can,
+                           back=url_for("plugin_page", name=name))
 
 app.config.setdefault("ep_words", {})["plugins_settings"] = lambda f: (
     f"Turned {(SWITCHES.get(f.get('name')) or {}).get('label') or f.get('name')} {'on' if f.get('turn') == 'on' else 'off'}")
@@ -9203,7 +9641,7 @@ def fee_sheet():
         send = send_ctx(sid, "price", f"Price list from {who}", [
             f"My prices{(' (' + ctx_['type_label'] + ')') if ctx_.get('type_label') else ''}, as of {ctx_['as_of']}:",
             "\n".join(rows_[:20] + ([f"and {len(rows_) - 20} more on the full price list"] if len(rows_) > 20 else []))])
-    return render_template("fee_sheet.html", send=send, sid=sid, back_url=stage_url(sid) if send else url_for("settings_view", tab="fees"), **ctx_)
+    return render_template("fee_sheet.html", send=send, sid=sid, back_url=stage_url(sid) if send else url_for("settings_view", tab="prices"), **ctx_)
 
 @app.get("/fees/sheet.pdf")
 def fee_sheet_pdf():
@@ -9244,7 +9682,7 @@ def event_view(eid):
         parent = q("""SELECT * FROM people WHERE household_id=? AND role IN ('parent','adult')
                       ORDER BY role='parent' DESC, id LIMIT 1""", (s["household_id"],), one=True)
         fams.append(dict(s=s, subjects=", ".join(p["name"] for p in subj), parent=parent,
-                         released=bool(docs) and all(dd["status"] == "signed" for dd in docs),
+                         released=all(dd["status"] == "signed" for dd in docs),
                          t=totals(s["id"]) if e["billing"] == "families" else None,
                          n_docs=len(docs), n_signed=sum(dd["status"] == "signed" for dd in docs)))
     payer = q("""SELECT s.*, h.name AS household FROM sessions s JOIN households h ON h.id=s.household_id WHERE s.payer_event=?""",
@@ -9253,7 +9691,8 @@ def event_view(eid):
     hh = sorted(q("SELECT id, name FROM households"), key=lambda r_: (r_["id"] != c_, re.sub(r"^the\s+", "", r_["name"].lower())))
     contact = q("SELECT id, name FROM households WHERE id=?", (c_,), one=True) if c_ else None
     return render_template("event.html", e=e, fams=fams, steps=event_steps(eid), sign_day=event_sign_day(e),
-                           payer=payer, households=hh, payer_total=totals(payer["id"]) if payer else None, contact=contact)
+                           payer=payer, households=hh, payer_total=totals(payer["id"]) if payer else None, contact=contact,
+                           fam_open=family_open_words(event_family_open(eid)))
 
 @app.post("/event/<int:eid>/family-price")
 def event_family_price(eid):
@@ -9409,17 +9848,30 @@ def event_stage(eid):
         abort(400)
     e_ = q("SELECT date FROM events WHERE id=?", (eid,), one=True) or abort(404)
     if stage in ("shot", "delivered", "closed") and e_["date"] and e_["date"] > today().isoformat():
-        session["notice"] = f"Not yet: the event is {nice(e_['date'])}. Families move on from the day itself."
-        g.refused = True
+        msg_ = f"Not yet: the event is {nice(e_['date'])}. Families move on from the day itself."
         if request.headers.get("X-Fetch"):
-            return ("", 409)
+            return (msg_, 409, {"Content-Type": "text/plain; charset=utf-8"})
+        session["notice"] = msg_
+        g.refused = True
         return redirect(safe_back(request.form.get("back")) or url_for("event_view", eid=eid))
-    for s in q("SELECT id, stage FROM sessions WHERE event_id=? AND stage != 'lost'", (eid,)):
+    n_ = 0
+    fam_ = q("SELECT id, stage FROM sessions WHERE event_id=? AND stage != 'lost'", (eid,))
+    for s in fam_:
         if stage in C.STAGES and s["stage"] in C.STAGES and C.STAGES.index(s["stage"]) >= C.STAGES.index(stage):
             continue
         set_stage(s["id"], stage)
+        n_ += 1
+
+    label_ = C.STAGE_LABELS.get(stage, stage)
+    why_ = ("Nothing moved: every family is already at " + label_ + " or further along.") if fam_ else \
+        "Nothing moved: the event has no families yet."
     if request.headers.get("X-Fetch"):
-        return ("", 204)
+        return (why_, 409, {"Content-Type": "text/plain; charset=utf-8"}) if not n_ else ("", 204)
+    if n_:
+        session["notice"] = f"Moved {n_} famil{'y' if n_ == 1 else 'ies'} to {label_}."
+    else:
+        session["notice"] = why_
+        g.refused = True
     return redirect(safe_back(request.form.get("back")) or url_for("event_view", eid=eid))
 
 def money_year(arg):
@@ -9505,7 +9957,10 @@ def money_view():
             bd = balance_due_date(s["shoot_date"], s["type"], sid=s["id"])
             outstanding.append(dict(s=s, t=tt, due_on=bd, late=bool(bd and bd < today().isoformat())))
         elif s["stage"] == "booked" and tt["due"] > 0.005:
-            upcoming.append(dict(s=s, t=tt))
+
+            rem_ = payment_reminder(s, tt)
+            late_ = bool(rem_ and rem_["late"]) or bool(s["shoot_date"] and s["shoot_date"] < today().isoformat())
+            upcoming.append(dict(s=s, t=tt, rem=rem_, late=late_))
     return render_template("money.html", net_days=C.BALANCE_NET_DAYS, year=year, received=ym["received"],
                            total=ym["total"], exp=ym["exp"], rate=ym["rate"], by_month=ym["by_month"],
                            funnel={r["stage"]: r["n"] for r in funnel}, outstanding=outstanding, to_invoice=to_invoice,
@@ -9739,6 +10194,15 @@ def money_accounts():
 
 @app.route("/settings", methods=["GET", "POST"])
 def settings_view():
+    import settings_registry as _reg
+    tab_ = request.args.get("tab") or ""
+    if request.method == "GET" and request.args.get("find") is not None:
+
+        return redirect(url_for("search", q=request.args.get("find") or None))
+    if request.method == "GET" and tab_ in _reg.OLD_TABS:
+
+        more_ = {k_: v_ for k_, v_ in request.args.items() if k_ != "tab"}
+        return redirect(url_for("settings_view", tab=_reg.OLD_TABS[tab_], **more_))
     if request.method == "POST":
         for k in ("mileage_rate", "home_base", "photographer_name", "studio_name", "business_name", "business_address", "business_email", "business_phone", "gallery_base_url",
                   "business_tax_id", "bank_details", "pay_details", "business_website"):
@@ -9750,6 +10214,7 @@ def settings_view():
                 raw_, v = v, _sio.clean_site(v)
                 if v is None:
                     session["notice"] = f"The website wasn't saved: {_sio.site_problem(raw_)}. Everything else was saved."
+                    _field_refused(k, f"Not saved: {_sio.site_problem(raw_)}.")
                     continue
             if k == "gallery_base_url" and v.strip() and not v.strip().startswith("https://"):
                 session["notice"] = ("The gallery address wasn't saved: it must start with https://. Clients' browsers"
@@ -9760,15 +10225,21 @@ def settings_view():
         term = request.form.get("quote_term_days", "")
         if term.isdigit():
             x("INSERT INTO settings (key, value) VALUES ('quote_term_days',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (term,))
-        if request.form.get("main_posted"):
+
+        main_ = request.form.get("main_posted")
+        if main_ or request.form.get("credit_posted"):
             x("INSERT INTO settings (key, value) VALUES ('credit_off',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
               ("" if request.form.get("credit") else "1",))
-            for k_, lo_, hi_ in (("check_in_snooze_months", 1, 36), ("idle_signout_hours", 1, 72)):
-                v_ = request.form.get(k_, "").strip()
-                if v_.isdigit() and lo_ <= int(v_) <= hi_:
-                    x("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (k_, v_))
-                elif v_:
-                    session["notice"] = f"That number wasn't saved: it must be a whole number from {lo_} to {hi_}."
+        nums_ = ((("check_in_snooze_months", 1, 36),) if main_ or request.form.get("clients_posted") else ()) + \
+                ((("idle_signout_hours", 1, 72),) if main_ or request.form.get("idle_posted") else ())
+        for k_, lo_, hi_ in nums_:
+            v_ = request.form.get(k_, "").strip()
+            if v_.isdigit() and lo_ <= int(v_) <= hi_:
+                x("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (k_, v_))
+            elif v_:
+                session["notice"] = f"That number wasn't saved: it must be a whole number from {lo_} to {hi_}."
+                _field_refused(k_, f"Not saved: a whole number from {lo_} to {hi_}.")
+        if main_ or request.form.get("clients_posted"):
             am = request.form.get("age_majority", "")
             if am.isdigit() and 14 <= int(am) <= 25:
                 x("INSERT INTO settings (key, value) VALUES ('age_majority',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (am,))
@@ -9813,16 +10284,31 @@ def settings_view():
                 new_id = x("INSERT INTO fee_schedules (created, items, note) VALUES (?,?,?)", (now_local(), json.dumps(items), ""))
                 if was_:
                     approve_prices(new_id, quiet=True)
-        return redirect(url_for("settings_view", tab=request.args.get("tab") or None,
-                                saved=None if session.get("notice") else 1))
+        back_ = safe_back(request.form.get("back"))
+        if back_:
+            if not session.get("notice"):
+                session["notice"] = "Saved."
+            return redirect(back_)
+        form_ = re.sub(r"[^a-z0-9-]", "", request.form.get("form_id", ""))[:30]
+        tab_ = _reg.OLD_TABS.get(tab_, tab_)
+        return redirect(url_for("settings_view", tab=tab_ or None,
+                                saved=None if session.get("notice") else (form_ or 1))
+                        + (f"#save-{form_}" if form_ and not session.get("notice") else ""))
     n_demo = q("SELECT COUNT(*) n FROM households WHERE demo=1", one=True)["n"]
     import settings_io
     look = settings_io.clean_look(setting("gallery_font"), setting("gallery_bg"), setting("proof_mark"),
                                   setting("proof_mark_text"), setting("proof_mark_strength"))
     logo_, dlogo_ = setting("logo_png"), setting("logo_dark_png")
-    look_logos = dict(light=logo_, dark=dlogo_ or (settings_io.white_logo(logo_) if logo_ and request.args.get("tab") == "gallery" else ""))
+    look_logos = dict(light=logo_, dark=dlogo_ or (settings_io.white_logo(logo_) if logo_ and tab_ == "branding" else ""))
     own_font_ = dict(name=setting("brand_font_name") or "Your font", light=bool(setting("brand_font_300"))) if setting("brand_font_400") else None
+    emb_ = app.config.get("setup_embed")
+    where_home_ = Markup(emb_("business", "/settings?tab=profile#location")) if (
+        callable(emb_) and (tab_ or "profile") == "profile" and setting("setup_complete") == "1") else ""
+    labels_ = q("SELECT label, COUNT(*) n FROM client_labels GROUP BY label ORDER BY lower(label)") if tab_ == "clients" else []
     return render_template("settings.html", plugin_errors=PLUGIN_ERRORS, look=look, look_logos=look_logos, own_font=own_font_,
+                           where_home_form=where_home_, labels=labels_,
+                           ntfy={r_["key"]: r_["value"] for r_ in q("SELECT key, value FROM settings WHERE key IN ('ntfy_server','ntfy_topic','ntfy_token')")}
+                           if tab_ == "notifications" else None,
                            look_pal=settings_io.palette(look["gallery_bg"]), palettes=settings_io.PALETTES, rate=setting("mileage_rate"), home_base=setting("home_base"),
                            photographer=setting("photographer_name"), studio=setting("studio_name"),
                            gallery_base=setting("gallery_base_url"),
@@ -9854,7 +10340,7 @@ def brand_font_upload():
 
     import base64
     import settings_io as _sio
-    back_ = url_for("settings_view", tab="gallery") + "#gallery-look"
+    back_ = url_for("settings_view", tab="branding") + "#gallery-look"
     if request.form.get("look_posted"):
         save_look(request.form)
     if request.form.get("remove"):
@@ -9899,12 +10385,12 @@ def settings_clear_demo():
     if not n_:
         g.refused = True
         session["notice"] = "There are no demo clients left to delete."
-        return redirect(url_for("settings_view"))
+        return redirect(url_for("settings_view", tab="clients"))
     import jobs
     jobs.start(app, "demo-delete", f"Deleting the {_demo_words(n_)}", _delete_demo_clients)
     session["notice"] = (f"Deleting the {_demo_words(n_)}: their galleries and photos go first. The progress shows at "
                          "the bottom of the page.")
-    return redirect(url_for("settings_view"))
+    return redirect(url_for("settings_view", tab="clients"))
 
 def _delete_demo_clients(job):
 
@@ -9952,7 +10438,7 @@ def review_rows():
             rows.append(dict(label=REVIEW_DOCS[doc].split(" (")[0], for_=oxford([C.SESSION_TYPES[t] for t in types_]),
                              reviewed=st["reviewed"], when=st["when"], url=review_url(doc, types_[0] if doc == "terms" or len(seen) > 1 else None)))
     st = review_state("terms")
-    rows.append(dict(label="Price list terms", for_="every type", reviewed=st["reviewed"], when=st["when"], url=url_for("settings_view", tab="fees") + "#terms"))
+    rows.append(dict(label="Price list terms", for_="every type", reviewed=st["reviewed"], when=st["when"], url=url_for("settings_view", tab="prices") + "#terms"))
     return rows
 
 def logo_src():
@@ -9979,7 +10465,7 @@ def logo_upload():
     import io as _io
     dark = request.form.get("which") == "dark"
     key_, what_ = ("logo_dark_png", "the logo for dark gallery backgrounds") if dark else ("logo_png", "the logo")
-    back_ = url_for("settings_view", tab="gallery") + "#gallery-look" if dark else url_for("settings_view", tab="general") + "#logo"
+    back_ = url_for("settings_view", tab="branding") + "#gallery-look" if dark else url_for("settings_view", tab="branding") + "#logo"
     if dark and request.form.get("look_posted"):
         save_look(request.form)
     if request.form.get("remove"):
@@ -10188,7 +10674,7 @@ def review_url(doc, stype=None):
     if stype and stype not in {t_["key"] for t_ in C.TYPES}:
         stype = None
     if doc == "terms":
-        return url_for("type_edit", key=stype) + "#terms" if stype else url_for("settings_view", tab="fees") + "#terms"
+        return url_for("type_edit", key=stype) + "#terms" if stype else url_for("settings_view", tab="prices") + "#terms"
     return url_for("wording_edit", doc=doc, type=stype or None)
 
 @app.post("/settings/review/<doc>")
@@ -10341,12 +10827,17 @@ def type_walk(key, n):
     if request.method == "POST" and n < len(steps):
         step, act = steps[n], request.form.get("act")
         if act == "save":
+            before_ = json.dumps(t, sort_keys=True)
             step["put"](request.form)
+            if json.dumps(t, sort_keys=True) != before_:
+                mine["changed"] = True
             _save_rules(TYPES=types)
             if step["id"] in ("portfolio", "deposit"):
                 for r_ in q(UNAGREED_SQL, (key,)):
                     reapply_discount(r_["id"])
-        if act in ("save", "keep"):
+            if step["id"] == "steps":
+                _sync_type_sessions(key)
+        if act in ("save", "keep", "finish"):
             mine["done"] = sorted(set(mine["done"]) | {step["id"]})
             mine["skipped"] = [i for i in mine["skipped"] if i != step["id"]]
         elif act == "skip":
@@ -10355,10 +10846,69 @@ def type_walk(key, n):
         nxt = len(steps) if act == "finish" else n + 1
         return redirect(url_for("type_walk", key=key, n=nxt))
     if n >= len(steps):
-        return render_template("walk.html", t=t, steps=steps, n=n, mine=mine, summary=True)
+
+        if mine.pop("changed", None):
+            _put_setting("walk", json.dumps(st))
+        return render_template("walk.html", t=t, steps=steps, n=len(steps), mine=mine, summary=True,
+                               terms=C.build_terms(key, setting("business_name")), rs=review_state("terms", key))
     step = steps[n]
+    auto_label = {k_: v_[0] for k_, v_ in AUTO.items()}
     return render_template("walk.html", t=t, steps=steps, n=n, step=step, value=step["get"](), preview=step["preview"](),
-                           mine=mine, summary=False)
+                           mine=mine, summary=False, reuse=W.reuse(key, step.get("reuse", step["id"])),
+                           step_rows=C.step_rows(t, auto_label) if step["id"] == "steps" else None)
+
+@app.post("/settings/type/<key>/walk/approve")
+def type_walk_approve(key):
+
+    t = next((t_ for t_ in C.TYPES if t_["key"] == key), None) or abort(404)
+    r_ = _reviews()
+    r_[_review_key("terms", key)] = today().isoformat()
+    x("INSERT INTO settings (key, value) VALUES ('doc_reviews',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (json.dumps(r_),))
+    audit(f"Reviewed the {REVIEW_DOCS['terms'].split(' (')[0].lower()} wording for {t['label']}")
+    st = _walk_state()
+    mine = st.setdefault(key, {"done": [], "skipped": []})
+    mine.pop("changed", None)
+    mine["finished"] = today().isoformat()
+    _put_setting("walk", json.dumps(st))
+    session["notice"] = f"{t['label']}'s terms are approved. They no longer print as SAMPLE."
+    return redirect(url_for("type_edit", key=key) + "#terms")
+
+_WALK_PV = {}
+_WALK_PV_LOCK = threading.Lock()
+
+@app.post("/settings/type/<key>/walk/<int:n>/preview")
+def type_walk_preview(key, n):
+
+    import importlib.util
+    with _WALK_PV_LOCK:
+        if not _WALK_PV:
+            for name_, mod_ in (("config", "_pv_config"), ("walkthrough", "_pv_walkthrough")):
+                spec_ = importlib.util.spec_from_file_location(mod_, os.path.join(os.path.dirname(__file__), name_ + ".py"))
+                m_ = importlib.util.module_from_spec(spec_)
+                spec_.loader.exec_module(m_)
+                _WALK_PV[name_] = m_
+        C2, W2 = _WALK_PV["config"], _WALK_PV["walkthrough"]
+        W2.C = C2
+        try:
+            rules_ = json.loads(setting("rules") or "{}")
+        except ValueError:
+            rules_ = {}
+        C2.apply(rules_)
+        types_ = [json.loads(json.dumps(t_)) for t_ in C.TYPES]
+        t_ = next((x_ for x_ in types_ if x_["key"] == key), None)
+        if t_ is None:
+            abort(404)
+        steps_ = W2.steps_for(t_)
+        if not 0 <= n < len(steps_):
+            abort(404)
+        try:
+            steps_[n]["put"](request.form)
+            C2.apply(dict(rules_, TYPES=types_))
+            text_ = steps_[n]["preview"]()
+        except Exception:
+            app.logger.exception("walk preview")
+            text_ = None
+    return {"preview": text_}
 
 def update_notice():
 
@@ -10401,7 +10951,7 @@ def walk_offer():
     if setting("walk_dismissed") == "1" or not setup_done():
         return []
     st = _walk_state()
-    return [(k_, lab) for k_, lab in C.SESSION_TYPES.items() if k_ != C.PERSONAL_TYPE["key"] and not (st.get(k_) or {}).get("done")]
+    return [(k_, lab) for k_, lab in C.SESSION_TYPES.items() if k_ != C.PERSONAL_TYPE["key"] and not ((st.get(k_) or {}).get("done") or (st.get(k_) or {}).get("finished"))]
 
 app.jinja_env.globals["walk_offer"] = walk_offer
 
@@ -10414,31 +10964,37 @@ def type_edit(key):
     step_kind = "event" if t["kind"] == "event" else "do"
     if request.method == "POST":
         f = request.form
-        steps = {}
+        steps, off = {}, {}
         for stage in C.STEP_STAGES:
-            rows = []
+            rows, off_ = [], []
             for i in range(60):
                 k_ = f"{stage}_{i}"
                 if k_ + "_kind" not in f:
                     break
-                if f.get(k_ + "_drop"):
+                if f.get(k_ + "_drop") and not (f[k_ + "_kind"] == "auto" and f.get(k_ + "_key") == C.GALLERY_STEP[1]):
                     continue
                 if f[k_ + "_kind"] == "auto":
-                    if f.get(k_ + "_key") in C.AUTO_KEYS:
-                        rows.append(["auto", f[k_ + "_key"]])
-                    continue
-                label = (f.get(k_ + "_label") or "").strip()[:80]
-                if label:
-                    rows.append([step_kind, label, _days(f.get(k_ + "_days"))])
+                    if f.get(k_ + "_key") not in C.AUTO_KEYS:
+                        continue
+                    row = ["auto", f[k_ + "_key"]]
+                else:
+                    label = (f.get(k_ + "_label") or "").strip()[:80]
+                    if not label:
+                        continue
+                    row = [step_kind, label, _days(f.get(k_ + "_days"))]
+                rows.append(row)
+
+                if f.get(k_ + "_on") == "0" and C.step_id(row) != C.GALLERY_STEP:
+                    off_.append(list(C.step_id(row)))
             if f.get(stage + "_new"):
                 rows.append([step_kind, f[stage + "_new"].strip()[:80], _days(f.get(stage + "_new_days"))])
             if f.get(stage + "_auto") in C.AUTO_KEYS:
                 rows.append(["auto", f[stage + "_auto"]])
             if [tuple(r) for r in rows] != [tuple(r) for r in kind_flow.get(stage, [])]:
                 steps[stage] = rows
-        t["steps"] = steps
-        if not steps:
-            t.pop("steps", None)
+            if off_:
+                off[stage] = off_
+        _put_steps(t, steps, off)
         for flag in ("all_sign", "indoors"):
             if f.get(flag):
                 t[flag] = True
@@ -10486,11 +11042,38 @@ def type_edit(key):
             if q(UNAGREED_SQL + " AND id=?", (key, r_["id"]), one=True):
                 reapply_discount(r_["id"])
         return redirect(url_for("type_edit", key=key, saved=1))
-    flow = C.WORKFLOW[key]
-    return render_template("type_edit.html", t=t, flow=flow, stages=C.STEP_STAGES, policy=C.POLICY[key],
+    import walkthrough as W
+    auto_label = {k_: v_[0] for k_, v_ in AUTO.items()}
+    return render_template("type_edit.html", t=t, step_rows=C.step_rows(t, auto_label), stages=C.STEP_STAGES, policy=C.POLICY[key],
                            dep_setup=C.deposit_follows_setup(t) or C.DEPOSIT_RULE.get(key) is None, dep_rule=C.DEPOSIT_RULE.get(key),
-                           questions="\n".join(q_[1] for q_ in C.INTAKE[key]),
-                           auto_label={k_: v_[0] for k_, v_ in AUTO.items()}, saved=request.args.get("saved"))
+                           questions="\n".join(q_[1] for q_ in C.INTAKE[key]), reuse=lambda fid: W.reuse(key, fid),
+                           auto_label=auto_label, saved=request.args.get("saved"))
+
+def _put_steps(t, steps, off):
+
+    t.pop("steps", None)
+    t.pop("steps_off", None)
+    if steps:
+        t["steps"] = steps
+    if off:
+        t["steps_off"] = off
+
+def _sync_type_sessions(key):
+
+    for r_ in q("SELECT id FROM sessions WHERE type=? AND stage NOT IN ('closed','lost')", (key,)):
+        sync_workflow_tasks(r_["id"])
+
+@app.post("/settings/type/<key>/steps-reset")
+def type_steps_reset(key):
+
+    types = [dict(t_) for t_ in C.TYPES]
+    t = next((t_ for t_ in types if t_["key"] == key), None) or abort(404)
+    _put_steps(t, {}, {})
+    _save_rules(TYPES=types)
+    _sync_type_sessions(key)
+    audit(f"Reset the steps for {t['label']} to the defaults")
+    session["notice"] = f"{t['label']} has the default steps again."
+    return redirect(safe_back(request.form.get("back")) or url_for("type_edit", key=key))
 
 def _parse_questions(text, current):
 
@@ -11030,6 +11613,10 @@ CREATE TABLE IF NOT EXISTS doc_numbers (session_id INTEGER REFERENCES sessions(i
   number TEXT NOT NULL UNIQUE, issued TEXT, PRIMARY KEY (session_id, kind));
 CREATE TABLE IF NOT EXISTS invoice_sent (session_id INTEGER PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
   number TEXT NOT NULL, sig TEXT NOT NULL);""")
+    if "number" not in dbmod.columns(con, "quote_versions"):
+
+        dbmod.add_column(con, "quote_versions", "number", "TEXT")
+    con.execute("CREATE UNIQUE INDEX IF NOT EXISTS quote_versions_number ON quote_versions(number)")
     if not con.execute("SELECT 1 FROM fee_schedules").fetchone():
         con.execute("INSERT INTO fee_schedules (created, items, note) VALUES (?,?,?)",
                     (now_local(), json.dumps(C.DEFAULT_FEES), "Starting estimates"))
@@ -11240,14 +11827,25 @@ def security_notice():
     if act == "save":
         server, topic, token = (f.get("server") or "").strip().rstrip("/"), (f.get("topic") or "").strip(), (f.get("token") or "").strip()
         why = locknotice.check(server, topic)
+        if not why and f.get("replace") and ntfy_settings():
+
+            sent_ = locknotice.send(dict(server=server, topic=topic, token=token), locknotice.TEST_TEXT)
+            if sent_:
+                why = f"The test notice couldn't be sent to the new server ({sent_}), so the one in use now stays."
         if why:
             session["notice"] = why
             g.notice_refused = True
+            if f.get("replace"):
+                return redirect(url_for("settings_view", tab="notifications", replace="ntfy") + "#notice")
         else:
+            if f.get("replace"):
+                mark_ = app.config.get("conn_mark")
+                if mark_:
+                    mark_("ntfy", True)
             had = ntfy_settings()
             _put_setting("ntfy_server", server)
             _put_setting("ntfy_topic", topic)
-            if token or f.get("drop_token"):
+            if token or f.get("drop_token") or f.get("replace"):
                 _put_setting("ntfy_token", token)
             ntfy_mirror()
             audit("Changed the locked-studio notice" if had else "Set up the locked-studio notice")
@@ -11261,10 +11859,12 @@ def security_notice():
             if why:
                 session["notice"] = why
                 g.notice_refused = True
-                return redirect(url_for("security") + "#notice")
+                return redirect(url_for("settings_view", tab="notifications") + "#notice")
             token = "" if f.get("drop_token") else ((f.get("token") or "").strip() or (v or {}).get("token", ""))
             v = dict(server=server, topic=topic, token=token)
         why = locknotice.send(v, locknotice.TEST_TEXT) if v else "set up a server and topic first"
+        if v and not (server or topic) and app.config.get("conn_mark"):
+            app.config["conn_mark"]("ntfy", not why, why or "")
         if why:
             app.logger.warning("The test notice could not be sent: %s", why)
         session["notice"] = ("Test notice sent. If it doesn't arrive, check the topic in the ntfy app on your phone."
@@ -11276,7 +11876,7 @@ def security_notice():
         ntfy_mirror()
         audit("Turned off the locked-studio notice")
         session["notice"] = "The locked-studio notice is off, and its plain file is deleted."
-    return redirect(url_for("security") + "#notice")
+    return redirect(url_for("settings_view", tab="notifications") + "#notice")
 
 def _after_locked_start():
 

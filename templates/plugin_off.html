@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% import "_settings_ui.html" as sui with context %}
+{% block title %}{{ page.label }} - Lumen Aureum{% endblock %}
+
+{% block body %}
+{{ sui.head(page.label) }}
+{{ sui.plugin_off(label, about, name, can, back) }}
+{% endblock %}
+

@@ -37,8 +37,10 @@
   <div class="ui-head-text">
     {% if kicker %}<div class="ui-kicker">{{ kicker }}</div>{% endif %}
     <h1>{{ title }}</h1>
-    {% if status %}<p class="ui-status">{{ status }}</p>{% endif %}
-    {% if sub %}<div class="ui-head-sub">{{ sub }}</div>{% endif %}
+    
+    {% if status and sub %}<p class="ui-status">{{ status }}<span class="ui-sep" aria-hidden="true"> &middot; </span><span class="ui-head-sub">{{ sub }}</span></p>
+    {% elif status %}<p class="ui-status">{{ status }}</p>
+    {% elif sub %}<div class="ui-head-sub">{{ sub }}</div>{% endif %}
   </div>
 </header>
 {%- endmacro %}
@@ -160,7 +162,7 @@
 {%- set opts_ = (more|map(attribute='verb')|map('lower')|list) + (['mark it waived, not needed, or client declined'] if a.close else []) -%}
 {%- set tip_ = "More for " ~ (a.what or "this step") ~ ": " ~ opts_|join(", ") -%}
 <details class="ui-rowmore"><summary aria-label="{{ tip_ }}" data-tip="{{ tip_ }}">More</summary><div class="ui-more-pop">
-{% for m in more %}<form method="post" action="{{ m.post }}" data-ui-inplace{% if m.confirm %} data-confirm="{{ m.confirm }}"{% if m.confirm_sets %} data-confirm-sets="{{ m.confirm_sets }}"{% endif %}{% endif %}>{% for fk, fv in m.fields.items() %}<input type="hidden" name="{{ fk }}" value="{{ fv }}">{% endfor %}<input type="hidden" name="back" value="{{ back }}">
+{% for m in more %}<form method="post" action="{{ m.post }}" data-ui-inplace{% if m.mail %} data-ui-mail="{{ m.mail }}"{% endif %}{% if m.confirm %} data-confirm="{{ m.confirm }}"{% if m.confirm_sets %} data-confirm-sets="{{ m.confirm_sets }}"{% endif %}{% endif %}>{% for fk, fv in m.fields.items() %}<input type="hidden" name="{{ fk }}" value="{{ fv }}">{% endfor %}<input type="hidden" name="back" value="{{ back }}">{% if m.mail %}<input type="hidden" name="mail" value="1">{% endif %}
 {%- if m.ask %}<input name="{{ m.ask_name or 'note' }}" maxlength="200" required placeholder="{{ m.ask }}" aria-label="{{ m.ask }}">{% endif %}<button class="ui-menu-item ui-menu-lead">{{ m.verb }}</button></form>{% endfor %}
 {% if a.close %}<form method="post" action="{{ url_for('close_step') }}" data-ui-inplace>{% for fk, fv in a.close.items() %}<input type="hidden" name="{{ fk }}" value="{{ fv }}">{% endfor %}
 <div class="ui-menu-head">{{ 'Or close' if more else 'Close' }} this step without doing it:</div>
@@ -177,6 +179,7 @@
 {%- if a.alt %}{% set more_ = more_ + [a.alt] %}{% endif -%}
 {%- if a.more_items %}{% set more_ = more_ + a.more_items %}{% endif -%}
 {%- if a.wait -%}{{ chip(a.wait) }}
+{%- elif a.mail and a.post and a.preview -%}{{ opener(step_form_id(a), label or a.verb, kind) }}
 {%- elif a.mail and a.post -%}{% import "_ui_mail.html" as uim_ with context %}{{ uim_.mail_action(a.post, a.mail, label or a.verb, back, kind, fields=a.fields) }}
 {%- elif a.form -%}{{ opener(step_form_id(a), label or a.verb, kind) }}
 {%- elif a.doc -%}{{ button_link(a.doc, label or a.doc_verb or 'Open document', kind, blank=not a.doc_here) }}
@@ -215,8 +218,17 @@
       <input type="date" name="received" value="{{ today.isoformat() }}" aria-label="Payment received on" class="ui-input-date"><button class="ui-btn ui-btn-primary">Record payment</button></form>
   {% elif a.form == 'date_set' %}
     <form method="post" action="{{ url_for('quick', sid=a.sid) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="act" value="date">{% if a.firm %}<input type="hidden" name="firm" value="1">{% endif %}<input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seen" value="{{ edit_stamp('when', a.sid) }}">
-      <input type="date" name="shoot_date" aria-label="Shoot date" required class="ui-input-date" data-avail="{{ a.sid }}" value="{{ (s.shoot_date or '')[:10] if s and a.prefill else '' }}"><input type="time" name="start_time" aria-label="Start time" class="ui-input-date" value="{{ (s.start_time or '')[:5] if s and a.prefill else '' }}"><input name="where" maxlength="200" placeholder="Where" aria-label="Where" class="ui-grow" value="{{ a.where or '' }}">
-      {%- if s and a.prefill and not a.firm %}<input type="hidden" name="tentative_shown" value="1"><label class="ui-check"><input type="checkbox" name="tentative" value="1"{{ ' checked' if s.date_tentative }}>Date not final yet</label>{% endif %}<button class="ui-btn ui-btn-primary">Set</button></form>
+      
+      {%- set sv_ = s if s else (a if 'shoot_date' in a else none) %}
+      <input type="date" name="shoot_date" aria-label="Shoot date" required class="ui-input-date" data-avail="{{ a.sid }}" value="{{ (sv_.shoot_date or '')[:10] if sv_ and a.prefill else '' }}"><input type="time" name="start_time" aria-label="Start time" class="ui-input-date" value="{{ (sv_.start_time or '')[:5] if sv_ and a.prefill else '' }}"><input name="where" maxlength="200" placeholder="Where" aria-label="Where" class="ui-grow" value="{{ a.where or '' }}">
+      {%- if sv_ and a.prefill and not a.firm %}<input type="hidden" name="tentative_shown" value="1"><label class="ui-check"><input type="checkbox" name="tentative" value="1"{{ ' checked' if sv_.date_tentative }}>Date not final yet</label>{% endif %}<button class="ui-btn ui-btn-primary">Set</button></form>
+  {% elif a.preview and a.mail and a.post %}
+    {% import "_ui_mail.html" as uim_ with context %}{% set pv_ = mail_preview(a.mail) %}
+    <div class="ui-mailpv">
+      <p class="ui-mute">Your mail app opens with this email to {{ pv_.to }}. Send it from there.</p>
+      <p><b>Subject:</b> {{ pv_.subject }}</p>
+      <p class="ui-pre">{{ pv_.body }}</p>
+      <div class="ui-btnrow">{{ uim_.mail_action(a.post, a.mail, a.verb, back, 'primary', fields=a.fields) }}</div></div>
   {% elif a.form == 'favorites' %}
     <form method="post" action="{{ url_for('quick', sid=a.sid) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="act" value="favorites"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seen" value="{{ edit_stamp('picks', a.sid) }}">
       <textarea name="retouch_picks" rows="2" placeholder="Retouch" aria-label="Retouch" class="ui-grow"></textarea><input name="favorites" placeholder="Portfolio suggestions" aria-label="Portfolio suggestions" class="ui-grow"><input name="veto" placeholder="Don't show" aria-label="Don't show" class="ui-grow"><button class="ui-btn ui-btn-primary">Save</button></form>
@@ -230,7 +242,7 @@
 {% call todo_row(a.what, icon=a.sym or 'task_alt', status=st_, when=nice(a.when) if a.when else '', when_late=(a.group == 'overdue'),
                  detail=a.detail or '', note=a.note or '', theirs=a.theirs, id=step_row_id(a), tip=a.tip or '',
                  face=avatar(a.who.hid, 18) if a.theirs and a.who and a.who.hid else '') %}{{ step_action(a, back, 'primary' if lead else 'quiet') }}{% endcall %}
-{%- if a.form %}{{ step_form(a, back, s) }}{% endif -%}
+{%- if a.form or a.preview %}{{ step_form(a, back, s) }}{% endif -%}
 {%- endmacro %}
 
 

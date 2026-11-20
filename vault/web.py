@@ -1,3 +1,4 @@
+from markupsafe import Markup
 import json
 import os
 import secrets
@@ -44,6 +45,10 @@ def describe(cfg):
             "s3": f"S3 bucket {cfg.get('bucket')}{' at ' + cfg['endpoint'] if cfg.get('endpoint') else ''}"
                   + (" (plain http, accepted only on your own network)"
                      if str(cfg.get("endpoint") or "").lower().startswith("http://") else "")}.get(t, t)
+
+def short(cfg):
+
+    return {"local": "Folder", "sftp": "SFTP", "s3": "S3"}.get((cfg or {}).get("type"), "") if cfg else ""
 
 def _setting(con, key, default=""):
     r = con.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
@@ -185,6 +190,9 @@ def register(app, connect, audit):
                                second_err=second_err, objs=objs, last_db=last_db, n_keys=n_keys, btime=btime, blast=blast,
                                backups=backups(connect), obj_words=OBJ_WORDS, result=_s.pop("vault_result", None),
                                primary=describe(c.get("primary")), offsite=describe(c.get("secondary")),
+                               primary_short=short(c.get("primary")), offsite_short=short(c.get("secondary")),
+                               storage_form=Markup(app.config["setup_embed"]("storage", "/vault#where"))
+                               if callable(app.config.get("setup_embed")) else "",
                                gallery=describe(c.get("gallery_host")))
 
     @app.post("/vault/backup-now", endpoint="vault_backup_now")

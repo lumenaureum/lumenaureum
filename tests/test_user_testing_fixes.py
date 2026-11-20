@@ -174,7 +174,7 @@ def test_walkthrough_keeps_changes_and_skips(tmp_path, monkeypatch):
     ids = [s["id"] for s in W.steps_for(dict(t))]
     for i in range(len(ids)):
         r = c.get(f"/settings/type/wedding/walk/{i}", environ_base=E)
-        assert r.status_code == 200 and "What the client reads" in r.get_data(as_text=True) or ids[i] in ("minutes", "signers")
+        assert r.status_code == 200 and "What the client reads" in r.get_data(as_text=True) or ids[i] in ("minutes", "signers", "steps")
     n = ids.index("delivery_days")
     c.post(f"/settings/type/wedding/walk/{n}", data={"act": "save", "delivery_days": "45"}, environ_base=E)
     assert C.delivery_days("wedding") == 45

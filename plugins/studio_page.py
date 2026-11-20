@@ -1080,7 +1080,7 @@ SETTINGS_PAGE = """{% extends "base.html" %}{% import "_ui.html" as ui with cont
 {{ ui.page_head('Studio page') }}
 {% if request.args.get('saved') %}<p class="ok-msg" style="color:var(--gold)">Saved.</p>{% endif %}
 <form method="post" action="{{ url_for('studio_page_switch') }}" class="ui-sec f" style="max-width:720px">
-  <p style="font-size:13px;margin:0">A small public website for your studio, in the look of your galleries: a few photos you pick, an About page, and how to reach you, with an inquiry form. It goes to your web host, in the folder above your galleries (your galleries stay as they are), only when you press Upload. No tracking, nothing loaded from anywhere else.</p>
+  <p style="font-size:13px;margin:0">A small public website in the look of your galleries: photos you pick, an About page and an inquiry form. It goes up only when you press Upload.{{ help("It goes to your web host, in the folder above your galleries, which stay as they are. No tracking, and nothing loaded from anywhere else.") }}</p>
   <label class="row" style="gap:6px"><input type="checkbox" name="use" value="1" data-autosubmit {{ 'checked' if on }}>Use the studio page</label>
   <noscript><div><button class="ui-btn ui-btn-quiet">Save</button></div></noscript>
 </form>
@@ -1089,11 +1089,11 @@ SETTINGS_PAGE = """{% extends "base.html" %}{% import "_ui.html" as ui with cont
   <h2 class="ui-sec-title">Words</h2>
   <div class="f2"><div><label class="l" for="sp-name">Name at the top</label><input id="sp-name" name="site_name" maxlength="120" value="{{ v.site_name }}" placeholder="{{ d.name }}"></div>
     <div><label class="l" for="sp-tag">Line under the name</label><input id="sp-tag" name="site_tagline" maxlength="{{ L.tag }}" value="{{ v.site_tagline }}" placeholder="Photographer · Your town"></div></div>
-  <div><label class="l" for="sp-intro">One line about your work{{ help("Shown on the home page.") }}</label><input id="sp-intro" name="site_intro" maxlength="{{ L.intro }}" value="{{ v.site_intro }}" placeholder="Portraits · Families · Weddings"></div>
+  <div><label class="l" for="sp-intro">One line about your work, under your name on the home page</label><input id="sp-intro" name="site_intro" maxlength="{{ L.intro }}" value="{{ v.site_intro }}" placeholder="Portraits · Families · Weddings"></div>
   <div><label class="l" for="sp-desc">Short description, for search results and link previews</label><input id="sp-desc" name="site_description" maxlength="{{ L.desc }}" value="{{ v.site_description }}"></div>
   <div><label class="l" for="sp-about">About</label><textarea id="sp-about" name="site_about" rows="12" maxlength="{{ L.about }}">{{ v.site_about }}</textarea>
     <div class="sub" style="font-size:12.5px;margin-top:4px">A blank line starts a new paragraph; the first one is shown larger. A line starting with ## is a small heading. A link: [words](https://example.com). Leave it empty for no About page.</div></div>
-  <div class="sub" style="font-size:13px">Contact: {% if contact %}{{ contact | join(' · ') }}{% else %}<span class="mute">none yet</span>{% endif %}. These come from {{ ui.go(url_for('settings_view', tab='general'), 'Settings, General') }}</div>
+  <div class="sub" style="font-size:13px">Contact: {% if contact %}{{ contact | join(' · ') }}{% else %}<span class="mute">none yet</span>{% endif %}. These come from {{ ui.go(url_for('settings_view', tab='profile'), 'Settings, Profile') }}</div>
   <div class="row" style="gap:18px;flex-wrap:wrap">
     <label class="row" style="gap:6px"><input type="checkbox" name="site_show_phone" value="1" {{ 'checked' if v.site_show_phone != '0' }}>Show the phone number</label>
     <label class="row" style="gap:6px"><input type="checkbox" name="site_show_address" value="1" {{ 'checked' if v.site_show_address != '0' }}>Show the mailing address</label>
@@ -1101,7 +1101,7 @@ SETTINGS_PAGE = """{% extends "base.html" %}{% import "_ui.html" as ui with cont
     <label class="row" style="gap:6px" id="sp-llms"><input type="checkbox" name="site_llms" value="1" {{ 'checked' if v.site_llms != '0' }}>A summary for modern search tools (llms.txt){{ help("A short text file that modern search tools read: your studio name, the line under it, the start of About, where you work, and the site's pages with how to send an inquiry. Only what the site already shows; never a gallery.") }}</label></div>
   <div class="sub" style="font-size:12.5px">The inquiry form is sealed in the visitor's browser so only this app can read it; your web host keeps it until the app collects it and adds it as a new inquiry. It needs a host that runs PHP (SFTP web hosting); elsewhere the Contact page shows your email instead.</div>
   <div><label class="l" for="sp-bg">Background</label><select id="sp-bg" name="site_bg">{% for c_, l_ in backgrounds %}<option value="{{ c_ }}"{{ ' selected' if v.site_bg == c_ }}>{{ l_ }}</option>{% endfor %}</select>
-    <div class="sub" style="font-size:12.5px;margin-top:4px">The font and colors follow your {{ ui.go(url_for('settings_view', tab='general') ~ '#gallery-look', "client galleries' look") }}</div></div>
+    <div class="sub" style="font-size:12.5px;margin-top:4px">The font and colors follow your {{ ui.go(url_for('settings_view', tab='branding') ~ '#gallery-look', "client galleries' look") }}</div></div>
   <div class="row" style="gap:10px;flex-wrap:wrap"><label class="row" style="gap:6px"><input type="checkbox" name="site_mark" value="1" {{ 'checked' if v.site_mark != '0' }}>Copyright mark on each photo</label>
     <label class="l" for="sp-markname" style="margin:0">Name in the mark</label><input id="sp-markname" name="site_mark_name" maxlength="80" value="{{ v.site_mark_name }}" placeholder="{{ d.owner }}" style="width:220px"></div>
   <div class="sub" style="font-size:12.5px">Small, in the bottom-left corner: &copy; {{ d.year }} {{ v.site_mark_name or d.owner }}, the year each photo first goes online.</div>

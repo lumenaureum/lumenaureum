@@ -173,7 +173,8 @@ def test_issue_is_the_primary_button_and_says_what_it_issued(tmp_path, monkeypat
     _line(c, sid, "300")
     page = _page(c, f"/session/{sid}/invoice")
 
-    assert re.search(r'<input type="hidden" name="then" value="email"><button class="ui-btn ui-btn-primary">Email it</button>', page)
+    assert re.search(r'<form method="post" action="[^"]+" class="ui-action" data-confirm="Issue this invoice now\? It gets the next invoice number[^"]*">'
+                     r'<input type="hidden" name="then" value="email"><button class="ui-btn ui-btn-primary">Issue and email it</button>', page)
     assert '<button class="ui-btn ui-btn-quiet">Issue this invoice</button>' in page.split('class="ui-more-pop"', 1)[1]
     c.post(f"/session/{sid}/invoice/issue", environ_base=E)
     num = _number(A, sid, "INV")

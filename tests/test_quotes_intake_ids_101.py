@@ -225,7 +225,8 @@ def test_a_deleted_sessions_history_is_labeled_on_its_replacement(tmp_path, monk
     gone = _new(A, c, "family", subject_name="Ava")
     _line(c, gone)
     c.post(f"/session/{gone}/quote/send", data={"total": "300.00"}, environ_base=E)
-    old_q = _q(A, "SELECT MAX(id) FROM quote_versions")[0][0]
+    old_q = _q(A, "SELECT number FROM quote_versions ORDER BY id DESC LIMIT 1")[0][0]
+    assert old_q and len(old_q) == 10
     assert c.post(f"/session/{gone}/delete", environ_base=E).status_code == 302
     new = _new(A, c, "family", subject_name="Ava")
     assert new == gone + 1

@@ -11,7 +11,7 @@
 # Then: docker compose up -d, and open https://<that address>:8780 from another device on your network.
 services:
   lumenaureum:
-    image: ghcr.io/lumenaureum/lumenaureum:1.5.1     # a fixed version; change it deliberately to upgrade
+    image: ghcr.io/lumenaureum/lumenaureum:1.5.2     # a fixed version; change it deliberately to upgrade
     restart: unless-stopped
     user: "10001:10001"                              # the user and group that own the folders below
     ports:

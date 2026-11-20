@@ -1,7 +1,7 @@
 
 
 
-{% macro filter_bar(id, today_iso, status=true, due_days=7, groups=[], q='', placeholder='Search this list', noun='list',
+{% macro filter_bar(id, today_iso, status=true, due_days=7, groups=[], q='', placeholder='Filter this list', noun='list',
                     sorts=[], sort='', keep={}, server=false, scope='') -%}
 <div class="ui-filter" id="filter-{{ id }}" data-ui-filter="{{ id }}" data-today="{{ today_iso }}" data-days="{{ due_days }}"{% if scope %} data-f-scope="{{ scope }}"{% endif %}>
   <form method="get" class="ui-filter-find" role="search"{% if not server %} data-f-script-only hidden{% endif %}>

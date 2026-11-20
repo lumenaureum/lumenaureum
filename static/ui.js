@@ -165,7 +165,9 @@ root.querySelectorAll('[data-poll-up]:not([data-poll-up-done])').forEach(el => {
   const t = setInterval(async () => {
     if (!el.isConnected) { clearInterval(t); return; }
     try { const r = await (await fetch(el.dataset.pollUp, { credentials: 'same-origin' })).json();
-      if (r.upload !== 'uploading') { clearInterval(t); refreshParts(); } } catch (_) {} }, 2000); });
+      if (r.upload !== 'uploading') { clearInterval(t); refreshParts(); return; }
+      const lab = el.dataset.label && document.getElementById(el.dataset.label);   // "Uploading: file N of M" (backlog 236)
+      if (lab && r.up_label && lab.textContent !== r.up_label) lab.textContent = r.up_label; } catch (_) {} }, 2000); });
 }
 wire(document);
 
@@ -279,6 +281,14 @@ document.querySelectorAll('[data-poll]').forEach(el => { const t = setInterval(a
     if (n) n.textContent = r.done + ' / ' + r.total;
     const lab = el.dataset.label && document.getElementById(el.dataset.label);   // what the job is doing now, if it says
     if (lab && r.label && lab.textContent !== r.label) lab.textContent = r.label; } catch (e) {} }, 700); });
+document.querySelectorAll('aside.jobs').forEach(box => {
+  const fit = () => document.documentElement.style.setProperty('--jobs-h', box.offsetHeight + 'px');
+  fit();
+  if (window.ResizeObserver) new ResizeObserver(fit).observe(box);
+  box.querySelectorAll('.job.done').forEach(j => setTimeout(() => {
+    j.remove();
+    if (!box.querySelector('.job')) { box.remove(); document.documentElement.style.removeProperty('--jobs-h'); }
+  }, 30000)); });
 document.querySelectorAll('[data-go-after]').forEach(el => setTimeout(() => location.href = el.dataset.href, +el.dataset.goAfter));
 
 const uiToggle = (id, on) => {
@@ -347,8 +357,11 @@ document.addEventListener('submit', async e => {
   const part = f.closest('[data-ui-part]'), anchorEl = f.closest('[id]'), anchorId = anchorEl && anchorEl.id;
   const top0 = anchorEl ? anchorEl.getBoundingClientRect().top : 0, sig = uiSig(f);
   const prevId = anchorEl && anchorEl.previousElementSibling && anchorEl.previousElementSibling.id;
-  const what = anchorEl && anchorEl.matches('.ui-todo') && anchorEl.querySelector('.ui-todo-what') ? anchorEl.querySelector('.ui-todo-what').firstChild.textContent.trim() : '';
   const inInline = f.closest('.ui-inline'), boxId = inInline && inInline.id;
+  const rowEl = anchorEl && (anchorEl.matches('.ui-todo, .ui-tline') ? anchorEl
+    : (inInline && inInline.previousElementSibling && inInline.previousElementSibling.matches('.ui-todo, .ui-tline') ? inInline.previousElementSibling : null));
+  const whatEl = rowEl && rowEl.querySelector('.ui-todo-what, .ui-tline-what');
+  const what = whatEl && whatEl.firstChild ? whatEl.firstChild.textContent.trim() : '';
   try { sessionStorage.removeItem('scrollAt'); sessionStorage.removeItem('la-form'); } catch (_) {}
   f.dataset.uiBusy = '1'; f.classList.add('ui-saving'); if (btn) btn.disabled = true;
   let r, text;
@@ -390,14 +403,14 @@ document.addEventListener('submit', async e => {
   if (nf && !(refused && nf !== f)) { const b = nf.querySelector('button:not([type=button]), [type=submit]'); keep = uiNote(b || nf, text_, refused, !!b); if (b && document.activeElement === document.body) b.focus({ preventScroll: true }); }
   else if (anchorId && document.getElementById(anchorId) && !document.getElementById(anchorId).matches('.ui-inline')) {
     const el = document.getElementById(anchorId);       // beside where the button was: its action slot, never a stray grid cell
-    keep = uiNote(el.querySelector('.ui-todo-act, .ui-btnrow') || el, text_, refused); }
+    keep = uiNote(el.querySelector('.ui-todo-act, .ui-tline-act, .ui-btnrow') || el, text_, refused); }
   else {
     const prev = prevId && document.getElementById(prevId), fresh = part && document.getElementById(part.id);
     const host = prev ? prev.parentElement : (fresh && (fresh.querySelector('ul.ui-todos') || fresh.querySelector('.ui-fold-body') || fresh)) || main;
     const fl = document.createElement(host.matches('ul, ol') ? 'li' : 'div'); fl.className = 'ui-flash';
     if (prev) prev.after(fl); else host.prepend(fl);
     keep = uiNote(fl, text_, refused);
-    if (!refused) setTimeout(() => fl.remove(), 7000);
+    if (!refused) setTimeout(() => fl.remove(), 4700);      // gone with its note, never an empty line left on the row
   }
   const ref = (anchorId && document.getElementById(anchorId)) || keep;
   if (ref && anchorEl) scrollBy({ top: ref.getBoundingClientRect().top - top0, behavior: 'instant' });   // the page does not move under the finger
@@ -482,22 +495,14 @@ document.addEventListener('submit', e => {
     first.parentNode.insertBefore(n, first); }
 })();
 
-document.querySelectorAll('[data-ui-find]').forEach(f => {
-  const inp = f.querySelector('input[type=search]'), out = f.querySelector('.ui-find-out');
-  let all = []; try { all = JSON.parse(f.querySelector('.ui-find-index').dataset.index); } catch (_) { return; }
-  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
-  const show = () => {
-    const w = inp.value.toLowerCase().split(/\s+/).filter(Boolean);
-    if (!w.length) { out.innerHTML = ''; return; }
-    const whole = e => { const t = new Set(e.words.split(/[^a-z0-9.]+/).concat(e.words.split(/[^a-z0-9]+/))); return w.every(x => t.has(x)); };
-    const hit = all.filter(e => w.every(x => e.words.includes(x))).sort((a, b) => whole(b) - whole(a)).slice(0, 12);
-    out.innerHTML = hit.length ? hit.map(e => `<a class="ui-row" href="${esc(e.link)}"><span class="ui-row-main"><b>${esc(e.text)}</b>`
-      + `<small>${esc(e.sub)}</small></span><span class="ui-row-right"><span class="ui-row-chev" aria-hidden="true">&rsaquo;</span></span></a>`).join('')
-      : `<p class="ui-mute">No setting matches "${esc(inp.value.trim())}".</p>`;
-  };
-  inp.addEventListener('input', show);
-  f.addEventListener('submit', e => { e.preventDefault(); show(); const a = out.querySelector('a'); if (a) location.href = a.href; });
-});
+(() => {
+  const nav = document.querySelector('.settabs[data-settings-moved]');
+  if (!nav || !location.hash || location.hash.length < 2) return;
+  const id = decodeURIComponent(location.hash.slice(1));
+  if (document.getElementById(id)) return;
+  let to = {}; try { to = JSON.parse(nav.dataset.settingsMoved); } catch (_) { return; }
+  if (to[id] && to[id].split('#')[0] !== location.pathname + location.search) location.replace(to[id]);
+})();
 const uiFound = () => {
   if (!document.querySelector('.settabs') || !location.hash || location.hash.length < 2) return;
   const el = document.getElementById(decodeURIComponent(location.hash.slice(1))); if (!el) return;
@@ -599,4 +604,14 @@ document.addEventListener('submit', async e => {
     const close = b2.querySelector('[data-close]'); if (close) close.before(n); else b2.append(n); }
   try { sessionStorage.setItem('la-posted', '1'); localStorage.setItem('la-changed', String(Date.now())); } catch (_) {}
 });
+
+document.addEventListener('submit', e => {
+  const f = e.target; if (!f.matches || !f.matches('form[data-busy-says]') || e.defaultPrevented) return;
+  if (f.dataset.busyNow) { e.preventDefault(); return; }
+  f.dataset.busyNow = '1'; f.setAttribute('aria-busy', 'true'); f.classList.add('ui-saving');
+  const b = e.submitter || f.querySelector('button'); if (b) { b.dataset.busyWas = b.textContent; b.textContent = f.dataset.busySays; }
+});
+addEventListener('pageshow', e => { if (!e.persisted) return;
+  document.querySelectorAll('form[data-busy-now]').forEach(f => { delete f.dataset.busyNow; f.removeAttribute('aria-busy'); f.classList.remove('ui-saving');
+    f.querySelectorAll('[data-busy-was]').forEach(b => { b.textContent = b.dataset.busyWas; delete b.dataset.busyWas; }); }); });
 

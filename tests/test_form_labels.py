@@ -143,10 +143,12 @@ def test_back_office_forms_name_every_field(tmp_path, monkeypatch):
     hids = [r[0] for r in _rows(A, "SELECT id FROM households ORDER BY id")][:6]
     eids = [r[0] for r in _rows(A, "SELECT id FROM events ORDER BY id")][:3]
     assert len(stages) >= 5, stages
-    urls = [f"/setup/{s}" for s in ("business", "storage", "shoot", "money", "tax", "documents", "galleries", "network")]
+
+    urls = [f"/setup/{s}" for s in ("storage", "shoot", "money", "tax", "documents", "galleries", "network")]
     urls += ["/settings", "/contact/new", "/inquiry", "/inquiry?hid=1"] + [f"/settings/type/{t}" for t in C.SESSION_TYPES]
     urls += [f"/inquiry?hid=1&type={t}" for t in C.SESSION_TYPES]
-    urls += [f"/settings?tab={t}" for t in ("gallery", "fees", "documents", "file", "system")]
+    urls += [f"/settings?tab={t}" for t in ("profile", "branding", "clients", "prices", "documents", "file", "system",
+                                            "notifications")] + ["/security", "/search", "/setup/storage?replace=primary"]
     urls += ["/", "/sessions", "/events", "/vault"]
     urls += [f"/client/{h}" for h in hids] + [f"/event/{e}" for e in eids]
     for sid in sorted(set(stages.values()) | set(sids[:12])):

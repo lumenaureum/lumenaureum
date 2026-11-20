@@ -15,9 +15,11 @@
     <input id="new-label-{{ hid }}" name="label" maxlength="40" list="label-words" class="ui-grow" required>
     <datalist id="label-words">{% for l_ in all_labels() %}<option value="{{ l_ }}">{% endfor %}</datalist>
     <button class="ui-btn ui-btn-quiet">Add the label</button></form>
-  <div class="ui-btnrow">
+  
+  <div class="ui-btnrow" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)" data-end-contact>
     {% if end_ %}{{ ui.chip('End contact since ' ~ nice(end_)) }}{{ ui.action(url_for('client_end_contact', hid=hid), 'Resume contact', dict(end='0'), back) }}
-    {% else %}{{ ui.action(url_for('client_end_contact', hid=hid), 'End contact', dict(end='1'), back, confirm='Leave this client out of every check-in? You can resume contact any time.') }}{{ help('Leaves this client out of Time to check in. Their sessions and records stay as they are.') }}{% endif %}
+    {% else %}<span class="ui-mute">Stop check-in reminders for this client. Their sessions and records stay as they are.</span>
+    {{ ui.action(url_for('client_end_contact', hid=hid), 'End contact', dict(end='1'), back, confirm='Leave this client out of every check-in? You can resume contact any time.') }}{% endif %}
   </div>
 {% endcall %}
 {%- endmacro %}

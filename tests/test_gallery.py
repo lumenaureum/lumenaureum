@@ -161,7 +161,7 @@ def test_upload_waits_for_balance_then_copies_and_deletes(env):
     assert "index.html" in files and "limits.php" in files and n == len(files)
     assert "days=5" in host_text(host / gid, "limits.txt")
     assert G.seen_at(gid) is None
-    host_write(host / gid, "seen.txt", "2026-10-05T12:00:00Z")
+    host_write(host / gid, "seen.txt", "2026-10-05T12:00:00Z")   # fixed date: only read back as text
     assert G.seen_at(gid) == "2026-10-05T12:00:00Z"
     G.delete_gallery(gid)
     assert not (host / gid).exists()

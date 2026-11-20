@@ -7,16 +7,45 @@
     wrap.querySelectorAll('[data-r-noscript]').forEach(b => { b.hidden = true; });
     const form = wrap.querySelector('form');
     if (form) form.addEventListener('submit', e => e.preventDefault());
+    const phoneWord = w => /\d/.test(w) && !/[a-z]/.test(w);
     const match = (tr, words) => {
-      const text = (tr.textContent + ' ' + (tr.dataset.rFind || '')).toLowerCase().replace(/\s+/g, ' ');
+      const text = (tr.dataset.rText || (tr.textContent + ' ' + (tr.dataset.rFind || ''))).toLowerCase().replace(/\s+/g, ' ');
       const phone = digits(tr.dataset.rPhone);
-      return words.every(w => text.includes(w) || (/\d/.test(w) && !/[a-z]/.test(w) && phone.includes(digits(w))));
+      return words.every(w => text.includes(w) || (phoneWord(w) && phone.includes(digits(w))));
     };
+    const why = (tr, words) => {
+      let src = [];
+      try { src = JSON.parse(tr.dataset.rWhy || '[]'); } catch (e) { src = []; }
+      const name = ((tr.querySelector('.ui-roster-name') || {}).textContent || '').toLowerCase(), out = [];
+      words.forEach(w => {
+        if (name.includes(w)) return;
+        const hit = src.find(([lab, v]) => (v || '').toLowerCase().includes(w) || (phoneWord(w) && lab === 'Phone' && digits(v).includes(digits(w))));
+        if (hit && !out.includes(`${hit[0]}: ${hit[1]}`)) out.push(`${hit[0]}: ${hit[1]}`);
+      });
+      return out;
+    };
+    const count = document.querySelector('[data-r-count]'), add = wrap.querySelector('[data-r-add]'), all = wrap.querySelector('[data-r-all]');
     const filter = () => {
-      const y = window.scrollY, words = (box.value || '').toLowerCase().split(/\s+/).filter(Boolean);
+      const y = window.scrollY, typed = (box.value || '').trim(), words = typed.toLowerCase().split(/\s+/).filter(Boolean);
       let shown = 0;
-      rows().forEach(tr => { const ok = match(tr, words); tr.hidden = !ok; if (ok) shown++; });
+      rows().forEach(tr => {
+        const ok = match(tr, words); tr.hidden = !ok; if (ok) shown++;
+        const line = tr.querySelector('[data-r-whyline]');
+        if (line && tr.dataset.rWhy) { const w = ok ? why(tr, words) : []; line.textContent = w.join(' · '); line.hidden = !w.length; }
+      });
       if (none) none.hidden = shown > 0;
+      if (count) {                                                       // the count follows the filter
+        const total = rows().length;
+        count.textContent = (words.length ? `${shown} of ` : '') + `${total} ${count.dataset.noun || ''}`.trim();
+      }
+      const q = encodeURIComponent(typed);
+      if (all) all.href = all.dataset.rAll + (typed ? `?q=${q}` : '');
+      if (add) {                                                         // "Add Garcia as a new contact"
+        const named = /[^\d\s()+.\-]/.test(typed);
+        add.hidden = !named;
+        add.href = add.dataset.rAdd + (named ? `?name=${q}` : '');
+        const t = add.querySelector('[data-r-typed]'); if (t) t.textContent = typed;
+      }
       if (window.scrollY !== y) window.scrollTo(window.scrollX, y);     // typing never moves the page
     };
     if (box) box.addEventListener('input', filter);

@@ -29,6 +29,12 @@ def steps_for(t):
              field=("number", "minutes", "minutes"), get=lambda: int(t.get("minutes") or 60),
              put=lambda f: t.__setitem__("minutes", _num(f.get("minutes"), 5, 1440) or int(t.get("minutes") or 60)),
              preview=lambda: ""),
+        dict(id="steps", title="Your steps",
+             why=("Each session of this type goes through these steps, stage by stage. A step you turn off stays in its"
+                  " place, so you can turn it back on later."),
+             field=("steps", "", ""), get=lambda: None,
+             put=lambda f: put_steps_on(t, f),
+             preview=lambda: steps_on_words(t), pv_head="Steps on"),
         dict(id="deposit", title="The deposit that holds the date",
              why=("The client pays the deposit when they book, and it holds the date. Weddings and events usually take a"
                   " percentage of the price, and portraits a flat amount. Leave it blank to use your answer in Payments"
@@ -89,7 +95,7 @@ def steps_for(t):
                         field=("portfolio", "", ""), get=lambda: ("pct", t["portfolio_pct"]) if t.get("portfolio_pct") else
                         ("amt", t["portfolio_amount"]) if t.get("portfolio_amount") else ("", ""),
                         put=lambda f: _put_portfolio(t, f),
-                        preview=lambda: C.portfolio_choice() + (f" Allowing it takes {C.portfolio_discount_words(key)} off the price."
+                        preview=lambda: C.portfolio_choice() + (f" Allowing it takes {C.portfolio_discount_words(key)} off the price, before tax."
                                                                  if C.portfolio_discount_words(key) else "")))
         out.append(dict(id="signers", title="Who signs the agreement",
                         why="For couples, both partners usually sign, so the partner needs no separate release. For families, one parent usually signs.",
@@ -97,13 +103,101 @@ def steps_for(t):
                         put=lambda f: t.__setitem__("all_sign", True) if f.get("all_sign") else t.pop("all_sign", None),
                         preview=lambda: "Every adult on the record signs." if t.get("all_sign") else "One adult signs for the household."))
     if lic:
-        out.append(dict(id="license", title="What the license covers",
+        out.append(dict(id="license", reuse="license_use", title="What the license covers",
                         why="You keep the copyright, and the client gets a license. Describe what the license is for in a short phrase.",
                         field=("text", "license_use", "e.g. marketing this property, in print and online"),
                         get=lambda: _pol(t).get("license_use") or "",
                         put=lambda f: _set_pol(t, "license_use", (f.get("license_use") or "").strip()[:200]),
                         preview=lambda: f"Your license covers {C.fill(key, 'license_use')}."))
     return out
+
+def put_steps_on(t, f):
+
+    off = {}
+    for stage, rows in C.type_steps_all(t).items():
+        ids = []
+        for i, (st, was_off) in enumerate(rows):
+            v = f.get(f"{stage}_{i}_on")
+            now_off = was_off if v not in ("0", "1") else v == "0"
+            if now_off and C.step_id(st) != C.GALLERY_STEP:
+                ids.append(list(C.step_id(st)))
+        if ids:
+            off[stage] = ids
+    t.pop("steps_off", None)
+    if off:
+        t["steps_off"] = off
+
+def steps_on_words(t):
+    rows = [off for rows in C.type_steps_all(t).values() for _, off in rows]
+    on = sum(1 for off in rows if not off)
+    return f"{on} of {len(rows)} steps on." if on < len(rows) else f"All {len(rows)} steps on."
+
+def _reschedule_words(free, notice, late):
+    a = f"one free reschedule with {notice} hours' notice" if free else "no free reschedule"
+    b = f"no-show after {late} minutes late" if late else "no no-show rule"
+    return f"{a}, {b}"
+
+def _money_words(rule):
+    return f"{rule[1]}% of the price" if rule[0] == "pct" else f"${rule[1]:,}"
+
+def _answer(k, fid):
+
+    p = C.POLICY[k]
+    if fid in ("weather", "delivery", "license_use", "wear"):
+        v = (p.get(fid) or "").strip().rstrip(".")
+        return (v, {fid: v}) if v else None
+    if fid == "keep_raw":
+        n = C.raw_keep_days(k)
+        return f"{n} days", {"keep_raw_days": n}
+    if fid == "delivery_days":
+        n = C.delivery_days(k)
+        return f"{n} days", {"delivery_days": n}
+    if fid == "gallery_days":
+        n = C.gallery_days(k)
+        return f"{n} days", {"gallery_days": n}
+    if fid == "method":
+        m = C.delivery_method(k)
+        return C.DELIVERY_METHODS[m][0], {"delivery_method": m}
+    if fid == "reschedule":
+        free, notice, late = bool(p["free_reschedule"]), int(p["notice_hours"] or 0), int(p["late_minutes"] or 0)
+        return _reschedule_words(free, notice, late), {"free_reschedule": free, "notice_hours": notice, "late_minutes": late}
+    if fid in ("deposit", "portfolio"):
+        t_ = next((x for x in C.TYPES if x["key"] == k), {})
+        rule = (None if C.deposit_follows_setup(t_) else C.DEPOSIT_RULE.get(k)) if fid == "deposit" else C.PORTFOLIO_DISCOUNT.get(k)
+        if not rule:
+            return None
+        return _money_words(rule), {f"{fid}_value": rule[1], f"{fid}_mode": rule[0]}
+    return None
+
+REUSE_FIELDS = ("deposit", "reschedule", "weather", "delivery", "method", "delivery_days", "gallery_days", "keep_raw",
+                "portfolio", "license_use", "wear")
+
+def reuse(key, fid):
+
+    if fid not in REUSE_FIELDS:
+        return []
+    mine = _answer(key, fid)
+    out = {}
+    for t in C.TYPES:
+        k = t["key"]
+        if k == key or t.get("kind") == "personal":
+            continue
+        if fid == "license_use" and k not in C.LICENSE_TYPES:
+            continue
+        if fid in ("gallery_days", "portfolio") and t.get("kind") == "property":
+            continue
+        a = _answer(k, fid)
+        if not a or (mine and a[1] == mine[1]):
+            continue
+        sig = tuple(sorted((n, str(v)) for n, v in a[1].items()))
+        out.setdefault(sig, [[], a])[0].append(t["label"])
+    return [dict(words=_names(labels) + ": " + a[0], fill=a[1]) for labels, a in out.values()]
+
+def _names(labels):
+
+    if len(labels) > 3:
+        labels = labels[:3] + [f"{len(labels) - 3} more"]
+    return " and ".join(labels) if len(labels) < 3 else ", ".join(labels[:-1]) + ", and " + labels[-1]
 
 def _put_deposit(t, f):
 

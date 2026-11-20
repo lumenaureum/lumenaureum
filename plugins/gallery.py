@@ -58,6 +58,7 @@ def new_gid():
 
 JOBS = {}
 UPDATING = {}
+UPLOADING = {}
 LOCK = threading.Lock()
 PRUNE_GRACE_MIN = 20
 
@@ -601,6 +602,8 @@ MIME = {".html": "text/html; charset=utf-8", ".php": "application/x-httpd-php", 
         ".txt": "text/plain", ".key": "text/plain", ".htaccess": "text/plain", ".woff2": "font/woff2"}
 
 SUNSET_DAYS = 7
+
+CLOSE_MAX_DAYS = 365
 
 def sunset_days(days):
 
@@ -1750,6 +1753,10 @@ def register(ctx):
             ctx.add_column(_con, "galleries", "adopted_fmt", "TEXT")
         if "adopt_until" not in _gcols:
             ctx.add_column(_con, "galleries", "adopt_until", "TEXT")
+        if "photos_home_at" not in _gcols:
+            ctx.add_column(_con, "galleries", "photos_home_at", "TEXT")
+        if "close_on" not in _gcols:
+            ctx.add_column(_con, "galleries", "close_on", "TEXT")
         if "cw_fixed" not in _gcols:
             ctx.add_column(_con, "galleries", "cw_fixed", "TEXT")
             if "uploaded_at" in _gcols:
@@ -1978,7 +1985,7 @@ def register(ctx):
 
         return dict(client=title or (h["name"] if h else ""), owns=owns,
                     what=label, date=when, logo=setting("logo_png"),
-                    studio=setting("business_name") or setting("studio_name") or setting("photographer_name"),
+                    studio=setting("studio_name") or setting("business_name") or setting("photographer_name"),
                     photographer=setting("photographer_name"), email=setting("business_email"), phone=setting("business_phone"),
                     site=setting("business_website") if setting("business_website").startswith("https://") else "")
 
@@ -2390,7 +2397,83 @@ def register(ctx):
                   f"{'from before 1.4' if fmt == 'pre-1.4' else fmt}): built from {src_['words']}, same link and key", sid=sid)
         return start_build(sid, None, "", None, adopt=dict(src=src, upto=upto, title=str(m.get("title") or "").strip()[:120]))
 
-    app.config.setdefault("quiet_endpoints", set()).update({"gallery_adopt", "gallery_bring_up_to_date"})
+    def photos_home_source(s, g):
+
+        from vault import backends as B
+        gid = s["gallery_id"] or ""
+        if not GID_OK.match(gid):
+            return None
+        tries = []
+        if (OUT_ROOT / gid / "manifest.bin").is_file():
+            try:
+                tries.append(B.LocalBackend(str(OUT_ROOT), marked=False))
+            except Exception:
+                pass
+        if has_host():
+            tries.append(gallery_host())
+        for b_ in tries:
+            for k_ in [k for k in (g["ekey"], g["key"]) if k]:
+                try:
+                    m_, _ = adopt_manifest(b_, gid, k_)
+                    return b_, k_, m_
+                except Exception:
+                    continue
+        return None
+
+    def photos_home_offer(s, g):
+
+        if not (g and is_adopted(g)) or s["stage"] == "lost" or being_deleted(s):
+            return False
+        return not (g["photos_home_at"] if "photos_home_at" in g.keys() else None)
+
+    def photos_home_run(sid, gid, b_, key, m_):
+
+        job = JOBS[sid]
+        added = had = 0
+        try:
+            items = pulled_back(b_, gid, key, m_)
+            job.update(total=len(items))
+            store = app.config["store_photo"]
+            for i, (nm, opener) in enumerate(items, 1):
+                data = opener().getvalue()
+                with app.app_context():
+                    got = store(sid, "export", nm, data)
+                added += got == "added"
+                had += got == "had"
+                job.update(done=i, label=f"Bringing the photos home: {i} of {len(items)}")
+            with app.app_context():
+                x("UPDATE galleries SET photos_home_at=? WHERE session_id=?", (date.today().isoformat(), sid))
+                ctx.audit(f"Brought the adopted gallery's {len(items)} photos home as this session's edited photos"
+                          + (f" ({had} were already here)" if had else "")
+                          + ": the gallery's full-size copies, taken out with its key", sid=sid, who="Lumen Aureum")
+            job.update(state="done")
+        except Exception as e:
+            app.logger.exception("bring the photos home %s", sid)
+            job.update(state="error", error="The photos couldn't all be brought home: " + (str(e)[:160] or e.__class__.__name__)
+                       + (f". {added} came home; try again for the rest." if added else ". Try again."))
+
+    @app.post("/session/<int:sid>/gallery/photos-home", endpoint="gallery_photos_home")
+    def gallery_photos_home(sid):
+
+        from flask import g as _g, session as _fs
+        s = session(sid)
+        g_ = gal(sid)
+        back = url_for("client_stage", hid=s["household_id"]) + f"?s={sid}#gallery"
+        if not photos_home_offer(s, g_) or (JOBS.get(sid) or {}).get("state") == "running":
+            return redirect(back)
+        src = photos_home_source(s, g_)
+        if not src:
+            _g.refused = True
+            _fs["notice"] = "The gallery's photos couldn't be read here or on the web host, so nothing was brought home."
+            return redirect(back)
+        JOBS[sid] = dict(state="running", done=0, total=0, error="", label="Bringing the photos home")
+        if os.environ.get("CRM_TESTING"):
+            photos_home_run(sid, s["gallery_id"], *src)
+        else:
+            threading.Thread(target=photos_home_run, args=(sid, s["gallery_id"], *src), name="photos-home", daemon=True).start()
+        return redirect(back)
+
+    app.config.setdefault("quiet_endpoints", set()).update({"gallery_adopt", "gallery_bring_up_to_date", "gallery_photos_home"})
 
     app.config.setdefault("quiet_endpoints", set()).update({"picks_paste", "gallery_no_picks", "gallery_link_sent"})
     app.config.setdefault("ep_words", {}).update({
@@ -2439,6 +2522,10 @@ def register(ctx):
             j = dict(state="running", done=u["done"], total=u["total"], error="",
                      label=f"Updating the copy online: file {u['done']} of {u['total']}" if u["total"] else "Updating the copy online")
         g_ = q("SELECT upload_state FROM galleries WHERE session_id=?", (sid,), one=True)
+        up_ = UPLOADING.get(sid)
+        if up_ and g_ and g_["upload_state"] == "uploading":
+            j = dict(j, up_label=f"Uploading: file {up_['done']} of {up_['total']}" if up_["total"] else "Uploading",
+                     up_done=up_["done"], up_total=up_["total"])
         return jsonify(dict(j, upload=(g_["upload_state"] if g_ else "") or ""))
 
     def old_build_page(gid):
@@ -2531,8 +2618,16 @@ def register(ctx):
                     ra = q("SELECT adopt_until, restored_at FROM galleries WHERE session_id=?", (sid,), one=True)
                 until_ = adopted_until(dict(adopt_until=ra["adopt_until"], restored_at=ra["restored_at"],
                                             extension_used=ext), days_) if ra else None
-            k = upload_gallery(gid, days_ * (2 if ext else 1),
-                               (date.today() + timedelta(days=ctx.C.GALLERY_UNOPENED_DAYS)).isoformat(), until=until_, once=once_)
+            UPLOADING[sid] = dict(done=0, total=0)
+
+            def progress_(done, total):
+                UPLOADING[sid] = dict(done=done, total=total)
+            try:
+                k = upload_gallery(gid, days_ * (2 if ext else 1),
+                                   (date.today() + timedelta(days=ctx.C.GALLERY_UNOPENED_DAYS)).isoformat(), until=until_,
+                                   once=once_, progress=progress_)
+            finally:
+                UPLOADING.pop(sid, None)
             if (back_up or (not replace and any(kept_copy(gid, n_) for n_ in (PICKS_FILE, DRAFT_FILE)))) \
                     and not is_download(gid):
 
@@ -2619,7 +2714,7 @@ def register(ctx):
                     r_ = q("SELECT extension_used FROM sessions WHERE id=?", (sid,), one=True)
                     days_ = gdays(sid) * (2 if r_ and r_["extension_used"] else 1)
                     up_ = date.fromisoformat((g_["uploaded_at"] or date.today().isoformat())[:10])
-                    a_until = adopted_until(dict(adopt_until=g_["adopt_until"], restored_at=g_["restored_at"],
+                    a_until = closing_set(g_) or adopted_until(dict(adopt_until=g_["adopt_until"], restored_at=g_["restored_at"],
                                                  extension_used=r_["extension_used"] if r_ else 0), gdays(sid))
             if old_:
                 k = upload_gallery(gid, days_, (up_ + timedelta(days=ctx.C.GALLERY_UNOPENED_DAYS)).isoformat(),
@@ -2741,6 +2836,11 @@ def register(ctx):
     def restored_once(r):
         return [n for n in ((r["restore_once"] if "restore_once" in r.keys() else "") or "").split(",") if n] if r["restored_at"] else []
 
+    def closing_set(r):
+
+        v = r["close_on"] if "close_on" in r.keys() else None
+        return v[:10] if v else None
+
     def adopted_until(r, usual):
 
         u = r["adopt_until"] if "adopt_until" in r.keys() else None
@@ -2764,6 +2864,19 @@ def register(ctx):
 
     app.config["gallery_adopted_end"] = adopted_end
 
+    def close_on_end(sid):
+
+        import sqlite3
+        try:
+            r = q("SELECT close_on, upload_state, removed_at FROM galleries WHERE session_id=?", (sid,), one=True)
+        except sqlite3.OperationalError:
+            return None
+        if not r or r["upload_state"] == "removed" or r["removed_at"] or not closing_set(r):
+            return None
+        return date.fromisoformat(closing_set(r))
+
+    app.config["gallery_close_on"] = close_on_end
+
     @app.post("/session/<int:sid>/gallery/back-online", endpoint="gallery_back_online")
     def gallery_back_online(sid):
 
@@ -2780,7 +2893,7 @@ def register(ctx):
             pieces = zip_pieces(gid, g["ekey"] or g["key"]) if gate_built(gid) else []
             if not pieces:
                 return redirect(back)
-            x("UPDATE galleries SET restore_days=?, restore_once=? WHERE session_id=?", (ONCE_DAYS, ",".join(pieces), sid))
+            x("UPDATE galleries SET restore_days=?, restore_once=?, close_on=NULL WHERE session_id=?", (ONCE_DAYS, ",".join(pieces), sid))
         else:
             try:
                 n = int(request.form.get("days") or 0)
@@ -2788,7 +2901,7 @@ def register(ctx):
                 n = 0
             if not 1 <= n <= 365:
                 return redirect(back)
-            x("UPDATE galleries SET restore_days=?, restore_once=NULL WHERE session_id=?", (n, sid))
+            x("UPDATE galleries SET restore_days=?, restore_once=NULL, close_on=NULL WHERE session_id=?", (n, sid))
         return upload_gallery_req(sid)
 
     def move_rows():
@@ -2891,9 +3004,8 @@ def register(ctx):
 
     MOVE_PAGE = """{% extends "base.html" %}{% block title %}Move galleries - Lumen Aureum{% endblock %}{% block body %}
 <h1>Move galleries</h1>
-<p class="mute" style="max-width:720px">Every gallery is built on this computer and its key is in your data, so the
-galleries can go up on another host with the same links. If the gallery address stays the same (your own domain, now
-pointing at the new host), every link and every QR letter keeps working. A new address means new links.</p>
+<p class="mute" style="max-width:720px">Your galleries can go up on another host with the same links. If the gallery address
+stays the same (your domain, pointed at the new host), every link and QR letter keeps working; a new address means new links.</p>
 {% if not on %}<p class="notice" style="max-width:820px">Galleries are turned off in Setup, so nothing is moved or taken
 down now. Turn them on again (Setup, Galleries) to carry on: with the same host, everything is where it was.</p>{% endif %}
 {% if clash %}<p class="notice" style="max-width:820px">Nothing can be moved to the web host set up now. {{ clash }} Change it in Setup, Galleries; then come back here.</p>{% endif %}
@@ -3386,7 +3498,7 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
                 if not adopted_old(r) and ((r["limits_days"] or 0) != want_days or (r["limits_contact"] or "") != contact_email()):
                     up = date.fromisoformat((r["uploaded_at"] or date.today().isoformat())[:10])
                     put_limits(gid, want_days, (up + timedelta(days=ctx.C.GALLERY_UNOPENED_DAYS)).isoformat(),
-                               until=restored_until(r, want_days) or adopted_until(r, gdays(r["sid"])),
+                               until=closing_set(r) or restored_until(r, want_days) or adopted_until(r, gdays(r["sid"])),
                                once=restored_once(r))
                     x("UPDATE galleries SET limits_days=?, limits_contact=? WHERE session_id=?",
                       (want_days, contact_email(), r["sid"]))
@@ -3461,7 +3573,9 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
                     t_ = done_at(gid)
                     if t_ and t_ <= time.time():
                         once_done = True
-                if r["restored_at"]:
+                if closing_set(r):
+                    gone = date.fromisoformat(closing_set(r))
+                elif r["restored_at"]:
                     gone = date.fromisoformat(restored_until(r, gdays(r["sid"]) * (2 if r["extension_used"] else 1)))
                 elif adopted_until(r, gdays(r["sid"])):
                     gone = date.fromisoformat(adopted_until(r, gdays(r["sid"])))
@@ -3492,14 +3606,15 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
                         add_leftover(gid, old_)
                         if not take_down_earlier(gid, old_)[1]:
                             drop_leftover(gid, old_)
-                    x("UPDATE galleries SET removed_at=?, upload_state='removed', dark_at=?, host_fp=?, moved_from=NULL WHERE session_id=?",
+                    x("UPDATE galleries SET removed_at=?, upload_state='removed', dark_at=?, host_fp=?, moved_from=NULL, close_on=NULL WHERE session_id=?",
                       (date.today().isoformat(), date.today().isoformat() if dark else None, fp_after or None, r["sid"]))
                     if left_behind:
                         ctx.audit("Its days are over, but its copy on the earlier web host could not be removed ("
                                   + left_behind + "). Move galleries lists it; Take the old copies down removes it.",
                                   sid=r["sid"], who="Lumen Aureum")
                     ctx.audit(f"Gallery removed from the web ({n} files), "
-                              + ("the one-time download was made" if once_done else
+                              + ("closed on the day you set" if closing_set(r) else
+                                 "the one-time download was made" if once_done else
                                  "its days back online are over" if r["restored_at"] else
                                  "its last day is over" if adopted_until(r, gdays(r["sid"])) else
                                  f"{gdays(r['sid'])} day window over" if first else "never opened in a year")
@@ -3789,7 +3904,7 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
         done_cur = False
         if live:
 
-            x("UPDATE galleries SET removed_at=?, upload_state='removed' WHERE session_id=?", (date.today().isoformat(), sid))
+            x("UPDATE galleries SET removed_at=?, upload_state='removed', close_on=NULL WHERE session_id=?", (date.today().isoformat(), sid))
             from flask import g as _gc, has_app_context as _hac
             if _hac() and "db" in _gc:
                 _gc.db.commit()
@@ -3925,6 +4040,57 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
         if gid in (st.get("bad") or {}):
             st["bad"].pop(gid, None)
             refit.save_state(x, st, SERVED_KEY)
+
+    @app.post("/session/<int:sid>/gallery/closing-day", endpoint="gallery_closing_day")
+    def gallery_closing_day(sid):
+
+        from flask import session as _fs, g as _g
+        s = session(sid)
+        g = gal(sid)
+        back = url_for("client_stage", hid=s["household_id"]) + f"?s={sid}#gallery"
+        if not (g and g["upload_state"] == "up" and not g["removed_at"]) or restored_once(g):
+            return redirect(back)
+        try:
+            day = date.fromisoformat((request.form.get("day") or "")[:10])
+        except ValueError:
+            day = None
+        if not day or not (date.today() < day <= date.today() + timedelta(days=CLOSE_MAX_DAYS)):
+            _g.refused = True
+            _fs["notice"] = f"Not changed: pick a day from tomorrow to {ctx.nice((date.today() + timedelta(days=CLOSE_MAX_DAYS)).isoformat())}."
+            return redirect(back)
+        x("UPDATE galleries SET close_on=? WHERE session_id=?", (day.isoformat(), sid))
+        ctx.audit(f"Gallery closing day set to {ctx.nice(day.isoformat())}", sid=sid)
+        try:
+            window_changed(sid, strict=True)
+            _fs["notice"] = f"The gallery now closes after {ctx.nice(day.isoformat())}."
+        except Exception as e:
+            app.logger.exception("gallery closing day %s", sid)
+            _fs["notice"] = (f"Saved: the gallery closes after {ctx.nice(day.isoformat())}. The web host could not be told "
+                             f"yet ({str(e)[:120]}); the app takes the gallery down that day all the same.")
+        return redirect(back)
+
+    @app.post("/session/<int:sid>/gallery/close-now", endpoint="gallery_close_now")
+    def gallery_close_now(sid):
+
+        from flask import session as _fs, g as _g
+        s = session(sid)
+        g = gal(sid)
+        back = url_for("client_stage", hid=s["household_id"]) + f"?s={sid}#gallery"
+        if not (g and g["upload_state"] == "up" and not g["removed_at"]):
+            return redirect(back)
+        x("UPDATE galleries SET close_on=? WHERE session_id=?", ((date.today() - timedelta(days=1)).isoformat(), sid))
+        ctx.audit("Gallery closed early", sid=sid)
+        try:
+            sync_once()
+        except Exception:
+            app.logger.exception("gallery close now %s", sid)
+        g = gal(sid)
+        if g and g["upload_state"] == "removed":
+            _fs["notice"] = "The gallery is closed. Put back online can bring it back."
+        else:
+            _g.refused = True
+            _fs["notice"] = "The web host could not be reached to close it now. It comes down at the next check."
+        return redirect(back)
 
     @app.post("/session/<int:sid>/gallery/take-down", endpoint="gallery_take_down_now")
     def gallery_take_down_now(sid):
@@ -4091,7 +4257,7 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
     def window_changed(sid, strict=False):
 
         r = q("""SELECT s.gallery_id, s.extension_used, g.uploaded_at, g.restored_at, g.restore_days, g.restore_once,
-                        g.adopted, g.adopted_old, g.adopt_until
+                        g.adopted, g.adopted_old, g.adopt_until, g.close_on
                  FROM galleries g JOIN sessions s ON s.id=g.session_id
                  WHERE g.session_id=? AND g.upload_state='up' AND g.removed_at IS NULL""", (sid,), one=True)
         if not r or not r["gallery_id"] or adopted_old(r):
@@ -4100,7 +4266,8 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
         try:
             put_limits(r["gallery_id"], gdays(sid) * (2 if r["extension_used"] else 1),
                        (up + timedelta(days=ctx.C.GALLERY_UNOPENED_DAYS)).isoformat(),
-                       until=restored_until(r, gdays(sid) * (2 if r["extension_used"] else 1)) or adopted_until(r, gdays(sid)),
+                       until=closing_set(r) or restored_until(r, gdays(sid) * (2 if r["extension_used"] else 1))
+                       or adopted_until(r, gdays(sid)),
                        once=restored_once(r))
         except Exception:
             if strict:
@@ -4160,6 +4327,9 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
         if a_until:
             expires = date.fromisoformat(a_until)
             ext_date = date.fromisoformat(g["adopt_until"][:10]) + timedelta(days=days)
+        set_ = closing_set(g) if g and (g["upload_state"] or "") == "up" and not g["removed_at"] else None
+        if set_:
+            expires, ext_date = date.fromisoformat(set_), None
         if expires:
             left = (expires - date.today()).days
             exp_status = "red" if left < 0 else "amber" if left <= 1 else None
@@ -4222,7 +4392,10 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
                                       mailto=link_mail(s) if g and g["upload_state"] == "up" else "",
                                       served_bad=served_changed(s["id"]) if g and g["upload_state"] == "up" and not adopted_old(g) else None,
                                       refit_wait=refit_waiting(gid),
-                                      picks_mail=picks_by_email(s, g))
+                                      picks_mail=picks_by_email(s, g),
+                                      photos_home=photos_home_offer(s, g),
+                                      close_min=(date.today() + timedelta(days=1)).isoformat(),
+                                      close_max=(date.today() + timedelta(days=CLOSE_MAX_DAYS)).isoformat())
         return [("Gallery", html)]
 
     def refit_waiting(gid):

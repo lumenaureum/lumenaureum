@@ -155,7 +155,7 @@ def test_print_orders_are_off_on_a_new_install(tmp_path, monkeypatch):
     e = PE.make(tmp_path, monkeypatch, plugin=False, saved=False, on=False)
     assert setting(e, "plugin_on_prints") is None
     page = e.c.get("/settings/plugins", environ_base=E).data.decode()
-    assert "Print orders" in page and "Turn on" in page and "Core: always on" in page
+    assert "Print orders" in page and "Turn on" in page and "Always on" in page
     r = e.c.get("/settings/prints", environ_base=E)
     assert r.status_code == 302 and "/settings/plugins" in r.headers["Location"]
     assert "Print prices" not in e.c.get("/settings/plugins", environ_base=E).data.decode().split("</nav>")[0]
@@ -366,7 +366,7 @@ def test_crm_plugins_off_wins_over_the_switch_both_ways(tmp_path, monkeypatch):
     assert "prints" not in e.A.app.view_functions.get("prints_settings", lambda: None).__module__ if \
         "prints_settings" in e.A.app.view_functions else True
     page = e.c.get("/settings/plugins", environ_base=E).data.decode()
-    assert "Off for this install (CRM_PLUGINS_OFF)" in page
+    assert "Off for this install" in page and "turned this plugin off with CRM_PLUGINS_OFF" in page
     toggle(e, True)
     assert "That plugin has no switch here." in e.c.get("/settings/plugins", environ_base=E).data.decode()
 

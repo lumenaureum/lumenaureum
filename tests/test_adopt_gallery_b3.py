@@ -6,6 +6,7 @@ import os
 import secrets
 import sys
 import threading
+from datetime import datetime, timedelta, timezone
 import zipfile
 from datetime import date, timedelta
 from pathlib import Path
@@ -184,7 +185,7 @@ def test_adopting_records_the_gallery_and_changes_nothing_on_the_host(env, monke
     assert "Replace this link" not in page and "Offer prints from this gallery" not in page
     assert "Adopt a gallery already online" not in page
 
-    (host / GID / "seen.txt").write_text("2026-11-15T01:02:03Z")
+    (host / GID / "seen.txt").write_text((datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT01:02:03Z"))
     before = snapshot(host / GID)
     with A.app.test_request_context():
         A.app.view_functions["gallery_sync_now"]()
@@ -323,3 +324,51 @@ def test_bring_up_to_date_stops_before_any_write_when_photos_are_missing(env):
     assert j["state"] == "error" and "missing on the web host" in j["error"]
     assert snapshot(host / GID) == before
     assert row(A, "SELECT adopted_old FROM galleries WHERE session_id=1")[0] == 1
+
+def test_bring_the_photos_home_keeps_the_gallerys_photos_as_the_sessions_own(env):
+
+    A, c, G, host, key, photos, m = env
+    adopt(c, f"{BASE}{GID}/#k={key}")
+    page = c.get("/c/1?s=1", environ_base=E).get_data(as_text=True)
+    assert "Bring the photos home" in page and 'action="/session/1/gallery/photos-home"' in page
+    before = snapshot(host / GID)
+    r = c.post("/session/1/gallery/photos-home", environ_base=E)
+    assert r.status_code == 302
+    assert snapshot(host / GID) == before
+    import photostore
+    con = A.connect()
+    try:
+        rows = {r_["name"]: r_ for r_ in photostore.files(con, 1, "export", done_only=True)}
+        assert sorted(rows) == sorted(n for n, _ in photos)
+        for n, data in photos:
+            assert photostore.plain_bytes(rows[n]) == data, n
+    finally:
+        con.close()
+    assert row(A, "SELECT photos_home_at FROM galleries WHERE session_id=1")[0] == date.today().isoformat()
+    assert any(h.startswith("Brought the adopted gallery's 3 photos home") for h in history(A))
+    assert "Bring the photos home" not in c.get("/c/1?s=1", environ_base=E).get_data(as_text=True)
+    c.post("/session/1/gallery/photos-home", environ_base=E)
+    con = A.connect()
+    try:
+        assert len(photostore.files(con, 1, "export")) == 3
+    finally:
+        con.close()
+
+def test_bring_the_photos_home_after_bringing_the_gallery_up_to_date(env):
+
+    A, c, G, host, key, photos, m = env
+    adopt(c, f"{BASE}{GID}/#k={key}")
+    c.post("/session/1/gallery/bring-up-to-date", environ_base=E)
+    for t in [t for t in threading.enumerate() if t.name == "gallery-1"]:
+        t.join(timeout=120)
+    assert c.get("/session/1/gallery/status", environ_base=E).get_json()["state"] == "done"
+    c.post("/session/1/gallery/close-now", environ_base=E)
+    assert row(A, "SELECT upload_state FROM galleries WHERE session_id=1")[0] == "removed"
+    c.post("/session/1/gallery/photos-home", environ_base=E)
+    import photostore
+    con = A.connect()
+    try:
+        names = sorted(r_["name"] for r_ in photostore.files(con, 1, "export", done_only=True))
+    finally:
+        con.close()
+    assert names == sorted(n for n, _ in photos)

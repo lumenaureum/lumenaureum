@@ -1,7 +1,8 @@
 {% extends "base.html" %}{% from "_macros.html" import stage_pill, phone, seg, avatar with context %}{% import "_ui.html" as ui with context %}
 {% block title %}{{ e.name }} - Lumen Aureum{% endblock %}
 {% block body %}
-{% set signed = fams|selectattr('released')|list|length %}
+{% set need_rel = fams|selectattr('n_docs')|list %}
+{% set signed = need_rel|selectattr('released')|list|length %}
 {% set delivered = fams|selectattr('s.stage', 'in', ['delivered','closed'])|list|length %}
 {% set open_steps = steps|rejectattr('done')|list %}
 
@@ -15,8 +16,8 @@
   <div><div class="k">Date</div><div class="v">{{ nice(e.date) or '-' }}</div></div>
   <div><div class="k">Venue</div><div class="v">{{ e.venue or '-' }}</div></div>
   <div><div class="k">Families</div><div class="v">{{ fams|length }}</div></div>
-  <div><div class="k">Releases</div><div class="v"><span class="pill">{{ signed }}/{{ fams|length }} families</span></div></div>
-  <div><div class="k">Next step</div><div class="v" style="{{ 'color:var(--red)' if open_steps and open_steps[0].due and open_steps[0].due < today.isoformat() }}">{{ open_steps[0].title if open_steps else '-' }}</div>
+  <div><div class="k">Releases</div><div class="v">{% if need_rel %}<span class="pill">{{ signed }} of {{ need_rel|length }} families signed</span>{% else %}None to sign{% endif %}</div></div>
+  <div><div class="k">Next step</div><div class="v" style="{{ 'color:var(--red)' if open_steps and open_steps[0].due and open_steps[0].due < today.isoformat() }}">{{ open_steps[0].title if open_steps else (fam_open or '-') }}</div>
     {% if open_steps and open_steps[0].due %}<div class="sub" style="font-size:12px">{{ nice(open_steps[0].due) }}</div>{% endif %}</div>
   <div><div class="k">Delivered</div><div class="v">{{ delivered }}/{{ fams|length }}</div></div>
 </div>
@@ -38,30 +39,34 @@
 </section>
 
 <section class="sec" id="families"><h2 class="sec-h">Families</h2>
-  {% if signed < fams|length %}
-  <form method="post" action="{{ url_for('event_releases', eid=e.id) }}" class="row" style="margin-bottom:10px" data-confirm="Mark every family's release signed? Do this once you have all the signed copies back.">
+  {% if signed < need_rel|length %}
+  <form method="post" action="{{ url_for('event_releases', eid=e.id) }}" class="row" style="margin-bottom:10px;flex-wrap:wrap;gap:8px" data-confirm="Mark every family's release signed? Do this once you have all the signed copies back.">
+    <label for="f-signed_on">Releases signed on</label><input type="date" id="f-signed_on" name="signed_on" value="{{ sign_day }}" style="width:auto;margin:0">
     <button class="ui-btn ui-btn-primary">Mark every release signed</button>
-    <span class="sub">on</span><input type="date" name="signed_on" value="{{ sign_day }}" aria-label="Signed on" style="width:auto">
   </form>{% endif %}
   {% if e.billing == 'families' %}<form method="post" action="{{ url_for('event_family_price', eid=e.id) }}" class="row" style="margin-bottom:10px;gap:8px">
     <label for="f-family_price">Price per family, before tax</label><input type="number" step="0.01" min="0" id="f-family_price" name="amount" placeholder="$" value="{{ '%g' % e.family_price if e.family_price else '' }}" style="width:110px;margin:0">
     <button class="ui-btn ui-btn-quiet">Set for families without one</button></form>{% endif %}
-  {% if pipe_i and cur_i + 1 < C.STAGES|length %}{% set to_ = stage_label[C.STAGES[cur_i + 1]] %}<div class="ui-btnrow">{{ ui.action(url_for('event_stage', eid=e.id),
+  {% if pipe_i and cur_i + 1 < C.STAGES|length %}{% set to_ = stage_label[C.STAGES[cur_i + 1]] %}{% set left_ = (fam_open ~ '. ') if fam_open else '' %}
+  {% if C.STAGES[cur_i] == 'booked' and e.date and e.date < today.isoformat() %}<p class="sub" style="margin:0 0 6px">The event was {{ nice(e.date) }}. {{ 'The family is' if n_move == 1 else 'The families are' }} still at Booked.{{ (' ' ~ fam_open ~ '.') if fam_open }}</p>{% endif %}
+  <div class="ui-btnrow">{{ ui.action(url_for('event_stage', eid=e.id),
       ('Move all families to ' ~ to_) if n_move == pipe_i|length else ('Move the ' ~ n_move ~ ' ' ~ ('family' if n_move == 1 else 'families') ~ ' at ' ~ stage_label[C.STAGES[cur_i]] ~ ' to ' ~ to_),
       {}, inplace=false, name='stage', value=C.STAGES[cur_i + 1],
-      confirm=('Move all ' ~ n_move ~ ' families to ' ~ to_ ~ '?') if n_move == pipe_i|length else ('Move ' ~ n_move ~ ' ' ~ ('family' if n_move == 1 else 'families') ~ ' to ' ~ to_ ~ '? Families further along stay where they are.')) }}</div>{% endif %}
+      confirm=left_ ~ (('Move all ' ~ n_move ~ ' families to ' ~ to_ ~ '?') if n_move == pipe_i|length else ('Move ' ~ n_move ~ ' ' ~ ('family' if n_move == 1 else 'families') ~ ' to ' ~ to_ ~ '? Families further along stay where they are.'))) }}</div>{% endif %}
   <div><table class="data stack-phone">
-  <thead><tr><th>Family</th><th>Children</th><th>Parent</th><th>Releases</th>{% if e.billing == 'families' %}<th>Paid</th>{% endif %}<th>Stage</th></tr></thead>
+  <thead><tr><th>Family</th><th>Children</th><th>Parent</th><th>Releases</th>{% if e.billing == 'families' %}<th>Payment</th>{% endif %}<th>Stage</th></tr></thead>
   <tbody>{% for f in fams %}<tr class="rowlink" data-href="{{ url_for('client_stage', hid=f.s.household_id, s=f.s.id) }}">
     <td><a class="name" href="{{ url_for('client_stage', hid=f.s.household_id, s=f.s.id) }}"><b>{{ f.s.household }}</b></a></td><td data-l="Children">{{ f.subjects }}</td>
     <td>{% if f.parent %}{{ f.parent.name }}<div style="font-size:13px">{{ phone(f.parent.phone) }}</div>{% endif %}</td>
-    <td data-l="Releases" data-v="{{ f.n_signed - f.n_docs }}">{% if f.released %}<span class="pill">{{ f.n_signed }}/{{ f.n_docs }} signed</span>
+    <td data-l="Releases" data-v="{{ f.n_signed - f.n_docs }}">{% if not f.n_docs %}<span class="mute">None to sign</span>
+      {% elif f.released %}<span class="pill">{{ 'Signed' if f.n_docs == 1 else 'All ' ~ f.n_docs ~ ' signed' }}</span>
       {% else %}<form method="post" action="{{ url_for('event_releases', eid=e.id) }}" class="inline" data-confirm="Mark the {{ f.s.household }} release signed? Do this once you have the signed copy back."><input type="hidden" name="session_id" value="{{ f.s.id }}">
-        <button class="ui-btn ui-btn-small" title="Mark signed" aria-label="{{ f.n_signed }} of {{ f.n_docs }} signed. Mark the {{ f.s.household }} release signed">{{ f.n_signed }}/{{ f.n_docs }} signed</button></form>{% endif %}</td>
-    {% if f.t is not none %}<td data-l="Paid" data-v="{{ f.t.due }}">{% if not f.t.quoted %}<span class="mute">no price</span>{% elif f.t.due < -0.005 %}<span class="pill">paid, {{ money(-f.t.due) }} credit</span>{% elif f.t.due <= 0.005 %}<span class="pill">paid</span>{% else %}{{ money(f.t.paid) }} of {{ money(f.t.quoted) }}{% endif %}</td>{% endif %}
+        <span>{{ f.n_signed }} of {{ f.n_docs }} signed</span> <button class="ui-btn ui-btn-small" aria-label="Mark the {{ f.s.household }} release signed">Mark signed</button></form>{% endif %}</td>
+    
+    {% if f.t is not none %}<td data-l="Payment" data-v="{{ f.t.due }}">{% if not f.t.quoted %}<span class="mute">No price yet</span>{% elif f.t.due < -0.005 %}<span class="pill">{{ money(f.t.paid) }} paid, {{ money(-f.t.due) }} credit</span>{% elif f.t.due <= 0.005 %}<span class="pill">{{ money(f.t.paid) }} paid in full</span>{% elif f.t.paid > 0.005 %}{{ money(f.t.paid) }} paid, {{ money(f.t.due) }} owed{% else %}{{ money(f.t.due) }} owed{% endif %}</td>{% endif %}
     <td>{{ stage_pill(f.s.stage) }}{% set bh_ = booked_hint(f.s.id) %}{% if bh_ %} <span class="stage-hint">&middot; {{ bh_ }}</span>{% endif %}</td></tr>
   {% endfor %}
-  <tr><form method="post" action="{{ url_for('event_family', eid=e.id) }}" id="fnew"></form>
+  <tr class="ev-newfam"><form method="post" action="{{ url_for('event_family', eid=e.id) }}" id="fnew"></form>
     <td><input form="fnew" name="household_name" maxlength="200" placeholder="New family" required></td>
     <td><input form="fnew" name="children" placeholder="Children (Anna 8, Liam 10)"></td>
     <td><input form="fnew" name="parent_name" placeholder="Parent"><input form="fnew" type="tel" name="phone" maxlength="200" placeholder="Phone" style="margin-top:4px"></td>
@@ -69,15 +74,15 @@
   </tbody></table></div>
 </section>
 
+{% if steps|selectattr('stage', 'in', C.STAGES)|list %}
 <section class="sec" id="steps"><h2 class="sec-h">Event steps</h2>
   {% for st in C.STAGES %}{% set group = steps|selectattr('stage', 'equalto', st)|list %}{% if group %}
   <div class="section-title" style="margin-top:6px"><h2>{{ stage_label[st] }}</h2></div>
   <ul class="wf-steps">{% for t in group %}
     <li class="{{ 'done' if t.done }}"><form method="post" action="{{ url_for('task_toggle', tid=t.id) }}" class="inline"><input type="hidden" name="back" value="{{ url_for('event_view', eid=e.id) }}#steps"><input type="hidden" name="set" value="0"><input type="checkbox" name="set" value="1" aria-label="{{ t.title }}" data-autosubmit {{ 'checked' if t.done }}></form>
       <span class="lbl">{{ t.title }}</span>{% if t.due and not t.done %}<span class="due {{ 'late' if t.due < today.isoformat() }}">{{ nice(t.due) }}</span>{% endif %}</li>
-  {% endfor %}</ul>{% endif %}{% else %}{% endfor %}
-
-</section>
+  {% endfor %}</ul>{% endif %}{% endfor %}
+</section>{% endif %}
 
 <section class="sec" id="details"><h2 class="sec-h">Details</h2>
   {% with clash_form='event' %}{% include "_edit_clash.html" %}{% endwith %}

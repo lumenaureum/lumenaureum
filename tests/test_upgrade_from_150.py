@@ -826,10 +826,12 @@ def test_idle_sign_out_check_in_wait_and_home_base_stay_on_general(upgraded):
     assert (S150["idle_signout_hours"], S150["check_in_snooze_months"], S150["mileage_rate"]) == ("4", "9", "0.70")
     assert _in_request(A, A.app.config["idle_seconds"]) == 4 * 3600
     from make_fixture import form_fields
+
+    assert form_fields(_page(c, "/security"), action="/settings")["idle_signout_hours"] == ["4"]
+    assert form_fields(_page(c, "/settings?tab=clients"))["check_in_snooze_months"] == ["9"]
     page = _page(c, "/settings")
     general = form_fields(page)
-    assert general["idle_signout_hours"] == ["4"] and general["check_in_snooze_months"] == ["9"]
-    assert general["home_base"] == [S150["home_base"]]
+    assert "home_base" not in general
     assert "mileage_rate" not in general and 'name="mileage_rate"' not in page
     assert 'data-idle="14400"' in page
     money = _page(c, "/setup/money")
@@ -842,7 +844,7 @@ def test_the_gallery_look_is_on_its_own_settings_page(upgraded):
     look = ("gallery_font", "gallery_bg", "proof_mark", "proof_mark_text", "proof_mark_strength")
     got = {k: _q(A, "SELECT value FROM settings WHERE key=?", (k,))[0][0] for k in look}
     assert got == {k: EXPECTED["settings"][k] for k in look}
-    page = _page(c, "/settings?tab=gallery")
+    page = _page(c, "/settings?tab=branding")
     assert 'id="gallery-look"' in page and 'value="elegant"' in page and EXPECTED["settings"]["proof_mark_text"] in page
     assert 'id="gallery-look"' not in _page(c, "/settings")
 
@@ -854,9 +856,10 @@ def test_the_locked_studio_notice_and_its_plain_file_are_kept(upgraded):
         assert _q(A, "SELECT value FROM settings WHERE key=?", ("ntfy_" + k,))[0][0] == S150["ntfy_" + k]
     assert json.loads((tmp_path / "ntfy.json").read_text()) == EXPECTED["ntfy_json"]
     assert {k: v for k, v in locknotice.read_config().items()} == EXPECTED["ntfy_json"]
-    page = _page(c, "/security")
-    assert f'value="{S150["ntfy_server"]}"' in page and f'value="{S150["ntfy_topic"]}"' in page
-    assert S150["ntfy_token"] not in page
+
+    page = _page(c, "/settings?tab=notifications")
+    assert 'id="conn-ntfy"' in page and S150["ntfy_server"] in page and S150["ntfy_topic"][:3] + "..." in page
+    assert S150["ntfy_token"] not in page and 'type="password"' not in page
 
 def test_account_activity_lists_the_security_events(upgraded):
 

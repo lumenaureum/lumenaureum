@@ -81,11 +81,12 @@ def opened(G, out, key, name):
 
 def test_settings_save_and_validation(env):
     A, c, G, tmp, src = env
-    r = c.get("/settings?tab=gallery", environ_base=E)
+    r = c.get("/settings?tab=branding", environ_base=E)
     page = r.get_data(as_text=True)
     assert r.status_code == 200 and "Client galleries" in page and "The Sample Family" in page and "gallery_look.js" in page
-    general = c.get("/settings?tab=general", environ_base=E).get_data(as_text=True)
-    assert "Logo on your documents" in general and 'id="gallery-look"' not in general
+    assert "Logo on your documents" in page
+    profile = c.get("/settings?tab=profile", environ_base=E).get_data(as_text=True)
+    assert 'id="gallery-look"' not in profile and "Logo on your documents" not in profile
     save_look(c, gallery_font="script", gallery_bg="#262422", proof_mark="tiled", proof_mark_text=" Draft\x07 copy ",
               proof_mark_strength="35")
     assert [setting(A, k) for k in ("gallery_font", "gallery_bg", "proof_mark", "proof_mark_text", "proof_mark_strength")] == \

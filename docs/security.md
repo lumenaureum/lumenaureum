@@ -34,7 +34,7 @@ password. `/healthz` reports `"locked": true` so a NAS can show it.
 The app never unlocks itself. Earlier versions had an optional unattended unlock from a key
 file on another volume; 1.5 removed it, so a restart always leaves the studio locked until you sign in.
 
-**Idle sign-out.** A sign-in ends after a time with no tap and no page opened (8 hours by default; Settings, General,
+**Idle sign-out.** A sign-in ends after a time with no tap and no page opened (8 hours by default; Settings, Security,
 **Sign out when idle**, 1 to 72 hours). About 2 minutes before, a warning offers **Stay signed in**. Only a real tap
 counts: a page's own background requests (status checks, refreshes) never keep a sign-in alive. What you typed and did
 not save stays on the page, and the sign-in page says why you were signed out. Updating to a new version signs every
@@ -66,7 +66,7 @@ the password and the two-factor code alike, which is why it lives on paper: keep
 ## Notices while locked
 While the app is locked, backups and gallery checks wait, so a restart while you are away (a power cut, a NAS update)
 can go unnoticed for days. The locked-studio notice sends a message to your phone when that happens. It is optional and off until you set it up in Settings,
-Security: the address of an ntfy server, a topic, and an access token if the server needs one. **Send a test
+Notifications: the address of an ntfy server, a topic, and an access token if the server needs one. **Send a test
 notice** checks it. Once ntfy is set up, **Studio locked after a restart** shows as a ticked box that stays on. The
 first time the studio restarts locked without it, Today suggests it once.
 

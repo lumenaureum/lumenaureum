@@ -43,11 +43,41 @@ def _save(p, data):
         json.dump(data, f, indent=1)
     os.replace(tmp, p)
 
-def check(server, topic):
+def own_network(server, resolve=True):
+
+    import ipaddress
+    import socket
+    from urllib.parse import urlsplit
+    from vault.s3 import lan_ip
+    host = (urlsplit(server).hostname or "").strip("[]")
+    if not host:
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return lan_ip(host)
+    except ValueError:
+        pass
+    if host.lower() == "localhost":
+        return True
+    if not resolve:
+        return False
+    try:
+        addrs = {a[4][0] for a in socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)}
+    except OSError:
+        return False
+    return bool(addrs) and all(lan_ip(a) for a in addrs)
+
+def plain_http(server):
+    return (server or "").strip().lower().startswith("http://")
+
+def check(server, topic, resolve=True):
 
     server, topic = (server or "").strip(), (topic or "").strip()
-    if not server.lower().startswith("https://") or len(server) < 12 or any(c.isspace() for c in server):
-        return "The server address must start with https:// (the notice is only sent over HTTPS)."
+    if not server.lower().startswith(("https://", "http://")) or len(server) < 11 or any(c.isspace() for c in server):
+        return "The server address must start with https:// (or http:// for a server on your own network)."
+    if plain_http(server) and not own_network(server, resolve=resolve):
+        return ("Plain http:// is accepted only for a server on your own network. Use https:// for a server on the "
+                "internet, such as https://ntfy.sh.")
     if "?" in server or "#" in server:
         return "The server address is just the server, without a topic or anything after it."
     if not TOPIC_RE.match(topic):
@@ -91,7 +121,7 @@ def _post(url, body, headers):
 
     import ssl
     import urllib.request
-    if not url.lower().startswith("https://"):
+    if not url.lower().startswith("https://") and not (plain_http(url) and own_network(url)):
         raise ValueError("not HTTPS")
     class _NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, *a, **k):
@@ -124,7 +154,7 @@ def plain_why(e, server=""):
     host = urlsplit(server).hostname or "the server"
     raw = str(e)
     if isinstance(e, ValueError) and "HTTPS" in raw:
-        return "the server address must start with https://"
+        return "the server address must start with https:// (or http:// for a server on your own network)"
     if isinstance(e, urllib.error.HTTPError) or raw.startswith("the server answered"):
         code = getattr(e, "code", None) or next((int(w_) for w_ in raw.split() if w_.isdigit()), 0)
         if code in (401, 403):

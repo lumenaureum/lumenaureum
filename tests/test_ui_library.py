@@ -15,7 +15,7 @@ ONE_OFF_CLASSES = {"btn", "go", "primary", "quiet", "verb", "ghost", "pillbtn", 
 
 NOT_YET_MIGRATED = {
     "_action.html", "_edit_clash.html", "_import_msg.html", "_macros.html", "about.html",
-    "auth_2fa.html", "auth_login.html", "auth_master_unlock.html", "auth_recovery.html", "auth_security.html",
+    "auth_2fa.html", "auth_login.html", "auth_master_unlock.html", "auth_recovery.html",
     "auth_setup_key.html", "auth_setup_owner.html", "auth_setup_verify.html", "base.html", "confirm_post.html",
     "inquiry.html", "master_key_check.html", "setup.html", "unconfirmed.html", "vault.html", "vault_ceremony.html",
     "walk.html",

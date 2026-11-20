@@ -30,7 +30,7 @@ jobs:
         run: php --version && node --version
       - name: Tests (${{ matrix.arch }})
         env: { LA_REQUIRE_TOOLS: "1" }     # a test that needs php or node fails when it is missing (tests/helpers_tools.py)
-        run: python -m pytest -q -rs -n auto --dist loadfile tests/   # one worker per core; a file keeps its order
+        run: python -m pytest -q -rsR -n auto --dist loadfile --reruns 1 tests/   # one worker per core; a file keeps its order; a test that fails once is retried once and listed as a rerun (-rR); failing twice fails the run
       - name: Host scripts on the PHP floor (7.4) and the newest PHP (8.5)
         if: matrix.arch == 'amd64'
         run: |

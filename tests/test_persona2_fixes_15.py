@@ -202,7 +202,7 @@ def test_setup_names_the_types_whose_own_ready_days_print(env):
     A, c = env
     c.post("/setup/shoot", data={"preset_weddings": "1"}, environ_base=E)
     page = html.unescape(c.get("/setup/money", environ_base=E).get_data(as_text=True))
-    assert "Not for Weddings (60 days): that type has its own number, set in Settings, Session types." in page
+    assert "Not for Weddings (60 days): that type has its own number, set on its page under What you shoot." in page
     assert A.C.delivery_days("wedding") == 60
 
 def test_finances_and_the_year_summary_agree_on_print_orders(env):

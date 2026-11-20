@@ -17,9 +17,9 @@ SERVER, TOPIC, TOKEN = "https://ntfy.example.net", "studio-k7Qx2", "tk_secret_to
 CLIENT_NAME = "Zebediah Quillfeather"
 MESSAGE = re.compile(r"^Your studio restarted and has been locked since (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{1,2}:\d{2} [ap]m\. "
                      r"Backups and gallery closings are waiting until you sign in\.$")
-REMOVED_SAY = ("Unattended unlock was removed in Lumen Aureum 1.5: the studio now always starts locked. The old key "
-               "file is no longer used and can be deleted from its separate drive. Also take the <code>CRM_UNLOCK_KEY_FILE</code> "
-               "line and the <code>/unlock</code> volume line out of compose.yaml (on TrueNAS, out of the app's Edit screen).")
+REMOVED_SAY = ("Since 1.5 the studio always starts locked. You can delete the old unlock key file, and remove the "
+               "<code>CRM_UNLOCK_KEY_FILE</code> and <code>/unlock</code> lines from compose.yaml (on TrueNAS, from the "
+               "app's Edit screen).")
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):
@@ -143,7 +143,7 @@ def test_an_install_that_never_had_it_is_not_told(env):
 def test_off_by_default_and_set_up_in_security(env, sent):
     A, c, tmp = env
     import locknotice
-    page = c.get("/security", environ_base=E).get_data(as_text=True)
+    page = c.get("/settings?tab=notifications", environ_base=E).get_data(as_text=True)
     assert 'id="notice"' in page and "Send a test notice" in page and "Studio locked after a restart" not in page
     assert not locknotice.config_path().exists()
     assert "ntfy.json" in page
@@ -154,21 +154,21 @@ def test_off_by_default_and_set_up_in_security(env, sent):
     assert not locknotice.config_path().exists()
 
     r = set_up_notice(c)
-    assert r.status_code == 302 and r.location.endswith("/security#notice")
+    assert r.status_code == 302 and r.location.endswith("/settings?tab=notifications#notice")
     cfg = json.loads(locknotice.config_path().read_text())
     assert cfg["server"] == SERVER and cfg["topic"] == TOPIC and cfg["token"] == TOKEN
     assert oct(os.stat(locknotice.config_path()).st_mode)[-3:] == "600"
     assert locknotice.config_path().parent == tmp
-    page = c.get("/security", environ_base=E).get_data(as_text=True)
+    page = c.get("/settings?tab=notifications", environ_base=E).get_data(as_text=True)
     assert re.search(r'<input type="checkbox" checked disabled>Studio locked after a restart', page)
-    assert "Send a test notice" in page and TOKEN not in page and "Leave blank to keep it" in page
+    assert "Send a test notice" in page and TOKEN not in page and 'id="conn-ntfy"' in page and 'type="password"' not in page
 
     set_up_notice(c, token="")
     assert json.loads(locknotice.config_path().read_text())["token"] == TOKEN
 
     c.post("/security/notice", data=dict(act="remove"), environ_base=E)
     assert not locknotice.config_path().exists()
-    assert "Studio locked after a restart" not in c.get("/security", environ_base=E).get_data(as_text=True)
+    assert "Studio locked after a restart" not in c.get("/settings?tab=notifications", environ_base=E).get_data(as_text=True)
     assert not sent
 
 def test_the_test_button_sends_with_the_token(env, sent, monkeypatch):
@@ -180,13 +180,13 @@ def test_the_test_button_sends_with_the_token(env, sent, monkeypatch):
     url, body, headers = sent[0]
     assert url == f"{SERVER}/{TOPIC}" and body == locknotice.TEST_TEXT
     assert headers["Authorization"] == f"Bearer {TOKEN}"
-    assert "Test notice sent" in c.get("/security", environ_base=E).get_data(as_text=True)
+    assert "Test notice sent" in c.get("/settings?tab=notifications", environ_base=E).get_data(as_text=True)
 
     def refuse(*a):
         raise OSError("the server answered 403")
     monkeypatch.setattr(locknotice, "_post", refuse)
     c.post("/security/notice", data=dict(act="test"), environ_base=E)
-    assert "The test notice couldn&#39;t be sent: the server refused it" in c.get("/security", environ_base=E).get_data(as_text=True)
+    assert "The test notice couldn&#39;t be sent: the server refused it" in c.get("/settings?tab=notifications", environ_base=E).get_data(as_text=True)
 
 def test_no_token_no_authorization_header(env, sent):
     A, c, _ = env
@@ -194,7 +194,7 @@ def test_no_token_no_authorization_header(env, sent):
     c.post("/security/notice", data=dict(act="test"), environ_base=E)
     assert "Authorization" not in sent[0][2]
 
-def test_only_https_ever_leaves(env):
+def test_only_https_ever_leaves_for_a_server_off_your_own_network(env):
     import locknotice
     with pytest.raises(ValueError):
         locknotice._post("http://ntfy.example.net/x", b"x", {})
@@ -339,3 +339,16 @@ def test_the_plain_copy_follows_the_encrypted_settings_at_unlock(env, sent):
     import locknotice
     cfg = locknotice.read_config()
     assert cfg and cfg["topic"] == TOPIC and cfg["tz"] == A.TZ.key
+
+def test_plain_http_to_a_server_on_your_own_network_is_accepted_with_a_warning(env):
+
+    import locknotice
+    A, c, _ = env
+    for ok in ("http://192.168.50.13:30184", "http://10.0.0.5", "http://100.101.102.103:8080", "http://localhost:2586"):
+        assert locknotice.check(ok, TOPIC) is None, ok
+    for bad in ("http://8.8.8.8", "http://ntfy.example.net", "ftp://192.168.50.13"):
+        assert locknotice.check(bad, TOPIC, resolve=False), bad
+    r = c.post("/security/notice", data=dict(act="save", server="http://192.168.50.13:30184", topic=TOPIC), environ_base=E)
+    assert r.status_code == 302 and locknotice.config_path().exists()
+    assert locknotice.read_config()["server"] == "http://192.168.50.13:30184"
+    assert "Plain http://" in c.get("/settings?tab=notifications", environ_base=E).get_data(as_text=True)

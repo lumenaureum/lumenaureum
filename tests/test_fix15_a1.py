@@ -75,7 +75,8 @@ def test_net_terms_balance_row_offers_waive_before_delivery(env):
     c.post("/session/1/money", data={"what": "payment", "kind": "balance", "amount": "200", "method": "other",
                                       "note": "trade", "received": A.today().isoformat()}, environ_base=E)
     row = next(a for a in _acts(A) if "owes $144.50" in (a.get("what") or ""))
-    assert [m["verb"] for m in row["more_items"]] == ["Waive the balance"]
+
+    assert [m["verb"] for m in row["more_items"]] == ["Remind them", "Waive the balance"]
     assert "Waive the balance" in _page(c)
     c.post("/close", data={"sid": "1", "step": "balance_paid", "outcome": "waived", "note_why": "Good client"},
            environ_base=E)

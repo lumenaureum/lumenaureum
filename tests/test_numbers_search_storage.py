@@ -87,7 +87,7 @@ def test_search_finds_settings_notes_and_numbers(tmp_path, monkeypatch):
     c = signed_in_client(A)
     E_ = {"REMOTE_ADDR": "127.0.0.1"}
     page = c.get("/search?q=time+zone", environ_base=E_).get_data(as_text=True)
-    assert "Settings, Business and time zone" in page
+    assert "Settings, Profile" in page
     assert "Settings, Payments and terms" in c.get("/search?q=deposit", environ_base=E_).get_data(as_text=True)
     con = A.connect()
     hid = con.execute("INSERT INTO households (name) VALUES ('Quill')").lastrowid

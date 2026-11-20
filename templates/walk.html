@@ -1,18 +1,32 @@
-{% extends "base.html" %}{% from "_macros.html" import help with context %}
+{% extends "base.html" %}{% from "_macros.html" import help with context %}{% import "_ui.html" as ui with context %}{% import "_steps.html" as sw %}
 {% block title %}{{ t.label }}: walk through - Lumen Aureum{% endblock %}
 {% block body %}
 <div class="row"><h1 class="grow">{{ t.label }}</h1><a class="go" href="{{ url_for('type_edit', key=t.key) }}">All {{ t.label }} settings &rsaquo;</a></div>
-{% set total_ = steps|length %}
-<div class="walkbar" style="margin:6px 0 18px;max-width:720px"><div style="height:4px;background:var(--line);border-radius:2px"><div style="height:4px;border-radius:2px;background:var(--gold);width:{{ ((n if not summary else total_) / total_ * 100)|round }}%"></div></div>
-  <div class="mute" style="font-size:12px;margin-top:4px">{% if summary %}Done{% else %}{{ n + 1 }} of {{ total_ }}{% endif %}</div></div>
+
+{% set total_ = steps|length + 1 %}
+<div class="walkbar" style="margin:6px 0 18px;max-width:720px"><div style="height:4px;background:var(--line);border-radius:2px"><div style="height:4px;border-radius:2px;background:var(--gold);width:{{ (n / total_ * 100)|round }}%"></div></div>
+  <div class="mute" style="font-size:12px;margin-top:4px">{{ n + 1 }} of {{ total_ }}</div></div>
 {% if summary %}
-<div class="card" style="max-width:720px">
-  <h2>{{ t.label }} is set up</h2>
-  <p class="mute" style="margin:0 0 10px">Anything you skipped keeps its default. You can change these at any time in {{ t.label }}'s settings.</p>
+<div class="card" style="max-width:720px" id="walk-doc">
+  <h2 style="margin-top:0">{{ t.label }}'s terms</h2>
+  <p class="mute" style="margin:0 0 10px">This is what clients read on quotes, invoices and session sheets for {{ t.label }}, built from your answers.
+    {% if not rs.reviewed %}It prints as SAMPLE until you approve it.{% endif %}</p>
+  <div style="padding:10px 12px;border-left:3px solid var(--gold);background:var(--panel, rgba(0,0,0,.03))">
+    {% for head, txt in terms %}{{ ui.fact(head, txt) }}{% endfor %}</div>
+  {% if rs.reviewed %}
+  <p style="margin:14px 0 0"><b>Approved {{ rs.when }}.</b> Changes you make later keep it approved.</p>
+  <div class="row" style="gap:8px;margin-top:14px"><a class="ui-btn ui-btn-primary" href="{{ url_for('type_edit', key=t.key) }}">Done</a></div>
+  {% else %}
+  <form method="post" action="{{ url_for('type_walk_approve', key=t.key) }}" class="row" style="gap:8px;margin-top:14px;flex-wrap:wrap">
+    <button class="primary">Approve this document</button>
+    <span class="grow"></span>
+    <a href="{{ url_for('type_walk', key=t.key, n=n - 1) }}">Back</a>
+    <a href="{{ url_for('type_edit', key=t.key) }}" id="walk-not-now">Not now</a>
+  </form>
+  {% endif %}
+  <h3 style="margin:20px 0 6px">Your answers</h3>
   <table class="data"><tbody>{% for s_ in steps %}<tr><td>{{ s_.title }}</td><td style="width:140px">{% if s_.id in mine.done %}<span style="color:var(--gold)">Set</span>{% elif s_.id in mine.skipped %}<span class="mute">Skipped</span>{% else %}<span class="mute">Default</span>{% endif %}</td>
     <td style="width:90px"><a href="{{ url_for('type_walk', key=t.key, n=loop.index0) }}">Change</a></td></tr>{% endfor %}</tbody></table>
-  <p style="margin:14px 0 0">Your quotes and agreements for {{ t.label }} still print as SAMPLE until you read and review them.
-    <a class="go" href="{{ url_for('type_edit', key=t.key) }}#terms">Review {{ t.label }}'s terms &rsaquo;</a></p>
 </div>
 {% else %}
 <form method="post" class="card f" style="max-width:720px">
@@ -30,17 +44,28 @@
     <label class="row" style="gap:6px"><input type="checkbox" name="free_reschedule" value="1"{{ ' checked' if value[0] }} style="width:auto;margin:0">One free reschedule, with
       <input type="number" name="notice_hours" min="0" value="{{ value[1] }}" style="width:80px;display:inline;margin:0"> hours' notice</label>
     <label class="row" style="gap:6px">No-show after <input type="number" name="late_minutes" min="0" value="{{ value[2] }}" style="width:80px;display:inline;margin:0"> minutes late <span class="mute">(0: none)</span></label>
+  {% elif kind_ == 'steps' %}
+    {% for stage, rows in step_rows if rows %}
+    <h3 style="margin:12px 0 4px">{{ stage_label[stage] }}</h3>
+    <ul class="walk-steps" data-stage-warn="{{ C.stage_off_warning(stage) }}">
+      {% for r in rows %}{% set k = stage ~ '_' ~ loop.index0 %}
+      <li class="{{ 'step-off' if r.off }}"><span class="step-name">{{ r.label }}</span>{{ help(r.help) }}<span class="step-sw-cell">{{ sw.switch(k, r) }}</span></li>
+      {% endfor %}
+    </ul>
+    {% endfor %}
+    <p class="mute" style="font-size:12px;margin:6px 0 0">To add, rename or date steps, use <a href="{{ url_for('type_edit', key=t.key) }}">{{ t.label }}'s settings</a>.</p>
   {% endif %}
-  {% if preview %}<div style="margin:16px 0 4px;padding:10px 12px;border-left:3px solid var(--gold);background:var(--panel, rgba(0,0,0,.03))"><div class="mute" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em">What the client reads now</div>{{ preview }}</div>{% endif %}
+  {{ sw.reuse_lines(reuse) }}
+  {% if preview is not none %}<div style="margin:16px 0 4px;padding:10px 12px;border-left:3px solid var(--gold);background:var(--panel, rgba(0,0,0,.03))"{% if not preview %} hidden{% endif %} id="walk-pv-box"><div class="mute" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em">{{ step.pv_head or 'What the client reads now' }}</div><span id="walk-pv" aria-live="polite" data-url="{{ url_for('type_walk_preview', key=t.key, n=n) }}">{{ preview }}</span></div>{% endif %}
   <div class="row" style="gap:8px;margin-top:16px;flex-wrap:wrap">
-    <button class="primary" name="act" value="save">Save and continue</button>
-    <button class="quiet" name="act" value="keep" formnovalidate>Keep as it is</button>
-    <button class="quiet" name="act" value="skip" formnovalidate>Skip for now</button>
+    
+    <button class="primary" name="act" value="save">Next</button>
     <span class="grow"></span>
     {% if n > 0 %}<a href="{{ url_for('type_walk', key=t.key, n=n - 1) }}">Back</a>{% endif %}
-    <button class="linkish" name="act" value="finish" formnovalidate>Finish with defaults</button>
+    <button class="linkish" name="act" value="finish" formnovalidate id="walk-defaults"{% if mine.changed %} disabled title="You changed a step in this walk-through: press Next to go on"{% else %} title="This and the remaining steps keep their current settings"{% endif %}>Accept all defaults</button>
   </div>
 </form>
 {% endif %}
+<script src="{{ url_for('static', filename='typesteps.js', v=static_v('typesteps.js')) }}"></script>
 {% endblock %}
 

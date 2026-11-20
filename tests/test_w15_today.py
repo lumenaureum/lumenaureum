@@ -129,8 +129,7 @@ def test_typing_in_the_search_box_never_moves_the_page(browser, env):
         try:
             p.goto(BASE + "/search?q=a")
             if width < 900:
-                p.locator("nav.top .ui-nav-more > summary").click()
-                box = p.locator("nav.top .ui-more-pop input[name=q]")
+                box = p.locator("form.sui-searchbox input[name=q]")
             else:
                 box = p.locator("nav.top form.search input[name=q]")
             if width < 900:

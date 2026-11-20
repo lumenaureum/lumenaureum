@@ -2,6 +2,7 @@ import html
 import io
 import json
 import os
+import re
 import sys
 import threading
 import zipfile
@@ -571,8 +572,10 @@ def test_website_setting(env, value, want):
 def test_the_website_box_is_a_plain_text_box(env):
 
     A, c, G, tmp, src, host = env
-    p = c.get("/settings", environ_base=E).get_data(as_text=True)
-    assert 'type="text" inputmode="url" autocomplete="url" id="f-business_website"' in p
+    p = c.get("/settings?tab=profile", environ_base=E).get_data(as_text=True)
+    box = re.search(r'<input [^>]*id="f-business_website"[^>]*>', p).group(0)
+    assert 'type="text"' in box and 'inputmode="url"' in box and 'autocomplete="url"' in box
+    assert 'class="sui-field' in p.split('id="f-business_website"', 1)[0].rsplit("<div", 2)[-2]
 
 def test_website_export_and_import(env):
     A, c, G, tmp, src, host = env

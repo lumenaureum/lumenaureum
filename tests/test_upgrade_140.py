@@ -117,7 +117,7 @@ def site(tmp_path, monkeypatch):
         con.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)", (k, v))
     con.execute("INSERT INTO households (name) VALUES ('Lane')")
     con.execute("""INSERT INTO sessions (household_id, type, stage, shoot_date, gallery_id, first_visit, retouch_picks)
-                   VALUES (1, 'family', 'delivered', '2026-10-01', ?, '2026-10-20', 'a.jpg: soften')""", (GID,))
+                   VALUES (1, 'family', 'delivered', '2026-10-01', ?, ?, 'a.jpg: soften')""", (GID, SEEN[:10]))
     con.execute("""INSERT INTO galleries (session_id, key, built_at, n_files, upload_state, uploaded_at, host_fp, link_base,
                    picks_hash, sealed_gen) VALUES (1, ?, ?, 3, 'up', '2026-10-15', ?, ?, ?, 0)""",
                 (key, date.today().isoformat(), G.host_fingerprint(), PUBLIC + "g/", hashlib.sha256(kept).hexdigest()))

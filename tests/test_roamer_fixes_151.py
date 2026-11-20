@@ -42,7 +42,6 @@ def test_saved_is_in_view_after_saving_at_the_bottom_of_a_phone_page(browser, en
     try:
         p.goto(BASE + "/setup/money")
         p.locator("#f-deposit").fill("150")
-        p.add_style_tag(content="aside.jobs { display: none !important; }")
         btn = p.locator(".sbar button").last
         btn.scroll_into_view_if_needed()
         assert p.evaluate("scrollY") > 400
@@ -65,7 +64,6 @@ def test_a_refused_save_is_in_view_too(browser, env):
         p.goto(BASE + "/setup/money")
         p.evaluate("document.getElementById('f-deposit').removeAttribute('min')")
         p.locator("#f-deposit").fill("-5")
-        p.add_style_tag(content="aside.jobs { display: none !important; }")
         btn = p.locator(".sbar button").last
         btn.scroll_into_view_if_needed()
         btn.click()
@@ -79,35 +77,54 @@ def test_a_refused_save_is_in_view_too(browser, env):
     finally:
         ctx.close()
 
-def test_search_answers_replace_the_settings_list(browser, env):
+def test_the_job_notice_never_takes_a_tap_on_a_phone(browser, env):
+
+    import time
+
+    import jobs
+    A, c = env
+    _sql(A, "INSERT INTO settings (key, value) VALUES ('setup_complete', '1') ON CONFLICT(key) DO UPDATE SET value='1'")
+    jobs.JOBS["test-231"] = dict(key="test-231", label="Updating the galleries online", state="running", done=1, total=4,
+                                 message="", started=time.time(), ended=None, link="")
+    ctx, p = _tab(browser, c, 390)
+    try:
+        p.route(BASE + "/jobs/**", lambda route, request: route.fulfill(status=200, content_type="application/json",
+                                                                        body='{"state": "running", "done": 1, "total": 4}'))
+        p.goto(BASE + "/setup/money")
+        box = p.locator("aside.jobs").bounding_box()
+        assert box and box["y"] + box["height"] <= 800 and box["x"] >= 0 and box["x"] + box["width"] <= 390, box
+        assert p.evaluate("getComputedStyle(document.querySelector('aside.jobs')).pointerEvents") == "none"
+        hit = p.evaluate(f"document.elementFromPoint({box['x'] + box['width'] / 2}, {box['y'] + box['height'] / 2})"
+                         ".closest('aside.jobs') === null")
+        assert hit
+        pad = p.evaluate("parseFloat(getComputedStyle(document.querySelector('main')).paddingBottom)")
+        assert pad >= box["height"], (pad, box)
+    finally:
+        jobs.JOBS.pop("test-231", None)
+        ctx.close()
+
+def test_settings_are_found_from_the_one_search(browser, env):
+
     A, c = env
     ctx, p = _tab(browser, c, 390)
     try:
         p.goto(BASE + "/settings")
-        groups = p.locator(".settabs > .sg").first
-        assert groups.is_visible()
-        p.locator("#ui-find-q").fill("deposit")
-        assert p.locator(".ui-find-out a").first.is_visible()
+        assert p.locator(".settabs > .sg").first.is_visible() and p.locator("#ui-find-q").count() == 0
+        p.locator("nav.top .ui-nav-search").click()
+        p.wait_for_url("**/search")
+        p.locator("form.sui-searchbox input[name=q]").fill("deposit")
+        p.locator("form.sui-searchbox input[name=q]").press("Enter")
+        p.wait_for_url("**/search?q=deposit")
+        assert p.locator("#setting-hits a").first.is_visible()
         _shot(p, "3-search-answers")
-        assert not groups.is_visible()
-        p.locator("#ui-find-q").fill("xyzzy")
-        assert "No setting matches" in p.locator(".ui-find-out").inner_text()
-        assert not groups.is_visible()
-        p.locator("#ui-find-q").fill("")
-        p.locator("#ui-find-q").dispatch_event("input")
-        assert groups.is_visible()
-        _shot(p, "4-settings-list")
-        assert p.locator("button", has_text="Find the setting").count() == 0
     finally:
         ctx.close()
-    html = c.get("/settings?find=deposit", environ_base=E).get_data(as_text=True)
-    assert ".settabs:has(.ui-find-out:not(:empty)) > .sg" in open(
-        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "style.css")).read()
-    assert 'class="ui-find-out"' in html
+    r = c.get("/settings?find=deposit", environ_base=E)
+    assert r.status_code == 302 and r.headers["Location"].endswith("/search?q=deposit")
 
 def test_mileage_rate_lives_on_payments_and_terms_only(env):
     A, c = env
-    general = c.get("/settings?tab=general", environ_base=E).get_data(as_text=True)
+    general = c.get("/settings?tab=profile", environ_base=E).get_data(as_text=True)
     assert "f-mileage_rate" not in general.split('class="setmain', 1)[1]
     money = c.get("/setup/money", environ_base=E).get_data(as_text=True)
     assert 'id="f-mileage_rate"' in money and 'value="0.0"' not in money
@@ -118,15 +135,15 @@ def test_mileage_rate_lives_on_payments_and_terms_only(env):
     money = c.get("/setup/money", environ_base=E).get_data(as_text=True)
     assert 'value="0.655"' in money
 
-def test_gallery_look_has_its_own_page_and_general_one_save(env):
+def test_gallery_look_has_its_own_page_and_profile_one_save(env):
     A, c = env
-    general = c.get("/settings?tab=general", environ_base=E).get_data(as_text=True).split('class="setmain', 1)[1]
+    general = c.get("/settings?tab=profile", environ_base=E).get_data(as_text=True).split('class="setmain', 1)[1]
     assert 'id="gallery-look"' not in general and "Save the gallery look" not in general
     assert "Business name on agreements" in general
-    look = c.get("/settings?tab=gallery", environ_base=E).get_data(as_text=True)
+    look = c.get("/settings?tab=branding", environ_base=E).get_data(as_text=True)
     assert 'id="gallery-look"' in look and "Save the gallery look" in look
     nav = look.split('class="settabs', 1)[1].split("</nav>", 1)[0]
-    assert "Gallery look" in nav and "font, background, proof mark" in nav
+    assert "Branding" in nav and "logo, gallery font, proof mark" in nav
     assert "database, reset" in nav and "plugins, reset" not in nav
 
 def test_business_and_time_zone_keeps_the_names_on_general_once_set_up(env):
@@ -134,9 +151,12 @@ def test_business_and_time_zone_keeps_the_names_on_general_once_set_up(env):
     _sql(A, "INSERT INTO settings (key, value) VALUES ('setup_complete', '1') ON CONFLICT(key) DO UPDATE SET value='1'")
     _sql(A, "INSERT INTO settings (key, value) VALUES ('business_name', 'North Light') ON CONFLICT(key) DO UPDATE SET value=excluded.value")
     _sql(A, "INSERT INTO settings (key, value) VALUES ('photographer_name', 'Sam') ON CONFLICT(key) DO UPDATE SET value=excluded.value")
-    page = c.get("/setup/business", environ_base=E).get_data(as_text=True)
-    assert 'id="f-business_name"' not in page and 'id="f-timezone"' in page
-    assert "are on" in page and "tab=general" in page
+    r = c.get("/setup/business", environ_base=E)
+    assert r.status_code == 302 and r.headers["Location"].endswith("/settings?tab=profile#location")
+    page = c.get("/settings?tab=profile", environ_base=E).get_data(as_text=True)
+    where = page.split('id="location"', 1)[1]
+    assert 'id="f-business_name"' not in where and 'id="f-timezone"' in where
+    assert 'id="f-business_name"' in page.split('id="location"', 1)[0]
     r = c.post("/setup/business", data=dict(timezone="America/Denver"), environ_base=E)
     assert r.status_code in (302, 303)
     row = lambda k: _sql(A, "SELECT value FROM settings WHERE key=?", (k,))[0][0]

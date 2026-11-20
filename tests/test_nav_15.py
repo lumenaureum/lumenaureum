@@ -38,7 +38,8 @@ def test_the_phone_bar_shows_the_main_three_and_more_holds_the_rest(env):
     more = bar.split('class="ui-more ui-nav-more"', 1)[1]
     for label in ("Calendar", "Finances", "Settings", "+ Contact", "+ Inquiry", "Sign out"):
         assert f">{label}</" in more, label
-    assert 'placeholder="Search"' in more
+    assert 'placeholder="Search"' not in more
+    assert 'class="ui-nav-search' in bar.split('class="ui-more ui-nav-more"', 1)[0]
     for label in ("Today", "Clients", "Sessions"):
         assert f">{label}</a>" in bar.split('class="ui-more ui-nav-more"', 1)[0]
         assert f">{label}</a>" not in more
@@ -78,13 +79,17 @@ def test_every_nav_item_is_visible_or_reachable(browser, env, width):
                 assert box["x"] >= -0.5 and box["x"] + box["width"] <= width + 0.5, box
                 for label in ("Calendar", "Finances", "Settings", "+ Contact", "+ Inquiry", "Sign out"):
                     assert pop.get_by_text(label, exact=True).is_visible(), (path, label)
-                assert pop.get_by_placeholder("Search").is_visible()
+
+                assert not pop.get_by_placeholder("Search").is_visible()
                 more.click()
+                assert p.locator("nav.top a.ui-nav-search").is_visible(), (path, "the search button")
 
         if width <= 760:
             p.goto(BASE + "/")
             p.locator("nav.top .ui-nav-more > summary").click()
             p.locator("nav.top .ui-nav-more .ui-more-pop").get_by_text("Finances", exact=True).click()
             p.wait_for_url(BASE + "/money")
+            p.locator("nav.top a.ui-nav-search").click()
+            p.wait_for_url(BASE + "/search")
     finally:
         ctx.close()

@@ -387,13 +387,110 @@ class _ByType(dict):
 
 TYPES = preset_types(BASIC_PRESETS)
 
-def type_flow(t):
+def type_steps_all(t):
 
-    flow = dict(KINDS[t["kind"]]["flow"])
+    flow = {k: [tuple(st) for st in v] for k, v in KINDS[t["kind"]]["flow"].items()}
     for stage, steps in (t.get("steps") or {}).items():
         if stage in STEP_STAGES:
             flow[stage] = [tuple(st) for st in steps]
-    return flow
+    off = steps_off(t)
+    return {stage: [(st, step_id(st) in off.get(stage, ())) for st in steps] for stage, steps in flow.items()}
+
+def type_flow(t):
+
+    return {stage: [st for st, off in rows if not off] for stage, rows in type_steps_all(t).items()}
+
+def step_id(st):
+
+    return ("auto", st[1]) if st[0] == "auto" else ("do", st[1])
+
+def steps_off(t):
+
+    out = {}
+    for stage, ids in (t.get("steps_off") or {}).items():
+        if stage in STEP_STAGES and isinstance(ids, (list, tuple)):
+            out[stage] = {("auto" if i[0] == "auto" else "do", i[1]) for i in ids
+                          if isinstance(i, (list, tuple)) and len(i) == 2 and tuple(i) != GALLERY_STEP}
+    return out
+
+GALLERY_STEP = ("auto", "gallery_built")
+GALLERY_STEP_WHY = "The Gallery panel needs this step."
+
+STEP_WARNINGS = {
+    ("auto", "agreement_signed"): "Sessions of this type will move past Booked without a signed agreement.",
+    ("auto", "deposit_paid"): "Sessions of this type will move past Booked without a deposit.",
+    ("auto", "balance_paid"): ("Sessions of this type will not show the balance as a step to collect. They still close"
+                               " only once paid in full."),
+    ("do", "Client said yes"): ("Sessions of this type will move to Booked once the quote is sent, without waiting for"
+                                " the client to say yes."),
+}
+
+STEP_HELP = {
+    ("auto", "logged"): "Ticks itself once you log a call, email or message with the client, or build a quote.",
+    ("auto", "intake_done"): "Ticks itself once the client answers at least half of the intake questions.",
+    ("auto", "quote_built"): "Ticks itself once the session's quote has a price on it.",
+    ("auto", "date_set"): "Ticks itself once the session has a shoot date.",
+    ("auto", "agreement_signed"): "Ticks itself once every agreement for the session is signed.",
+    ("auto", "deposit_paid"): ("Ticks itself once the deposit is paid. If no deposit is asked, it ticks once the session"
+                               " has a price."),
+    ("auto", "releases_signed"): "Ticks itself once every release is signed. A session with no releases skips it.",
+    ("auto", "gallery_built"): "Ticks itself once the encrypted online gallery is built.",
+    ("auto", "letter_mailed"): ("Ticks itself when you mark the printed letter with the gallery's QR code as mailed."
+                                " Not needed once the client has opened the gallery."),
+    ("auto", "balance_paid"): "Ticks itself once nothing is owed. Its due date follows your balance rule.",
+    ("auto", "first_visit"): "Ticks itself the first time the client opens the gallery.",
+    ("auto", "favorites"): ("Ticks itself once the client sends picks from the gallery: favorites, retouch picks or"
+                            " photos not to show."),
+    ("auto", "sd_shipped"): "Ticks itself when you mark the files delivered, by the type's delivery method.",
+    ("do", "Send quote"): "Ticks itself when you mark a quote sent.",
+    ("do", "Client said yes"): "Ticks itself when the client accepts the quote or makes a payment.",
+    ("do", "Send session details"): "Ticks itself when you mark the session sheet sent. A reschedule opens it again.",
+    ("do", "Confirm time and place"): ("Can be ticked only once the session has a start time and a place. A reschedule"
+                                       " opens it again."),
+    ("do", "Send invoice"): "Ticks itself when you mark the invoice sent.",
+    ("do", "Send retouched photos"): "Can be ticked only once a retouched photo is in for every retouch pick.",
+    ("do", "Back up photos"): ("Upload the RAW files here. It clears once they are stored, or when you say you backed"
+                               " them up another way."),
+    ("do", "Cull"): "Pick the keepers from the shoot. It clears by itself once the gallery is built.",
+    ("do", "Edit"): "Upload the edited photos here. It clears by itself once the gallery is built.",
+    ("do", "Plan locations"): "A reminder to plan where you will shoot.",
+    ("do", "Confirm access"): "A reminder to confirm how you get into the property on the day.",
+    ("do", "Confirm the venue's photo rules"): ("A reminder to ask the venue what photography it allows. Every family at"
+                                                " the event shares this step."),
+    ("do", "Scout the venue, dial in settings"): ("A reminder to visit the venue and set up your camera. Every family at"
+                                                  " the event shares this step."),
+}
+OWN_STEP_HELP = "Your own step. You tick it off yourself."
+
+def step_help(st):
+    return STEP_HELP.get(step_id(st), OWN_STEP_HELP)
+
+def step_rows(t, auto_label=None):
+
+    out = []
+    for stage in STEP_STAGES:
+        rows = []
+        for st, off in type_steps_all(t).get(stage, []):
+            sid_ = step_id(st)
+            rows.append(dict(step=st, off=off, help=step_help(st), own=sid_ not in STEP_HELP,
+                             label=(auto_label or {}).get(st[1], st[1]) if st[0] == "auto" else st[1],
+                             locked=GALLERY_STEP_WHY if sid_ == GALLERY_STEP else "",
+                             warn=STEP_WARNINGS.get(sid_, "")))
+        out.append((stage, rows))
+    return out
+
+STAGE_OFF_WARNINGS = {
+    "inquiry": "Every step of Inquiry is off. Sessions of this type will show no steps until you send the quote.",
+    "quoted": "Every step of Quoted is off. Sessions of this type will not move to Booked by themselves. You move them on.",
+    "booked": "Every step of Booked is off. Sessions of this type will have no reminders before the shoot.",
+    "shot": ("Every step of Shot is off. Sessions of this type will move to Delivered only when the client's picks come"
+             " in or you move them on."),
+    "delivered": ("Every step of Delivered is off. Sessions of this type will close as soon as they reach Delivered and"
+                  " are paid in full."),
+}
+
+def stage_off_warning(stage):
+    return STAGE_OFF_WARNINGS.get(stage, "")
 
 def type_questions(t):
 

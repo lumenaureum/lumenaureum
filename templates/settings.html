@@ -1,49 +1,36 @@
-{% extends "base.html" %}{% from "_macros.html" import seg, help with context %}{% import "_ui.html" as ui with context %}
-{% block title %}Settings - Lumen Aureum{% endblock %}
-{% block body %}
-{% set tab = request.args.get('tab', 'general') %}
+{% extends "base.html" %}{% from "_macros.html" import seg, help with context %}{% import "_ui.html" as ui with context %}{% import "_settings_ui.html" as sui with context %}
+{% block title %}{% set here_ = settings_here() %}{{ here_.label if here_ and request.args.get('tab') else 'Settings' }} - Lumen Aureum{% endblock %}
+{% block body %}{% set tab = request.args.get('tab') or 'profile' %}{% set here_ = settings_here() %}
 
-{{ ui.page_head({'general': 'General', 'fees': 'Prices', 'documents': 'Documents: review status', 'file': 'Settings file', 'system': 'System'}.get(tab, 'Settings')) }}
-{% include "_import_msg.html" %}{% if request.args.get('saved') %}<p class="ok-msg" style="color:var(--gold)">Saved.</p>{% endif %}
-{% if tab == 'general' %}
+{{ sui.head(here_.label if here_ else 'Settings') }}
+{% include "_import_msg.html" %}
+{% if tab == 'profile' %}
 {% set tzp = tz_prompt() %}{% if tzp %}{% call ui.needs('Set your time zone', id='tz', part=false) %}<form method="post" action="{{ url_for('settings_timezone') }}" class="f" style="max-width:620px">
-  <p style="font-size:13px;margin:0">No time zone has been chosen, so Lumen Aureum is using {{ tzp.now }}{{ ", this machine's own" if tzp.host == tzp.now else "" }}. If that isn't where you work, an invoice made in the evening can carry tomorrow's date. Pick yours below. It applies from now on: invoices, receipts, and other documents already issued keep the dates they have.</p>
+  <p style="font-size:13px;margin:0">No time zone is set, so the app uses {{ tzp.now }}{{ ", this machine's own" if tzp.host == tzp.now else "" }}. If you work elsewhere, pick yours, or an evening invoice can carry tomorrow's date.{{ help("It applies from now on: documents already issued keep their dates.") }}</p>
   <label class="l" for="tz-pick">Your time zone</label>
   <select id="tz-pick" name="timezone" required{% if tzp.host %} data-keep="1"{% endif %}><option value="">Pick one</option>{% for z in tzp.zones %}<option{{ ' selected' if z == tzp.host }}>{{ z }}</option>{% endfor %}</select>
   <input type="hidden" name="browser_tz" value="">
   <div><button class="ui-btn ui-btn-primary">Save time zone</button></div>
 </form>{% endcall %}<script src="{{ url_for('static', filename='setup.js', v=static_v('setup.js')) }}"></script>{% endif %}
-<form method="post" class="ui-sec f" id="business" style="max-width:620px"><input type="hidden" name="main_posted" value="1">
-  <div class="f2"><div><label class="l" for="f-photographer_name">Your name</label><input id="f-photographer_name" name="photographer_name" maxlength="200" value="{{ photographer }}"></div>
-    <div><label class="l" for="f-studio_name">Brand name, if different</label><input id="f-studio_name" name="studio_name" maxlength="200" value="{{ studio }}"></div></div>
-  <div><label class="l" for="f-business_name">Business name on agreements{{ help("The business that is the party to your agreements.") }}</label><input id="f-business_name" name="business_name" maxlength="200" value="{{ setting('business_name') }}"></div>
-  <div class="f2"><div><label class="l" for="f-business_email">Business email{{ help("Printed on your documents. Clients' gallery picks are sent here.") }}</label><input type="email" id="f-business_email" name="business_email" maxlength="200" value="{{ setting('business_email') }}"></div>
-    <div><label class="l" for="f-business_phone">Business phone{{ help("Printed with your email and address at the top of quotes, invoices and session sheets.") }}</label><input type="tel" id="f-business_phone" name="business_phone" maxlength="40" value="{{ setting('business_phone') }}"></div></div>
-  <div><label class="l" for="f-business_website">Website{{ help("Your studio's site. Gallery pages link to it.") }}</label><input type="text" inputmode="url" autocomplete="url" id="f-business_website" name="business_website" maxlength="200" placeholder="www.example.com" value="{{ setting('business_website') }}"></div>
-  <div><label class="l" for="f-business_address">Mailing address</label><textarea id="f-business_address" name="business_address" rows="2" maxlength="400">{{ setting('business_address') }}</textarea></div>
-  <div class="f2"><div><label class="l" for="f-business_tax_id">Tax ID{{ help("Printed on invoices if you fill it in. Leave blank to keep it off.") }}</label><input id="f-business_tax_id" name="business_tax_id" maxlength="40" value="{{ setting('business_tax_id') }}"></div>
-    <div><label class="l" for="f-pay_details">Where clients pay you{{ help("Printed after the ways to pay on quotes, agreements and invoices. For example: Venmo @yourname. Card: your payment link. Check your state's rules before adding a card fee.") }}</label><input id="f-pay_details" name="pay_details" maxlength="200" value="{{ setting('pay_details') }}" placeholder="Venmo @yourname. Card: your payment link"></div>
-    <div><label class="l" for="f-bank_details">Bank details for transfers{{ help("Printed on invoices if you fill it in, for clients who pay by bank transfer.") }}</label><textarea id="f-bank_details" name="bank_details" rows="2" maxlength="300">{{ setting('bank_details') }}</textarea></div></div>
-  <div class="f2"><div><label class="l" for="f-home_base">Home base{{ help("Where your drives start, for travel distance.") }}</label><input id="f-home_base" name="home_base" value="{{ home_base }}"></div></div>
-  <div class="f2"><div><label class="l" for="f-age_majority">Age of majority{{ help("Under this age a person is a minor, and a parent or guardian signs their release. 18 in most US states; 19 in Alabama and Nebraska, 21 in Mississippi; check where you work.") }}</label><input type="number" id="f-age_majority" name="age_majority" min="14" max="25" value="{{ majority_age() }}" style="width:90px"></div>
-    <div><label class="l" for="f-gallery_address">Gallery address{{ help("The web address your online galleries are served from. Set it up in Online galleries.") }}</label><input id="f-gallery_address" value="{{ gallery_base or 'Not set up' }}" disabled></div></div>
-  <div class="f2"><div><label class="l" for="f-check_in_snooze_months">After a check-in, wait (months){{ help("A client you checked in with leaves Time to check in on Clients for this long.") }}</label><input type="number" id="f-check_in_snooze_months" name="check_in_snooze_months" min="1" max="36" value="{{ check_in_snooze() }}" style="width:90px"></div>
-    <div><label class="l" for="f-idle_signout_hours">Sign out when idle (hours){{ help("With no tap and no page opened for this long, the app signs out. A warning comes 2 minutes before, with Stay signed in. What you typed and did not save is kept.") }}</label><input type="number" id="f-idle_signout_hours" name="idle_signout_hours" min="1" max="72" value="{{ idle_hours() }}" style="width:90px"></div></div>
-  <label class="row" style="gap:6px"><input type="checkbox" id="f-credit" name="credit" value="1" {{ 'checked' if setting('credit_off') != '1' }}>Credit Lumen Aureum on quotes, invoices and galleries{{ help("One small line: " ~ C.CREDIT ~ ". Never on agreements or releases.") }}</label>
-  <div><button class="ui-btn ui-btn-primary">Save</button></div>
+<form method="post" class="sui-form f" id="business"><input type="hidden" name="form_id" value="business">
+  {% call sui.section('Names') %}
+  <div class="f2">{{ sui.field('photographer_name', 'Your name', photographer, attrs='maxlength="200"') }}
+    {{ sui.field('studio_name', 'Brand name, if different', studio, attrs='maxlength="200"') }}</div>
+  {{ sui.field('business_name', 'Business name on agreements', setting('business_name'), attrs='maxlength="200"') }}
+  {{ sui.field('business_tax_id', 'Tax ID, if you want it on invoices', setting('business_tax_id'), attrs='maxlength="40"') }}
+  {% endcall %}
+  {% call sui.section('How clients reach you') %}
+  <div class="f2">{{ sui.field('business_email', 'Business email', setting('business_email'), type='email', help="Printed on your documents. Clients' gallery picks are sent here.", attrs='maxlength="200"') }}
+    {{ sui.field('business_phone', 'Business phone', setting('business_phone'), type='tel', attrs='maxlength="40"') }}</div>
+  {{ sui.field('business_website', 'Website', setting('business_website'), help="Your studio's site. Gallery pages link to it.", placeholder='www.example.com', attrs='inputmode="url" autocomplete="url" maxlength="200"') }}
+  {{ sui.field('business_address', 'Mailing address', setting('business_address'), type='textarea', attrs='maxlength="400"') }}
+  {% endcall %}
+  {{ sui.save_bar('business') }}
 </form>
-{% if n_demo %}<form method="post" action="{{ url_for('settings_clear_demo') }}" class="ui-sec f" id="demo" style="max-width:620px"
-  data-confirm="Delete the {{ n_demo }} demo client{{ '' if n_demo == 1 else 's' }}, with their sessions, galleries, and photos? This can't be undone. Your own clients aren't touched.">
-  <h2 class="ui-sec-title">Demo clients: {{ n_demo }}{{ help("Made-up clients to try things on. Deleting them also removes their sessions, galleries, and photos. Your own clients aren't touched.") }}</h2>
-  <div><button class="ui-btn ui-btn-quiet">Delete the {{ n_demo }} demo client{{ '' if n_demo == 1 else 's' }}</button></div>
-</form>{% endif %}
-<div class="ui-sec f" id="logo" style="max-width:620px"><h2 class="ui-sec-title">Logo on your documents{{ help("Printed at the top of quotes, invoices, receipts, agreements, releases, session sheets, statements and the price list. PNG or JPEG; it is resized to fit.") }}</h2>
-  {% if setting('logo_png') %}<div style="margin:10px 0"><img src="{{ logo_src() }}" alt="Your logo" style="max-height:70px;max-width:280px;background:#fff;padding:6px;border-radius:6px"></div>{% endif %}
-  <form method="post" action="{{ url_for('logo_upload') }}" enctype="multipart/form-data" class="ui-form-row">
-    <input type="file" name="logo" accept="image/png,image/jpeg" style="width:auto" required aria-label="Logo on your documents"><button class="ui-btn ui-btn-quiet">Upload the logo</button></form>
-  {% if setting('logo_png') %}<form method="post" action="{{ url_for('logo_upload') }}" class="ui-form-row"><button class="ui-btn ui-btn-quiet" name="remove" value="1">Remove the logo</button></form>{% endif %}
-</div>
-{% elif tab == 'gallery' %}
+
+{% if where_home_form %}{% call sui.section('Location and time', id='location') %}<div id="where-home">{{ where_home_form }}</div>{% endcall %}{% endif %}
+
+{% elif tab == 'branding' %}
 <style>
 @font-face { font-family: "Cormorant Garamond"; font-weight: 400; font-display: swap; src: url({{ url_for('gallery_font_file', name='cormorant-garamond') }}) format("woff2"); }
 @font-face { font-family: "Great Vibes"; font-weight: 400; font-display: swap; src: url({{ url_for('gallery_font_file', name='great-vibes') }}) format("woff2"); }
@@ -76,23 +63,27 @@
 #gl-prev .cells { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin: 14px auto 0; max-width: 260px; }
 #gl-prev .cells i { aspect-ratio: 1; background: var(--cell); border-radius: 2px; }
 </style>
-<form method="post" class="ui-sec f" id="gallery-look" style="max-width:620px"><input type="hidden" name="look_posted" value="1">
-  <h2 class="ui-sec-title">Client galleries{{ help("How your online galleries look to clients, for every gallery you build or rebuild from now on.") }}</h2>
+{% call sui.section('Logo', id='logo-sec') %}
+  {% call sui.upload_slot('Logo on your documents', 'logo', url_for('logo_upload'), 'logo', setting('logo_png'), 'image/png,image/jpeg', 'Upload the logo', 'Remove the logo', none_words='No logo yet.', help_text="Printed at the top of quotes, invoices, receipts, agreements, releases, session sheets, statements and the price list. PNG or JPEG; it is resized to fit.") %}
+    <img src="{{ logo_src() }}" alt="Your logo" class="sui-logo">{% endcall %}
+{% endcall %}
+<form method="post" class="ui-sec sui-sec f" id="gallery-look"><input type="hidden" name="look_posted" value="1"><input type="hidden" name="form_id" value="gallery-look">
+  <h2 class="ui-sec-title">Client galleries<span class="sui-nocaps">{{ help("How your online galleries look to clients, for every gallery you build or rebuild from now on.") }}</span></h2>
   <div><label class="l" id="gl-font-l">Font{{ help("Script is used for the client's name only." ~ ((" " ~ own_font.name ~ " is your own font: used for all the text, in your galleries and on your studio page.") if own_font else "")) }}</label>
-    <span class="seg gl-fonts" role="radiogroup" aria-labelledby="gl-font-l">{% for k_, l_ in (('classic', 'Classic'), ('elegant', 'Elegant'), ('script', 'Script')) + ((('own', own_font.name),) if own_font else ()) %}<label><input type="radio" name="gallery_font" value="{{ k_ }}"{{ ' checked' if look.gallery_font == k_ }}><span class="f-{{ k_ }}">{{ l_ }}</span></label>{% endfor %}</span>
-    <div class="row" style="gap:8px;flex-wrap:wrap;align-items:end;margin-top:8px"><span style="font-size:13px">{{ 'Change your own font' if own_font else 'Your own font' }}{{ help("A font file (WOFF2, WOFF, TTF or OTF) whose license lets you put it on a website. It goes up with each gallery and your studio page, so visitors' browsers never fetch it from anywhere else.") }}</span>
-      <label style="font-size:12.5px">Regular <input type="file" name="regular" form="gl-font" accept=".woff2,.woff,.ttf,.otf" style="width:auto"></label>
-      <label style="font-size:12.5px">Light (optional) <input type="file" name="light" form="gl-font" accept=".woff2,.woff,.ttf,.otf" style="width:auto"></label>
-      <button class="ui-btn ui-btn-quiet" form="gl-font">Upload the font</button>{% if own_font %}<button class="ui-btn ui-btn-quiet" form="gl-font" name="remove" value="1">Remove the font</button>{% endif %}</div>
-</div>
-  <div><label class="l" id="gl-bg-l">Background{{ help("Text, line and button colors are chosen to suit the background, so the page is easy to read.") }}</label>
+    <span class="seg gl-fonts" role="radiogroup" aria-labelledby="gl-font-l">{% for k_, l_ in (('classic', 'Classic'), ('elegant', 'Elegant'), ('script', 'Script')) + ((('own', own_font.name),) if own_font else ()) %}<label><input type="radio" name="gallery_font" value="{{ k_ }}"{{ ' checked' if look.gallery_font == k_ }}><span class="f-{{ k_ }}">{{ l_ }}</span></label>{% endfor %}</span></div>
+  
+  <div class="sui-upload" id="own-font"><div class="l">{{ 'Your own font' }}{{ help("A font file (WOFF2, WOFF, TTF or OTF) whose license lets you put it on a website. It goes up with each gallery and your studio page, so visitors' browsers never fetch it from anywhere else.") }}</div>
+    <div class="sui-upload-now">{% if own_font %}<span id="own-font-have">Uploaded: {{ own_font.name }}, regular{% if own_font.light %} and light{% else %}. No light weight: light text uses the regular one{% endif %}.</span>{% else %}<span class="ui-mute">None uploaded.</span>{% endif %}</div>
+    <div class="ui-form-row"><label style="font-size:12.5px">Regular <input type="file" name="regular" form="gl-font" accept=".woff2,.woff,.ttf,.otf" style="width:auto"></label>
+      <label style="font-size:12.5px">Light (optional) <input type="file" name="light" form="gl-font" accept=".woff2,.woff,.ttf,.otf" style="width:auto"></label></div>
+    <div class="ui-form-row"><button class="ui-btn ui-btn-quiet" form="gl-font">{{ 'Replace the font' if own_font else 'Upload the font' }}</button>{% if own_font %}<button class="ui-btn ui-btn-quiet" form="gl-font" name="remove" value="1">Remove the font</button>{% endif %}</div></div>
+  <div><label class="l" id="gl-bg-l">Background</label>
     {% set sw_ = (('#f6f3ed', 'Ivory'), ('#ffffff', 'White'), ('#262422', 'Charcoal'), ('#0d0c0b', 'Black')) %}
     {% set custom_ = look.gallery_bg not in sw_|map('first')|list %}
     <div class="gl-sw" role="radiogroup" aria-labelledby="gl-bg-l">{% for c_, l_ in sw_ %}<label><input type="radio" name="gallery_bg" value="{{ c_ }}"{{ ' checked' if look.gallery_bg == c_ }}><i style="background:{{ c_ }}"></i>{{ l_ }}</label>{% endfor %}
       <label><input type="radio" name="gallery_bg" value="custom"{{ ' checked' if custom_ }}>Your own<input type="color" name="gallery_bg_custom" value="{{ look.gallery_bg if custom_ else '#c8b89a' }}" aria-label="Your own background color"></label></div></div>
-  <div id="gl-dark"><label class="l">Logo for dark backgrounds{{ help("Used on Charcoal, Black, or other dark backgrounds. Without one, your logo is shown in white. A PNG with a see-through background works best.") }}</label>
-    <div class="row" style="gap:8px;flex-wrap:wrap"><input type="file" name="logo" form="gl-logo" accept="image/png,image/jpeg" style="width:auto" aria-label="Logo for dark backgrounds">
-      <button class="ui-btn ui-btn-quiet" form="gl-logo">Upload the dark logo</button>{% if setting('logo_dark_png') %}<button class="ui-btn ui-btn-quiet" form="gl-logo" name="remove" value="1">Remove the dark logo</button>{% endif %}</div></div>
+  {% call sui.upload_slot('Logo for dark backgrounds', 'gl-dark', url_for('logo_upload'), 'logo', setting('logo_dark_png'), 'image/png,image/jpeg', 'Upload the dark logo', 'Remove the dark logo', none_words='None uploaded: your logo is shown in white.', help_text="Used on Charcoal, Black, or other dark backgrounds. A PNG with a see-through background works best.", form='gl-logo') %}
+    <span>Uploaded.</span>{% endcall %}
   <div id="gl-prev" class="{{ look.gallery_font }}" role="img" aria-label="Preview of the gallery heading" data-palettes="{{ palettes|tojson|forceescape }}" style="{% for k_, v_ in look_pal.items() %}--{{ k_ }}:{{ v_ }};{% endfor %}">
     {% if look_logos.light or look_logos.dark %}<img id="gl-logo-img" alt="" data-light="{{ 'data:image/png;base64,' ~ look_logos.light if look_logos.light }}" data-dark="{{ 'data:image/png;base64,' ~ look_logos.dark if look_logos.dark }}">{% endif %}
     <p class="t">The Sample Family</p>
@@ -106,50 +97,89 @@
       <div><label class="l" for="gl-word">Word</label><input id="gl-word" name="proof_mark_text" maxlength="20" value="{{ look.proof_mark_text }}" style="width:160px"></div>
       <div><label class="l" for="gl-str">Strength <output id="gl-str-out" for="gl-str">{{ look.proof_mark_strength }}</output>%</label>
         <input id="gl-str" type="range" name="proof_mark_strength" min="5" max="100" step="5" value="{{ look.proof_mark_strength }}" style="width:180px"></div></div></div>
-  <div><button class="ui-btn ui-btn-primary">Save the gallery look</button></div>
+  {{ sui.save_bar('gallery-look', 'Save the gallery look') }}
 </form>
 <form id="gl-logo" method="post" action="{{ url_for('logo_upload') }}" enctype="multipart/form-data" hidden><input type="hidden" name="which" value="dark"></form>
 <form id="gl-font" method="post" action="{{ url_for('brand_font_upload') }}" enctype="multipart/form-data" hidden></form>
+<form method="post" class="sui-form f" id="credit"><input type="hidden" name="credit_posted" value="1"><input type="hidden" name="form_id" value="credit">
+  {% call sui.section('Credit line') %}
+  {{ sui.switch('credit', 'Credit Lumen Aureum on quotes, invoices and galleries', setting('credit_off') != '1', 'One small line at the bottom: ' ~ C.CREDIT ~ '. Never on agreements or releases.') }}
+  {% endcall %}
+  {{ sui.save_bar('credit', sticky=false) }}
+</form>
 <script src="{{ url_for('static', filename='gallery_look.js', v=static_v('gallery_look.js')) }}"></script>
-{% elif tab == 'fees' %}
-<form method="post" class="ui-sec f" style="max-width:760px"><input type="hidden" name="fees_posted" value="1">
-  <h2 class="ui-sec-title" id="fees">Fees and quotes{{ help("Saving a change makes a new version of your price list. Quotes already made keep the prices they were built from. Travel at $0.00 uses the mileage rate.") }}</h2>
+
+{% elif tab == 'clients' %}
+<form method="post" class="sui-form f" id="clients-form"><input type="hidden" name="clients_posted" value="1"><input type="hidden" name="form_id" value="clients-form">
+  {% call sui.section('Check-ins') %}
+  {{ sui.field('check_in_snooze_months', 'Months until a checked-in client is back in Time to check in', check_in_snooze(), type='number', unit='months', width='90px', attrs='min="1" max="36"') }}
+  {% endcall %}
+  {% call sui.section('Minors') %}
+  {{ sui.field('age_majority', 'Age of majority', majority_age(), type='number', width='90px', help="Under this age a person is a minor, and a parent or guardian signs their release. 18 in most US states; 19 in Alabama and Nebraska, 21 in Mississippi; check where you work.", attrs='min="14" max="25"') }}
+  {% endcall %}
+  {{ sui.save_bar('clients-form') }}
+</form>
+{% call sui.section('Labels', id='labels', tip="Your own words on clients. Add them on a client's Edit details. A rename or merge changes every client with that label.") %}
+  {% for l_ in labels %}{% set lid_ = 'lab-' ~ loop.index %}
+  {% call ui.fold(l_.label, id=lid_, note=l_.n ~ (' client' if l_.n == 1 else ' clients'), always=true, cls='sui-label') %}
+    <form method="post" action="{{ url_for('settings_labels') }}" class="ui-form-row"><input type="hidden" name="label" value="{{ l_.label }}">
+      <label for="{{ lid_ }}-new" class="ui-mute">Rename to</label><input id="{{ lid_ }}-new" name="new" maxlength="40" value="{{ l_.label }}" required class="ui-grow">
+      <button class="ui-btn ui-btn-quiet">Rename</button></form>
+    {% if labels|length > 1 %}<form method="post" action="{{ url_for('settings_labels') }}" class="ui-form-row" data-confirm="Merge &quot;{{ l_.label }}&quot; into the label you picked, on every client with it? The name &quot;{{ l_.label }}&quot; goes away."><input type="hidden" name="label" value="{{ l_.label }}"><input type="hidden" name="act" value="merge">
+      <label for="{{ lid_ }}-into" class="ui-mute">Merge into</label><select id="{{ lid_ }}-into" name="into" style="width:auto">{% for o_ in labels if o_.label != l_.label %}<option>{{ o_.label }}</option>{% endfor %}</select>
+      <button class="ui-btn ui-btn-quiet">Merge</button></form>{% endif %}
+  {% endcall %}
+  {% else %}<p class="ui-mute">No labels yet.</p>{% endfor %}
+{% endcall %}
+{% if n_demo %}{% call sui.danger_zone() %}
+<form method="post" action="{{ url_for('settings_clear_demo') }}" class="ui-form-row" id="demo"
+  data-confirm="Delete the {{ n_demo }} demo client{{ '' if n_demo == 1 else 's' }}, with their sessions, galleries, and photos? This can't be undone. Your own clients aren't touched.">
+  <span class="grow">Demo clients: {{ n_demo }}{{ help("Made-up clients to try things on. Deleting them also removes their sessions, galleries, and photos. Your own clients aren't touched.") }}</span>
+  <button class="ui-btn ui-btn-quiet">Delete the {{ n_demo }} demo client{{ '' if n_demo == 1 else 's' }}</button>
+</form>{% endcall %}{% endif %}
+
+{% elif tab == 'prices' %}
+<form method="post" class="ui-sec f" style="max-width:760px" id="fees-form"><input type="hidden" name="fees_posted" value="1"><input type="hidden" name="form_id" value="fees-form">
+  <h2 class="ui-sec-title" id="fees">Price list<span class="sui-nocaps">{{ help("Saving a change makes a new version of your price list. Quotes already made keep the prices they were built from. Travel at $0.00 uses the mileage rate.") }}</span></h2>
   <div class="ui-btnrow">{{ ui.button_link(url_for('fee_sheet'), 'Price list for clients', blank=true) }}{{ ui.button_link(url_for('fee_sheet_pdf'), 'Download the price list (PDF)') }}</div>
-  <div class="row"><label class="l" style="margin:0" for="f-quote_term_days">Quotes good for</label><input type="number" id="f-quote_term_days" name="quote_term_days" value="{{ term }}" min="1" style="width:80px"><span class="mute">days</span>
-    <label class="l" style="margin:0 0 0 18px" for="f-sales_tax_pct">Sales tax</label><input type="number" step="0.01" min="0" id="f-sales_tax_pct" name="sales_tax_pct" value="{{ tax_pct }}" style="width:70px"><span class="mute">%</span>
-    {% if region %}<span class="mute">+</span><input type="number" step="0.01" min="0" name="local_tax_pct" aria-label="Local sales tax %" value="{{ local_pct }}" style="width:70px"><span class="mute">% local</span>{% endif %}</div>
-  <table class="data fees"><tbody>
+  
+  <table class="data fees"><thead><tr><th>Fee</th><th>Price ($)</th><th>Charged</th><th>Sales tax</th><th>Remove</th></tr></thead><tbody>
   {% for it in fees['items'] %}<tr><td><input name="fee_label_{{ loop.index0 }}" value="{{ it.label }}" aria-label="Fee name"></td>
     <td style="width:110px"><input type="number" step="0.01" name="fee_amt_{{ loop.index0 }}" value="{{ '%g' % it.amount }}" aria-label="Price of {{ it.label }}"></td>
-    <td class="mute" style="width:70px">{{ {'flat':'flat','hour':'per hr','mile':'per mi','each':'each'}[it.unit] }}</td>
-    <td style="width:70px"><label class="row" style="gap:4px;font-size:12px"><input type="checkbox" name="fee_tax_{{ loop.index0 }}" value="1" {{ 'checked' if it.get('taxable', True) }}>taxed</label></td>
-    <td style="width:70px"><label class="row" style="gap:4px;font-size:12px"><input type="checkbox" name="fee_del_{{ loop.index0 }}" value="1">drop</label></td></tr>{% endfor %}
-  <tr><td><input name="new_label" placeholder="New fee"></td><td><input type="number" step="0.01" name="new_amount" placeholder="$"></td>
+    <td class="mute" style="width:80px">{{ {'flat':'flat fee','hour':'per hour','mile':'per mile','each':'each'}[it.unit] }}</td>
+    <td style="width:90px"><label class="row" style="gap:4px;font-size:12px"><input type="checkbox" name="fee_tax_{{ loop.index0 }}" value="1" {{ 'checked' if it.get('taxable', True) }}>Sales tax</label></td>
+    <td style="width:80px"><label class="row" style="gap:4px;font-size:12px"><input type="checkbox" name="fee_del_{{ loop.index0 }}" value="1">Remove</label></td></tr>{% endfor %}
+  <tr><td><input name="new_label" placeholder="New fee" aria-label="New fee"></td><td><input type="number" step="0.01" name="new_amount" placeholder="$" aria-label="New fee's price"></td>
     <td colspan="2">{{ seg('new_unit', [('flat','flat'),('hour','per hr'),('each','each'),('mile','per mi')], 'flat', label='New fee charged') }}</td>
-    <td><label class="row" style="gap:4px;font-size:12px"><input type="checkbox" name="new_taxable" value="1" checked>taxed</label></td></tr>
+    <td><label class="row" style="gap:4px;font-size:12px"><input type="checkbox" name="new_taxable" value="1" checked>Sales tax</label></td></tr>
   </tbody></table>
-  <div class="sub">Older versions: {% for v in versions %}<a href="{{ url_for('fees_view', sched_id=v.id) }}">{{ sched_code(v.id) or sched_name(v.id) ~ ' #' ~ v.id }}</a>{{ ', ' if not loop.last }}{% endfor %}</div>
+  
+  <p class="sub">Quotes are good for {{ term }} days: {{ ui.go(url_for('setup_step', step='money') ~ '#f-quote_term_days', 'Payments and terms') }}
+    Sales tax: {{ (tax_pct ~ '%') if tax_pct else 'none' }}{% if local_pct %} + {{ local_pct }}% local{% endif %}: {{ ui.go(url_for('setup_step', step='tax'), 'Sales tax') }}</p>
+  <div class="sub">Older versions: {% for v in versions %}<a href="{{ url_for('fees_view', sched_id=v.id) }}">{{ sched_code(v.id) or (sched_name(v.id) ~ (', ' ~ nice(v.created[:10]) if v.created else '')) }}</a>{{ ', ' if not loop.last }}{% endfor %}</div>
   {% if not prices_approved(fees.id) %}<p class="sub"><b>Sample prices:</b> the starter prices, not yet approved by you. {{ ui.go(url_for('fees_view', sched_id=fees.id), 'Review and approve them') }}</p>{% endif %}
-  <div><button class="ui-btn ui-btn-primary">Save fees</button></div>
+  {% if 'prints_settings' in SETTINGS_ENDPOINTS %}<p class="sub">Prints that clients order from their galleries have their own price list: {{ ui.go(url_for('plugin_page', name='prints'), 'Print orders') }}</p>{% endif %}
+  {{ sui.save_bar('fees-form', 'Save fees') }}
 </form>
 {% include "_editing.html" %}
-<div class="ui-sec" id="terms" style="max-width:760px"><h2 class="ui-sec-title">Terms on the price list{{ help("What the client-facing price list says, for every session type together. Each type's own terms are on its page under Session types.") }}</h2>
+<div class="ui-sec" id="terms" style="max-width:760px"><h2 class="ui-sec-title">Terms on the price list<span class="sui-nocaps">{{ help("What the client-facing price list says, for every session type together. Each type's own terms are on its page under What you shoot.") }}</span></h2>
   <div class="ui-btnrow">{{ ui.go(url_for('fee_sheet'), 'See the price list', blank=true) }}</div>
   {% set src_ = {'Booking': ('money', 'Payments and terms'), 'Payment': ('money', 'Payments and terms'), 'Delivery': ('money', 'Payments and terms'), 'Travel and permits': ('money', 'Payments and terms')} %}
-  {% for head, txt in C.build_terms(business=setting('business_name')) %}{% set v_ %}{{ txt }}<br>{% if head in src_ %}{{ ui.go(url_for('setup_step', step=src_[head][0]), 'Change in ' ~ src_[head][1]) }}{% else %}<small class="ui-mute">Per session type, under Session types</small>{% endif %}{% endset %}{{ ui.fact(head, v_) }}{% endfor %}
+  {% for head, txt in C.build_terms(business=setting('business_name')) %}{% set v_ %}{{ txt }}<br>{% if head in src_ %}{{ ui.go(url_for('setup_step', step=src_[head][0]), 'Change in ' ~ src_[head][1]) }}{% else %}<small class="ui-mute">Per session type, under What you shoot</small>{% endif %}{% endset %}{{ ui.fact(head, v_) }}{% endfor %}
   {% set rs = review_state('terms') %}
-  <form method="post" action="{{ url_for('doc_review', doc='terms') }}" class="reviewbox {{ 'ok' if rs.reviewed }}"><input type="hidden" name="back" value="{{ url_for('settings_view', tab='fees') }}#terms">
+  <form method="post" action="{{ url_for('doc_review', doc='terms') }}" class="reviewbox {{ 'ok' if rs.reviewed }}"><input type="hidden" name="back" value="{{ url_for('settings_view', tab='prices') }}#terms">
   {% if rs.reviewed %}<span class="grow"><b>Reviewed {{ rs.when }}.</b> The price list prints without SAMPLE.</span>
   {% else %}<span class="grow"><b>These terms print as SAMPLE</b> on the price list until you review them here.</span><button class="ui-btn ui-btn-primary">Reviewed - remove SAMPLE</button>{% endif %}</form></div>
+
 {% elif tab == 'documents' %}
 <div class="ui-sec" id="reviews" style="max-width:760px">
-  <h2 class="ui-sec-title">Documents{{ help("Each supplied document prints SAMPLE until you read its wording and press Reviewed on its page. A session type with its own wording is reviewed on its own.") }}</h2>
+  <h2 class="ui-sec-title">Documents<span class="sui-nocaps">{{ help("Each supplied document prints SAMPLE until you read its wording and press Reviewed on its page. A session type with its own wording is reviewed on its own.") }}</span></h2>
   <p style="font-size:13px;border-left:3px solid var(--gold);padding:4px 10px;margin:4px 0 10px">{{ DOC_DISCLAIMER }}</p>
   {% for r in reviews %}{{ ui.list_row(r.url, r.label, r.for_, ui.chip('Reviewed ' ~ r.when, 'done') if r.reviewed else ui.chip('SAMPLE', 'attention')) }}{% endfor %}
 </div>
+
 {% elif tab == 'file' %}
-<div class="ui-sec" style="max-width:560px" id="settings-file">
-  <h2 class="ui-sec-title">Settings file{{ help("Your business details, terms, prices, tax, gallery address and storage locations, in one file: to set up another install, or to keep a copy. It never holds client records, passwords or secret keys. It does hold your tax ID and bank details if you set them.") }}</h2>
+{% call sui.section('Settings file', id='settings-file', help_text="Your business details, terms, prices, tax, gallery address and storage locations, in one file: to set up another install, or to keep a copy. It never holds client records, passwords or secret keys. It does hold your tax ID and bank details if you set them.") %}
   {% if plugin_errors %}<div class="err">Plugins that didn't load: {{ plugin_errors|join(', ') }}</div>{% endif %}
   <div class="ui-btnrow">
     {{ ui.button_link(url_for('settings_export'), 'Export settings') }}
@@ -158,16 +188,43 @@
       <input type="file" name="file" accept=".json,application/json" required aria-label="Settings file to import" style="width:auto">
       <button class="ui-btn ui-btn-quiet">Import settings</button></form>
   </div>
-</div>
+{% endcall %}
+
+{% elif tab == 'notifications' %}
+{% set nt_ = ntfy if ntfy and ntfy.ntfy_server and ntfy.ntfy_topic else none %}
+{% call sui.section('Locked-studio notice', id='notice', help_text="While the studio is locked it can't read its encrypted settings, so the server address, topic and access token are also kept in a small plain file, ntfy.json in the data folder. Anyone who can read the data folder can read them: use a topic nobody could guess, and a token if your server takes one. The notice says only that the studio is locked and since when. It never carries a client's name, a count, an amount or a link.",
+                tip="Optional. A message to your phone through ntfy when the studio restarts and stays locked, then once a day until you sign in.") %}
+  
+  {% set rep_ = nt_ and request.args.get('replace') == 'ntfy' %}
+  {% if nt_ and not rep_ %}
+  {{ sui.connection_card('ntfy server', 'conn-ntfy', [('Server', nt_.ntfy_server), ('Topic', nt_.ntfy_topic[:3] ~ '...'), ('Access token', 'Saved' if nt_.ntfy_token else 'None')],
+                         conn_status().get('ntfy'), test_url=url_for('security_notice'), test_fields={'act': 'test'}, test_label='Send a test notice',
+                         replace_href=url_for('settings_view', tab='notifications', replace='ntfy') ~ '#notice',
+                         remove=dict(label='Stop the notices', url=url_for('security_notice'), fields={'act': 'remove'}),
+                         plain_http=(nt_.ntfy_server or '').lower().startswith('http://')) }}
+  <div id="notice-kinds"><label class="ui-check"><input type="checkbox" checked disabled>Studio locked after a restart</label></div>
+  {% else %}
+  {% if rep_ %}<div class="sui-replace-head"><b>Replace the ntfy server</b><a class="ui-go" href="{{ url_for('settings_view', tab='notifications') }}#notice">Cancel</a></div>
+  <p class="sui-hint">The one in use now stays in use until a test notice to the new one goes through.</p>{% endif %}
+  <form method="post" action="{{ url_for('security_notice') }}" class="f" autocomplete="off">{% if rep_ %}<input type="hidden" name="replace" value="1">{% endif %}
+    {{ sui.field('server', 'ntfy server', '', type='url', placeholder='https://ntfy.sh', id='ntfy-server', attrs='maxlength="300" required') }}
+    {{ sui.field('topic', 'Topic', '', id='ntfy-topic', attrs='maxlength="64" pattern="[A-Za-z0-9_\\-]{1,64}" required') }}
+    {{ sui.field('token', 'Access token (optional)', '', type='password', id='ntfy-token', attrs='maxlength="300" autocomplete="off"') }}
+    <div class="ui-btnrow"><button class="ui-btn ui-btn-primary" name="act" value="save">{{ 'Test and switch' if rep_ else 'Save the notice settings' }}</button>{% if not rep_ %}<button class="ui-btn ui-btn-quiet" name="act" value="test">Send a test notice</button>{% endif %}</div></form>
+  {% endif %}
+{% endcall %}
+
 {% elif tab == 'system' %}
 <div class="ui-sec" style="max-width:560px">{{ ui.fact('Database', db_path) }}{{ ui.fact('Plugins', plugins|join(', ') or 'none') }}</div>
-<div class="ui-sec" id="reset" style="max-width:560px"><h2 class="ui-sec-title">Reset database{{ help("Deletes every client, person, session, event, payment and note. Settings and the current fee schedule stay (it becomes #1). A copy of the database is saved first (sealed in the vault once a master key exists).") }}</h2>
+{% call sui.danger_zone('Reset database', id='reset') %}
+  <p class="sui-tip">Deletes every client, person, session, event, payment and note.{{ help("Settings and the current price list stay. A copy of the database is saved first (sealed in the vault once a master key exists).") }}</p>
   {% if request.args.get('reset') == 'done' %}<div class="sub"><b>Reset done.</b> The old database was saved as {{ request.args.get('saved') }}</div>
   {% elif request.args.get('reset') == 'nope' %}<div class="sub"><b>Not reset.</b> Type RESET exactly to confirm.</div>{% endif %}
   <form method="post" action="{{ url_for('settings_reset') }}" class="ui-form-row" style="margin-top:10px"
         data-confirm="Delete ALL clients, sessions and history? A backup copy is saved first.">
-    <input name="confirm" placeholder="Type RESET" autocomplete="off" style="width:140px" required>
-    <button class="ui-btn ui-btn-quiet">Reset database</button></form></div>
+    <input name="confirm" placeholder="Type RESET" aria-label="Type RESET to confirm" autocomplete="off" style="width:140px" required>
+    <button class="ui-btn ui-btn-quiet">Reset database</button></form>
+{% endcall %}
 {% endif %}
 {% endblock %}
 

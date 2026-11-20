@@ -75,7 +75,7 @@ def test_inquiry_shows_their_words_with_reply_build_a_quote_and_do_not_book(env)
     assert ">Do not book</button>" in needs and 'value="lost"' in needs
     assert ">Build a quote</a>" in needs and 'name="act" value="book"' not in needs
     assert _fold(page, "billing").startswith("<section")
-    assert _fold(page, "history").startswith("<details") and " open" not in _fold(page, "history")
+    assert _fold(page, "history").startswith("<details") and " open" in _fold(page, "history")
     assert 'id="timeline"' not in page
 
 def test_quoted_leads_with_book_it(env):

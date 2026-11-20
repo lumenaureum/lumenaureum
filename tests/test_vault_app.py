@@ -85,7 +85,7 @@ print('index on host', host.stat('gtest1/index.html') is not None, 'htaccess', h
 import io as _io; _b = _io.BytesIO(); host.get_stream('gtest1/limits.txt', _b); print('limits', _b.getvalue().decode().split())
 print('gate', host.stat('gtest1/gate.php') is not None)
 print('seen before', G['seen_at']('gtest1'))
-import io; host.put_stream('gtest1/seen.txt', io.BytesIO(b'2026-11-11T12:00:00Z'))
+import io; host.put_stream('gtest1/seen.txt', io.BytesIO(b'2026-11-11T12:00:00Z'))   # fixed date: only read back as text
 print('seen after', G['seen_at']('gtest1'))
 G['delete_gallery']('gtest1')
 print('left', host.list('gtest1/'), host.stat('gtest1/.htaccess'))

@@ -81,6 +81,9 @@ def test_each_session_is_one_line_with_its_one_action_and_opens_the_client_page(
     _studio(A)
     page = _today(c)
     lines = dict(_lines(page))
+
+    event = lines.pop("line-e1", "")
+    assert 'href="/event/1"' in event and len(re.findall(r'class="ui-btn ', event.split('class="ui-tline-act"', 1)[1])) == 1
     assert set(lines) == {"line-s2", "line-s3", "line-s4"}, sorted(lines)
     for lid, html in lines.items():
         act = html.split('class="ui-tline-act"', 1)[1]

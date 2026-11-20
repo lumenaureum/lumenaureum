@@ -129,7 +129,7 @@ def test_delete_the_demo_clients_with_photos_works_and_says_so(done):
 
     A, c, _ = done
     hid, keep, sid = _demo_with_photo(A)
-    page = c.get("/settings", environ_base=E).get_data(as_text=True)
+    page = c.get("/settings?tab=clients", environ_base=E).get_data(as_text=True)
     form = re.search(r'<form[^>]*action="/settings/demo/delete"[^>]*>', page, re.S).group(0)
     assert "data-confirm=" in form and "can&#39;t be undone" in form.replace("can't", "can&#39;t")
     assert 'name="clear_demo"' not in page
@@ -148,7 +148,7 @@ def test_delete_the_demo_clients_with_photos_works_and_says_so(done):
         assert con.execute("SELECT 1 FROM households WHERE id=?", (keep,)).fetchone()
     finally:
         con.close()
-    page = c.get("/settings", environ_base=E).get_data(as_text=True)
+    page = c.get("/settings?tab=clients", environ_base=E).get_data(as_text=True)
     assert "/settings/demo/delete" not in page
     assert "Deleted the 1 demo client and their photos." in page
     r = post(c, "/settings/demo/delete")
@@ -203,8 +203,8 @@ def test_settings_asks_once_for_a_time_zone_and_issued_dates_stay(done):
         con.commit()
     finally:
         con.close()
-    page = c.get("/settings", environ_base=E).get_data(as_text=True)
-    assert 'id="tz"' in page and "Set your time zone" in page and "already issued keep the dates" in page
+    page = c.get("/settings?tab=profile", environ_base=E).get_data(as_text=True)
+    assert 'id="tz"' in page and "Set your time zone" in page and "already issued keep their dates" in page
     assert "setup.js" in page
     with A.app.test_request_context():
         items = [t for t, _ in A.app.config["finish_items"]()]
@@ -213,7 +213,7 @@ def test_settings_asks_once_for_a_time_zone_and_issued_dates_stay(done):
     assert r.status_code == 302 and A.TZ.key == "UTC"
     r = post(c, "/settings/timezone", timezone="", browser_tz="America/New_York")
     assert r.status_code == 302 and A.TZ.key == "America/New_York"
-    page = c.get("/settings", environ_base=E).get_data(as_text=True)
+    page = c.get("/settings?tab=profile", environ_base=E).get_data(as_text=True)
     assert 'id="tz"' not in page
     assert "Time zone set to America/New_York" in page
     con = A.connect()

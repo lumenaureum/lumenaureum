@@ -15,7 +15,7 @@
       <label><span>Name (required)</span><input name="contact_name" maxlength="200" required autofocus value="{{ vals.contact_name or '' }}"></label>
       <label><span>Email</span><input type="email" name="email" maxlength="200" value="{{ vals.email or '' }}"></label>
       <label><span>Phone</span><input type="tel" name="phone" maxlength="200" value="{{ vals.phone or '' }}"></label>
-      <label><span>Role{{ help("Who they are to the client, such as mother, agent or owner.") }}</span><input name="contact_relation" list="rels" value="{{ vals.contact_relation or '' }}"></label>
+      <label><span>Their role, such as mother or agent</span><input name="contact_relation" list="rels" value="{{ vals.contact_relation or '' }}"></label>
       <label><span>Family name (optional){{ help("The name the client is listed under, such as The Ellis Family. Blank: their own name.") }}</span><input name="household_name" maxlength="200" value="{{ vals.household_name or '' }}"></label>
       <label><span>Company, if they bill as one (optional){{ help("A company is listed and sorted by its own name, and gets business options such as a PO number.") }}</span><input name="company" maxlength="200" value="{{ vals.company or '' }}"></label>
     </div>

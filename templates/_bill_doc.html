@@ -34,6 +34,6 @@
   {% else %}
   <div class="promise"><b>{% if wo_ > 0.005 %}Nothing more is owed: the rest of the balance was written off. Thank you.{% else %}Paid in full. Thank you.{% endif %}</b></div>
   {% endif %}
-  <p class="foot">{% if v.number %}{{ v.number }}{% if v.quote_id %} - quote {{ v.quote_id }}{% endif %}. {% endif %}Questions about this {{ lword }}? Just reply or call.</p>
+  <p class="foot">{% if v.number %}{{ v.number }}{% if v.quote_id %} - quote {{ quote_no(v.quote_id) }}{% endif %}. {% endif %}Questions about this {{ lword }}? Just reply or call.</p>
 {% include "_credit.html" %}
 

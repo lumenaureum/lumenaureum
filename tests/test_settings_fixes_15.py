@@ -123,7 +123,7 @@ def test_a_failed_test_notice_says_why_in_plain_words(env, monkeypatch, exc, wan
     monkeypatch.setattr(locknotice, "_post", fail)
     c.post("/security/notice", data=dict(act="save", server=SERVER, topic=TOPIC), environ_base=E)
     c.post("/security/notice", data=dict(act="test"), environ_base=E)
-    page = html.unescape(c.get("/security", environ_base=E).get_data(as_text=True))
+    page = html.unescape(c.get("/settings?tab=notifications", environ_base=E).get_data(as_text=True))
     assert f"The test notice couldn't be sent: {want}." in page
     assert "urlopen" not in page and "Errno" not in page and "HTTP Error" not in page
 
@@ -132,12 +132,12 @@ def test_the_test_notice_works_before_saving_and_saves_nothing(env, monkeypatch)
     import locknotice
     sent = []
     monkeypatch.setattr(locknotice, "_post", lambda url, body, headers: sent.append(url))
-    page = c.get("/security", environ_base=E).get_data(as_text=True)
+    page = c.get("/settings?tab=notifications", environ_base=E).get_data(as_text=True)
     form = page.split('id="ntfy-server"', 1)[0].rsplit("<form", 1)[1] + page.split('id="ntfy-server"', 1)[1].split("</form>", 1)[0]
     assert 'name="act" value="test"' in form and 'name="act" value="save"' in form
     c.post("/security/notice", data=dict(act="test", server=SERVER, topic=TOPIC), environ_base=E)
     assert sent == [f"{SERVER}/{TOPIC}"]
-    assert "Save the notice settings to keep them" in c.get("/security", environ_base=E).get_data(as_text=True)
+    assert "Save the notice settings to keep them" in c.get("/settings?tab=notifications", environ_base=E).get_data(as_text=True)
     assert not _sql(A, "SELECT 1 FROM settings WHERE key='ntfy_server' AND value != ''")
     r = c.post("/security/notice", data=dict(act="test", server="http://ntfy.example.net", topic=TOPIC), environ_base=E)
     assert r.status_code == 302 and len(sent) == 1
@@ -158,12 +158,12 @@ def test_after_the_page_learns_it_was_signed_out_the_sign_in_page_says_why(env):
     r = c.get("/c/1", environ_base=E)
     assert "idle=1" not in r.headers["Location"]
 
-def test_a_general_setting_found_by_search_opens_the_general_page(env):
+def test_a_setting_found_by_search_opens_its_own_page(env):
     A, c = env
-    page = c.get("/settings?find=proof", environ_base=E).get_data(as_text=True)
-    assert 'href="/settings?tab=gallery#gallery-look"' in page
-    page = c.get("/settings?find=idle", environ_base=E).get_data(as_text=True)
-    assert 'href="/settings?tab=general#f-idle_signout_hours"' in page
+    page = c.get("/search?q=proof", environ_base=E).get_data(as_text=True)
+    assert 'href="/settings?tab=branding#gl-mark-l"' in page
+    page = c.get("/search?q=idle", environ_base=E).get_data(as_text=True)
+    assert 'href="/security#f-idle_signout_hours"' in page
     with A.app.test_request_context():
         assert all("tab=" in e_["link"] for e_ in A.settings_find_entries() if e_["link"].startswith("/settings?")
                    or e_["link"].startswith("/settings#"))
@@ -222,10 +222,9 @@ def test_on_a_phone_a_search_result_opens_the_setting(browser, env):
     A, c = env
     ctx, p = _tab(browser, c, 390)
     try:
-        p.goto(BASE + "/settings")
-        p.locator("#ui-find-q").fill("idle")
-        p.locator(".ui-find-out a").first.click()
-        p.wait_for_url("**/settings?tab=general#f-idle_signout_hours")
+        p.goto(BASE + "/search?q=idle")
+        p.locator("#setting-hits a").first.click()
+        p.wait_for_url("**/security#f-idle_signout_hours")
         fld = p.locator("#f-idle_signout_hours")
         assert fld.is_visible()
         box = fld.bounding_box()
@@ -234,12 +233,12 @@ def test_on_a_phone_a_search_result_opens_the_setting(browser, env):
         ctx.close()
 
 @pytest.mark.parametrize("width", [390, 1280])
-def test_the_settings_search_placeholder_fits(browser, env, width):
+def test_the_search_placeholder_fits(browser, env, width):
     A, c = env
     ctx, p = _tab(browser, c, width)
     try:
-        p.goto(BASE + "/security")
-        fits = p.evaluate("""() => { const i = document.getElementById('ui-find-q'), s = getComputedStyle(i);
+        p.goto(BASE + "/search")
+        fits = p.evaluate("""() => { const i = document.querySelector('form.sui-searchbox input[name=q]'), s = getComputedStyle(i);
             const cx = document.createElement('canvas').getContext('2d'); cx.font = s.font;
             const room = i.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
             return cx.measureText(i.placeholder).width <= room; }""")
@@ -266,7 +265,7 @@ def test_url_fields_look_like_every_other_field(browser, env, width):
     A, c = env
     ctx, p = _tab(browser, c, width)
     try:
-        p.goto(BASE + "/security")
+        p.goto(BASE + "/settings?tab=notifications")
         got = p.evaluate("""() => ['ntfy-server', 'ntfy-topic'].map(id => { const s = getComputedStyle(document.getElementById(id));
             return [s.borderTopColor, s.borderRadius, s.paddingLeft, s.backgroundColor, document.getElementById(id).getBoundingClientRect().width]; })""")
         assert got[0] == got[1]

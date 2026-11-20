@@ -94,7 +94,14 @@ def register(ctx):
         return (f"{n} print order{'' if n == 1 else 's'} {'is' if n == 1 else 'are'} still open. Finish them first, or "
                 "turn off anyway (they're kept and come back when print orders are on again).") if n else ""
 
-    ctx.switchable(default=False, label="Print orders", before_off=open_orders_words,
+    def when_on_words():
+
+        return ("New print orders show on Today and on the session they came from." + (
+            "" if prints_on() else " No gallery offers prints yet. To offer them, check and save your price list, "
+                                   "then tick Offer prints on download galleries."))
+
+    ctx.switchable(default=False, label="Print orders", before_off=open_orders_words, when_on=when_on_words,
+                   links=[("Print prices", "prints_settings")],
                    about="Clients order prints from their download galleries; you review, invoice, and order them at "
                          "any lab. Off: no gallery offers prints (the offer comes off at the next gallery check) and "
                          "the print pages are hidden. Everything already recorded is kept; orders a client sends anyway "
@@ -149,7 +156,7 @@ def register(ctx):
             return set()
 
     def studio_name():
-        return setting("business_name") or setting("photographer_name") or "the studio"
+        return setting("studio_name") or setting("business_name") or setting("photographer_name") or "the studio"
 
     def contact():
         return G.contact_email()
@@ -832,6 +839,9 @@ td.r,th.r{text-align:right}.mute{color:#6b6157}.tot td{font-weight:700;border-bo
         if not active():
             return []
         out = []
+        if not saved_once():
+            out.append(dict(text="Set your print prices: no gallery offers prints until you save the price list",
+                            link=url_for("prints_settings")))
         rows = [dict(r_) for r_ in q("""SELECT o.*, s.household_id, h.name AS household FROM print_orders o
                                         JOIN sessions s ON s.id=o.session_id JOIN households h ON h.id=s.household_id
                                         WHERE o.state NOT IN ('closed', 'canceled', 'expired') ORDER BY o.collected_at, o.host_mtime""")]
@@ -911,9 +921,8 @@ td.r,th.r{text-align:right}.mute{color:#6b6157}.tot td{font-weight:700;border-bo
 
     SETTINGS = """{% extends "base.html" %}{% from "_macros.html" import help with context %}{% block title %}Print prices - Lumen Aureum{% endblock %}{% block body %}
 <h1>Print prices</h1>
-<p class="mute" style="max-width:760px">Clients order prints from their download gallery. Each order is sealed in their
-browser so only your Lumen Aureum can open it, comes to you for review, and is invoiced to whoever ordered. Once it is
-paid, Prepare for the lab gives you the print-ready files and an order sheet, and you order the prints at any lab.</p>
+<p class="mute" style="max-width:760px">Clients order prints from their download gallery. You review each order, it is invoiced,
+and once paid, Prepare for the lab gives you the files and an order sheet for any lab.</p>
 <form method="post" action="{{ url_for('prints_switch') }}" class="card f" style="max-width:760px">
   <label class="row" style="gap:6px"><input type="checkbox" name="offer" value="1" data-autosubmit {{ 'checked' if on }} {{ 'disabled' if not saved }}>Offer prints on download galleries</label>
   {% if not saved %}<div class="sub" style="color:var(--warn)">The price list below is a SAMPLE. Check it and press Save once; then prints can be turned on.</div>{% endif %}
@@ -923,7 +932,7 @@ paid, Prepare for the lab gives you the print-ready files and an order sheet, an
 </form>
 <form method="post" action="{{ url_for('prints_save') }}" class="card f" style="max-width:1100px" id="list">
   <h2>Price list {% if not saved %}<span style="color:var(--warn);font-size:13px;font-weight:600">SAMPLE</span>{% endif %}</h2>
-  <p class="sub" style="font-size:13px;margin:0">Sizes are in inches. "Your lab cost" is what one print costs you: it shows your margin and never changes a price. To set prices from your costs, press Fill prices from costs below. Sizes too small for a photo's pixels are hidden on the page (below "hide") or marked "May look soft" (below "mark").</p>
+  <p class="sub" style="font-size:13px;margin:0">Sizes in inches. Your lab cost only shows your margin; it never changes a price.{{ help("To set prices from your costs, press Fill prices from costs below. A size too small for a photo's pixels is hidden below the Hide number, or marked May look soft below the Mark number.") }}</p>
   <style>table.prices th { white-space: normal; font-size: 12px; } table.prices td, table.prices th { padding: 4px 3px; }
   table.prices input[type=checkbox] { width: auto; }</style>
   <div class="ui-stack-wrap"><table class="r prices ui-stack"><thead><tr><th>Shown as</th><th>Short</th><th>Long</th><th>Finish</th><th>Price</th><th>Your lab cost</th><th>Margin</th><th>Hide below ppi</th><th>Mark below ppi</th><th>Offered</th><th>Remove</th></tr></thead><tbody>
@@ -939,12 +948,12 @@ paid, Prepare for the lab gives you the print-ready files and an order sheet, an
     {% for f in lab_fields(it) %}<tr class="ui-stack-more"><td colspan="11">{{ f }}</td></tr>{% endfor %}{% endfor %}
   <tr class="ui-stack-new"><td data-label="New size: shown as"><input name="label_new" placeholder="New size, e.g. 5x5 print, Lustre" maxlength="80" style="width:170px" aria-label="New size: shown as"></td><td data-label="Short"><input name="w_new" style="width:60px" aria-label="New size: short side"></td><td data-label="Long"><input name="h_new" style="width:60px" aria-label="New size: long side"></td><td data-label="Finish"><input name="finish_new" style="width:100px" aria-label="New size: finish"></td><td data-label="Price"><input name="each_new" style="width:80px" aria-label="New size: price"></td><td data-label="Your lab cost"><input name="cost_new" style="width:80px" aria-label="New size: your lab cost"></td><td colspan="5" class="ui-stack-skip"></td></tr>
   </tbody></table></div>
-  <div class="f2"><div><label class="l" for="pr-markup">Markup{{ help("Times your lab cost.") }}</label><input id="pr-markup" name="markup" value="{{ markup }}" style="width:80px"></div>
-    <div><label class="l" for="pr-days">Invoice within, in days{{ help("The gallery page tells the client this.") }}</label><input id="pr-days" name="invoice_days" value="{{ invoice_days }}" style="width:80px"></div></div>
+  <div class="f2"><div><label class="l" for="pr-markup">Markup, times your lab cost</label><input id="pr-markup" name="markup" value="{{ markup }}" style="width:80px"></div>
+    <div><label class="l" for="pr-days">Invoice within, in days (shown to the client)</label><input id="pr-days" name="invoice_days" value="{{ invoice_days }}" style="width:80px"></div></div>
   <div class="f2"><div><label class="l" for="pr-ln">A large order: more prints than</label><input id="pr-ln" name="large_n" value="{{ large_n }}" style="width:80px"></div>
     <div><label class="l" for="pr-lc">or more dollars than</label><input id="pr-lc" name="large_c" value="{{ cents(large_c) }}" style="width:100px"></div></div>
   <h2 id="shipping">Shipping</h2>
-  <p class="sub" style="font-size:13px;margin:0">Per destination: at the lab's real cost for each order (you type it at review), that cost plus a handling amount, or a flat amount. The page shows the line you write, never a figure the app works out.</p>
+  <p class="sub" style="font-size:13px;margin:0">For each destination: the lab's cost (typed at review), that plus handling, or a flat amount.</p>
   {% for d, r in ship.items() %}<div class="row" style="flex-wrap:wrap;gap:8px;align-items:end;margin:6px 0">
     <label class="row" style="gap:4px;min-width:200px"><input type="checkbox" name="ship_on_{{ d }}" value="1" {{ 'checked' if r.on }}>{{ dest_label[d] }}</label>
     <select name="ship_rule_{{ d }}" aria-label="{{ dest_label[d] }}: charge">{% for k, lab in rule_label.items() %}<option value="{{ k }}" {{ 'selected' if r.rule == k }}>{{ lab }}</option>{% endfor %}</select>
@@ -953,7 +962,7 @@ paid, Prepare for the lab gives you the print-ready files and an order sheet, an
     <span class="grow"><label class="l" for="ss-{{ d }}">What the page says</label><input id="ss-{{ d }}" name="ship_say_{{ d }}" value="{{ r.say }}" maxlength="160" placeholder="{{ 'Pick up from ' ~ studio if d == 'pickup' else '' }}"></span>
     {% if ranges[d] %}<span class="sub" style="font-size:12px">{{ ranges[d] }}</span>{% endif %}</div>{% endfor %}
   {% if not ship.ca.on %}<p class="sub" style="font-size:12.5px">Canada: before you turn it on, write the page's line; labs often add duties or a surcharge across the border.</p>{% endif %}
-  <div><label class="l" for="pr-arrive">How prints arrive{{ help("Shown on the gallery page and the invoice.") }}</label><input id="pr-arrive" name="arrive" value="{{ arrive }}" maxlength="200"></div>
+  <div><label class="l" for="pr-arrive">How prints arrive (shown on the gallery page and the invoice)</label><input id="pr-arrive" name="arrive" value="{{ arrive }}" maxlength="200"></div>
   <div class="row" style="gap:8px;margin-top:10px"><button class="primary">Save</button></div>
 </form>
 {% if costed %}<form method="post" action="{{ url_for('prints_fill') }}" class="card f" style="max-width:760px" data-confirm="{% if plan %}Change {{ plan|length }} price{{ '' if plan|length == 1 else 's' }} to {{ markup }} times your lab cost, rounded up to the whole dollar? {{ fill_words(plan) }}. Nothing else changes.{% else %}Every price with a lab cost already matches {{ markup }} times it. Nothing would change.{% endif %}">
