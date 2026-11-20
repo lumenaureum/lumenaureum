@@ -518,7 +518,7 @@ def test_setup_shows_the_certificate_and_pins_it_once_confirmed(app_, certs, tmp
         with A.app.app_context():
             with pytest.raises(webtls.CertProblem):
                 hostcheck._http("GET", f"https://{addr}/g/x")
-        today = c.get("/", environ_base=E).get_data(as_text=True)
+        today = c.get("/alerts", environ_base=E).get_data(as_text=True)
         assert "The web host&#39;s certificate isn&#39;t trusted. Check it in Setup." in today
         assert "cannot be reached" not in today and "/setup/galleries#webcert" in today
         page = c.get("/setup/galleries", environ_base=E).get_data(as_text=True)
@@ -532,7 +532,7 @@ def test_setup_shows_the_certificate_and_pins_it_once_confirmed(app_, certs, tmp
         assert webtls.pins()[addr]["sha256"] == sha_of(certs["self"][0]) and started
         with A.app.app_context():
             assert hostcheck._http("GET", f"https://{addr}/g/x")[0] == 200
-        today = c.get("/", environ_base=E).get_data(as_text=True)
+        today = c.get("/alerts", environ_base=E).get_data(as_text=True)
         assert "certificate" not in today
         page = c.get("/setup/galleries", environ_base=E).get_data(as_text=True)
         assert "The one you confirmed on" in page and fp in page
@@ -560,7 +560,7 @@ def test_a_changed_certificate_stops_and_setup_shows_both(app_, certs, tmp_path)
             with pytest.raises(webtls.CertProblem) as e:
                 hostcheck._http("GET", f"https://{addr}/g/x")
         assert e.value.kind == "changed"
-        today = c.get("/", environ_base=E).get_data(as_text=True)
+        today = c.get("/alerts", environ_base=E).get_data(as_text=True)
         assert "The web host&#39;s certificate changed. Check it in Setup." in today
         page = c.get("/setup/galleries", environ_base=E).get_data(as_text=True)
         old, new = webtls.colon_hex(sha_of(certs["self"][0])), webtls.colon_hex(sha_of(certs["other"][0]))
@@ -582,7 +582,7 @@ def test_a_changed_certificate_stops_and_setup_shows_both(app_, certs, tmp_path)
     finally:
         f.close()
 
-def test_an_expired_pinned_certificate_is_noted_on_today(app_, certs, tmp_path):
+def test_an_expired_pinned_certificate_is_noted_in_the_alert_bell(app_, certs, tmp_path):
     import hostcheck
     import webtls
     A, c = app_
@@ -597,7 +597,7 @@ def test_an_expired_pinned_certificate_is_noted_on_today(app_, certs, tmp_path):
         with A.app.app_context():
             assert hostcheck._http("GET", f"https://{addr}/g/x")[0] == 200
         end = certs["expired"][0].not_valid_after_utc.date()
-        today = c.get("/", environ_base=E).get_data(as_text=True)
+        today = c.get("/alerts", environ_base=E).get_data(as_text=True)
         assert f"The web host&#39;s certificate expired on {end.strftime('%B')} {end.day}, {end.year}." in today
         assert "isn&#39;t trusted" not in today
         assert f"It expired on {end.isoformat()}" in c.get("/setup/galleries", environ_base=E).get_data(as_text=True)
@@ -703,7 +703,7 @@ def test_the_move_waits_for_the_certificate_then_completes_once_confirmed(site, 
         f.use(certs["other"][2], certs["other"][3])
         p = hostcheck.probe(_Nowhere(), base)
         assert p.kind == "unreachable" and hostcheck.why(p) == "cert-changed"
-        assert "The web host&#39;s certificate changed. Check it in Setup." in s.c.get("/", environ_base=E).get_data(as_text=True)
+        assert "The web host&#39;s certificate changed. Check it in Setup." in s.c.get("/alerts", environ_base=E).get_data(as_text=True)
     finally:
         f.close()
 

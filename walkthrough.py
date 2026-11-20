@@ -12,6 +12,12 @@ def _num(v, lo, hi):
 def _pol(t):
     return C.POLICY[t["key"]]
 
+def _keep_default(t, k, v, default):
+
+    have = (t.get("policy") or {}).get(k, default)
+    if v != have:
+        _set_pol(t, k, v)
+
 def _set_pol(t, k, v):
     t.setdefault("policy", {})
     if v is None:
@@ -50,6 +56,11 @@ def steps_for(t):
              field=("reschedule", "", ""), get=lambda: (_pol(t)["free_reschedule"], _pol(t)["notice_hours"], _pol(t)["late_minutes"]),
              put=lambda f: _put_reschedule(t, f),
              preview=lambda: dict(C.build_terms(key)).get("Cancellation", "")),
+        dict(id="indoors", title="Shot indoors",
+             why="Indoor sessions need no golden hour or sunset times, so they are left off this type's pages and documents.",
+             field=("check", "indoors", "This type is shot indoors"), get=lambda: bool(t.get("indoors")),
+             put=lambda f: t.__setitem__("indoors", True) if f.get("indoors") else t.pop("indoors", None),
+             preview=lambda: "No sunset times on this type's pages." if t.get("indoors") else "Sunset times show for the shoot day."),
         dict(id="weather", title="If the weather turns",
              why="Say what happens if the weather is bad, so it is settled before the day. For indoor sessions, say that nothing changes.",
              field=("text", "weather", "e.g. we reschedule at no charge"), get=lambda: _pol(t).get("weather") or "",
@@ -109,7 +120,42 @@ def steps_for(t):
                         get=lambda: _pol(t).get("license_use") or "",
                         put=lambda f: _set_pol(t, "license_use", (f.get("license_use") or "").strip()[:200]),
                         preview=lambda: f"Your license covers {C.fill(key, 'license_use')}."))
+    out.append(dict(id="wear", title="What to wear and bring",
+                    why="The session details tell the client how to get ready. Outfits and props lines add room for what they plan to bring.",
+                    field=("wear", "wear", "clothes, hair and grooming"),
+                    get=lambda: (bool(_pol(t).get("outfits")), _pol(t).get("wear") or C.DEFAULT_WEAR),
+                    put=lambda f: (_keep_default(t, "outfits", bool(f.get("outfits")), _pol(t).get("outfits", False)),
+                                   _keep_default(t, "wear", ((f.get("wear") or "").strip().rstrip(".")[:200] or C.DEFAULT_WEAR),
+                                                 _pol(t).get("wear") or C.DEFAULT_WEAR)),
+                    preview=lambda: "You plan the look: " + (_pol(t).get("wear") or C.DEFAULT_WEAR) + "."
+                                    + (" Outfits and props get their own lines." if _pol(t).get("outfits") else "")))
+    out.append(dict(id="codeword", title="Ask for a gallery codeword",
+                    why=("The client picks three words at booking, in person or on the phone. The gallery opens only with"
+                         " the link and the words together."),
+                    field=("check", "gallery_codeword", "Ask for a codeword"),
+                    get=lambda: bool(_pol(t).get("gallery_codeword", True)),
+                    put=lambda f: _keep_default(t, "gallery_codeword", bool(f.get("gallery_codeword")),
+                                                _pol(t).get("gallery_codeword", True)),
+                    preview=lambda: ("Your gallery opens with its link and the three words you chose with me."
+                                     if _pol(t).get("gallery_codeword", True) else "Your gallery opens with its link.")))
+    out.append(dict(id="questions", title="Questions before the shoot",
+                    why="What you ask the client before the session, one question per line. A question you keep word for word keeps its answers.",
+                    field=("textarea", "questions", ""),
+                    get=lambda: "\n".join(q_[1] for q_ in C.INTAKE[key]),
+                    put=lambda f: _put_questions(t, f),
+                    preview=lambda: ""))
     return out
+
+def _put_questions(t, f):
+
+    if "questions" not in f:
+        return
+    import app as A
+    qs = A._parse_questions(f["questions"], C.INTAKE[t["key"]])
+    base = [tuple(q_) for q_ in t.get("intake", [])] + C.KINDS[t["kind"]]["intake"]
+    t.pop("questions", None)
+    if qs != base:
+        t["questions"] = [list(q_) for q_ in qs]
 
 def put_steps_on(t, f):
 
@@ -191,7 +237,16 @@ def reuse(key, fid):
             continue
         sig = tuple(sorted((n, str(v)) for n, v in a[1].items()))
         out.setdefault(sig, [[], a])[0].append(t["label"])
-    return [dict(words=_names(labels) + ": " + a[0], fill=a[1]) for labels, a in out.values()]
+    return [dict(words=_names(labels) + ": " + a[0], names=_names(labels), short=_short(a[0]), full=a[0], fill=a[1])
+            for labels, a in out.values()]
+
+def _short(answer):
+
+    a = str(answer).strip()
+    first = a.split()[0] if a.split() else a
+    if first[:1].isdigit() or first[:1] == "$":
+        return first.rstrip(",")
+    return a if len(a) <= 28 else a[:27].rsplit(" ", 1)[0] + "..."
 
 def _names(labels):
 

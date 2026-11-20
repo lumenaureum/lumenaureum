@@ -144,8 +144,10 @@ def test_today_chips_count_kinds_and_mark_mine_waiting_and_due(env):
     page = _today(c)
     bar = page.split('id="filter-today"', 1)[1].split('data-f-none', 1)[0]
 
-    for v_, chip in (("", "All"), ("mine", "Mine"), ("waiting", "Waiting"), ("today", "Due today"), ("due", "Due in 7 days")):
-        assert f'aria-pressed="{"true" if chip == "All" else "false"}">{chip} <span class="ui-fchip-n" data-f-c="{v_}"></span></button>' in bar
+    for k_, v_, chip in (("who", "mine", "Mine"), ("who", "waiting", "Waiting"), ("due", "today", "Due today"), ("due", "week", "Due in 7 days")):
+        assert re.search(rf'data-f-key="{k_}" data-f-val="{v_}"( data-f-one)? aria-pressed="false">{chip} <span class="ui-fchip-n" data-f-n></span></button>', bar), chip
+    assert ">All <" not in bar and bar.count('class="ui-filter-row"') == 1
+    assert '<button type="button" class="ui-btn ui-btn-quiet ui-fclear" data-f-clear hidden>Clear filters</button>' in bar
     assert 'type="number"' not in bar and "data-f-days" not in bar and 'data-f-scope="work"' in page
     assert 'data-f-key="kind"' in bar and "Inquiries <span" in bar and "Shoot <span" not in bar
     line = page.split('id="line-s4"', 1)[1].split(">", 1)[0]
@@ -156,21 +158,19 @@ def test_today_chips_count_kinds_and_mark_mine_waiting_and_due(env):
         assert [A.task_kind(w) for w in ("Send retouched photos", "Back up photos", "Collect $318 first", "Cull", "")] == \
             ["Retouch", "Back up", "Payments", "Cull", ""]
 
-def test_setting_up_has_one_dismiss_and_stays_gone_and_urgent_items_get_their_own_row(env):
+def test_setting_up_is_in_the_alert_bell_and_urgent_items_are_red(env):
+
     A, c = env
     _studio(A)
     page = _today(c)
-    setup = page.split('id="setup"', 1)[1].split("</section>", 1)[0]
-    assert ">Dismiss</button>" in setup and setup.count("<button") == setup.count(">Dismiss</button>") + setup.count(">Ask next week</button>")
-    assert "Hide this suggestion" not in page and "Hide this list" not in page
+    assert 'id="setup"' not in page and "Setting up</h2>" not in page and "/today/setup-dismiss" not in page
     A.app.config["urgent_items"] = lambda: [("Your backups are on the same disk as your data: move the vault or add a second location", "/setup/storage")]
-    r = c.post("/today/setup-dismiss", data={"back": "/"}, environ_base=E)
-    assert r.status_code == 302
     page = _today(c)
-    assert '<div id="setup" data-ui-part hidden></div>' in page and "Setting up</h2>" not in page
-    first = page.split("</header>", 1)[1]
-    assert 'id="check-first"' in first and "Your backups are on the same disk" in first.split('id="check-first"', 1)[1].split("</section>", 1)[0]
-    assert "Setting up</h2>" not in _today(c)
+    assert "Your backups are on the same disk" not in page and 'id="check-first"' not in page
+    alerts = c.get("/alerts", environ_base=E).get_data(as_text=True)
+    fix = alerts.split('id="alerts-fix"', 1)[1].split("</section>", 1)[0]
+    assert "Your backups are on the same disk" in fix and 'href="/setup/storage"' in fix
+    assert '<span class="ui-bell-n">' in page
 
 def test_a_canceled_booking_tells_its_refund_in_the_decided_words(env):
     A, c = env
@@ -201,19 +201,31 @@ def test_today_filters_instantly_and_remembers_and_never_changes_the_badge(brows
         assert not p.locator("#line-s4").is_visible() and p.locator("#line-s2").is_visible()
         assert p.locator('#filter-today [data-f-val="Inquiries"]').get_attribute("aria-pressed") == "true"
         p.locator('#filter-today [data-f-val="Inquiries"]').click()
-        p.locator('#filter-today [data-f-key="status"][data-f-val="waiting"]').click()
+        assert p.locator("#filter-today [data-f-clear]").is_hidden()
+        p.locator('#filter-today [data-f-key="who"][data-f-val="waiting"]').click()
         assert not p.locator("#line-s2").is_visible()
-        p.locator('#filter-today [data-f-key="status"][data-f-val=""]').click()
+        assert p.locator("#filter-today [data-f-clear]").is_visible()
+        p.locator("#filter-today [data-f-clear]").click()
+        assert p.locator("[data-f]:visible").count() == n_all and p.locator("#filter-today [data-f-clear]").is_hidden()
         p.locator("#filter-today [data-f-q]").fill("ellis")
         assert p.locator("#line-s4").is_visible() and not p.locator("#line-s2").is_visible()
         p.locator("#filter-today [data-f-q]").fill("")
 
         n_tasks = p.locator("#work [data-f]").count()
-        assert p.locator('#filter-today [data-f-c=""]').inner_text() == str(n_tasks)
         mine = p.locator('#work [data-f][data-f-status="mine"]').count()
-        p.locator('#filter-today [data-f-key="status"][data-f-val="today"]').click()
-        assert p.locator('#filter-today [data-f-c="mine"]').inner_text() == str(mine)
-        assert p.locator('#filter-today [data-f-val="today"]').get_attribute("aria-pressed") == "true"
+        waiting = p.locator('#work [data-f][data-f-status="waiting"]').count()
+        assert p.locator('#filter-today [data-f-val="mine"] [data-f-n]').inner_text() == str(mine)
+        p.locator('#filter-today [data-f-key="who"][data-f-val="mine"]').click()
+        assert p.locator("#work [data-f]:visible").count() == mine
+        p.locator('#filter-today [data-f-key="who"][data-f-val="waiting"]').click()
+        assert p.locator("#work [data-f]:visible").count() == mine + waiting
+        p.locator('#filter-today [data-f-key="due"][data-f-val="today"]').click()
+        shown = p.locator("#work [data-f]:visible").count()
+        assert shown <= mine + waiting and p.locator('#filter-today [data-f-val="today"] [data-f-n]').inner_text() == str(shown)
+        p.locator('#filter-today [data-f-key="due"][data-f-val="week"]').click()
+        assert p.locator('#filter-today [data-f-val="today"]').get_attribute("aria-pressed") == "false"
+        assert p.locator('#filter-today [data-f-val="week"]').get_attribute("aria-pressed") == "true"
+        assert n_tasks >= mine + waiting
     finally:
         ctx.close()
 
@@ -228,6 +240,9 @@ def test_sessions_and_clients_chips_and_sort_work_in_place(browser, env):
         assert 0 < p.locator("[data-f]:visible").count() < n_all
         p.locator('#filter-sessions [data-f-key="type"]').first.is_visible()
         assert p.locator('#filter-sessions [data-f-noscript]').is_hidden()
+        assert "view=" not in p.url
+        p.locator("#filter-sessions [data-f-clear]").click()
+        assert p.locator("[data-f]:visible").count() == n_all
         p.goto(BASE + "/clients")
         names = lambda: p.eval_on_selector_all("#clients tbody tr:not([hidden]) a.ui-roster-name", "els => els.map(e => e.textContent)")
         assert names()[0] == "Jamie Abbott"

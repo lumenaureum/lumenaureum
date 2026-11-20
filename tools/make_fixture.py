@@ -1805,22 +1805,33 @@ class More150(More141):
     def _settings150(self, x):
         post, one = x.post, x.one
         fields = form_fields(x.get("/settings").get_data(as_text=True))
-        assert fields.get("main_posted") == ["1"] and "idle_signout_hours" in fields, fields
+        rebuilt = "main_posted" not in fields
         on_general = "mileage_rate" in fields
-        fields.update(idle_signout_hours=[self.IDLE_HOURS], check_in_snooze_months=[self.CHECK_IN_MONTHS],
-                      home_base=[self.HOME_BASE])
-        if on_general:
-            fields.update(mileage_rate=[self.MILEAGE_RATE])
-        r = x.c.post("/settings", data=fields, environ_base=x.E)
-        assert r.status_code == 302 and "saved=1" in r.headers["Location"], r.headers.get("Location")
+        if rebuilt:
+            r = x.c.post("/settings?tab=clients", data={"clients_posted": "1", "form_id": "clients-form",
+                                                        "check_in_snooze_months": self.CHECK_IN_MONTHS, "age_majority": "18"},
+                         environ_base=x.E)
+            assert r.status_code == 302, r.status_code
+            r = x.c.post("/settings", data={"idle_posted": "1", "idle_signout_hours": self.IDLE_HOURS, "back": "/security#idle"},
+                         environ_base=x.E)
+            assert r.status_code == 302, r.status_code
+        else:
+            assert fields.get("main_posted") == ["1"] and "idle_signout_hours" in fields, fields
+            fields.update(idle_signout_hours=[self.IDLE_HOURS], check_in_snooze_months=[self.CHECK_IN_MONTHS],
+                          home_base=[self.HOME_BASE])
+            if on_general:
+                fields.update(mileage_rate=[self.MILEAGE_RATE])
+            r = x.c.post("/settings", data=fields, environ_base=x.E)
+            assert r.status_code == 302 and "saved=1" in r.headers["Location"], r.headers.get("Location")
         if not on_general:
-            money_ = form_fields(x.get("/setup/money").get_data(as_text=True))
+            page_ = x.get("/setup/money").get_data(as_text=True)
+            money_ = form_fields(page_, action="/setup/money") if rebuilt else form_fields(page_)
             assert "mileage_rate" in money_, money_
             money_.update(mileage_rate=[self.MILEAGE_RATE])
             r = x.c.post("/setup/money", data=money_, environ_base=x.E)
             assert r.status_code == 302, (r.status_code, r.get_data(as_text=True)[:400])
         for k, v in (("idle_signout_hours", self.IDLE_HOURS), ("check_in_snooze_months", self.CHECK_IN_MONTHS),
-                     ("mileage_rate", self.MILEAGE_RATE), ("home_base", self.HOME_BASE)):
+                     ("mileage_rate", self.MILEAGE_RATE)) + (() if rebuilt else (("home_base", self.HOME_BASE),)):
             got = one("SELECT value FROM settings WHERE key=?", (k,))[0]
             assert (float(got) == float(v)) if k == "mileage_rate" else got == v, (k, got)
         assert x.in_request(x.A.app.config["idle_seconds"]) == int(self.IDLE_HOURS) * 3600
@@ -1829,7 +1840,8 @@ class More150(More141):
         assert {k: one("SELECT value FROM settings WHERE key=?", ("ntfy_" + k,))[0] for k in self.NTFY} == self.NTFY
         plain = json.loads(Path(x.work, "ntfy.json").read_text())
         assert {k: plain[k] for k in self.NTFY} == self.NTFY and plain["tz"] == TIME_ZONE, plain
-        assert "Set up the locked-studio notice" in x.get("/security").get_data(as_text=True)
+        assert "Set up the locked-studio notice" in x.get("/settings?tab=notifications" if rebuilt else "/security").get_data(as_text=True) \
+            or rebuilt
 
         import wording
         self.release_text = wording.STANDARD["release"].rstrip() + "\n\n" + self.RELEASE_ADDED
@@ -1986,6 +1998,10 @@ VERSIONS = {
                   env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
 
     "1.5.1": dict(commit="02dfe7c", scenario=scenario_150, files=("ntfy.json",),
+                  dirs=("galleries", "galleries-kept", "host", "web", "photos", "faces"),
+                  env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
+
+    "1.5.2": dict(commit="31b64af", scenario=scenario_150, files=("ntfy.json",),
                   dirs=("galleries", "galleries-kept", "host", "web", "photos", "faces"),
                   env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
 }

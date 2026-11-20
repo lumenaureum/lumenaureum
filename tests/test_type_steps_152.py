@@ -129,7 +129,7 @@ def test_another_types_answer_is_offered_under_each_field(tmp_path, monkeypatch)
         "Weddings: no free reschedule, no no-show rule"]
     assert W.reuse("portrait", "delivery_days")[0]["fill"] == {"delivery_days": 60}
     page = c.get("/settings/type/wedding", environ_base=E).get_data(as_text=True)
-    assert "Your other types:" in page and "Portraits and Family: we reschedule at no charge" in page
+    assert "Match Portraits and Family: we reschedule at no charge" in page
     assert 'data-fill="{&#34;weather&#34;: &#34;we reschedule at no charge&#34;}"' in page
 
     types = [json.loads(json.dumps(t)) for t in C.TYPES]
@@ -202,3 +202,18 @@ def test_the_walk_through_ends_on_approving_the_terms(tmp_path, monkeypatch):
     done = c.get(f"/settings/type/{key}/walk/{len(ids)}", environ_base=E).get_data(as_text=True)
     assert "Approved" in done and "Approve this document" not in done
     assert not re.search(r"<script>", done)
+
+def test_turning_the_codeword_off_carries_a_plain_warning(tmp_path, monkeypatch):
+
+    A, c = _app(tmp_path, monkeypatch, presets=("portraits",))
+    page = c.get("/settings/type/portrait", environ_base=E).get_data(as_text=True)
+    assert 'data-off-warn="Without a codeword, anyone who gets the gallery link can open the gallery' in page
+    assert 'class="cw-off-note" data-off-note="f-gallery_codeword" hidden' in page
+    types = [json.loads(json.dumps(t)) for t in __import__("config").TYPES]
+    next(t for t in types if t["key"] == "portrait").setdefault("policy", {})["gallery_codeword"] = False
+    with A.app.test_request_context():
+        A.db()
+        A._save_rules(TYPES=types)
+        A.db().commit()
+    page = c.get("/settings/type/portrait", environ_base=E).get_data(as_text=True)
+    assert 'class="cw-off-note" data-off-note="f-gallery_codeword">' in page

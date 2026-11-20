@@ -426,6 +426,7 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
     app.jinja_env.globals["conn_rows"] = conn_rows
     app.jinja_env.globals["conn_plain_http"] = conn_plain_http
     app.config["conn_mark"] = conn_mark
+    app.config["conn_status"] = conn_status
 
     def rules():
         try:

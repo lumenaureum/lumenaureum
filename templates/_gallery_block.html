@@ -2,6 +2,8 @@
 {% import "_ui.html" as ui with context %}{% import "_ui_photos.html" as ph with context %}{% from "_macros.html" import help with context %}
 <div id="gallery" class="ui-gal" data-ui-part>
 {% set us = (g.upload_state or '') if g else '' %}
+
+{% if proof_how is defined and proof_how %}<p class="ui-mute" id="gal-how">{{ proof_how }}</p>{% endif %}
 {% if job and job.state == 'running' %}
   <div class="ui-factrow"><span class="mbar big"><span id="gal-bar" style="width:{{ pct }}%"></span></span>
     <span id="gal-n" class="ui-mute">{{ job.done }} / {{ job.total }}</span></div>
@@ -82,8 +84,8 @@
   {% elif us == 'removed' %}
   {% elif not has_host %}{% call ph.fact_row('Previews work here; putting it online needs a web host.') %}{{ ui.button_link(url_for('setup_step', step='galleries'), 'Set up galleries') }}{% endcall %}
   {% elif owed and proof %}{% call ph.fact_row('Collect the ' ~ money(owed) ~ ' deposit first: the proofs go online once it is in.') %}
-      {{ ui.action(url_for('upload_gallery_req', sid=s.id), 'Upload before the deposit', dict(early='1'), None, 'quiet', inplace=false,
-           confirm='Put the proofs online before the deposit is paid?') }}{% endcall %}
+      {{ ui.action(url_for('upload_gallery_req', sid=s.id), 'Put the proofs online now', dict(early='1'), None, 'quiet', inplace=false,
+           confirm='Put the proof gallery online now, before the deposit is paid? The client can open it and pick from the proofs.') }}{% endcall %}
   {% elif owed and not proof %}{% call ph.fact_row(money(owed) ~ ' still due. Your terms release the gallery on payment.') %}
       {{ ui.action(url_for('upload_gallery_req', sid=s.id), 'Upload before payment', dict(early='1'), None, 'quiet', inplace=false,
            confirm=('Put the download gallery online before the balance is paid? The client can download the full-size photos right away.' if dl else 'Put the gallery online before the balance is paid? Use this for a proofing gallery the client picks from.')) }}{% endcall %}

@@ -57,5 +57,12 @@
   const grayOut = () => { if (acc) { acc.disabled = true; acc.title = 'You changed this step: press Next to keep it'; } };
   form.addEventListener('input', () => { grayOut(); clearTimeout(t); t = setTimeout(go, 250); });
   form.addEventListener('change', () => { grayOut(); clearTimeout(t); t = setTimeout(go, 50); });
+
+  document.addEventListener('change', e => {
+    const box = e.target.closest('input[type=checkbox][data-off-warn]'); if (!box) return;
+    if (!box.checked && !confirm(box.dataset.offWarn)) { box.checked = true; }
+    const note = box.id && document.querySelector('[data-off-note="' + box.id + '"]');
+    if (note) note.hidden = box.checked;
+  }, true);
 })();
 

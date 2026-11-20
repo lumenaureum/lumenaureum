@@ -2,6 +2,17 @@
 
 New features, behavior changes, security fixes, and other fixes in each release.
 
+## 1.5.3 (2026-11-20)
+
+### New
+- A bell in the top bar lists anything Lumen Aureum itself needs fixed, such as an untested backup or a session type not set up yet.
+- Reuse another session type's answer with one tap.
+
+### Changed
+- Today shows client work only; setup reminders moved to the bell.
+- A session type's walk-through now comes first and covers every setting.
+- Turning off the gallery codeword for a type asks first, and a warning stays while it is off.
+
 ## 1.5.2 (2026-11-19)
 
 ### New

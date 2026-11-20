@@ -307,8 +307,8 @@ def test_prices_ship_as_sample_and_are_approved_on_the_quote(env):
     bill = page.split('id="billing"', 1)[1]
     assert "SAMPLE prices</span>" in bill and f'action="/fees/{sid_}/approve"' in bill and ">Approve these prices</button>" in bill
     assert "Approving counts as your review: they are final" in bill
-    today_ = c.get("/", environ_base=E).get_data(as_text=True)
-    assert "Review your prices." in today_ and f'href="/fees/{sid_}"' in today_
+    today_ = c.get("/alerts", environ_base=E).get_data(as_text=True)
+    assert "Your prices are still the starter prices" in today_ and f'href="/fees/{sid_}"' in today_
     c.post("/session/1/quote/send", environ_base=E)
     vid = _q(A, "SELECT id FROM quote_versions WHERE session_id=1")[0][0]
     doc = c.get(f"/quote/{vid}", environ_base=E).get_data(as_text=True)
@@ -322,7 +322,7 @@ def test_prices_ship_as_sample_and_are_approved_on_the_quote(env):
         assert A.prices_approved(sid_) and A.sched_name(sid_) == name and A.sched_code(sid_) == code
     assert any(h[0].startswith(f"Approved the prices: {name} ({code})") for h in _q(A, "SELECT action FROM audit"))
     assert "SAMPLE prices" not in _page(c)
-    assert "Review your prices." not in c.get("/", environ_base=E).get_data(as_text=True)
+    assert "Your prices are still the starter prices" not in c.get("/alerts", environ_base=E).get_data(as_text=True)
     doc = c.get(f"/quote/{vid}", environ_base=E).get_data(as_text=True)
     assert "SAMPLE prices" not in doc and f"{name} ({code})" in doc and "fee schedule #" not in doc
     fees = c.get(f"/fees/{sid_}", environ_base=E).get_data(as_text=True)
@@ -378,7 +378,7 @@ def test_the_upgrade_approves_only_prices_used_on_a_sent_quote(env):
         assert got == [sid_, cur] and A.prices_approved(cur)
         assert A.sched_code(cur) == "2026100201"
         assert A.price_approval_upgrade() is None
-    assert "Review your prices." not in c.get("/", environ_base=E).get_data(as_text=True)
+    assert "Your prices are still the starter prices" not in c.get("/alerts", environ_base=E).get_data(as_text=True)
 
 def test_the_upgrade_leaves_prices_never_quoted_as_sample(env):
     A, c = env
@@ -389,7 +389,7 @@ def test_the_upgrade_leaves_prices_never_quoted_as_sample(env):
         assert A.price_approval_upgrade() == []
         A.db().commit()
         assert not A.prices_approved(A.current_schedule()["id"])
-    assert "Review your prices." in c.get("/", environ_base=E).get_data(as_text=True)
+    assert "Your prices are still the starter prices" in c.get("/alerts", environ_base=E).get_data(as_text=True)
 
 @pytest.mark.parametrize("stage", ["booked", "shot", "delivered"])
 def test_the_quote_is_read_only_and_looks_it_from_booked_on(env, stage):
@@ -568,6 +568,6 @@ def test_the_details_forms_line_up_on_a_wide_screen(browser, env):
         assert len(set(tops[:4])) == 1, tops
         p.evaluate("document.querySelectorAll('#people details').forEach(d => d.open = true)")
         tops = p.evaluate("[...document.querySelector('#people .ui-form-grid').children].map(l => Math.round(l.getBoundingClientRect().top))")
-        assert len(set(tops)) == 1, tops
+        assert len(set(tops[:4])) == 1 and len(set(tops[4:])) <= 1, tops
     finally:
         ctx.close()

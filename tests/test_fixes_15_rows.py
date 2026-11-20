@@ -90,11 +90,11 @@ def test_mark_delivered_updates_the_delivery_block_in_place(browser, env):
     try:
         p.goto(BASE + "/c/1?s=1")
         p.evaluate("window.__stay = 1")
-        assert "Files not delivered yet" in p.locator("#delivery").inner_text()
+        assert "Final photos not delivered yet" in p.locator("#delivery").inner_text()
         p.locator(".ui-todo", has_text="Get the photos to Alex").get_by_role("link", name="Choose how to deliver").click()
         p.locator("#f-deliver-1").get_by_role("button", name="Record the handover").click()
         p.wait_for_function("!document.querySelector('#delivery').innerText.includes('not delivered yet')", timeout=5000)
-        assert "Files delivered (USB drive)" in p.locator("#delivery").inner_text()
+        assert "Final photos delivered (USB drive)" in p.locator("#delivery").inner_text()
         assert p.evaluate("window.__stay") == 1
     finally:
         ctx.close()
@@ -125,15 +125,12 @@ def test_today_never_says_nothing_waits_above_a_list_and_handled_picks_leave_it(
     assert "Sent their picks" not in today
     assert "Nothing waits on you today." not in head
 
-def test_an_empty_today_says_so_once_and_setting_up_has_one_heading(env):
+def test_an_empty_today_says_so_once_and_has_no_setting_up(env):
+
     A, c = env
     today = _today(c)
     assert today.count("Nothing waits on you today.") == 1
-    setup = today.split('id="setup"', 1)[1].split("</section>", 1)[0]
-    assert "Finish setting up" not in setup and "<h3" not in setup
-    if "Walk through your session types" in setup:
-        bare = re.sub(r'<span class="qh".*?</span></span>', "", setup, flags=re.S)
-        assert "The defaults already work" in setup and "The defaults already work" not in bare
+    assert 'id="setup"' not in today and "Setting up" not in today and "Finish setting up" not in today
 
 def test_the_sessions_list_names_the_same_next_action_as_today(env):
     A, c = env

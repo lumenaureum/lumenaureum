@@ -42,7 +42,7 @@ Print orders (`prints`) are switchable and **off by default**: on a new install 
 
 If a plugin needs a Python package the image doesn't have, build your own image on top of this one:
 ```dockerfile
-FROM ghcr.io/lumenaureum/lumenaureum:1.5.2     # the version you run
+FROM ghcr.io/lumenaureum/lumenaureum:1.5.3     # the version you run
 USER root
 RUN pip install some-package
 USER lumenaureum

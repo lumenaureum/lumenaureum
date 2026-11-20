@@ -103,7 +103,7 @@ def test_signing_date_comes_before_its_button(env):
         sql(A, "INSERT INTO documents (session_id, kind) VALUES (?, 'release')", (sid,))
     page = _page(c, "/event/1")
     form = re.search(r'<form[^>]*event/1/releases[^>]*class="row".*?</form>', page, re.S).group(0)
-    assert form.index('<label for="f-signed_on">Releases signed on</label>') < form.index('id="f-signed_on"') \
+    assert form.index('<label for="f-signed_on" class="ui-label">Releases signed on</label>') < form.index('id="f-signed_on"') \
         < form.index("Mark every release signed")
     assert "0 of 2 families signed" in page and "0 of 1 signed" in page
     c.post("/event/1/releases", data={}, environ_base=E)

@@ -41,11 +41,11 @@
 <section class="sec" id="families"><h2 class="sec-h">Families</h2>
   {% if signed < need_rel|length %}
   <form method="post" action="{{ url_for('event_releases', eid=e.id) }}" class="row" style="margin-bottom:10px;flex-wrap:wrap;gap:8px" data-confirm="Mark every family's release signed? Do this once you have all the signed copies back.">
-    <label for="f-signed_on">Releases signed on</label><input type="date" id="f-signed_on" name="signed_on" value="{{ sign_day }}" style="width:auto;margin:0">
+    <label for="f-signed_on" class="ui-label">Releases signed on</label><input type="date" id="f-signed_on" name="signed_on" value="{{ sign_day }}" style="width:auto;margin:0">
     <button class="ui-btn ui-btn-primary">Mark every release signed</button>
   </form>{% endif %}
   {% if e.billing == 'families' %}<form method="post" action="{{ url_for('event_family_price', eid=e.id) }}" class="row" style="margin-bottom:10px;gap:8px">
-    <label for="f-family_price">Price per family, before tax</label><input type="number" step="0.01" min="0" id="f-family_price" name="amount" placeholder="$" value="{{ '%g' % e.family_price if e.family_price else '' }}" style="width:110px;margin:0">
+    <label for="f-family_price" class="ui-label">Price per family, before tax</label><input type="number" step="0.01" min="0" id="f-family_price" name="amount" placeholder="$" value="{{ '%g' % e.family_price if e.family_price else '' }}" style="width:110px;margin:0">
     <button class="ui-btn ui-btn-quiet">Set for families without one</button></form>{% endif %}
   {% if pipe_i and cur_i + 1 < C.STAGES|length %}{% set to_ = stage_label[C.STAGES[cur_i + 1]] %}{% set left_ = (fam_open ~ '. ') if fam_open else '' %}
   {% if C.STAGES[cur_i] == 'booked' and e.date and e.date < today.isoformat() %}<p class="sub" style="margin:0 0 6px">The event was {{ nice(e.date) }}. {{ 'The family is' if n_move == 1 else 'The families are' }} still at Booked.{{ (' ' ~ fam_open ~ '.') if fam_open }}</p>{% endif %}

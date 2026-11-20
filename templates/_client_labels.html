@@ -11,7 +11,7 @@
 {% call ui.section('Labels', id='labels', part=true) %}
   {% if labs_ %}<div class="ui-chips ui-client-labels">{% for l_ in labs_ %}<span class="ui-label-chip">{{ ui.chip(l_) }}<form method="post" action="{{ url_for('client_label', hid=hid) }}" class="ui-action" data-ui-inplace><input type="hidden" name="remove" value="{{ l_ }}"><input type="hidden" name="back" value="{{ back }}"><button class="ui-x" aria-label="Take the label {{ l_ }} off" title="Take this label off">&times;</button></form></span>{% endfor %}</div>{% endif %}
   <form method="post" action="{{ url_for('client_label', hid=hid) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ back }}">
-    <label for="new-label-{{ hid }}" class="ui-mute">Add a label</label>{{ help('Your own words for this client, to find them on Clients and Today. Labels are part of what a client gets if they ask for the data you keep about them. They never show on a document, a gallery or an email.') }}
+    <label for="new-label-{{ hid }}" class="ui-label">Add a label</label>{{ help('Your own words for this client, to find them on Clients and Today. Labels are part of what a client gets if they ask for the data you keep about them. They never show on a document, a gallery or an email.') }}
     <input id="new-label-{{ hid }}" name="label" maxlength="40" list="label-words" class="ui-grow" required>
     <datalist id="label-words">{% for l_ in all_labels() %}<option value="{{ l_ }}">{% endfor %}</datalist>
     <button class="ui-btn ui-btn-quiet">Add the label</button></form>

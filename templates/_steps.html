@@ -5,6 +5,7 @@
 {%- endmacro %}
 
 {% macro reuse_lines(items) -%}
-{% if items %}<div class="reuse mute" style="font-size:12px;margin:2px 0 8px">Your other types: {% for it in items %}<button type="button" class="ui-btn ui-btn-inline" data-fill="{{ it.fill|tojson|forceescape }}" title="Use this answer here">{{ it.words }}</button>{{ '; ' if not loop.last }}{% endfor %}</div>{% endif %}
+
+{% if items %}<div class="reuse">{% for it in items %}<button type="button" class="ui-btn ui-btn-inline reuse-chip" data-fill="{{ it.fill|tojson|forceescape }}" title="Use {{ it.names }}'s answer: {{ it.full }}">Match {{ it.names }}: {{ it.short }}</button>{% endfor %}</div>{% endif %}
 {%- endmacro %}
 

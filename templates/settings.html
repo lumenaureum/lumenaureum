@@ -74,8 +74,8 @@
   
   <div class="sui-upload" id="own-font"><div class="l">{{ 'Your own font' }}{{ help("A font file (WOFF2, WOFF, TTF or OTF) whose license lets you put it on a website. It goes up with each gallery and your studio page, so visitors' browsers never fetch it from anywhere else.") }}</div>
     <div class="sui-upload-now">{% if own_font %}<span id="own-font-have">Uploaded: {{ own_font.name }}, regular{% if own_font.light %} and light{% else %}. No light weight: light text uses the regular one{% endif %}.</span>{% else %}<span class="ui-mute">None uploaded.</span>{% endif %}</div>
-    <div class="ui-form-row"><label style="font-size:12.5px">Regular <input type="file" name="regular" form="gl-font" accept=".woff2,.woff,.ttf,.otf" style="width:auto"></label>
-      <label style="font-size:12.5px">Light (optional) <input type="file" name="light" form="gl-font" accept=".woff2,.woff,.ttf,.otf" style="width:auto"></label></div>
+    <div class="ui-form-row"><label><span>Regular</span><input type="file" name="regular" form="gl-font" accept=".woff2,.woff,.ttf,.otf" style="width:auto"></label>
+      <label><span>Light (optional)</span><input type="file" name="light" form="gl-font" accept=".woff2,.woff,.ttf,.otf" style="width:auto"></label></div>
     <div class="ui-form-row"><button class="ui-btn ui-btn-quiet" form="gl-font">{{ 'Replace the font' if own_font else 'Upload the font' }}</button>{% if own_font %}<button class="ui-btn ui-btn-quiet" form="gl-font" name="remove" value="1">Remove the font</button>{% endif %}</div></div>
   <div><label class="l" id="gl-bg-l">Background</label>
     {% set sw_ = (('#f6f3ed', 'Ivory'), ('#ffffff', 'White'), ('#262422', 'Charcoal'), ('#0d0c0b', 'Black')) %}
@@ -147,11 +147,11 @@
   {% for it in fees['items'] %}<tr><td><input name="fee_label_{{ loop.index0 }}" value="{{ it.label }}" aria-label="Fee name"></td>
     <td style="width:110px"><input type="number" step="0.01" name="fee_amt_{{ loop.index0 }}" value="{{ '%g' % it.amount }}" aria-label="Price of {{ it.label }}"></td>
     <td class="mute" style="width:80px">{{ {'flat':'flat fee','hour':'per hour','mile':'per mile','each':'each'}[it.unit] }}</td>
-    <td style="width:90px"><label class="row" style="gap:4px;font-size:12px"><input type="checkbox" name="fee_tax_{{ loop.index0 }}" value="1" {{ 'checked' if it.get('taxable', True) }}>Sales tax</label></td>
-    <td style="width:80px"><label class="row" style="gap:4px;font-size:12px"><input type="checkbox" name="fee_del_{{ loop.index0 }}" value="1">Remove</label></td></tr>{% endfor %}
+    <td style="width:90px"><label class="ui-check"><input type="checkbox" name="fee_tax_{{ loop.index0 }}" value="1" {{ 'checked' if it.get('taxable', True) }}><span class="vh">Sales tax</span></label></td>
+    <td style="width:80px"><label class="ui-check"><input type="checkbox" name="fee_del_{{ loop.index0 }}" value="1"><span class="vh">Remove</span></label></td></tr>{% endfor %}
   <tr><td><input name="new_label" placeholder="New fee" aria-label="New fee"></td><td><input type="number" step="0.01" name="new_amount" placeholder="$" aria-label="New fee's price"></td>
     <td colspan="2">{{ seg('new_unit', [('flat','flat'),('hour','per hr'),('each','each'),('mile','per mi')], 'flat', label='New fee charged') }}</td>
-    <td><label class="row" style="gap:4px;font-size:12px"><input type="checkbox" name="new_taxable" value="1" checked>Sales tax</label></td></tr>
+    <td style="white-space:nowrap"><label class="ui-check"><input type="checkbox" name="new_taxable" value="1" checked>Sales tax</label></td></tr>
   </tbody></table>
   
   <p class="sub">Quotes are good for {{ term }} days: {{ ui.go(url_for('setup_step', step='money') ~ '#f-quote_term_days', 'Payments and terms') }}
@@ -207,8 +207,9 @@
   {% if rep_ %}<div class="sui-replace-head"><b>Replace the ntfy server</b><a class="ui-go" href="{{ url_for('settings_view', tab='notifications') }}#notice">Cancel</a></div>
   <p class="sui-hint">The one in use now stays in use until a test notice to the new one goes through.</p>{% endif %}
   <form method="post" action="{{ url_for('security_notice') }}" class="f" autocomplete="off">{% if rep_ %}<input type="hidden" name="replace" value="1">{% endif %}
-    {{ sui.field('server', 'ntfy server', '', type='url', placeholder='https://ntfy.sh', id='ntfy-server', attrs='maxlength="300" required') }}
-    {{ sui.field('topic', 'Topic', '', id='ntfy-topic', attrs='maxlength="64" pattern="[A-Za-z0-9_\\-]{1,64}" required') }}
+    {% set ty_ = session.pop('ntfy_typed', {}) %}
+    {{ sui.field('server', 'ntfy server', ty_.get('server', ''), type='url', placeholder='https://ntfy.sh', id='ntfy-server', attrs='maxlength="300" required') }}
+    {{ sui.field('topic', 'Topic', ty_.get('topic', ''), id='ntfy-topic', attrs='maxlength="64" pattern="[A-Za-z0-9_\\-]{1,64}" required') }}
     {{ sui.field('token', 'Access token (optional)', '', type='password', id='ntfy-token', attrs='maxlength="300" autocomplete="off"') }}
     <div class="ui-btnrow"><button class="ui-btn ui-btn-primary" name="act" value="save">{{ 'Test and switch' if rep_ else 'Save the notice settings' }}</button>{% if not rep_ %}<button class="ui-btn ui-btn-quiet" name="act" value="test">Send a test notice</button>{% endif %}</div></form>
   {% endif %}

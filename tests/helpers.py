@@ -46,6 +46,8 @@ def signed_in_client(A, setup_done=True):
                        (1, 'Owner', 'owner@example.com', '', 'JBSWY3DPEHPK3PXP')""")
         if setup_done:
             con.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('setup_complete', '1')")
+
+            con.execute("""INSERT OR REPLACE INTO settings (key, value) VALUES ('walk', '{"*": {"walked": "test"}}')""")
         con.commit()
     finally:
         con.close()

@@ -130,7 +130,8 @@ root.querySelectorAll('input[data-avail]').forEach(inp => {
 root.querySelectorAll('[data-show-if]').forEach(el => {
   const [name, val] = el.dataset.showIf.split('='), form = el.form || el.closest('form');   // a field, or a block of them
   if (!form) return;
-  const sync = () => { const r = form.querySelector(`[name="${name}"]:checked`); el.hidden = !(r && r.value === val); };
+  const vals = val.split('|');                                     // one choice, or any of several: "tax_mode=flat|regional"
+  const sync = () => { const r = form.querySelector(`[name="${name}"]:checked`); el.hidden = !(r && vals.includes(r.value)); };
   form.addEventListener('change', sync); sync(); });
 root.querySelectorAll('[data-after-refund]').forEach(box => {
   const form = box.closest('form'); if (!form) return;

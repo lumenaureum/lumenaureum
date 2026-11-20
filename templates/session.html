@@ -36,12 +36,12 @@
     <p><label class="ui-check"><input type="checkbox" name="date_tentative" value="1"{{ ' checked' if s.date_tentative }}>Date not final yet</label></p>
     
     {% if business_client(s) %}
-    <div class="ui-form-grid"><label><span>PO or reference, printed on the invoice</span><input name="po_number" maxlength="80" value="{{ s.po_number or '' }}"></label></div>{% endif %}
+    <div class="ui-form-grid"><label><span>PO or reference{{ help("Printed on the invoice.") }}</span><input name="po_number" maxlength="80" value="{{ s.po_number or '' }}"></label></div>{% endif %}
     <h3 class="ui-sub-title" id="subjects-l">Subjects</h3><input type="hidden" name="subjects_present" value="1">
     {% set subj_ids = subjects|map(attribute='id')|list %}
     <div class="ui-form-row" role="group" aria-labelledby="subjects-l">{% for m in members %}<label class="ui-check"><input type="checkbox" name="subjects" value="{{ m.id }}"{{ ' checked' if m.id in subj_ids }}>{{ m.name }}{% if m.is_minor %} (minor){% endif %}</label>{% else %}<small class="ui-mute">No one on this client yet.</small>{% endfor %}</div>
     <div class="ui-form-grid">
-      <label><span>Where (one place per line, the meeting place first)</span><textarea name="stops" rows="3">{{ s.stops }}</textarea></label>
+      <label><span>Where{{ help("One place per line, the meeting place first.") }}</span><textarea name="stops" rows="3">{{ s.stops }}</textarea></label>
       <label><span>Notes</span><textarea name="notes" rows="3">{{ s.notes }}</textarea></label>
       <label><span>Event</span><select name="event_id"><option value="">None</option>{% for e in events %}<option value="{{ e.id }}"{{ ' selected' if e.id == s.event_id }}>{{ e.name }}</option>{% endfor %}</select></label>
     </div>
@@ -80,15 +80,17 @@
     {{ seg('kind', ['release','agreement','property release','other'], 'release', label='New document') }}
     {% set ap = [('', 'Whole session')] %}{% for m in members %}{% set _ = ap.append((m.id, m.name)) %}{% endfor %}{{ seg('about_person', ap, '', label='About') }}
     
-    <label><span>Who or what it covers, if not on the session</span><input name="covers" maxlength="200" class="ui-grow"></label>
-    <label class="ui-check"><input type="checkbox" name="covers_minor" value="1">They are a minor</label>
-    <label><span>Signer</span><input name="signer" maxlength="200" class="ui-grow"></label><button class="ui-btn ui-btn-quiet">Add document</button></form>
+    <div class="ui-form-grid ui-span-row">
+      <label><span>Covers (optional){{ help("Only for a person or a property not on this session, such as a guest.") }}</span><input name="covers" maxlength="200"></label>
+      <label><span>Signer (optional)</span><input name="signer" maxlength="200"></label>
+    </div>
+    <label class="ui-check"><input type="checkbox" name="covers_minor" value="1">They are a minor</label><button class="ui-btn ui-btn-quiet">Add document</button></form>
   {% if plan_opts or s.plan_of %}<form method="post" action="{{ url_for('join_plan', sid=s.id) }}" class="ui-form-row" data-ui-inplace>
     <input type="hidden" name="back" value="{{ here }}#paperwork"><label class="ui-check" for="f-plan_of">One agreement with</label>
     <select id="f-plan_of" name="plan_of" class="ui-grow"><option value="">No other session (its own agreement)</option>{% for o_ in plan_opts %}<option value="{{ o_.id }}"{{ ' selected' if s.plan_of == o_.id }}>{{ o_.title or type_label[o_.type] }}{% if o_.shoot_date %}, {{ nice(o_.shoot_date) }}{% endif %}</option>{% endfor %}</select>
     <button class="ui-btn ui-btn-quiet">Save agreement</button></form>{% endif %}
   {% if signer_opts|length > 1 %}<form method="post" action="{{ url_for('session_signers', sid=s.id) }}" class="ui-form-row" data-ui-inplace>
-    <input type="hidden" name="back" value="{{ here }}#paperwork"><span class="ui-mute">Who signs the agreement</span>
+    <input type="hidden" name="back" value="{{ here }}#paperwork"><span class="ui-label">Who signs the agreement</span>
     {% for p_ in signer_opts %}<label class="ui-check"><input type="checkbox" name="signer" value="{{ p_.id }}"{{ ' checked' if p_.id in signer_ids }}>{{ p_.name }}</label>{% endfor %}
     <button class="ui-btn ui-btn-quiet">Save signers</button></form>{% endif %}
 {% endcall %}
@@ -127,7 +129,7 @@
     <input type="number" step="0.01" name="amount" placeholder="$" aria-label="Amount in dollars" required value="{{ '%.2f'|format(t.deposit_short if dep_now else t.due) if t.due > 0 }}" class="ui-input-money">
     {{ seg('kind', ['deposit','balance','tip','refund','other'] + ([('tip_back', 'tip back')] if t.tips > 0.005 else []), 'deposit' if dep_now else 'balance', label='Payment kind') }}
     {% set amt_ = t.deposit_short if dep_now else (t.due if t.due > 0 else 0) %}
-    <span class="ui-form-row" data-after-refund data-paid="{{ '%.2f'|format(t.paid) }}" hidden><span class="ui-mute" id="after-refund-l">After this refund, the gallery:</span>{{ seg('after_refund', [('release', 'releases once nothing is owed'), ('hold', 'stays held until paid again')], 'release' if t.paid - amt_ > 0.005 else 'hold', by='after-refund-l') }}</span>
+    <span class="ui-form-row" data-after-refund data-paid="{{ '%.2f'|format(t.paid) }}" hidden><span class="ui-label" id="after-refund-l">After this refund, the gallery:</span>{{ seg('after_refund', [('release', 'releases once nothing is owed'), ('hold', 'stays held until paid again')], 'release' if t.paid - amt_ > 0.005 else 'hold', by='after-refund-l') }}</span>
     {{ seg('method', C.PAYMENT_METHODS + [('other', 'Other (say what)')], C.PAYMENT_METHODS[0] if C.PAYMENT_METHODS else '', label='Paid by') }}<input name="ref" maxlength="40" placeholder="Check #" aria-label="Check number" class="ui-input-short" data-show-if="method=check"><input name="note" maxlength="80" placeholder="What it was, such as a trade" aria-label="What it was" class="ui-grow" data-show-if="method=other"><input type="date" name="received" value="{{ today.isoformat() }}" aria-label="Payment received on" class="ui-input-date"><button class="ui-btn ui-btn-primary">Record payment</button></form>
 
   <h3 class="ui-sub-title">Expenses and miles</h3>
@@ -163,14 +165,14 @@
     {% if restored %}<small class="ui-mute">Put back online for the days chosen then; the extension was for the first window.</small>{% else %}<label class="ui-check"><input type="checkbox" name="extension_used" value="1"{{ ' checked' if s.extension_used }} data-autosubmit>+{{ C.gallery_days(s.type) }} days</label>{% endif %}</p>{% endif %}
   <div class="ui-form-grid">
     <label><span>Client's portfolio suggestions</span><input name="favorites" value="{{ s.favorites }}"></label>
-    <label><span>Don't show (the client asked)</span><input name="veto" value="{{ s.veto }}"></label>
+    <label><span>Don't show{{ help("Photos the client asked you not to show.") }}</span><input name="veto" value="{{ s.veto }}"></label>
   </div>
   <p class="ui-mute">You choose up to {{ C.MARKETING_PICKS }} photos for your portfolio. The client may suggest favorites, and you never show a photo they asked you not to.</p>
   {% set gcw_ = C.POLICY[s.type].get('gallery_codeword') or s.gallery_codeword %}
   {% if gcw_ %}{%- set cwr_ = session.pop('cw_refused', None) %}{% set cwr_ = cwr_ if cwr_ and cwr_.sid == s.id else None %}
   <div class="ui-form-row"><label class="ui-check" for="f-gallery_codeword">Gallery codeword</label><input name="gallery_codeword" id="f-gallery_codeword" maxlength="60" class="ui-grow" value="{{ cwr_.word if cwr_ else (s.gallery_codeword or '') }}" autocomplete="off" placeholder="three words, e.g. heron maple tide"{% if cwr_ %} aria-invalid="true" aria-describedby="cw-refused"{% endif %}>{{ help("Three words the client chose. The gallery asks for them; with only the link, someone would have to guess them, so short or common words are refused. It's never printed on the letter or written into any email the app drafts: the client chooses it with you in person or on the phone. Once the gallery is online, the word stays as it is so the link you sent keeps working.") }}</div>
   {%- if cwr_ %}<p id="cw-refused" class="ui-late">Not saved: this codeword is too easy to guess. Use three or more words, or 14 letters or more, then save.{% if s.gallery_codeword %} The saved codeword is still "{{ s.gallery_codeword }}".{% endif %}</p>{% endif %}{% endif %}
-  <div class="ui-form-grid"><label><span>Retouch picks, with the client's notes</span><textarea name="retouch_picks" rows="3">{{ s.retouch_picks or '' }}</textarea></label></div>
+  <div class="ui-form-grid"><label><span>Retouch picks{{ help("The photos the client picked for retouching, with their notes.") }}</span><textarea name="retouch_picks" rows="3">{{ s.retouch_picks or '' }}</textarea></label></div>
   <div class="ui-btnrow"><button class="ui-btn ui-btn-primary">Save delivery</button>{% if s.gallery_id %}<small class="ui-mute">Gallery {{ s.gallery_id }}</small>{% endif %}</div>
   </form>
   {% if s.gallery_id %}{% call ui.fold('Check a picks email', id='picks-email') %}

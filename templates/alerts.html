@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% import "_ui.html" as ui with context %}
+{% block title %}Alerts - Lumen Aureum{% endblock %}
+
+{% block body %}
+{% set fix_ = alerts|selectattr('level', 'equalto', 'fix')|list %}{% set look_ = alerts|rejectattr('level', 'equalto', 'fix')|list %}
+{% macro rows(items, tone) -%}
+<ul class="ui-alerts">{% for a_ in items %}<li class="ui-alert ui-alert-{{ tone }}">
+  <a class="ui-row" href="{{ a_.link }}"><span class="ui-alert-dot" aria-hidden="true"></span><span class="ui-row-main">{{ a_.text }}</span><span class="ui-row-right"><span class="ui-row-chev" aria-hidden="true">&rsaquo;</span></span></a>
+  {%- if a_.post %}<div class="ui-alert-act">{{ ui.action(a_.post, a_.verb, a_.fields or {}, url_for('alerts_view'), inplace=false) }}</div>{% endif %}
+</li>{% endfor %}</ul>
+{%- endmacro %}
+<div class="ui-page" id="alerts">
+{% set st_ = '' if not alerts else (fix_|length ~ ' to fix' if fix_ else 'Nothing to fix') ~ (' &middot; ' ~ look_|length ~ ' can wait' if look_ else '') %}
+{{ ui.page_head('Alerts', status=st_|safe, kicker='Lumen Aureum', id='alerts-head') }}
+{% if not alerts %}<p class="ui-needs-line" id="alerts-none">Nothing to fix.</p>{% endif %}
+{% if fix_ %}{% call ui.section('Needs fixing', id='alerts-fix') %}{{ rows(fix_, 'fix') }}{% endcall %}{% endif %}
+{% if look_ %}{% call ui.section('Can wait', id='alerts-look') %}{{ rows(look_, 'look') }}{% endcall %}{% endif %}
+<p class="ui-mute">Only problems with Lumen Aureum itself show here. Client work is on {{ ui.go(url_for('home'), 'Today') }}</p>
+</div>
+{% endblock %}
+

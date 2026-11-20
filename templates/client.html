@@ -30,7 +30,7 @@
   <form method="post" action="{{ url_for('client_save', hid=h.id) }}"><input type="hidden" name="seen" value="{{ edit_stamp('households', h.id) }}">
     <div class="ui-form-grid">
       <label><span>Name</span><input name="name" maxlength="200" value="{{ h.name }}"></label>
-      <label><span>Company, if they bill as one</span><input name="company" maxlength="200" value="{{ h.company or '' }}"></label>
+      <label><span>Company{{ help("Only if they bill as a company. A company is listed and sorted by its own name, and gets business options such as a PO number.") }}</span><input name="company" maxlength="200" value="{{ h.company or '' }}"></label>
       <label><span>Mailing address</span><textarea name="address" rows="3">{{ h.address }}</textarea></label>
       <label><span>Source</span><input name="source" value="{{ h.source }}"></label>
       <label><span>Referred by</span><select name="referred_by"><option value="">Not referred</option>{% for o in households %}<option value="{{ o.id }}"{{ ' selected' if o.id == h.referred_by }}>{{ o.name }}</option>{% endfor %}</select></label>
@@ -45,18 +45,17 @@
 
 {% macro person_fields(p, fid) -%}
   <div class="ui-form-grid">
+    {%- set opt_ = '' if p else ' (optional)' %}
     <label><span>Name</span><input name="name" maxlength="200" value="{{ p.name if p else '' }}"{% if not p %} required{% endif %}></label>
-    <label><span>Who they are</span><input name="relation" list="rels" value="{{ (p.relation or '') if p else '' }}" placeholder="mother, son, owner"></label>
-    <label><span>Email</span><input type="email" name="email" maxlength="200" value="{{ p.email if p else '' }}"></label>
-    <label><span>Phone</span><input type="tel" name="phone" maxlength="200" value="{{ p.phone if p else '' }}"></label>
-    {% if show_born %}<label><span>Born or due</span><input type="date" name="birth_date" value="{{ (p.birth_date or '') if p else '' }}" class="ui-input-date"></label>{% endif %}
-    {% if show_grad %}<label><span>Grad year</span><input type="number" name="grad_year" value="{{ (p.grad_year or '') if p else '' }}"></label>{% endif %}
-  </div>
-  <div class="ui-form-row">
-    {% if show_gender %}<span class="ui-mute" id="g-{{ fid }}">Gender</span>{{ seg('gender', ['F','M'], p.gender if p else None, by='g-' ~ fid) }}{% endif %}
-    {% if p and p.birth_date %}<span class="ui-mute">{{ age_label(p) }}</span>{% else %}<input type="number" name="age" aria-label="Age" min="0" max="120" value="{{ (age_of(p) if age_of(p) is not none else '') if p else '' }}" placeholder="Age" class="ui-input-qty" data-age data-minor="is_minor" data-approx="age_approx" data-majority="{{ majority_age() }}">
-      <label class="ui-check"><input type="checkbox" name="age_approx" value="1"{{ ' checked' if p and p.age_approx }}>approximate age</label>{% endif %}
-    <input type="hidden" name="minor_shown" value="1"><label class="ui-check"><input type="checkbox" name="is_minor" value="1"{{ ' checked' if p and p.is_minor }}>Minor</label>
+    <label><span>Relationship{{ opt_ }}</span><input name="relation" list="rels" value="{{ (p.relation or '') if p else '' }}" placeholder="mother, son, owner"></label>
+    <label><span>Email{{ opt_ }}</span><input type="email" name="email" maxlength="200" value="{{ p.email if p else '' }}"></label>
+    <label><span>Phone{{ opt_ }}</span><input type="tel" name="phone" maxlength="200" value="{{ p.phone if p else '' }}"></label>
+    {% if show_born %}<label><span>Born or due{{ opt_ }}</span><input type="date" name="birth_date" value="{{ (p.birth_date or '') if p else '' }}" class="ui-input-date"></label>{% endif %}
+    {% if show_grad %}<label><span>Grad year{{ opt_ }}</span><input type="number" name="grad_year" value="{{ (p.grad_year or '') if p else '' }}"></label>{% endif %}
+    {% if show_gender %}<div><span class="ui-label" id="g-{{ fid }}">Gender{{ opt_ }}</span><div class="ui-field-inline">{{ seg('gender', ['F','M'], p.gender if p else None, by='g-' ~ fid) }}</div></div>{% endif %}
+    <div>{% if p and p.birth_date %}<span class="ui-label">Age</span><div class="ui-field-inline">{{ age_label(p) }}{% else %}<label class="ui-label" for="age-{{ fid }}">Age{{ opt_ }}</label><div class="ui-field-inline"><input type="number" name="age" id="age-{{ fid }}" min="0" max="120" value="{{ (age_of(p) if age_of(p) is not none else '') if p else '' }}" class="ui-input-qty" data-age data-minor="is_minor" data-approx="age_approx" data-majority="{{ majority_age() }}">
+      <label class="ui-check"><input type="checkbox" name="age_approx" value="1"{{ ' checked' if p and p.age_approx }}>approximate</label>{% endif %}</div></div>
+    <div><span class="ui-label">&nbsp;</span><div class="ui-field-inline"><input type="hidden" name="minor_shown" value="1"><label class="ui-check"><input type="checkbox" name="is_minor" value="1"{{ ' checked' if p and p.is_minor }}>Minor</label></div></div>
   </div>
 {%- endmacro %}
 

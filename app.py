@@ -421,6 +421,7 @@ class Hooks:
         self.session_panels = []
         self.session_tabs = []
         self.today = []
+        self.alerts = []
         self.steps = []
         self.step_actions = []
         self.stage_blocks = []
@@ -830,7 +831,7 @@ def describe(ep, va, f):
         act = EP_WORDS.get(ep) or (w_(f) if callable(w_) else w_) or ep.replace("_", " ").capitalize()
     return act, sid, hid, eid
 
-EP_WORDS = {"quote_license": "Changed the license terms on the quote", "quote_send": "Prepared the quote to send", "quote_fee": "Added a fee to the quote", "quote_discount": "Set the discount", "type_walk": "Walked through a session type's settings", "walk_dismiss": "Dismissed the settings walkthrough", "type_steps_reset": "Reset a session type's steps to the defaults", "type_walk_approve": "Approved a session type's terms at the end of the walk-through", "portfolio_set": "Changed portfolio permission",
+EP_WORDS = {"quote_license": "Changed the license terms on the quote", "quote_send": "Prepared the quote to send", "quote_fee": "Added a fee to the quote", "quote_discount": "Set the discount", "type_walk": "Walked through a session type's settings", "type_steps_reset": "Reset a session type's steps to the defaults", "type_walk_approve": "Approved a session type's terms at the end of the walk-through", "portfolio_set": "Changed portfolio permission",
             "quote_requote": "Requoted at current fees", "quote_exempt": "Changed the sales tax setting",
             "upload_gallery_req": "Asked to upload the gallery", "build_gallery": "Started building the gallery",
             "gallery_sync_now": "Checked the gallery", "retention_raw": "Picked the RAW folder",
@@ -840,7 +841,7 @@ EP_WORDS = {"quote_license": "Changed the license terms on the quote", "quote_se
             "quick": "Updated the session", "settings_import": "Imported settings from a file", "setup_hide_list": "Hid the finish-setting-up list", "contact_new": "Added a contact", "settings_reset": "Reset the database",
             "unconfirmed_keep": "Kept clients named in deletions that could not be confirmed",
             "master_key_later": "Put off checking the master key for a week", "client_check_in": "Checked in by email (a draft)",
-            "setup_dismiss": "Dismissed the Setting up section on Today", "session_codeword": "Added the gallery codeword"}
+            "session_codeword": "Added the gallery codeword"}
 
 QUIET_ENDPOINTS = {"login", "login_2fa", "dev_components_post", "idle_stay", "gallery_status", "client_delete", "session_delete", "unconfirmed_apply", "vault_check", "vault_backup_now", "wording_edit",
                    "master_key_check"}
@@ -2432,8 +2433,11 @@ def _workflow(sid):
             else:
                 r = tasks.get((st, step[1]))
                 if r:
+
+                    why_ = (r["outcome_note"] or "")[len("Settled: "):] if r["done"] and r["outcome"] == "done" \
+                        and (r["outcome_note"] or "").startswith("Settled: ") else ""
                     steps.append(dict(label=r["title"], done=bool(r["done"]), kind="do", task_id=r["id"], due=r["due"],
-                                      outcome=r["outcome"] if r["outcome"] not in (None, "done") else None))
+                                      outcome=r["outcome"] if r["outcome"] not in (None, "done") else None, settled=why_))
         steps += extra.get(st, [])
         for r in (r_ for r_ in own if (r_["stage"] or s["stage"]) == st):
             steps.append(dict(label=r["title"], done=bool(r["done"]), kind="do", task_id=r["id"], due=r["due"], outcome=r["outcome"] if r["outcome"] not in (None, "done") else None, mine=True))
@@ -4139,16 +4143,12 @@ def home():
             waited_ = None
     rv_ = app.config.get("inquiry_review")
     days_ = [d_ for d_ in two_weeks(acts)[1:] if d_["shoots"] or d_["due"]]
-    dismissed_ = setting("setup_dismissed") == "1"
     board_ = today_board(acts)
     return render_template("today.html", clock_paused=paused.split("|") if paused else None, updated=upd_,
                            locked_waited=waited_, ntfy_suggest=suggest_ and not ntfy_settings(),
-                           setup_dismissed=dismissed_, urgent=app.config["urgent_items"]() if dismissed_ and "urgent_items" in app.config else [],
-                           kinds=today_filter_kinds(board_), today_iso=t.isoformat(),
-                           master_due=owner_auth.master_check_due(db(), t), unconfirmed=unconfirmed_deletions(),
-                           finish=app.config["finish_items"](), loose=[it for fn in hooks.today for it in (fn() or []) if not it.get("who")],
+                           kinds=today_filter_kinds(board_), today_iso=t.isoformat(), unconfirmed=unconfirmed_deletions(),
+                           loose=[it for fn in hooks.today for it in (fn() or []) if not it.get("who")],
                            raw_held=app.config["raw_held_list"]() if "raw_held_list" in app.config else [],
-                           prices_sample=None if prices_approved(current_schedule()["id"]) else current_schedule()["id"],
                            board=board_, days=days_, review=rv_["rows"]() if rv_ else [],
                            review_types=rv_["types"]() if rv_ else [], review_cut=rv_["cut"] if rv_ else 0,
                            review_clients=rv_["clients"]() if rv_ and rv_.get("clients") else [])
@@ -4796,10 +4796,15 @@ def focus_rows(acts, s, t):
         if (a.get("href") or "").endswith("#money") and verb.startswith("Record payment") and not a.get("form"):
 
             a.update(form="pay_balance", pay_amt=t["due"], sid=s["id"])
+            if a.get("collect"):
+                a["deliver"] = None
         elif owed > 0.005 and not (a.get("wait") or a.get("form") or a.get("doc")) and (
                 fld in ("sd_shipped", "letter_mailed") or a.get("collect")):
+
             a.update(form="pay_balance", pay_amt=t["due"], sid=s["id"], verb=f"Record payment ({money(owed)})", post=None, doc=None,
-                     what=f"Collect the {money(owed)} balance first", collect=True)
+                     what=f"Collect the {money(owed)} balance first", collect=True, deliver=None,
+                     detail=a.get("detail") or "Your terms hold the final photos until the balance is paid. "
+                                                "Record the payment, then choose how to deliver.")
         elif a.get("verb") == "Add time and place" and (a.get("href") or "").endswith("#shoot"):
             a.update(form="date_set", sid=s["id"], prefill=True)
         if not a.get("theirs"):
@@ -5114,12 +5119,21 @@ def soonest_first(rows):
     return ([r_ for r_ in rows if day_(r_) >= t_] + [r_ for r_ in rows if not day_(r_)]
             + [r_ for r_ in rows if day_(r_) and day_(r_) < t_][::-1])
 
+def session_views(s):
+
+    stage_, day_, t_ = s["stage"], (s["shoot_date"] or "")[:10], today().isoformat()
+    return [k_ for k_, ok_ in (("open", stage_ not in ("closed", "lost")), ("upcoming", bool(day_) and day_ >= t_ and stage_ != "lost"),
+                               ("leads", stage_ in ("inquiry", "quoted")), ("post", stage_ in ("shot", "delivered"))) if ok_]
+
 @app.get("/sessions")
 def sessions():
+
     view = request.args.get("view", "open")
-    label, where = VIEWS.get(view, VIEWS["open"])
+    if view not in VIEWS:
+        view = "open"
     if request.args.get("owing"):
-        where = "1=1"
+        view = "all"
+    where = "1=1"
     args = []
     if request.args.get("type"):
         where += " AND s.type=?"; args.append(request.args["type"])
@@ -5139,7 +5153,9 @@ def sessions():
         r["f"] = dict(status=("waiting" if theirs_ or not (nx_ or r["wf"]["next_stage"]) else "mine") if open_ else "",
                       due=(nx_ or {}).get("due") or "" if open_ else "",
                       owing=owed_billed(s_, r["t"]),
-                      labels=labels_.get(s_["household_id"], []))
+                      labels=labels_.get(s_["household_id"], []),
+                      show=session_views(s_))
+        r["in_view"] = view == "all" or view in r["f"]["show"]
     return render_template("sessions.html", rows=rows, view=view, views=VIEWS, today_iso=today().isoformat())
 
 def _search_matches(hid, term):
@@ -8310,7 +8326,8 @@ def settle_by_exports(sid):
     if not open_:
         return ""
     for r_ in open_:
-        x("UPDATE tasks SET done=?, outcome='done' WHERE id=? AND done IS NULL", (today().isoformat(), r_["id"]))
+        x("UPDATE tasks SET done=?, outcome='done', outcome_note=? WHERE id=? AND done IS NULL",
+          (today().isoformat(), "Settled: the edited photos were uploaded", r_["id"]))
     names = " and ".join(step_says(r_["title"]) for r_ in open_)
     note = f"{names} marked done: the edited photos arrived."
     audit(note, sid=sid, who="Lumen Aureum")
@@ -9169,6 +9186,7 @@ def statement_pdf(hid):
 PLUGINS_PAGE = """{% extends "base.html" %}{% from "_macros.html" import help with context %}{% import "_settings_ui.html" as sui with context %}{% block title %}Plugins - Lumen Aureum{% endblock %}{% block body %}
 {{ sui.head('Plugins') }}
 <p class="sui-tip" style="max-width:760px">Turning one off keeps everything it recorded; turning it on again brings it all back.{{ help("An administrator can keep a plugin off for this whole install with the CRM_PLUGINS_OFF setting. Then the switch here can't turn the plugin on.") }}</p>
+{% if plugin_errors %}<div class="err" id="plugin-errors" style="max-width:760px">Plugins that didn't load at the last start: {{ plugin_errors|join(', ') }}. Fix or remove each one, then restart Lumen Aureum.</div>{% endif %}
 {% if ask %}<div class="card f" style="max-width:760px;border-left:3px solid var(--warn)" role="alert"><p style="margin:0">{{ ask.words }}</p>
   <div class="row" style="gap:8px;margin-top:8px"><a class="go" href="{{ ask.finish }}">Finish them first &rsaquo;</a>
   <form method="post" action="{{ url_for('plugins_settings') }}" class="inline"><input type="hidden" name="name" value="{{ ask.name }}"><input type="hidden" name="anyway" value="1"><button class="danger">Turn off anyway</button></form></div></div>{% endif %}
@@ -9242,7 +9260,7 @@ def plugins_settings():
             if words:
                 g.refused = True
                 ask = dict(name=name, words=words, finish=url_for("home"))
-                return render_template_string(PLUGINS_PAGE, rows=_plugin_rows(), ask=ask)
+                return render_template_string(PLUGINS_PAGE, rows=_plugin_rows(), ask=ask, plugin_errors=PLUGIN_ERRORS)
         if not on and sw.get("before_off") and request.form.get("anyway") == "1":
             words = sw["before_off"]() or ""
             if words:
@@ -9257,7 +9275,7 @@ def plugins_settings():
               (f"plugin_off_n_{name}", str(int(setting(f"plugin_off_n_{name}") or 0) + 1)))
         session["notice"] = f"{sw['label']} turned {'on' if on else 'off'}."
         return redirect(safe_back(request.form.get("back")) or url_for("plugins_settings"))
-    return render_template_string(PLUGINS_PAGE, rows=_plugin_rows(), ask=ask)
+    return render_template_string(PLUGINS_PAGE, rows=_plugin_rows(), ask=ask, plugin_errors=PLUGIN_ERRORS)
 
 @app.get("/settings/plugin/<name>")
 def plugin_page(name):
@@ -10847,7 +10865,10 @@ def type_walk(key, n):
         return redirect(url_for("type_walk", key=key, n=nxt))
     if n >= len(steps):
 
-        if mine.pop("changed", None):
+        was_ = (mine.get("changed"), mine.get("walked"))
+        mine.pop("changed", None)
+        mine["walked"] = mine.get("walked") or today().isoformat()
+        if was_ != (None, mine["walked"]):
             _put_setting("walk", json.dumps(st))
         return render_template("walk.html", t=t, steps=steps, n=len(steps), mine=mine, summary=True,
                                terms=C.build_terms(key, setting("business_name")), rs=review_state("terms", key))
@@ -10869,6 +10890,7 @@ def type_walk_approve(key):
     mine = st.setdefault(key, {"done": [], "skipped": []})
     mine.pop("changed", None)
     mine["finished"] = today().isoformat()
+    mine["walked"] = mine.get("walked") or mine["finished"]
     _put_setting("walk", json.dumps(st))
     session["notice"] = f"{t['label']}'s terms are approved. They no longer print as SAMPLE."
     return redirect(url_for("type_edit", key=key) + "#terms")
@@ -10935,31 +10957,152 @@ def update_notice_hide():
     x("DELETE FROM settings WHERE key='update_notice'")
     return redirect(safe_back(request.form.get("back")) or url_for("home"))
 
-@app.post("/today/setup-dismiss")
-def setup_dismiss():
+import time as _time
+STARTED_AT = _time.monotonic()
+BACKUP_STALE_DAYS = 2
+BACKUP_GRACE = 2 * 3600
 
-    _put_setting("setup_dismissed", "1")
-    return redirect(safe_back(request.form.get("back")) or url_for("home"))
+def _alert(text, link, level="look", **kw):
+    return dict(text=text, link=link, level=level, **kw)
 
-@app.post("/walk/dismiss")
-def walk_dismiss():
-    _put_setting("walk_dismissed", "1")
-    return redirect(url_for("home"))
+def _backup_alerts():
 
-def walk_offer():
+    out = []
+    con = db()
+    has_key = bool(vault_keys.master_pub(con))
+    to_vault = url_for("vault_view")
+    if not has_key:
+        return [_alert("Backups are not running: there is no master key yet.", to_vault, "fix")]
+    try:
+        cfg = vault_web.config()
+    except Exception:
+        return [_alert("The backup settings could not be read.", to_vault, "fix")]
+    conn = (app.config.get("conn_status") or (lambda: {}))()
+    for which, part, words, card in (("primary", "primary", "backup location", "f-primary_type"),
+                                     ("secondary", "secondary", "second backup location", "f-secondary_type")):
+        if not cfg.get(part):
+            continue
+        st_ = conn.get(which)
+        link_ = url_for("setup_step", step="storage") + "#" + card
+        if not st_:
+            out.append(_alert(f"Your {words} has never been tested.", link_, "fix"))
+        elif not st_.get("ok"):
+            out.append(_alert(f"The last test of your {words} failed" + (f": {st_['why']}" if st_.get("why") else "."), link_, "fix"))
+    err_ = setting("backup_last_error")
+    if err_:
+        out.append(_alert(f"The last backup failed: {err_}", to_vault, "fix"))
+    last_ = (q("""SELECT MAX(created) m FROM vault_objects WHERE kind IN ('db', 'manual', 'upgrade') AND deleted IS NULL""",
+               one=True) or {"m": None})["m"]
+    if _time.monotonic() - STARTED_AT >= BACKUP_GRACE:
+        try:
+            at_ = datetime.fromisoformat(last_) if last_ else None
+        except ValueError:
+            at_ = None
+        if not at_:
+            out.append(_alert("No backup has been made yet.", to_vault, "fix"))
+        elif datetime.now() - at_ > timedelta(days=BACKUP_STALE_DAYS):
+            out.append(_alert(f"The last backup was on {nice(at_.date().isoformat())}, more than {BACKUP_STALE_DAYS} days ago.",
+                              to_vault, "fix"))
+    if cfg.get("secondary") and setting("backup_second_error"):
+        out.append(_alert("Your second backup copy could not be checked, so it is not counted yet.", to_vault, "fix"))
+    if setting("photo_mirror_error"):
+        out.append(_alert("The last copy of your photos to the backup failed.", to_vault, "fix"))
+    return out
 
-    if setting("walk_dismissed") == "1" or not setup_done():
-        return []
-    st = _walk_state()
-    return [(k_, lab) for k_, lab in C.SESSION_TYPES.items() if k_ != C.PERSONAL_TYPE["key"] and not ((st.get(k_) or {}).get("done") or (st.get(k_) or {}).get("finished"))]
+def _connection_alerts():
 
-app.jinja_env.globals["walk_offer"] = walk_offer
+    out = []
+    conn = (app.config.get("conn_status") or (lambda: {}))()
+    try:
+        has_host_ = bool(vault_web.config().get("gallery_host"))
+    except Exception:
+        has_host_ = False
+    if has_host_:
+        st_ = conn.get("gallery")
+        link_ = url_for("setup_step", step="galleries") + "#f-gallery_type"
+        if not st_:
+            out.append(_alert("Your web host has never been tested.", link_))
+        elif not st_.get("ok"):
+            out.append(_alert("The last test of your web host failed" + (f": {st_['why']}" if st_.get("why") else "."), link_, "fix"))
+    st_ = conn.get("ntfy")
+    if ntfy_settings() and st_ and not st_.get("ok"):
+        out.append(_alert("The last test notice to your phone could not be sent" + (f": {st_['why']}" if st_.get("why") else "."),
+                          url_for("settings_view", tab="notifications") + "#notice", "fix"))
+    return out
+
+def _setup_alerts():
+
+    out = []
+    urgent_ = app.config["urgent_items"]() if "urgent_items" in app.config else []
+    out += [_alert(t_ if t_.endswith(".") else t_ + ".", l_, "fix") for t_, l_ in urgent_]
+    if owner_auth.master_check_due(db(), today()):
+        out.append(_alert("Check you still have your master key. It is the only way back in if your password is lost.",
+                          url_for("master_key_check"), post=url_for("master_key_later"), verb="Ask next week"))
+    sched_ = current_schedule()["id"]
+    if not prices_approved(sched_):
+        out.append(_alert("Your prices are still the starter prices (SAMPLE). Review and approve them.",
+                          url_for("fees_view", sched_id=sched_)))
+    for k_, lab_ in C.SESSION_TYPES.items():
+        if k_ != C.PERSONAL_TYPE["key"] and not type_walked(k_):
+            out.append(_alert(f"{lab_}: this session type has not been walked through yet.", url_for("type_walk", key=k_, n=0)))
+    said_ = {t_ for t_, _ in urgent_}
+    first_ = url_for("contact_new")
+    out += [_alert(t_ if t_.endswith(".") else t_ + ".", l_) for t_, l_ in (app.config["finish_items"]() if "finish_items" in app.config else [])
+            if t_ not in said_ and l_ != first_]
+    return out
+
+def system_alerts():
+
+    if "alerts" in g:
+        return g.alerts
+    out = []
+    try:
+        if setup_done():
+            out += _backup_alerts() + _connection_alerts()
+            out += [_alert(f"A plugin of yours did not load at the last start: {e_}.", url_for("plugins_settings"), "fix")
+                    for e_ in PLUGIN_ERRORS]
+            for fn in hooks.alerts:
+                try:
+                    out += [dict(it_, level=it_.get("level") or "look") for it_ in (fn() or [])]
+                except Exception:
+                    app.logger.exception("alert source %s failed", getattr(fn, "__name__", fn))
+            out += _setup_alerts()
+    except Exception:
+        app.logger.debug("alerts unavailable", exc_info=True)
+        out = []
+    out.sort(key=lambda a_: a_["level"] != "fix")
+    if has_request_context():
+        g.alerts = out
+    return out
+
+def alert_counts():
+
+    a_ = system_alerts()
+    return sum(1 for it_ in a_ if it_["level"] == "fix"), len(a_)
+
+app.jinja_env.globals["alert_counts"] = alert_counts
+
+@app.get("/alerts")
+def alerts_view():
+
+    return render_template("alerts.html", alerts=system_alerts())
+
+def type_walked(key, t=None):
+
+    st_ = _walk_state()
+    mine = st_.get(key) or {}
+    return bool(mine.get("walked") or mine.get("finished") or mine.get("done") or (st_.get("*") or {}).get("walked"))
+
+app.jinja_env.globals["type_walked"] = type_walked
 
 @app.route("/settings/type/<key>", methods=["GET", "POST"])
 def type_edit(key):
 
     types = [dict(t) for t in C.TYPES]
     t = next((t_ for t_ in types if t_["key"] == key), None) or abort(404)
+    if request.method == "GET" and not type_walked(key, t):
+
+        return redirect(url_for("type_walk", key=key, n=0))
     kind_flow = C.KINDS[t["kind"]]["flow"]
     step_kind = "event" if t["kind"] == "event" else "do"
     if request.method == "POST":
@@ -11867,9 +12010,23 @@ def security_notice():
             app.config["conn_mark"]("ntfy", not why, why or "")
         if why:
             app.logger.warning("The test notice could not be sent: %s", why)
-        session["notice"] = ("Test notice sent. If it doesn't arrive, check the topic in the ntfy app on your phone."
-                             + ("" if not (server or topic) or ntfy_settings() == v else " Save the notice settings to keep them.")
-                             if not why else f"The test notice couldn't be sent: {why}.")
+            if server or topic:
+                session["ntfy_typed"] = dict(server=server, topic=topic)
+            session["notice"] = f"The test notice couldn't be sent: {why}."
+        elif (server or topic) and ntfy_settings() != v:
+
+            mark_ = app.config.get("conn_mark")
+            if mark_:
+                mark_("ntfy", True)
+            had = ntfy_settings()
+            _put_setting("ntfy_server", v["server"])
+            _put_setting("ntfy_topic", v["topic"])
+            _put_setting("ntfy_token", v.get("token", ""))
+            ntfy_mirror()
+            audit("Changed the locked-studio notice" if had else "Set up the locked-studio notice")
+            session["notice"] = "Test notice sent, and these settings are saved. If it doesn't arrive, check the topic in the ntfy app."
+        else:
+            session["notice"] = "Test notice sent. If it doesn't arrive, check the topic in the ntfy app on your phone."
     elif act == "remove":
         for k_ in NTFY_KEYS:
             x("DELETE FROM settings WHERE key=?", (k_,))

@@ -352,3 +352,19 @@ def test_plain_http_to_a_server_on_your_own_network_is_accepted_with_a_warning(e
     assert r.status_code == 302 and locknotice.config_path().exists()
     assert locknotice.read_config()["server"] == "http://192.168.50.13:30184"
     assert "Plain http://" in c.get("/settings?tab=notifications", environ_base=E).get_data(as_text=True)
+
+def test_a_test_notice_that_goes_through_saves_and_locks_and_one_that_fails_keeps_the_typing(env, monkeypatch):
+
+    import locknotice
+    A, c, _ = env
+    monkeypatch.setattr(locknotice, "send", lambda cfg, text: None)
+    r_ = c.post("/security/notice", data=dict(act="test", server="http://192.168.50.13:30184", topic=TOPIC), environ_base=E)
+    assert r_.status_code == 302
+    assert locknotice.read_config()["server"] == "http://192.168.50.13:30184"
+    page = c.get("/settings?tab=notifications", environ_base=E).get_data(as_text=True)
+    assert 'id="conn-ntfy"' in page and 'name="server"' not in page.split('id="conn-ntfy"', 1)[1][:600]
+    c.post("/security/notice", data=dict(act="remove"), environ_base=E)
+    monkeypatch.setattr(locknotice, "send", lambda cfg, text: "the server didn't answer")
+    c.post("/security/notice", data=dict(act="test", server="http://192.168.50.14:30184", topic=TOPIC), environ_base=E)
+    page = c.get("/settings?tab=notifications", environ_base=E).get_data(as_text=True)
+    assert 'value="http://192.168.50.14:30184"' in page and locknotice.read_config() is None

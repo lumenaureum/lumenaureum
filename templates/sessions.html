@@ -3,19 +3,21 @@
 
 {% block body %}
 <div class="ui-page" data-ui-layout="sessions">
-{{ ui.page_head('Sessions') }}
 
-
-<nav class="ui-views" aria-label="Which sessions">{% for k, v in views.items() %}{% if not loop.first %}<span aria-hidden="true"> &middot; </span>{% endif %}{% if k == view %}<b aria-current="page">{{ v[0] }}</b>{% else %}<a href="{{ url_for('sessions', view=k) }}">{{ v[0] }}</a>{% endif %}{% endfor %}<span aria-hidden="true"> &middot; </span><a href="{{ url_for('pipeline') }}">Board by stage</a></nav>
+{{ ui.page_head('Sessions', sub=ui.go(url_for('pipeline'), 'Board by stage')) }}
 
 
 {% set stages_ = [] %}{% set types_ = [] %}{% set owing_ = [] %}{% set labs_ = [] %}
 {% for r in rows %}{% set _ = stages_.append(stage_label[r.s.stage]) %}{% set _ = types_.append(type_label[r.s.type] if not r.s.event_name else 'Group event') %}{% if r.f.owing %}{% set _ = owing_.append('Owing') %}{% endif %}{% set _ = labs_.extend(r.f.labels) %}{% endfor %}
+{% set shown_ = rows|selectattr('in_view')|list|length %}
+{% set vlinks_ = [] %}{% for k_, v_ in views.items() if k_ != 'all' %}{% set _ = vlinks_.append((k_, 'Upcoming' if k_ == 'upcoming' else v_[0], url_for('sessions', view=k_, q=request.args.get('q') or None))) %}{% endfor %}
 {{ uf.filter_bar('sessions', today_iso, groups=[dict(key='stage', label='Stage', values=stages_), dict(key='type', label='Type', values=types_),
                  dict(key='money', label='Money', values=owing_), dict(key='label', label='Labels', values=labs_)],
-                 q=request.args.get('q', ''), placeholder='Filter by name, title or event', noun='sessions', keep=dict(view=view), server=true) }}
+                 q=request.args.get('q', ''), placeholder='Filter by name, title or event', noun='sessions', keep=dict(view=view), server=true,
+                 views=vlinks_, view=view, default=['open'], clear_url=url_for('sessions', view='all'), nothing=rows and not shown_) }}
 
-{% call ui.section(rows|length ~ (' session' if rows|length == 1 else ' sessions'), id='session-rows') %}
+{% set count_ %}<span data-f-count data-one="session" data-many="sessions">{{ shown_ }} session{{ '' if shown_ == 1 else 's' }}</span>{% endset %}
+{% call ui.section(count_, id='session-rows') %}
 {% for r in rows %}{% set s = r.s %}{% set nx = r.wf.next_step %}
   
   {%- set item_, tone_ = '', 'neutral' -%}
@@ -30,11 +32,11 @@
   {%- endif -%}
   {%- if s.stage in ('closed', 'lost') and tone_ == 'neutral' %}{% set tone_ = 'done' %}{% endif -%}
   {%- set sub_ = [type_label[s.type], nice(s.shoot_date) or 'No date'] + ([s.event_name or s.title] if s.event_name or s.title else []) -%}
-  <div class="ui-fitem" {{ uf.item(r.f.status, r.f.due, dict(stage=stage_label[s.stage], type=type_label[s.type] if not s.event_name else 'Group event', money='Owing' if r.f.owing else '', label=r.f.labels)) }}>
+  <div class="ui-fitem" {{ uf.item(r.f.status, r.f.due, dict(show=r.f.show, stage=stage_label[s.stage], type=type_label[s.type] if not s.event_name else 'Group event', money='Owing' if r.f.owing else '', label=r.f.labels)) }}{% if not r.in_view %} hidden{% endif %}>
   {{ ui.list_row(url_for('client_stage', hid=s.household_id, s=s.id), s.household,
                  sub_|join(', ') ~ (' · ' ~ item_ if item_ else ''),
                  ui.chip(stage_label[s.stage], tone_, tip=item_), lead=ui.type_mark('event' if s.event_name else s.type, 'ui-type-row')) }}</div>
-{% else %}<p class="ui-mute">Nothing in this view.</p>{% endfor %}
+{% else %}<p class="ui-mute">{{ 'No sessions match.' if request.args.get('q') or request.args.get('type') or request.args.get('owing') else 'No sessions yet.' }}</p>{% endfor %}
 {% endcall %}
 </div>
 <script src="{{ url_for('static', filename='filters.js', v=static_v('filters.js')) }}"></script>

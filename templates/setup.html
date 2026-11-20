@@ -194,12 +194,13 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
   <label class="choice"><input type="radio" name="tax_mode" value="flat"{{ ' checked' if mode == 'flat' }}><span>One rate for every client</span></label>
   {% if region %}<label class="choice"><input type="radio" name="tax_mode" value="regional"{{ ' checked' if mode == 'regional' }}><span>{{ region }}</span></label>{% endif %}
   </div>
-  <div class="two"><div><label class="l" for="f-sales_tax_pct">Rate %{{ help("You can change the rate later in Settings. Sessions already taxed keep the rate they were taxed at.") }}</label><input type="number" step="0.001" min="0" id="f-sales_tax_pct" name="sales_tax_pct" value="{{ fv('sales_tax_pct', get('sales_tax_pct')) }}"></div>
-    {% if region %}<div><label class="l" for="f-local_tax_pct">Local rate %</label><input type="number" step="0.001" min="0" id="f-local_tax_pct" name="local_tax_pct" value="{{ fv('local_tax_pct', get('local_tax_pct')) }}"></div>{% endif %}</div>
+  
+  <div class="two" data-show-if="tax_mode=flat|regional"><div><label class="l" for="f-sales_tax_pct">Rate %{{ help("You can change the rate later in Settings. Sessions already taxed keep the rate they were taxed at.") }}</label><input type="number" step="0.001" min="0" id="f-sales_tax_pct" name="sales_tax_pct" value="{{ fv('sales_tax_pct', get('sales_tax_pct')) }}"></div>
+    {% if region %}<div data-show-if="tax_mode=regional"><label class="l" for="f-local_tax_pct">Local rate %</label><input type="number" step="0.001" min="0" id="f-local_tax_pct" name="local_tax_pct" value="{{ fv('local_tax_pct', get('local_tax_pct')) }}"></div>{% endif %}</div>
   {% if plugin_on('prints') %}<input type="hidden" name="prints_shown" value="1">
-  <label class="l">Prints ordered from galleries{{ help("Under a regional rate, a print order is taxed where it ships; one picked up, where the studio is.") }}</label>
+  <div data-show-if="tax_mode=flat|regional"><label class="l">Prints ordered from galleries{{ help("Under a regional rate, a print order is taxed where it ships; one picked up, where the studio is.") }}</label>
   <div class="checks"><label class="choice"><input type="checkbox" name="tax_prints" value="1"{{ ' checked' if fc('tax_prints', get('tax_prints', '1') == '1') }}><span>Charge tax on prints</span></label>
-    <label class="choice"><input type="checkbox" name="tax_print_shipping" value="1"{{ ' checked' if fc('tax_print_shipping', get('tax_print_shipping', '0') == '1') }}><span>Charge tax on shipping</span></label></div>{% endif %}
+    <label class="choice"><input type="checkbox" name="tax_print_shipping" value="1"{{ ' checked' if fc('tax_print_shipping', get('tax_print_shipping', '0') == '1') }}><span>Charge tax on shipping</span></label></div></div>{% endif %}
 
 {% elif step == 'shoot' %}{% import "_ui.html" as ui with context %}
   {% if complete %}<h2 class="ui-sec-title sui-step-sec">Your session types</h2>

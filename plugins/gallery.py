@@ -1903,6 +1903,19 @@ def register(ctx):
 
         return wants_download(s) and wants_finals(s) and (n_fin > 0 or needs_finals(s))
 
+    def proof_how(s, g):
+
+        flow = ctx.C.WORKFLOW[s["type"]]
+        picking = any(st[0] == "auto" and st[1] == "favorites" for steps in flow.values() for st in steps)
+        if not picking or picks_in(s) or wants_download(s) or s["stage"] == "closed" or is_adopted(g):
+            return ""
+        if g and g["built_at"] and is_download(s["gallery_id"] or ""):
+            return ""
+        final_ = ("in a download gallery, once their picks are in" if link_delivery(s) else
+                  ctx.C.DELIVERY_METHODS[ctx.C.delivery_method(s["type"], s["delivery_method"])][1])
+        return ("First the proof gallery goes online, and the client picks their favorites from it. "
+                f"After that you deliver the final photos {final_}.")
+
     def may_skip_picks(s):
 
         return link_delivery(s) and s["stage"] != "closed" and not picks_in(s) and not wants_download(s)
@@ -3791,30 +3804,40 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
           (json.dumps(caps),))
 
     def upgrade_today():
-        import hostcheck
         import refit
         import upgrade_140
         G_ = _G()
         to_setup = url_for("setup_step", step="galleries") + "#webcert"
         out = [dict(text=t, link=to_setup) if "Check it in Setup" in t else dict(text=t)
                for t in upgrade_140.status_line(q, G_)]
-        said = " ".join(it_["text"] for it_ in out)
-        out += [it_ for it_ in cert_today(q, to_setup) if it_["text"] not in said]
         out += refit.today_lines(G_, q, lambda fp_: host_label(host_cfg_for(fp_)) if host_cfg_for(fp_) else "an earlier web host",
                                  retry=lambda fp_: dict(post=url_for("gallery_refit_retry"), fields={"host": fp_},
                                                         verb="Check again"))
+        return out
+
+    ctx.hooks.today.append(upgrade_today)
+
+    def host_alerts():
+
+        import hostcheck
+        to_setup = url_for("setup_step", step="galleries") + "#webcert"
+        out = [dict(it_, level="fix") for it_ in cert_today(q, to_setup)]
         r_ = q("SELECT value FROM settings WHERE key='gallery_host_caps'", one=True)
         try:
             caps = json.loads(r_["value"]) if r_ and r_["value"] else {}
         except ValueError:
             caps = {}
         if has_host() and caps.get("fp") == host_fingerprint():
-            w_ = hostcheck.worse(caps.get("setup"), caps.get("now"))
+            now_ = caps.get("now") or {}
+            w_ = hostcheck.worse(caps.get("setup"), now_)
             if w_:
-                out.append(dict(text=w_, link=url_for("setup_step", step="galleries")))
+                out.append(dict(text=w_, link=url_for("setup_step", step="galleries"), level="fix"))
+            elif now_.get("kind") == "unreachable" and not out:
+                out.append(dict(text="Your web host could not be reached at the last daily check. Check its settings in Setup.",
+                                link=url_for("setup_step", step="galleries"), level="fix"))
         return out
 
-    ctx.hooks.today.append(upgrade_today)
+    ctx.hooks.alerts.append(host_alerts)
     ctx.hooks.on.setdefault("host_refit", [])
 
     @app.post("/galleries/refit-retry", endpoint="gallery_refit_retry")
@@ -4394,6 +4417,7 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
                                       refit_wait=refit_waiting(gid),
                                       picks_mail=picks_by_email(s, g),
                                       photos_home=photos_home_offer(s, g),
+                                      proof_how=proof_how(s, g),
                                       close_min=(date.today() + timedelta(days=1)).isoformat(),
                                       close_max=(date.today() + timedelta(days=CLOSE_MAX_DAYS)).isoformat())
         return [("Gallery", html)]

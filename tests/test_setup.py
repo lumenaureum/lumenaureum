@@ -131,22 +131,23 @@ def test_optional_step_can_use_defaults(env):
     r = post(c, "/setup/business", skip="1")
     assert r.status_code == 200 and b"business name" in r.data
 
-def test_finish_setting_up_list_on_today(env):
+def test_finish_setting_up_list_is_in_the_alert_bell(env):
+
     A, c, tmp = env
     post(c, "/setup/business", business_name="B", photographer_name="P", timezone="UTC")
     vault = tmp / "vault"; vault.mkdir()
     post(c, "/setup/storage", primary_type="local", primary_path=str(vault), primary_init="1", backup_time="02:40")
     post(c, "/setup/network")
-    page = c.get("/", environ_base=E).get_data(as_text=True)
-    for line in ("Setting up", "approve each where you use it", "starter prices", "business email", "second backup location",
-                 "online galleries", "first client"):
+    today = c.get("/", environ_base=E).get_data(as_text=True)
+    assert "Setting up" not in today and "starter prices" not in today and "business email" not in today
+    page = c.get("/alerts", environ_base=E).get_data(as_text=True)
+    for line in ("approve each where you use it", "starter prices", "business email", "second backup location",
+                 "online galleries"):
         assert line in page, line
+    assert "first client" not in page
     post(c, "/settings/review/agreement")
-    post(c, "/contact/new", contact_name="Dana Harlow", household_name="Harlow Family")
-    page = c.get("/", environ_base=E).get_data(as_text=True)
-    assert "approve each where you use it" not in page and "first client" not in page
-    post(c, "/setup/hide-list")
-    assert "Finish setting up" not in c.get("/", environ_base=E).get_data(as_text=True)
+    page = c.get("/alerts", environ_base=E).get_data(as_text=True)
+    assert "approve each where you use it" not in page
 
 def test_backups_on_the_database_disk_are_refused_without_a_second_location(env, monkeypatch):
     A, c, tmp = env

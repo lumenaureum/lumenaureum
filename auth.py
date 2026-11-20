@@ -622,7 +622,8 @@ def register(app, connect, allowed, audit, on_unlock):
             con.commit()
         finally:
             con.close()
-        return redirect(url_for("home"))
+        back_ = request.form.get("back") or ""
+        return redirect(back_ if back_ == "/alerts" else url_for("home"))
 
     @app.route("/security", methods=["GET", "POST"], endpoint="security")
     def security():

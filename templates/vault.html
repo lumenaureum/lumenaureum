@@ -3,6 +3,7 @@
 {% block body %}{% import "_ui.html" as ui with context %}{% import "_settings_ui.html" as sui with context %}{% from "_macros.html" import help with context %}
 {{ sui.head('Backups') }}
 {% if master_mismatch %}<div class="err" style="max-width:760px;margin-top:12px">The master key recorded for backups and the one in the keyring don't match (a master key change was interrupted). Run the master key change again with the current key before relying on new backups.</div>{% endif %}
+{% if setting('backup_last_error') %}<div class="err" id="backup-error" style="max-width:760px;margin-top:12px">The last backup failed: {{ setting('backup_last_error') }}. It is tried again at the next backup time, or press Back up now.</div>{% endif %}
 {% if setting('photo_mirror_error') %}<div class="err" style="max-width:760px;margin-top:12px">The last photo mirror copy failed: {{ setting('photo_mirror_error') }}. Your photos are still here; the copy is tried again every 15 minutes.</div>{% endif %}
 {% if second_err %}<div class="err" style="max-width:760px;margin-top:12px">Your second backup copy couldn't be checked, so it isn't counted yet. Your main backup is fine. The second copy is tried again at the next backup{% if btime %} ({{ btime }}){% endif %}, or press Back up now to try it now. <details style="display:inline"><summary style="display:inline;cursor:pointer;text-decoration:underline">Details</summary> {{ second_err }}</details></div>{% endif %}
 <div class="card f" style="max-width:760px;margin-top:16px">

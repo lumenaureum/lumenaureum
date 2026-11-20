@@ -127,7 +127,8 @@ def test_a_failed_test_notice_says_why_in_plain_words(env, monkeypatch, exc, wan
     assert f"The test notice couldn't be sent: {want}." in page
     assert "urlopen" not in page and "Errno" not in page and "HTTP Error" not in page
 
-def test_the_test_notice_works_before_saving_and_saves_nothing(env, monkeypatch):
+def test_the_test_notice_works_before_saving_and_saves_what_went_through(env, monkeypatch):
+
     A, c = env
     import locknotice
     sent = []
@@ -137,8 +138,9 @@ def test_the_test_notice_works_before_saving_and_saves_nothing(env, monkeypatch)
     assert 'name="act" value="test"' in form and 'name="act" value="save"' in form
     c.post("/security/notice", data=dict(act="test", server=SERVER, topic=TOPIC), environ_base=E)
     assert sent == [f"{SERVER}/{TOPIC}"]
-    assert "Save the notice settings to keep them" in c.get("/settings?tab=notifications", environ_base=E).get_data(as_text=True)
-    assert not _sql(A, "SELECT 1 FROM settings WHERE key='ntfy_server' AND value != ''")
+    with c.session_transaction() as fs_:
+        assert "these settings are saved" in (fs_.get("notice") or "")
+    assert _sql(A, "SELECT 1 FROM settings WHERE key='ntfy_server' AND value != ''")
     r = c.post("/security/notice", data=dict(act="test", server="http://ntfy.example.net", topic=TOPIC), environ_base=E)
     assert r.status_code == 302 and len(sent) == 1
 

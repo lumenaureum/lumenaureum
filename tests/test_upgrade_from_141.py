@@ -500,8 +500,15 @@ def test_the_1_2_galleries_picks_and_download_galleries_survive(upgraded):
 def _web_host_as_it_was(monkeypatch, A):
 
     import hostcheck
+    import time
     caps = json.loads(_q(A, "SELECT value FROM settings WHERE key='gallery_host_caps'")[0][0])
     monkeypatch.setattr(hostcheck, "capabilities", lambda *a, **kw: caps["now"])
+    con = A.connect()
+    try:
+        con.execute("UPDATE settings SET value=? WHERE key LIKE 'gallery_unreachable:%'", (str(time.time()),))
+        con.commit()
+    finally:
+        con.close()
 
 def test_a_gallery_check_changes_nothing(upgraded, monkeypatch):
 
@@ -832,4 +839,4 @@ def test_prices_used_on_a_sent_quote_count_as_approved(upgraded):
                                    WHERE s.stage IN ('booked','shot','delivered','closed')""")}
     cur = _q(A, "SELECT MAX(id) FROM fee_schedules")[0][0]
     assert used and used <= {int(k) for k in ap} and str(cur) in ap
-    assert "Review your prices." not in _page(c, "/")
+    assert "Your prices are still the starter prices" not in _page(c, "/alerts")

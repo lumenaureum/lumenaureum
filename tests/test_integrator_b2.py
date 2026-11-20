@@ -89,9 +89,17 @@ def test_finances_owed_only_once_the_invoice_is_sent(env):
     page = _page(c, "/money")
     assert 'id="owed"' in page and "Owed to you" in page and 'id="to-invoice"' not in page
 
+def _shown_text(p):
+
+    src = p.read_text()
+    if p.suffix != ".py":
+        return re.sub(r"\{#.*?#\}", "", src, flags=re.S)
+    import tokenize
+    return " ".join(t.string for t in tokenize.generate_tokens(io.StringIO(src).readline) if t.type != tokenize.COMMENT)
+
 def test_partial_payment_words_and_the_bubble():
     for p in list((ROOT / "templates").glob("*.html")) + [ROOT / "app.py"] + list((ROOT / "plugins").glob("*.py")):
-        assert not re.search(r"\bpart (payment|paid)\b", p.read_text(), re.I), p
+        assert not re.search(r"\bpart (payment|paid)\b", _shown_text(p), re.I), p
     src = (ROOT / "plugins" / "prints.py").read_text()
     assert 'partially paid, the rest unpaid after' in src and 'help="A partial payment keeps the invoice from expiring."' in src
     assert "(a part" not in src

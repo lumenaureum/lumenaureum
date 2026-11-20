@@ -25,15 +25,12 @@
 {{ ui.page_head(today.strftime('%A, %B %-d'), status=(facts_|join(' &middot; ')|safe) if facts_ else '', kicker='Today', id='today-head', sub=updated_) }}
 
 
-{% set urgent_ = urgent + ([('Check you still have your master key: it is the only way back in if your password is lost', url_for('master_key_check'))] if setup_dismissed and master_due else []) %}
-{% if clock_paused or unconfirmed or urgent_ %}{% call sect('Check first', 'check-first') %}
+{% if clock_paused or unconfirmed %}{% call sect('Check first', 'check-first') %}
   {% if clock_paused %}<div role="alert"><p class="ui-needs-line"><b>Automatic deletions are paused.</b> The date moved from {{ nice(clock_paused[0]) }} to {{ nice(clock_paused[1]) }} since the last check, which can mean the clock is wrong. Nothing is sealed or deleted on its own until you confirm today's date.</p>
     <div class="ui-btnrow">{{ ui.action(url_for('clock_confirm'), "Today's date is right", {}, None, 'primary', inplace=false, confirm="Today is " ~ today.strftime('%A, %B %-d, %Y') ~ ". Is that right?") }}</div></div>{% endif %}
   {% if unconfirmed %}<div role="alert" id="unconfirmed"><p class="ui-needs-line"><b>{{ unconfirmed|length }} client{{ '' if unconfirmed|length == 1 else 's' }} you may have deleted {{ 'is' if unconfirmed|length == 1 else 'are' }} back:</b>
     {% for r_ in unconfirmed %}{{ r_.name }}{{ ', ' if not loop.last }}{% endfor %}. This copy of your data could not confirm the deletion{{ '' if unconfirmed|length == 1 else 's' }}, so nothing was deleted.</p>
     <div class="ui-btnrow">{{ ui.button_link(url_for('unconfirmed_view'), 'Review and decide', 'primary') }}</div></div>{% endif %}
-  
-  {% for text_, link_ in urgent_ %}{{ ui.list_row(link_, text_) }}{% endfor %}
 {% endcall %}{% endif %}
 
 
@@ -73,11 +70,10 @@
   {% endcall %}{% endif %}
 {% endcall %}{% endif %}
 
-{% if raw_held %}{% call sect('Deletion dates', 'raw-held') %}
+{% if raw_held %}{% set ns.first = false %}{% call ui.dismissible(url_for('retention_held_hide'), back, title='Deletion dates', id='raw-held', part=true, label='Hide this list', inplace=false) %}
   <p class="ui-needs-line">{{ raw_held|length }} session{{ ' the update moved on has' if raw_held|length == 1 else 's the update moved on have' }} no deletion date for the RAWs and outtakes.{{ help("The 1.5 update moved these sessions to Delivered or Closed. Their files are kept until you set a date, or until a new delivery starts the usual clock. The usual date counts from the delivery, as it would have without the update.") }}</p>
   {% for h_ in raw_held %}<div class="ui-form-row" id="raw-held-{{ h_.sid }}"><span class="ui-grow"><a href="{{ h_.link }}">{{ h_.name }}</a> <span class="ui-mute">{{ h_.kind }}{% if h_.usual and not h_.usual_ok %}. The usual date, {{ nice(h_.usual) }}, has passed{% endif %}</span></span>
     {% if h_.usual_ok %}{{ ui.action(url_for('retention_set_date', sid=h_.sid), 'Use the usual date (' ~ nice(h_.usual) ~ ')', {'until': h_.usual}, back, inplace=false) }}{% endif %}{{ ui.button_link(h_.link, 'Set a date') }}</div>{% endfor %}
-  <div class="ui-btnrow">{{ ui.action(url_for('retention_held_hide'), 'Hide this list', {}, back, inplace=false) }}</div>
 {% endcall %}{% endif %}
 {% if ns.first %}{% call sect('Today', 'work') %}<p class="ui-needs-line">Nothing waits on you today.</p>{% endcall %}{% endif %}
 
@@ -95,27 +91,13 @@
 {% endcall %}
 
 
-{% if updated %}{% call ui.section('Updated to Lumen Aureum ' ~ updated.version, id='update-note', part=true) %}
+{% if updated %}{% call ui.dismissible(url_for('update_notice_hide'), back, title='Updated to Lumen Aureum ' ~ updated.version, id='update-note', part=true) %}
   <p>{{ ui.go(url_for('about') ~ '#whats-new', "What's new in " ~ updated.version) }}</p>
   <p>{% if updated.backup %}A backup of your data from before the update is under {{ ui.go(url_for('vault_view'), 'Settings, Backups') }}: the one marked Before the update{% if updated.backup_at %}, {{ nice(updated.backup_at[:10]) }} at {{ clock(updated.backup_at[11:16]) }}{% endif %}.{% elif updated.changed %}Your data was updated. No backup was made first, because backups aren't set up: {{ ui.go(url_for('vault_view'), 'Settings, Backups') }}.{% else %}Your data didn't need changes, so no backup was made.{% endif %}</p>
   {% if updated.stages %}<p>{{ updated.stages }}</p>{% endif %}
   <p class="ui-mute">An update signs everyone out, so each device asks you to sign in again.</p>
-  <div class="ui-btnrow">{{ ui.action(url_for('update_notice_hide'), 'Hide this note', {}, back) }}</div>
 {% endcall %}{% else %}<div id="update-note" data-ui-part hidden></div>{% endif %}
 
-
-{% set wo_ = walk_offer() %}
-{% if not setup_dismissed and (wo_ or master_due or finish or prices_sample) %}{% call ui.section('Setting up', id='setup', part=true) %}
-  {% if prices_sample %}<div id="review-prices"><p><b>Review your prices.</b> They are still the starter prices that came with the app (SAMPLE). Look them over, change any that are not yours, and approve them: from then on they print as your prices.</p>
-    <div class="ui-btnrow">{{ ui.button_link(url_for('fees_view', sched_id=prices_sample), 'Review your prices') }}</div></div>{% endif %}
-  {% if master_due %}<div id="master-key-check"><p><b>Check you still have your master key.</b> It is the only way back in if your password is lost, so make sure you can still find it.</p>
-    <div class="ui-btnrow">{{ ui.button_link(url_for('master_key_check'), 'Check your master key') }}{{ ui.action(url_for('master_key_later'), 'Ask next week', {}, None) }}</div></div>{% endif %}
-  
-  {% if wo_ %}<p><b>Walk through your session types.</b>{{ help("Each one takes a few minutes and covers deposits, delivery, how long you keep files, the gallery and portfolio use. The defaults already work, so this is optional.") }}</p>
-    <div class="ui-btnrow">{% for k_, lab_ in wo_ %}{{ ui.button_link(url_for('type_walk', key=k_, n=0), lab_) }}{% endfor %}</div>{% endif %}
-  {% if finish %}{% for text, link in finish %}{{ ui.list_row(link, text) }}{% endfor %}{% endif %}
-  <div class="ui-btnrow">{{ ui.action(url_for('setup_dismiss'), 'Dismiss', {}, back, confirm='Dismiss Setting up for good? Anything in it that becomes urgent will show on Today by itself.') }}</div>
-{% endcall %}{% elif setup_dismissed %}<div id="setup" data-ui-part hidden></div>{% endif %}
 </div>
 <div class="vh" id="ui-live" role="status" aria-live="polite"></div>
 <script src="{{ url_for('static', filename='today.js', v=static_v('today.js')) }}"></script>

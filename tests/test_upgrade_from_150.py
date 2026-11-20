@@ -495,8 +495,15 @@ def test_the_1_2_galleries_picks_and_download_galleries_survive(upgraded):
 def _web_host_as_it_was(monkeypatch, A):
 
     import hostcheck
+    import time
     caps = json.loads(_q(A, "SELECT value FROM settings WHERE key='gallery_host_caps'")[0][0])
     monkeypatch.setattr(hostcheck, "capabilities", lambda *a, **kw: caps["now"])
+    con = A.connect()
+    try:
+        con.execute("UPDATE settings SET value=? WHERE key LIKE 'gallery_unreachable:%'", (str(time.time()),))
+        con.commit()
+    finally:
+        con.close()
 
 def test_a_gallery_check_changes_nothing(upgraded, monkeypatch):
 
@@ -816,7 +823,7 @@ def test_the_approved_prices_stay_approved(upgraded):
     assert ap == json.loads(S150["price_approvals"])
     cur = _q(A, "SELECT MAX(id) FROM fee_schedules")[0][0]
     assert str(cur) in ap
-    assert "Review your prices." not in _page(c, "/")
+    assert "Your prices are still the starter prices" not in _page(c, "/alerts")
 
 def test_idle_sign_out_check_in_wait_and_home_base_stay_on_general(upgraded):
 

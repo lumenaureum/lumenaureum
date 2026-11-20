@@ -17,7 +17,7 @@
 {%- elif not pdf and v.number %}{% set before_ %}{{ note_ }}{% if v.since %}<span class="ui-note since">{{ v.since }}</span>{% endif %}{% endset %}{{ doc_bar(v.pdf_url, v.back, send, v.review if not v.reviewed, approve=v.approve, before=before_) }}
 {%- elif not pdf %}
 {{ bar_style() }}<div class="bar">{% set lead_ %}{{ note_ }}{{ ui.action(v.issue_url, 'Issue and email it', dict(then='email'), kind='primary', inplace=false,
-    confirm='Issue this ' ~ lword ~ ' now? It gets the next ' ~ lword ~ ' number and is kept exactly as it is. Then your mail app opens the email to send.') }}{% endset %}
+    confirm='Issue this ' ~ lword ~ ' now? It gets the next ' ~ lword ~ ' number and is kept exactly as it is. Then your mail app opens a draft email for you to send. This app never sends email itself.') }}{% endset %}
   {%- call ui.doc_bar(lead_) %}{{ ui.action(v.issue_url, 'Issue this ' ~ lword, {}, inplace=false) }}{{ ui.action(v.issue_url, 'Issue and download PDF', dict(then='download'), inplace=false) }}{{ ui.action(v.issue_url, 'Issue and print', dict(then='print'), inplace=false) }}{% endcall %}
   <span class="ui-note">Draft, no number yet{{ help("Issuing gives it the next " ~ lword ~ " number and keeps it exactly as it is. Each button here issues it first.") }}</span>{{ close_(v.back) }}</div>{% endif %}
 {% if not v.number %}<div class="wm" aria-hidden="true">DRAFT</div>{% endif %}

@@ -1,38 +1,45 @@
 const uiFilterStart = bar => {
-  const KEY = 'la-filter:' + bar.dataset.uiFilter;
+  const KEY = 'la-filter2:' + bar.dataset.uiFilter;
   const today = bar.dataset.today;
   const scope = (bar.dataset.fScope && document.getElementById(bar.dataset.fScope)) || bar.closest('main') || document.body;
   const items = () => [...scope.querySelectorAll('[data-f]')];
+  const chips = () => [...bar.querySelectorAll('[data-f-key]')];
   const qbox = bar.querySelector('[data-f-q]'), sortSel = bar.querySelector('[data-f-sort]');
   const N = +bar.dataset.days || 7;           // fixed quick chips (W5): Due today and Due in 7 days, no number box
-  let st = { status: '', g: {}, q: '', sort: '' };
-  try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && typeof s === 'object') st = Object.assign(st, s, { g: Object.assign({}, s.g || {}) }); } catch (_) {}
-  st.n = N;
+  const hasViews = bar.hasAttribute('data-f-views');
   const url = new URL(location.href);
+
+  let st = null;
+  try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && typeof s === 'object' && s.g && typeof s.g === 'object') st = s; } catch (_) {}
+  if (!st) st = { g: hasViews && bar.dataset.fDefault ? { show: bar.dataset.fDefault.split('|').filter(Boolean) } : {}, q: '', sort: '' };
+  Object.keys(st.g).forEach(k => { if (!Array.isArray(st.g[k])) st.g[k] = st.g[k] ? [String(st.g[k])] : []; });
+  if (hasViews && url.searchParams.has('view')) {                            // a view in the address wins
+    const v = url.searchParams.get('view');
+    st.g.show = chips().some(b => b.dataset.fKey === 'show' && b.dataset.fVal === v) ? [v] : [];
+  }
   if (url.searchParams.has('q')) st.q = url.searchParams.get('q');            // a search in the address wins
   if (url.searchParams.has('sort')) st.sort = url.searchParams.get('sort');
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (_) {} };
+  const letGoOfView = () => { if (hasViews && url.searchParams.has('view')) { url.searchParams.delete('view'); try { history.replaceState(history.state, '', url); } catch (_) {} } };
 
   const addDays = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+  const until = addDays(today, Math.max(0, N));
   const words = () => (st.q || '').toLowerCase().split(/\s+/).filter(Boolean);
-  const match = (el, w, until) => {
-    if (st.status === 'mine' || st.status === 'waiting') { if (el.dataset.fStatus !== st.status) return false; }
-    else if (st.status === 'due') { const d = el.dataset.fDue; if (!d || d > until) return false; }
-    else if (st.status === 'today') { const d = el.dataset.fDue; if (!d || d > today) return false; }
-    for (const [k, v] of Object.entries(st.g)) {
-      if (!v) continue;
-      const have = (el.getAttribute('data-f-g-' + k) || '').split('|');
-      if (!have.includes(v)) return false;
-    }
-    if (w.length) { const t = (el.textContent + ' ' + Object.values(el.dataset).join(' ')).toLowerCase(); if (!w.every(x => t.includes(x))) return false; }
-    return true;
+  const has = (el, k) => {
+    if (k === 'who') return [el.dataset.fStatus || ''];
+    if (k === 'due') { const d = el.dataset.fDue, out = []; if (d && d <= today) out.push('today'); if (d && d <= until) out.push('week'); return out; }
+    return (el.getAttribute('data-f-g-' + k) || '').split('|').filter(Boolean);
   };
-  const active = () => !!(st.status || Object.values(st.g).some(Boolean) || words().length);
+  const picked = k => st.g[k] || [];
+  const okIn = (el, k) => { const p = picked(k); if (!p.length) return true; const h = has(el, k); return p.some(v => h.includes(v)); };
+  const okWords = (el, w) => { if (!w.length) return true; const t = (el.textContent + ' ' + Object.values(el.dataset).join(' ')).toLowerCase(); return w.every(x => t.includes(x)); };
+  const match = (el, w, skip) => Object.keys(st.g).every(k => k === skip || okIn(el, k)) && okWords(el, w);
+  const active = () => Object.values(st.g).some(p => p.length) || words().length > 0;
 
   const apply = () => {
-    const w = words(), until = addDays(today, Math.max(0, st.n || 0));
+    const w = words(), all = items();
     let shown = 0;
-    items().forEach(el => { const ok = match(el, w, until); el.hidden = !ok; if (ok) shown++;
+    all.forEach(el => { const ok = match(el, w); el.hidden = !ok; if (ok) shown++;
       const nx = el.nextElementSibling;          // a line's inline form follows it: it goes with its line
       if (nx && nx.matches('.ui-inline') && !ok) nx.hidden = true; else if (nx && nx.matches('.ui-inline') && nx.hidden && ok) nx.hidden = false; });
     scope.querySelectorAll('section, details, .ui-flat').forEach(box => {
@@ -45,17 +52,16 @@ const uiFilterStart = bar => {
         else if (!active() && box.dataset.fOpened) { box.open = false; delete box.dataset.fOpened; }
       }
     });
-    bar.querySelectorAll('[data-f-key]').forEach(b => {
-      const k = b.dataset.fKey, v = b.dataset.fVal;
-      b.setAttribute('aria-pressed', String(k === 'status' ? st.status === v : (st.g[k] || '') === v));
+    chips().forEach(b => {
+      const k = b.dataset.fKey, v = b.dataset.fVal, on = picked(k).includes(v);
+      b.setAttribute('aria-pressed', String(on));
+      const n = all.filter(el => match(el, w, k) && has(el, k).includes(v)).length;
+      const c = b.querySelector('[data-f-n]'); if (c && c.textContent !== String(n)) c.textContent = n;
+      b.classList.toggle('ui-fchip-zero', !n && !on);
     });
-    const all = items(), cnt = { '': all.length, mine: 0, waiting: 0, today: 0, due: 0 };
-    all.forEach(el => { const s = el.dataset.fStatus, d = el.dataset.fDue;
-      if (s === 'mine' || s === 'waiting') cnt[s]++;
-      if (d && d <= today) cnt.today++;
-      if (d && d <= until) cnt.due++; });
-    bar.querySelectorAll('[data-f-c]').forEach(c => { c.textContent = cnt[c.dataset.fC] ?? ''; });
-    const none = bar.querySelector('[data-f-none]'); if (none) none.hidden = shown > 0 || !items().length;
+    document.querySelectorAll('[data-f-count]').forEach(c => { const t = shown + ' ' + (shown === 1 ? c.dataset.one : c.dataset.many); if (c.textContent !== t) c.textContent = t; });
+    const clear = bar.querySelector('[data-f-clear]'); if (clear) clear.hidden = !active();
+    const none = bar.querySelector('[data-f-none]'); if (none) none.hidden = shown > 0 || !all.length;
   };
 
   const sortNow = () => {
@@ -75,8 +81,9 @@ const uiFilterStart = bar => {
     });
   };
 
-  bar.querySelectorAll('[data-f-row], [data-f-script-only]').forEach(r => { r.hidden = false; });
+  bar.querySelectorAll('[data-f-js]').forEach(r => { r.hidden = false; });
   bar.querySelectorAll('[data-f-noscript]').forEach(b => { b.hidden = true; });
+  chips().forEach(b => { if (b.tagName === 'A') { b.setAttribute('role', 'button'); b.removeAttribute('aria-current'); } });
   if (qbox) { qbox.value = st.q || ''; qbox.addEventListener('input', () => { st.q = qbox.value; save(); apply(); }); }
   bar.querySelector('form') && bar.querySelector('form').addEventListener('submit', e => { e.preventDefault(); });
   if (sortSel) {
@@ -85,12 +92,20 @@ const uiFilterStart = bar => {
   }
   bar.addEventListener('click', e => {
     const b = e.target.closest('[data-f-key]');
-    if (b) { const k = b.dataset.fKey, v = b.dataset.fVal;
-      if (k === 'status') st.status = v; else st.g[k] = (st.g[k] === v ? '' : v);   // a chip tapped again lets go
-      save(); apply(); return; }
-    if (e.target.closest('[data-f-clear]')) { st.status = ''; st.g = {}; st.q = ''; if (qbox) qbox.value = ''; save(); apply(); }
+    if (b) { e.preventDefault();
+      const k = b.dataset.fKey, v = b.dataset.fVal, p = picked(k);
+      if (p.includes(v)) st.g[k] = p.filter(x => x !== v);                    // a chip tapped again lets go
+      else st.g[k] = b.hasAttribute('data-f-one') ? [v] : p.concat([v]);
+      letGoOfView(); save(); apply(); return; }
+    const c = e.target.closest('[data-f-clear]');
+    if (c) { e.preventDefault();
+      if (bar.hasAttribute('data-f-server') && url.searchParams.get('q')) { st = { g: {}, q: '', sort: st.sort }; save(); location.href = c.getAttribute('href') || location.pathname; return; }
+      st.g = {}; st.q = ''; if (qbox) qbox.value = ''; letGoOfView(); save(); apply(); }
   });
-  Object.keys(st.g).forEach(k => { if (st.g[k] && !bar.querySelector(`[data-f-key="${CSS.escape(k)}"][data-f-val="${CSS.escape(st.g[k])}"]`)) st.g[k] = ''; });
+  bar.addEventListener('keydown', e => {                                     // a view link acts as a button: Space too
+    const b = e.target.closest('a[data-f-key]'); if (b && e.key === ' ') { e.preventDefault(); b.click(); }
+  });
+  Object.keys(st.g).forEach(k => { st.g[k] = st.g[k].filter(v => bar.querySelector(`[data-f-key="${CSS.escape(k)}"][data-f-val="${CSS.escape(v)}"]`)); });
   sortNow();
   apply();
   return { bar, apply };

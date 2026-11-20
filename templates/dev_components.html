@@ -121,6 +121,12 @@
       open_items=['Send the session sheet'], do=dict(what='The shoot time has passed', a=dict(verb='Shoot done', post=try_, fields=dict(what='ok'), confirm='Send the session sheet is still open. Move to Shot?'))), dev_) }}
 {% endcall %}
 
+
+{% call ui.dismissible(url_for('dev_components_post'), url_for('dev_components'), title='A note you can hide', id='demo-dnote') %}
+  <p>The X in the corner hides this note. Anything else the note offers stays inside it as a normal button.</p>
+  <div class="ui-btnrow">{{ ui.button_link('#demo-dnote', 'Use the usual date') }}</div>
+{% endcall %}
+
 {% call ui.section('Filter chips (ux15-b2-nav)', id='demo-filter') %}
   {{ uf.filter_bar('components', today.isoformat(), groups=[dict(key='kind', label='Kind', values=['Retouch', 'Retouch', 'Back up']), dict(key='label', label='Labels', values=['Slow to pay'])],
                    placeholder='Find a name or a task', sorts=[('name', 'Name A-Z', 'name', 'asc', false), ('owed', 'Money owed', 'owed', 'desc', true)]) }}

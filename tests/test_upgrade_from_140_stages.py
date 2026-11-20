@@ -124,7 +124,7 @@ def test_the_1_4_0_prices_used_on_sent_quotes_count_as_approved_once(tmp_path, m
     created = _q(A, "SELECT created FROM fee_schedules WHERE id=?", (cur,))[0][0][:10]
     code_ = ap[str(cur)]["code"]
     assert ap[str(cur)]["on"] == created and code_.startswith(created.replace("-", "")) and code_.isdigit() and len(code_) == 10
-    assert "Review your prices." not in c.get("/", environ_base={"REMOTE_ADDR": "127.0.0.1"}).get_data(as_text=True)
+    assert "Your prices are still the starter prices" not in c.get("/alerts", environ_base={"REMOTE_ADDR": "127.0.0.1"}).get_data(as_text=True)
     assert _in_request(A, A.price_approval_upgrade) is None
     A2, c2, _ = _open(tmp_path, monkeypatch)
     assert json.loads(_q(A2, "SELECT value FROM settings WHERE key='price_approvals'")[0][0]) == ap
@@ -142,7 +142,7 @@ def test_a_1_4_0_install_that_never_sent_a_quote_starts_with_sample_prices(tmp_p
     finally:
         con.close()
     assert _in_request(A, A.price_approval_upgrade) == []
-    assert "Review your prices." in c.get("/", environ_base={"REMOTE_ADDR": "127.0.0.1"}).get_data(as_text=True)
+    assert "Your prices are still the starter prices" in c.get("/alerts", environ_base={"REMOTE_ADDR": "127.0.0.1"}).get_data(as_text=True)
 
 def test_a_session_the_pass_moved_keeps_its_files_until_a_date_is_set_or_a_new_event(tmp_path, monkeypatch):
 

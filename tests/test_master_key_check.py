@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from helpers import fresh_modules, signed_in_client
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
-PROMPT = 'id="master-key-check"'
+PROMPT = "Check you still have your master key."
 
 def _install(tmp_path, monkeypatch):
     monkeypatch.setenv("CRM_DB", str(tmp_path / "crm.db"))
@@ -35,7 +35,7 @@ def _setting(A, k):
         con.close()
 
 def _prompted(c):
-    r = c.get("/", environ_base=E)
+    r = c.get("/alerts", environ_base=E)
     assert r.status_code == 200
     return PROMPT in r.get_data(as_text=True)
 

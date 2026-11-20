@@ -66,7 +66,7 @@ def test_today_keeps_the_fixed_order_and_needs_you_comes_first(env):
     _studio(A)
     page = _today(c)
     order = _sections(page)
-    want = ["shoots", "work", "two-weeks", "setup"]
+    want = ["shoots", "work", "two-weeks"]
     assert [s_ for s_ in order if s_ in want] == want, order
     head = page.split('<header class="ui-head"', 1)[1].split("</header>", 1)[0]
     assert not re.search(r"<(button|form)\b", head) and "ui-btn" not in head
@@ -142,7 +142,7 @@ def test_next_two_weeks_is_folded_without_empty_days_or_today(env):
         c.post("/session/4/task", data={"title": f"Extra {i}", "due": _day(A, 2), "back": "/"}, environ_base=E)
     page = _today(c)
     assert re.search(r'<details class="ui-fold " id="two-weeks" data-ui-part>', page)
-    body = page.split('id="two-weeks"', 1)[1].split('id="setup"', 1)[0]
+    body = page.split('id="two-weeks"', 1)[1].split('id="update-note"', 1)[0]
     assert A.today().strftime("%a %b %-d") not in body
     day2 = (A.today() + timedelta(days=2)).strftime("%a %b %-d")
     assert f'id="day-{_day(A, 2)}"' in body and f"{day2}: 7 steps" in body
@@ -194,7 +194,7 @@ def test_an_action_on_today_comes_back_to_today(env):
     r = c.post(f"/task/{tid}", data={"set": "1", "back": "/"}, environ_base=E)
     assert r.status_code == 302 and r.headers["Location"].endswith("/")
     assert "Cull" not in dict(_lines(_today(c))).get("line-s4", "")
-    for part in ("shoots", "work", "setup"):
+    for part in ("shoots", "work", "update-note"):
         assert re.search(r'id="%s" data-ui-part' % part, page), part
 
 def test_a_group_event_line_never_overprints_on_a_phone(browser, env):
@@ -219,7 +219,8 @@ def test_a_group_event_line_never_overprints_on_a_phone(browser, env):
                 a["y"] + a["height"] <= b["y"] + 0.5 or b["y"] + b["height"] <= a["y"] + 0.5
         assert apart(name, what) and apart(stage, what) and apart(name, btn) and apart(what, btn)
         assert p.evaluate("document.documentElement.scrollWidth") <= 390
-        right = p.evaluate("Math.max(...[...document.querySelectorAll('main *')].filter(e => e.checkVisibility()).map(e => e.getBoundingClientRect().right))")
+
+        right = p.evaluate("Math.max(...[...document.querySelectorAll('main *')].filter(e => e.checkVisibility() && !e.closest('.ui-filter-row')).map(e => e.getBoundingClientRect().right))")
         assert right <= 390.5, right
         p.locator("#line-e1 .ui-tline-what").click(force=True)
         p.wait_for_url(BASE + "/event/1")

@@ -137,7 +137,7 @@ def test_setup_shows_what_the_host_can_do_and_today_flags_a_change(app_env, monk
     con.commit(); con.close()
     monkeypatch.setattr(hostcheck, "probe", lambda host, base: hostcheck.Probe(kind="none", version="", wait=0, detail=""))
     c.post("/gallery/sync", environ_base=E)
-    today = c.get("/", environ_base=E).get_data(as_text=True)
+    today = c.get("/alerts", environ_base=E).get_data(as_text=True)
     assert "Your web host no longer runs PHP" in today
 
     page = c.get("/setup/galleries", environ_base=E).get_data(as_text=True)

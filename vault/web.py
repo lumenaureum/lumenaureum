@@ -59,9 +59,23 @@ def _record_run(connect, now):
     try:
         con.execute("INSERT INTO settings (key, value) VALUES ('backup_last_run', ?) "
                     "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (now.isoformat(timespec="seconds"),))
+        con.execute("DELETE FROM settings WHERE key='backup_last_error'")
         con.commit()
     finally:
         con.close()
+
+def _record_error(connect, words):
+
+    try:
+        con = connect()
+        try:
+            con.execute("INSERT INTO settings (key, value) VALUES ('backup_last_error', ?) "
+                        "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (words,))
+            con.commit()
+        finally:
+            con.close()
+    except Exception:
+        pass
 
 def run_if_due(connect, db_path, faces_dir, now=None):
 
@@ -77,7 +91,11 @@ def run_if_due(connect, db_path, faces_dir, now=None):
     now = now or datetime.now()
     if not has_key or now.strftime("%H:%M") < at or last[:10] == now.date().isoformat():
         return False
-    BK.sealed_backup(str(db_path), str(faces_dir) if faces_dir.exists() else None)
+    try:
+        BK.sealed_backup(str(db_path), str(faces_dir) if faces_dir.exists() else None)
+    except Exception as e:
+        _record_error(connect, f"{type(e).__name__}: {e}"[:200])
+        raise
     _record_run(connect, now)
     return True
 
@@ -208,6 +226,7 @@ def register(app, connect, audit):
             try:
                 BK.sealed_backup(str(PATHS["db"]), str(PATHS["faces"]) if PATHS["faces"].exists() else None, kind="manual")
             except Exception as e:
+                _record_error(connect, f"{type(e).__name__}: {e}"[:200])
                 raise RuntimeError(f"Backup failed: {type(e).__name__}. Check the backup location.") from e
             _record_run(connect, datetime.now())
             audit("Backed up now")

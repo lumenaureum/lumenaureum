@@ -81,6 +81,20 @@
 
 
 
+{% macro dismissible(hide_url, back=None, title='', id='', part=false, label='Hide this note', inplace=true, confirm=None, fields={}) -%}
+<section class="ui-dnote"{% if id %} id="{{ id }}"{% endif %}{% if part %} data-ui-part{% endif %}>
+  <form method="post" action="{{ hide_url }}" class="ui-dnote-x"{% if inplace %} data-ui-inplace{% endif %}{% if confirm %} data-confirm="{{ confirm }}"{% endif %}>
+  {%- for k, v in fields.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor -%}
+  {%- if back %}<input type="hidden" name="back" value="{{ back }}">{% endif -%}
+  <button class="ui-x ui-dnote-btn" aria-label="{{ label }}" title="{{ label }}"><span aria-hidden="true">&times;</span></button></form>
+  {% if title %}<h2 class="ui-sec-title">{{ title }}</h2>{% endif %}
+  {{ caller() }}
+</section>
+{%- endmacro %}
+
+
+
+
 {% macro chip(text, tone='neutral', tip='') -%}
 <span class="ui-chip ui-chip-{{ tone }}"{% if tip %} data-tip="{{ tip }}"{% endif %}>{{ text }}</span>
 {%- endmacro %}
