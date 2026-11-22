@@ -192,7 +192,7 @@
 
 {% elif tab == 'notifications' %}
 {% set nt_ = ntfy if ntfy and ntfy.ntfy_server and ntfy.ntfy_topic else none %}
-{% call sui.section('Locked-studio notice', id='notice', help_text="While the studio is locked it can't read its encrypted settings, so the server address, topic and access token are also kept in a small plain file, ntfy.json in the data folder. Anyone who can read the data folder can read them: use a topic nobody could guess, and a token if your server takes one. The notice says only that the studio is locked and since when. It never carries a client's name, a count, an amount or a link.",
+{% call sui.section('Locked-studio notice', id='notice', help_text="While the studio is locked it can't read its encrypted settings, so the server address, topic and access token are also kept in a small plain file, ntfy.json in the data folder. Anyone who can read the data folder can read them: use a topic nobody could guess, and a token if your server takes one. The locked notice says only that the studio is locked and since when. The studio inbox notice, if you turn it on, says only how many new things came in, by kind. Neither ever carries a client's name, an email address, an amount, a date or a link.",
                 tip="Optional. A message to your phone through ntfy when the studio restarts and stays locked, then once a day until you sign in.") %}
   
   {% set rep_ = nt_ and request.args.get('replace') == 'ntfy' %}
@@ -202,7 +202,15 @@
                          replace_href=url_for('settings_view', tab='notifications', replace='ntfy') ~ '#notice',
                          remove=dict(label='Stop the notices', url=url_for('security_notice'), fields={'act': 'remove'}),
                          plain_http=(nt_.ntfy_server or '').lower().startswith('http://')) }}
-  <div id="notice-kinds"><label class="ui-check"><input type="checkbox" checked disabled>Studio locked after a restart</label></div>
+  <div id="notice-kinds"><label class="ui-check"><input type="checkbox" checked disabled>Studio locked after a restart</label>
+    
+    <form method="post" action="{{ url_for('security_notice') }}" class="ui-action"><input type="hidden" name="act" value="inbox">
+      <label class="ui-check"><input type="checkbox" name="inbox_on" value="1" data-autosubmit{{ ' checked' if inbox_notice_on() }}>Something new in the studio inbox{{ help("A new website inquiry, a client's picks or a print order. The notice says only how many came in, by kind, such as \"3 new: 2 inquiries, 1 set of picks\". Several that come in together are one notice, and there is at most one every 30 minutes. It never says who, and never carries a link.") }}</label>
+      <noscript><button class="ui-btn ui-btn-quiet">Save the notice choice</button></noscript></form>
+    
+    <form method="post" action="{{ url_for('security_notice') }}" class="ui-action"><input type="hidden" name="act" value="backup">
+      <label class="ui-check"><input type="checkbox" name="backup_on" value="1" data-autosubmit{{ ' checked' if backup_notice_on() }}>A backup failed or is late{{ help("A notice when the last backup failed, or none has worked for over a day. It says only that, never the error itself, a folder or a server. While it lasts, at most one a day; once a backup works again, the next problem is told at once.") }}</label>
+      <noscript><button class="ui-btn ui-btn-quiet">Save the notice choice</button></noscript></form></div>
   {% else %}
   {% if rep_ %}<div class="sui-replace-head"><b>Replace the ntfy server</b><a class="ui-go" href="{{ url_for('settings_view', tab='notifications') }}#notice">Cancel</a></div>
   <p class="sui-hint">The one in use now stays in use until a test notice to the new one goes through.</p>{% endif %}

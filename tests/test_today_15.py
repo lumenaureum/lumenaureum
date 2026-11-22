@@ -72,7 +72,7 @@ def test_today_keeps_the_fixed_order_and_needs_you_comes_first(env):
     assert not re.search(r"<(button|form)\b", head) and "ui-btn" not in head
     assert "1 shoot today" in head and "1 past due" in head and "Inbox" not in head
     after = page.split("</header>", 1)[1].lstrip()
-    assert after.startswith('<section class="ui-needs" id="shoots"'), after[:200]
+    assert re.match(r'<div class="ui-today-cols"><div class="ui-today-main">\s*<section class="ui-needs" id="shoots"', after), after[:200]
     for old in ('class="kpi', "t-track", "t-next", 'class="cday', "home-grid", "t-stage"):
         assert old not in page, old
 
@@ -141,8 +141,9 @@ def test_next_two_weeks_is_folded_without_empty_days_or_today(env):
     for i in range(7):
         c.post("/session/4/task", data={"title": f"Extra {i}", "due": _day(A, 2), "back": "/"}, environ_base=E)
     page = _today(c)
-    assert re.search(r'<details class="ui-fold " id="two-weeks" data-ui-part>', page)
-    body = page.split('id="two-weeks"', 1)[1].split('id="update-note"', 1)[0]
+
+    assert re.search(r'<aside class="ui-today-side">\s*<section class="ui-sec\s*" id="two-weeks" data-ui-part>', page)
+    body = page.split('id="two-weeks"', 1)[1].split('</aside>', 1)[0]
     assert A.today().strftime("%a %b %-d") not in body
     day2 = (A.today() + timedelta(days=2)).strftime("%a %b %-d")
     assert f'id="day-{_day(A, 2)}"' in body and f"{day2}: 7 steps" in body

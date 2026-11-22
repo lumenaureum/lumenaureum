@@ -81,10 +81,11 @@ def test_the_deposit_row_says_what_is_left_and_offers_remind_them(env):
 def test_reply_is_remembered_on_reload(env):
     A, c = env
     _session(A, "inquiry", days=None, msg="Any weekend dates?")
-    c.post("/session/1/reply", data={"back": "/c/1?s=1"}, environ_base=E)
     needs = _needs(_page(c))
-    assert "You replied " in needs and ">Reply again</button>" in needs
-    assert "Reply opens an email to alex.morgan.long.address@example.com in your mail app." in needs
+    assert "You replied " not in needs and ">Mark replied</button>" in needs
+    c.post("/session/1/reply", data={"back": "/c/1?s=1", "how": "email"}, environ_base=E)
+    needs = _needs(_page(c))
+    assert "You replied " in needs and ">Reply by email</a>" in needs and ">Mark replied</button>" not in needs
 
 def test_the_line_picker_keeps_other_types_in_their_own_fold_and_labels_how_many(env):
     A, c = env
@@ -130,3 +131,26 @@ def test_history_is_first_and_open_and_cancel_stands_apart(env):
     assert hist and " open" in hist.group(0)
     assert more.index('id="history"') < more.index("New session for")
     assert 'class="ui-btnrow ui-danger-row"><a class="ui-btn ui-btn-danger" href="#cancel-booking"' in more
+
+def test_reply_by_email_or_text_and_mark_how_it_went(env):
+
+    A, c = env
+    _session(A, "inquiry", days=None, msg="Would you do a family photo?")
+    con = A.connect()
+    con.execute("UPDATE people SET phone='(555) 010-2020' WHERE household_id=1")
+    con.commit()
+    con.close()
+    needs = _needs(_page(c))
+    assert 'href="mailto:alex.morgan.long.address@example.com' in needs and ">Reply by email</a>" in needs
+    assert 'href="sms:5550102020"' in needs and ">Reply by text</a>" in needs
+    assert 'value="call"' in needs and 'value="in person"' in needs and ">Mark replied</button>" in needs
+    con = A.connect()
+    con.execute("UPDATE people SET phone='', email='' WHERE household_id=1")
+    con.commit()
+    con.close()
+    needs = _needs(_page(c))
+    assert 'href="sms:"' in needs and 'href="mailto:?subject=' in needs
+    c.post("/session/1/reply", data={"back": "/c/1?s=1", "how": "call"}, environ_base=E)
+    con = A.connect()
+    assert con.execute("SELECT channel FROM log WHERE session_id=1 AND summary='Replied to their message'").fetchone()[0] == "call"
+    con.close()

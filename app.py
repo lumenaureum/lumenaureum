@@ -202,7 +202,29 @@ NAV_SECTION = {"home": "today",
                "month_view": "calendar", "year_view": "calendar",
                "money_view": "finances", "fees_view": "finances"}
 NAV_PHONE = ("today", "clients", "sessions")
+NAV_MORE = []
+
+def add_nav(key, label, endpoint, after, shown, pages=()):
+
+    NAV_MORE.append(dict(key=key, label=label, endpoint=endpoint, after=after, shown=shown))
+    NAV_SECTION.update({p_: key for p_ in (endpoint, *pages)})
+
+def nav_items():
+
+    out = list(NAV)
+    for n_ in NAV_MORE:
+        try:
+            if not n_["shown"]():
+                continue
+        except Exception:
+            continue
+        at = next((i_ + 1 for i_, (k_, _, _) in enumerate(out) if k_ == n_["after"]), len(out))
+        out.insert(at, (n_["key"], n_["label"], n_["endpoint"]))
+    return out
+
+app.config["add_nav"] = add_nav
 app.jinja_env.globals["NAV"] = NAV
+app.jinja_env.globals["nav_items"] = nav_items
 app.jinja_env.globals["NAV_PHONE"] = NAV_PHONE
 app.jinja_env.globals["NAV_SECTION"] = NAV_SECTION
 C.galleries_on = lambda: bool(setting("gallery_base_url"))
@@ -471,6 +493,8 @@ class PluginContext:
         self.render = render_template
         self.C, self.nice = C, nice
         self.audit, self.advance, self.connect = audit, advance, connect
+
+        self.inbox_arrived = lambda kind, n=1: inboxnotice.arrived(db(), kind, n)
         self.add_column = dbmod.add_column
         self.safe_back = safe_back
         self.release_blocked, self.money = release_blocked, money
@@ -1141,6 +1165,17 @@ def _face(hid):
 
 RELATIONS = ["mother", "father", "daughter", "son", "grandmother", "grandfather", "wife", "husband", "partner",
              "sister", "brother", "aunt", "uncle", "guardian", "self", "friend", "pet", "other"]
+def relations_in_use():
+
+    try:
+        own = [r_["v"] for r_ in q("""SELECT DISTINCT LOWER(TRIM(relation)) v FROM people
+                                      WHERE TRIM(COALESCE(relation, '')) != '' ORDER BY v""")]
+    except Exception:
+        own = []
+    return RELATIONS + [v_ for v_ in own if v_ not in RELATIONS]
+
+app.jinja_env.globals["relations_in_use"] = relations_in_use
+
 PARENT_REL = {"mother", "father", "grandmother", "grandfather", "guardian", "aunt", "uncle"}
 CHILD_REL = {"daughter", "son"}
 ANIMAL_REL = {"pet", "dog", "cat", "horse", "pony", "rabbit", "bird", "animal", "puppy", "kitten"}
@@ -1358,8 +1393,11 @@ def price_approval_upgrade():
     return sorted(int(k_) for k_ in ap_)
 
 def quote_term():
+
     v = setting("quote_term_days")
-    return int(v) if str(v).isdigit() else C.QUOTE_TERM_DAYS
+    return int(v) if str(v).isdigit() and 1 <= int(v) <= 365 else C.QUOTE_TERM_DAYS
+
+app.jinja_env.globals["quote_term"] = quote_term
 
 def quote_of(sid):
     r = q("SELECT * FROM quotes WHERE session_id=?", (sid,), one=True)
@@ -1441,9 +1479,10 @@ def _reapply_discount(sid):
     if sub <= 0:
         return
     pct = float(qt["discount_pct"])
-    reason = next((lab for k, lab, _ in C.DISCOUNTS if k == qt["discount_reason"]), qt["discount_reason"]) or "Discount"
+
+    reason = next((lab for k, lab, _ in C.DISCOUNTS if k and k == qt["discount_reason"]), qt["discount_reason"])
     x("INSERT INTO lines (session_id, label, amount, kind) VALUES (?,?,?, 'discount')",
-      (sid, f"Discount: {reason} ({pct:g}%)", -round(sub * pct / 100, 2)))
+      (sid, f"Discount: {reason} ({pct:g}%)" if reason else f"Discount ({pct:g}%)", -round(sub * pct / 100, 2)))
     g.pop("tot_cache", None)
 
 def _pct(key):
@@ -3179,8 +3218,9 @@ def session_followup(sid):
 def session_reply(sid):
 
     s_ = q("SELECT household_id FROM sessions WHERE id=?", (sid,), one=True) or abort(404)
+    how_ = request.form.get("how") if request.form.get("how") in REPLY_HOW else "email"
     x("INSERT INTO log (household_id, session_id, channel, summary, at) VALUES (?,?,?,?,?)",
-      (s_["household_id"], sid, "email", "Replied to their message", datetime.now(TZ).strftime("%Y-%m-%d %H:%M:%S")))
+      (s_["household_id"], sid, how_, "Replied to their message", datetime.now(TZ).strftime("%Y-%m-%d %H:%M:%S")))
     mail_ = reply_draft(sid)
     if request.form.get("mail") and mail_:
         return redirect(mail_, code=303)
@@ -3197,6 +3237,19 @@ def reply_draft(sid):
     return mail_["mailto"] if mail_["to"] else ""
 
 app.jinja_env.globals["reply_draft"] = reply_draft
+
+def reply_ways(sid):
+
+    sender_ = message_sender(sid)
+    mail_ = _send_ctx(sid, "reply", "Re: your inquiry", [], to=sender_)
+    phone_raw = ((sender_ or {}).get("phone") if sender_ else "") or mail_["phone"] or ""
+    phone_ = re.sub(r"[^0-9+]", "", phone_raw)
+    return dict(email=dict(href=mail_["mailto"], to=mail_["to"] or ""),
+                text=dict(href=f"sms:{phone_}" if len(phone_) >= 7 else "sms:", to=phone_raw if len(phone_) >= 7 else ""))
+
+app.jinja_env.globals["reply_ways"] = reply_ways
+REPLY_HOW = {"email": "Email", "text": "Text", "call": "Call", "in person": "In person"}
+app.jinja_env.globals["REPLY_HOW"] = REPLY_HOW
 
 def replied_on(sid):
 
@@ -5137,8 +5190,12 @@ def sessions():
     args = []
     if request.args.get("type"):
         where += " AND s.type=?"; args.append(request.args["type"])
-    if request.args.get("q"):
-        where += " AND (h.name LIKE ? OR s.title LIKE ? OR e.name LIKE ?)"; args += [f"%{request.args['q']}%"] * 3
+
+    q_words = (request.args.get("q") or "").split()
+    label_q = [w_[6:].lower() for w_ in q_words if w_.lower().startswith("label:")]
+    text_q = " ".join(w_ for w_ in q_words if not w_.lower().startswith("label:"))
+    if text_q:
+        where += " AND (h.name LIKE ? OR s.title LIKE ? OR e.name LIKE ?)"; args += [f"%{text_q}%"] * 3
     rows = session_rows(where, args)
     if request.args.get("owing"):
         rows = [r for r in rows if owed_billed(r["s"], r["t"])]
@@ -5156,6 +5213,8 @@ def sessions():
                       labels=labels_.get(s_["household_id"], []),
                       show=session_views(s_))
         r["in_view"] = view == "all" or view in r["f"]["show"]
+    if label_q:
+        rows = [r for r in rows if all(any(lq_ in l_.lower() for l_ in r["f"]["labels"]) for lq_ in label_q)]
     return render_template("sessions.html", rows=rows, view=view, views=VIEWS, today_iso=today().isoformat())
 
 def _search_matches(hid, term):
@@ -5719,6 +5778,9 @@ def inquiry():
                                plans=q("""SELECT id, title, type, shoot_date FROM sessions WHERE household_id=? AND plan_of IS NULL
                                           AND stage NOT IN ('closed','lost') ORDER BY id""", (hid,)) if h else [])
     f = request.form
+    ask_ = _weak_codeword_ask(" ".join((f.get("gallery_codeword") or "").split())[:60], url_for("inquiry"))
+    if ask_:
+        return ask_
     t_ = f.get("type", "")
     hid = f.get("household_id", type=int)
     if t_ not in C.SESSION_TYPES or not hid or not q("SELECT 1 FROM households WHERE id=?", (hid,), one=True):
@@ -5789,15 +5851,11 @@ def inquiry():
 
             x("INSERT INTO tasks (id, session_id, title, due, sort, stage, own) VALUES (?,?,?,?,999,?,1)",
               (next_id("tasks"), head_["id"], PLAN_RESIGN, None, head_["stage"]))
-    if (f.get("gallery_codeword") or "").strip():
+    if f.get("cw_make"):
         from plugins import gallery as _G
-        cw_ = " ".join(f["gallery_codeword"].split())[:60]
-        if _G.codeword_strong(cw_):
-            x("UPDATE sessions SET gallery_codeword=? WHERE id=?", (cw_, sid))
-        else:
-            session["notice"] = (f"The gallery codeword \"{cw_}\" wasn't saved: it is too easy to guess. Use three or more "
-                                 f"words, or 14 letters or more, such as \"{_G.suggest_codeword()}\". You can add it on the "
-                                 f"session page, under Delivery.")
+        x("UPDATE sessions SET gallery_codeword=? WHERE id=?", (_G.suggest_codeword(), sid))
+    elif (f.get("gallery_codeword") or "").strip():
+        x("UPDATE sessions SET gallery_codeword=? WHERE id=?", (" ".join(f["gallery_codeword"].split())[:60], sid))
     answers = {k: f.get("i_" + k, "").strip() for k, _ in C.INTAKE.get(t_, [])}
     if any(answers.values()):
         x("UPDATE sessions SET intake=? WHERE id=?", (json.dumps(answers), sid))
@@ -6043,8 +6101,8 @@ def session_edit(sid):
         signer_ids={r_["about_person"] for r_ in agreement_signers(sid)[0] if r_["about_person"]}
                    or {p_["id"] for p_ in signer_choices(s["household_id"])[:1]},
         subjects=q("""SELECT p.* FROM people p JOIN session_people sp ON sp.person_id=p.id
-                      WHERE sp.session_id=?""", (sid,)),
-        members=q("SELECT * FROM people WHERE household_id=?", (s["household_id"],)),
+                      WHERE sp.session_id=? ORDER BY p.name COLLATE NOCASE""", (sid,)),
+        members=q("SELECT * FROM people WHERE household_id=? ORDER BY name COLLATE NOCASE", (s["household_id"],)),
         tasks=q("SELECT * FROM tasks WHERE session_id=? ORDER BY COALESCE(due,'9999'), sort", (sid,)),
         docs=q("""SELECT doc.*, COALESCE(NULLIF(doc.covers, ''), p.name) AS person FROM documents doc LEFT JOIN people p ON p.id=doc.about_person
                   WHERE doc.session_id=?""", (sid,)),
@@ -6322,6 +6380,15 @@ def _first_visit_confirm(sid, s_, fv_, extension_used, action, cancel):
                            action=action, fields=list(request.form.items(multi=True)),
                            confirm_name="confirm_close", yes="Save, and close the gallery", cancel=cancel)
 
+def _weak_codeword_ask(word, action, cancel=None):
+
+    from plugins import gallery as _G
+    if not word or request.form.get("cw_ok") or request.form.get("cw_make") or _G.codeword_strong(word):
+        return None
+    g.refused = True
+    return render_template("confirm_codeword.html", word=word, action=action, cancel=cancel,
+                           fields=[(k_, v_) for k_, v_ in request.form.items(multi=True) if k_ not in ("cw_ok", "cw_make")])
+
 @app.post("/session/<int:sid>/codeword")
 def session_codeword(sid):
 
@@ -6330,15 +6397,18 @@ def session_codeword(sid):
     g_ = q("SELECT cw_fixed FROM galleries WHERE session_id=?", (sid,), one=True) if q(
         "SELECT 1 FROM sqlite_master WHERE name='galleries'", one=True) else None
     from plugins import gallery as _G
-    new_cw = " ".join((request.form.get("gallery_codeword") or "").split())[:60]
+    made_ = bool(request.form.get("cw_make"))
+    new_cw = _G.suggest_codeword() if made_ else " ".join((request.form.get("gallery_codeword") or "").split())[:60]
     if g_ and g_["cw_fixed"]:
         return _refuse("The gallery is already online, so its codeword stays as it is: the link you sent keeps working.", back_)
-    if not new_cw or not _G.codeword_strong(new_cw):
-        return _refuse(f"That codeword is too easy to guess. Use three or more words, or 14 letters or more, such as "
-                       f"\"{_G.suggest_codeword()}\". Nothing was saved.", back_)
+    if not new_cw:
+        return _refuse("Type a codeword, or press Make one for me. Nothing was saved.", back_)
+    ask_ = _weak_codeword_ask(new_cw, url_for("session_codeword", sid=sid), back_)
+    if ask_:
+        return ask_
     x("UPDATE sessions SET gallery_codeword=? WHERE id=?", (new_cw, sid))
     g.touched_sid = sid
-    session["notice"] = "Saved the gallery codeword"
+    session["notice"] = f"Made the codeword \"{new_cw}\"" if made_ else "Saved the gallery codeword"
     return redirect(back_)
 
 @app.post("/session/<int:sid>/delivery")
@@ -6348,6 +6418,13 @@ def session_delivery(sid):
     s_ = session_full(sid)
     if _stale_edit("delivery", sid, DELIVERY_FORM_FIELDS, s_):
         return _clash_page(sid, "delivery")
+    cw_typed_ = " ".join((f.get("gallery_codeword") or "").split())[:60]
+    fixed_ = q("SELECT cw_fixed FROM galleries WHERE session_id=?", (sid,), one=True) if q(
+        "SELECT 1 FROM sqlite_master WHERE name='galleries'", one=True) else None
+    if cw_typed_ != (s_["gallery_codeword"] or "") and not (fixed_ and fixed_["cw_fixed"]):
+        ask_ = _weak_codeword_ask(cw_typed_, url_for("session_delivery", sid=sid), url_for("session_edit", sid=sid) + "#delivery")
+        if ask_:
+            return ask_
     for k_, lab in (("gallery_built", "Gallery built"), ("letter_mailed", "Letter mailed"), ("first_visit", "First visit"),
                     ("sd_shipped", "Files delivered")):
         v = (f.get(k_) or "").strip()
@@ -6386,6 +6463,9 @@ def session_delivery(sid):
         set_delivery_method(sid, f["delivery_method"])
     if "retouch_picks" in f:
         x("UPDATE sessions SET retouch_picks=? WHERE id=?", ((f.get("retouch_picks") or "")[:5000], sid))
+    if f.get("cw_make"):
+        from plugins import gallery as _Gm
+        f = f.copy(); f["gallery_codeword"] = _Gm.suggest_codeword()
     if "gallery_codeword" in f and (f.get("gallery_codeword") or "").strip() != (s_["gallery_codeword"] or ""):
         g_ = q("SELECT cw_fixed FROM galleries WHERE session_id=?", (sid,), one=True) if q(
             "SELECT 1 FROM sqlite_master WHERE name='galleries'", one=True) else None
@@ -6393,10 +6473,6 @@ def session_delivery(sid):
         new_cw = " ".join((f.get("gallery_codeword") or "").split())[:60]
         if g_ and g_["cw_fixed"]:
             session["notice"] = "The gallery is already online, so its codeword stays as it is: the link you sent keeps working."
-        elif new_cw and not _G.codeword_strong(new_cw):
-            session["notice"] = (f"That codeword is too easy to guess. Use three or more words, or 14 letters or more, "
-                                 f"such as \"{_G.suggest_codeword()}\". The codeword was not changed.")
-            session["cw_refused"] = {"sid": sid, "word": new_cw}
         else:
             x("UPDATE sessions SET gallery_codeword=? WHERE id=?", (new_cw, sid))
     x("""UPDATE sessions SET gallery_built=?, letter_mailed=?, first_visit=?, extension_used=?, sd_shipped=?,
@@ -7525,7 +7601,7 @@ def long_date(iso):
 
 def subjects_of(sid):
     return [r["name"] for r in q("""SELECT p.name FROM people p JOIN session_people sp ON sp.person_id=p.id
-                                   WHERE sp.session_id=? ORDER BY p.id""", (sid,))]
+                                   WHERE sp.session_id=? ORDER BY p.name COLLATE NOCASE""", (sid,))]
 
 def oxford(xs):
     xs = list(xs)
@@ -7666,13 +7742,39 @@ def _rebook_write_off(sid):
         x("DELETE FROM step_closes WHERE session_id=? AND step='balance_paid'", (sid,))
         audit(f"Paid in full is open again: the new quote leaves {money(totals(sid)['due'])} to pay", sid=sid)
 
+def quote_terms(s, t):
+
+    terms = [list(x_) for x_ in C.build_terms(s["type"], setting("business_name"))]
+    if t["quoted"] > 0.005:
+        return terms
+    return nothing_to_pay_terms(terms)
+
+MONEY_WORDS = re.compile(r"\$\s?\d|\bdeposit|\bbalance\b|\brefund|\bpaid\b|\bpay\b|\bfees?\b|\bcharged?\b|\bat cost\b|\bper reschedule\b|\bmileage rate\b", re.I)
+NO_COST = re.compile(r"\bno charge\b|\bfree (?:reschedule|of charge)\b", re.I)
+
+def nothing_to_pay_terms(terms):
+
+    out = []
+    for h_, v_ in terms:
+        if h_ == "Payment":
+            continue
+        if h_ == "Booking":
+            out.append(["Booking", "There is nothing to pay for this session: no deposit and no balance."])
+            continue
+        v_ = re.sub(r"\s*,?\s*once (?:the balance is|you have) paid(?: in full)?", "", v_)
+        kept = [x_ for x_ in re.split(r"(?<=[.!?])\s+", v_.strip()) if x_ and (not MONEY_WORDS.search(x_) or (
+                    NO_COST.search(x_) and not re.search(r"\$\s?\d|\bdeposit", x_, re.I)))]
+        if kept:
+            out.append([h_, " ".join(kept)])
+    return out
+
 def quote_data(sid, s, lines, t):
 
     lic_ = license_words(s) if s["type"] in C.LICENSE_TYPES and business_client(s) else []
     return dict(**({"license_terms": " ".join(lic_)} if lic_ else {}),lines=lines, total=t["quoted"], deposit=t["deposit_req"], client=s["household"], type_label=C.doc_label(s["type"]),
                 people=oxford(subjects_of(sid)) if s["type"] in C.SUBJECT_TYPES else "", type=s["type"], shoot_date=s["shoot_date"],
                 photographer=setting("photographer_name"), business=setting("business_name"),
-                terms=[list(x_) for x_ in C.build_terms(s["type"], setting("business_name"))], editing=[[h_, list(p_)] for h_, p_ in C.build_editing(s["type"])],
+                terms=quote_terms(s, t), editing=[[h_, list(p_)] for h_, p_ in C.build_editing(s["type"])],
                 client_company=company_of(s["household_id"]),
                 net_days=C.BALANCE_NET_DAYS, balance_rule=balance_rule(s["type"]), license=s["type"] in C.LICENSE_TYPES)
 
@@ -8553,7 +8655,8 @@ def agreement_ctx(sid):
     s = session_full(sid)
     last = q("SELECT * FROM quote_versions WHERE session_id=? ORDER BY id DESC LIMIT 1", (sid,), one=True)
     t = totals(sid)
-    ppl = q("""SELECT p.* FROM people p JOIN session_people sp ON sp.person_id=p.id WHERE sp.session_id=?""", (sid,))
+    ppl = q("""SELECT p.* FROM people p JOIN session_people sp ON sp.person_id=p.id WHERE sp.session_id=?
+               ORDER BY p.name COLLATE NOCASE""", (sid,))
     _, signers = agreement_signers(sid)
     lic_bits = license_words(s)
     scope = [f"{l_['label']}" for l_ in q("SELECT label FROM lines WHERE session_id=? AND kind NOT IN ('discount','tax','credit') ORDER BY id", (sid,))]
@@ -9696,7 +9799,7 @@ def event_view(eid):
                   WHERE s.event_id=? ORDER BY h.name""", (eid,)):
         docs = q("SELECT status FROM documents WHERE session_id=? AND kind='release'", (s["id"],))
         subj = q("""SELECT p.name FROM people p JOIN session_people sp ON sp.person_id=p.id
-                    WHERE sp.session_id=?""", (s["id"],))
+                    WHERE sp.session_id=? ORDER BY p.name COLLATE NOCASE""", (s["id"],))
         parent = q("""SELECT * FROM people WHERE household_id=? AND role IN ('parent','adult')
                       ORDER BY role='parent' DESC, id LIMIT 1""", (s["household_id"],), one=True)
         fams.append(dict(s=s, subjects=", ".join(p["name"] for p in subj), parent=parent,
@@ -10241,8 +10344,10 @@ def settings_view():
             x("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
               (k, v))
         term = request.form.get("quote_term_days", "")
-        if term.isdigit():
+        if term.isdigit() and 1 <= int(term) <= 365:
             x("INSERT INTO settings (key, value) VALUES ('quote_term_days',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (term,))
+        elif term:
+            session["notice"] = "Quotes good for wasn't saved: it is a number of days from 1 to 365."
 
         main_ = request.form.get("main_posted")
         if main_ or request.form.get("credit_posted"):
@@ -11008,6 +11113,24 @@ def _backup_alerts():
     if setting("photo_mirror_error"):
         out.append(_alert("The last copy of your photos to the backup failed.", to_vault, "fix"))
     return out
+
+BACKUP_LATE = timedelta(hours=26)
+
+def backup_problem():
+
+    if setting(inboxnotice.KEY_BACKUP_ON) != "1" or not vault_keys.master_pub(db()):
+        return ""
+    if setting("backup_last_error"):
+        return "failed"
+    if _time.monotonic() - STARTED_AT < BACKUP_GRACE:
+        return ""
+    last_ = (q("""SELECT MAX(created) m FROM vault_objects WHERE kind IN ('db', 'manual', 'upgrade') AND deleted IS NULL""",
+               one=True) or {"m": None})["m"]
+    try:
+        at_ = datetime.fromisoformat(last_) if last_ else None
+    except ValueError:
+        at_ = None
+    return "late" if not at_ or datetime.now() - at_ > BACKUP_LATE else ""
 
 def _connection_alerts():
 
@@ -11861,6 +11984,7 @@ def apply_settings():
 import threading as _threading
 import atrest
 import locknotice
+import inboxnotice
 _unlock_guard = _threading.Lock()
 _unlocked_once = []
 
@@ -11955,6 +12079,14 @@ def ntfy_settings():
     v = {k_[5:]: setting(k_) for k_ in NTFY_KEYS}
     return v if v["server"] and v["topic"] else None
 
+app.jinja_env.globals["inbox_notice_on"] = lambda: setting(inboxnotice.KEY_ON) == "1"
+app.jinja_env.globals["backup_notice_on"] = lambda: setting(inboxnotice.KEY_BACKUP_ON) == "1"
+
+def _with_app(fn):
+
+    with app.app_context():
+        return fn()
+
 def ntfy_mirror():
 
     v = ntfy_settings()
@@ -12027,8 +12159,26 @@ def security_notice():
             session["notice"] = "Test notice sent, and these settings are saved. If it doesn't arrive, check the topic in the ntfy app."
         else:
             session["notice"] = "Test notice sent. If it doesn't arrive, check the topic in the ntfy app on your phone."
+    elif act == "inbox":
+
+        on_ = bool(f.get("inbox_on")) and bool(ntfy_settings())
+        if on_ != (setting(inboxnotice.KEY_ON) == "1"):
+            _put_setting(inboxnotice.KEY_ON, "1" if on_ else "0")
+            x("DELETE FROM settings WHERE key=?", (inboxnotice.KEY_STATE,))
+            audit("Turned on the studio inbox notice" if on_ else "Turned off the studio inbox notice")
+        session["notice"] = ("You'll get a notice when something new comes in: counts only, at most one every "
+                             f"{inboxnotice.QUIET.seconds // 60} minutes." if on_ else "The studio inbox notice is off.")
+    elif act == "backup":
+
+        on_ = bool(f.get("backup_on")) and bool(ntfy_settings())
+        if on_ != (setting(inboxnotice.KEY_BACKUP_ON) == "1"):
+            _put_setting(inboxnotice.KEY_BACKUP_ON, "1" if on_ else "0")
+            x("DELETE FROM settings WHERE key=?", (inboxnotice.KEY_BACKUP_STATE,))
+            audit("Turned on the backup notice" if on_ else "Turned off the backup notice")
+        session["notice"] = ("You'll get a notice when a backup fails or none has worked for over a day: at most one a "
+                             "day while it lasts." if on_ else "The backup notice is off.")
     elif act == "remove":
-        for k_ in NTFY_KEYS:
+        for k_ in NTFY_KEYS + (inboxnotice.KEY_ON, inboxnotice.KEY_STATE, inboxnotice.KEY_BACKUP_ON, inboxnotice.KEY_BACKUP_STATE):
             x("DELETE FROM settings WHERE key=?", (k_,))
         ntfy_mirror()
         audit("Turned off the locked-studio notice")
@@ -12103,6 +12253,9 @@ if datakey.exists():
     locknotice.started_locked()
     if not os.environ.get("CRM_TESTING"):
         locknotice.start_loop(datakey.is_unlocked, app.logger)
+if not os.environ.get("CRM_TESTING"):
+    inboxnotice.start_loop(datakey.is_unlocked, connect, lambda: _with_app(ntfy_settings), app.logger,
+                           backup_problem=lambda: _with_app(backup_problem))
 
 if __name__ == "__main__":
     raise SystemExit("Start Lumen Aureum with: python serve.py")

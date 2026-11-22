@@ -40,7 +40,7 @@ def register(ctx):
         if not s:
             abort(404)
         subjects = q("""SELECT p.* FROM people p JOIN session_people sp ON sp.person_id=p.id
-                        WHERE sp.session_id=? ORDER BY p.is_minor, p.id""", (sid,))
+                        WHERE sp.session_id=? ORDER BY p.is_minor, p.name COLLATE NOCASE""", (sid,))
         adults = q("""SELECT * FROM people WHERE household_id=? AND is_minor=0 AND role IN ('parent','adult')
                       ORDER BY role='parent' DESC, id""", (s["household_id"],))
         return s, subjects, adults
@@ -305,7 +305,7 @@ body { margin: 0; font: 12.5pt/17.5pt "Times New Roman", Times, serif; color: #0
   <p>The gallery is available for {{ days }} days after you first open it, so open it when you have some quiet time to enjoy them.</p>
   {% if proofs and not download %}<p>Once you have picked, I'll finish your photos and send them to you.</p>{% else %}
   {% if download %}<p>Please download them before the gallery closes.</p>{% elif delivery and delivery != 'as full-resolution digital files, with an online gallery' %}<p>You will also receive every edited photo {{ delivery }}.</p>{% elif sd %}<p>Every edited photo will also come to you on an SD card.</p>{% endif %}
-  <p>{% if event_family %}Your photos are for your family's personal use: to print, share and post, not to sell. The license letter with your photos has the details.{% elif license %}Your license to use the photos is set out in your agreement, and your license letter is a print release for any print lab.{% else %}The photos are yours to print and use however you like.{% endif %}</p>{% endif %}
+  <p>{% if event_family %}Your photos are for your family's personal use: to print, share, and post, not to sell. The license letter with your photos has the details.{% elif license %}Your license to use the photos is set out in your agreement, and your license letter is a print release for any print lab.{% else %}The photos are yours to print and use however you like.{% endif %}</p>{% endif %}
   <p>With thanks,</p>
   <div class="sig">{% if photographer %}{{ photographer }}{% endif %}{% if studio %}<i>{{ studio }}</i>{% endif %}</div>
 {% if credit %}<p class="sans" style="margin-top:18pt;text-align:center;font-size:8pt;color:#8a8478">{{ credit }}</p>{% endif %}

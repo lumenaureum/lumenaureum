@@ -47,7 +47,7 @@
   <div class="ui-form-grid">
     {%- set opt_ = '' if p else ' (optional)' %}
     <label><span>Name</span><input name="name" maxlength="200" value="{{ p.name if p else '' }}"{% if not p %} required{% endif %}></label>
-    <label><span>Relationship{{ opt_ }}</span><input name="relation" list="rels" value="{{ (p.relation or '') if p else '' }}" placeholder="mother, son, owner"></label>
+    <label><span>Relationship{{ opt_ }}</span><input name="relation" list="rels" autocomplete="off" value="{{ (p.relation or '') if p else '' }}" placeholder="mother, son, owner"></label>
     <label><span>Email{{ opt_ }}</span><input type="email" name="email" maxlength="200" value="{{ p.email if p else '' }}"></label>
     <label><span>Phone{{ opt_ }}</span><input type="tel" name="phone" maxlength="200" value="{{ p.phone if p else '' }}"></label>
     {% if show_born %}<label><span>Born or due{{ opt_ }}</span><input type="date" name="birth_date" value="{{ (p.birth_date or '') if p else '' }}" class="ui-input-date"></label>{% endif %}
@@ -60,8 +60,20 @@
 {%- endmacro %}
 
 
-{% call ui.section('People', id='people') %}
+{% call ui.section('People', id='people', part=true) %}
   {% with clash_form='person' %}{% include "_edit_clash.html" %}{% endwith %}
+  <datalist id="rels">{% for r in relations_in_use() %}<option value="{{ r }}">{% endfor %}</datalist>
+
+
+  {% for p in people %}{% set fb_ = p.name.split()[0] if p.name.split()|length > 1 else p.name %}{% set wl_ = p.name ~ who_is(p)[fb_|length:] %}
+  {% call ui.fold(wl_ ~ ((', ' ~ p.phone) if p.phone else ''), id='person-' ~ p.id, open=(offer and offer.p.id == p.id)) %}
+    <form method="post" action="{{ url_for('person_save', pid=p.id) }}" id="p{{ p.id }}" data-ui-inplace><input type="hidden" value="{{ edit_stamp('people', p.id) }}" name="seen">
+      {{ person_fields(p, 'p' ~ p.id) }}
+      <div class="ui-btnrow"><button class="ui-btn ui-btn-primary" data-ui-unchanged="No changes to save">Save {{ p.name }}</button>
+        <button class="ui-btn ui-btn-quiet" name="delete" value="1" data-confirm="Remove {{ p.name }}? A release they already signed stays as a record until the client is deleted.">Remove {{ p.name }}</button></div>
+    </form>
+  {% endcall %}{% else %}<p class="ui-mute">No one yet.</p>{% endfor %}
+  
   {% if offer %}{% set who_ = offer.p.name.split()[0] if offer.p.name.split() else offer.p.name %}{% set one_ = offer.sessions|length == 1 %}
   {% call ui.needs('Add ' ~ who_ ~ ' to a session?', id='offer', part=false) %}
     <p class="ui-needs-line" id="offer-q">{% if one_ %}{% set o_ = offer.sessions[0] %}Add {{ who_ }} to the {{ o_.what }} session{% if o_.when %} on {{ o_.when }}{% endif %} too?{% else %}Add {{ who_ }} to an open session too?{% endif %}</p>
@@ -69,19 +81,8 @@
       {% for o in offer.sessions %}{{ ui.action(url_for('session_subject_add', sid=o.id), ('Add ' ~ who_) if one_ else (o.what ~ (', ' ~ o.when if o.when else '')), dict(person_id=offer.p.id), url_for('client_view', hid=h.id, added=offer.p.id) ~ '#people', 'primary', inplace=false) }}{% endfor %}
       {{ ui.button_link(url_for('client_view', hid=h.id) ~ '#people', 'Not this time') }}</div>
   {% endcall %}{% endif %}
-  <datalist id="rels">{% for r in RELATIONS %}<option value="{{ r }}">{% endfor %}</datalist>
-
-
-  {% for p in people %}{% set fb_ = p.name.split()[0] if p.name.split()|length > 1 else p.name %}{% set wl_ = p.name ~ who_is(p)[fb_|length:] %}
-  {% call ui.fold(wl_ ~ ((', ' ~ p.phone) if p.phone else ''), id='person-' ~ p.id, open=(offer and offer.p.id == p.id)) %}
-    <form method="post" action="{{ url_for('person_save', pid=p.id) }}" id="p{{ p.id }}"><input type="hidden" value="{{ edit_stamp('people', p.id) }}" name="seen">
-      {{ person_fields(p, 'p' ~ p.id) }}
-      <div class="ui-btnrow"><button class="ui-btn ui-btn-primary">Save {{ p.name }}</button>
-        <button class="ui-btn ui-btn-quiet" name="delete" value="1" data-confirm="Remove {{ p.name }}? A release they already signed stays as a record until the client is deleted.">Remove {{ p.name }}</button></div>
-    </form>
-  {% endcall %}{% else %}<p class="ui-mute">No one yet.</p>{% endfor %}
   {% call ui.fold('+ Add a person', id='person-new') %}
-    <form method="post" action="{{ url_for('person_add', hid=h.id) }}" id="pnew">
+    <form method="post" action="{{ url_for('person_add', hid=h.id) }}" id="pnew" data-ui-inplace data-ui-done-close="person-new">
       {{ person_fields(none, 'pnew') }}
       <div class="ui-btnrow"><button class="ui-btn ui-btn-primary">Add person</button></div>
     </form>

@@ -52,7 +52,7 @@
   <span class="ui-tline-main">
     <span class="ui-tline-who"><b class="ui-tline-name">{{ i_.name }}</b> {{ ui.chip('New', 'attention') }} <span class="ui-tline-stage">Website inquiry, {{ i_.received }}, to add or mark spam</span></span>
     <small class="ui-todo-line">{% if i_.email %}{{ i_.email }}{% endif %}{% if i_.phone %}{{ ' &middot; '|safe if i_.email }}{{ i_.phone }}{% endif %}</small>
-    <small class="ui-todo-line">Kind of session: {{ i_.type_label or 'Not sure yet' }}{% if i_.date %}, preferred date {{ i_.date }}{% endif %}</small>
+    <small class="ui-todo-line">Kind of session: {{ i_.type_label or 'Not sure yet' }}{% if i_.date %}, preferred date {{ nice(i_.date) or i_.date }}{% endif %}</small>
     {% if i_.message %}<small class="ui-todo-line ui-todo-detail">{{ i_.message }}</small>{% endif %}
     {% if i_.cut %}<small class="ui-todo-line">The message was longer than {{ cut }} characters; only the first {{ cut }} were kept.</small>{% endif %}
     {% if i_.matches or i_.twin %}<span class="ui-chips">{% for m_ in i_.matches %}{{ ui.chip('Matches ' ~ m_.name ~ ': the same email or phone number', 'attention') }}{% endfor %}

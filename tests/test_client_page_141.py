@@ -70,8 +70,8 @@ def test_inquiry_shows_their_words_with_reply_build_a_quote_and_do_not_book(env)
     page = _page(c)
     needs = _needs(page)
     assert 'id="message"' in needs and "Any weekend dates in December?" in needs
-    assert 'data-ui-mail="mailto:alex.morgan.long.address@example.com' in needs and ">Reply</button>" in needs
-    assert 'action="/session/1/reply"' in needs
+    assert 'href="mailto:alex.morgan.long.address@example.com' in needs and ">Reply by email</a>" in needs
+    assert 'action="/session/1/reply"' in needs and ">Mark replied</button>" in needs
     assert ">Do not book</button>" in needs and 'value="lost"' in needs
     assert ">Build a quote</a>" in needs and 'name="act" value="book"' not in needs
     assert _fold(page, "billing").startswith("<section")

@@ -233,3 +233,25 @@ def test_built_in_steps_keep_their_names(tmp_path, monkeypatch):
     page = c.get("/settings/type/family", environ_base=E).get_data(as_text=True)
     assert 'name="quoted_1_label" value="Send quote"' not in page.replace('type="hidden" ', '') or "(built in)" in page
     assert "(built in)" in page
+
+def test_the_x_on_the_portfolio_line_records_not_allowed(tmp_path, monkeypatch):
+
+    import re as _re
+    A, c = _app(tmp_path, monkeypatch)
+    import config as C
+    form = {"questions": "\n".join(q for _, q in C.INTAKE["family"]), "notice_hours": "48", "late_minutes": "30",
+            "delivery": "online", "weather": "rain date", "license_use": "x", "portfolio_value": "25", "portfolio_mode": "amt"}
+    c.post("/settings/type/family", data=form, environ_base=E)
+    with A.app.test_request_context():
+        A.db()
+        sid = A.create_session(1, "family")
+    c.post(f"/session/{sid}/money", data={"what": "line", "label": "Session", "amount": "300"}, environ_base=E)
+    tot = lambda: _q(A, "SELECT COALESCE(SUM(amount),0) FROM lines WHERE session_id=?", (sid,))[0][0]
+    assert tot() == 275
+    page = c.get(f"/c/1?s={sid}", environ_base=E).get_data(as_text=True)
+    m = _re.search(r'<form method="post" action="(/session/\d+/portfolio)"[^>]*>(?:<input[^>]*>)*<button class="ui-x"', page)
+    assert m and 'name="set" value="declined"' in page
+    c.post(m.group(1), data={"set": "declined", "back": f"/c/1?s={sid}"}, environ_base=E)
+    assert tot() == 300 and _q(A, "SELECT portfolio_no FROM sessions WHERE id=?", (sid,))[0][0] == 1
+    c.post(f"/session/{sid}/money", data={"what": "line", "label": "Prints", "amount": "50"}, environ_base=E)
+    assert tot() == 350

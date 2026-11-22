@@ -312,6 +312,8 @@ CREATE INDEX IF NOT EXISTS print_lab_costs_order ON print_lab_costs(order_id);
                                 (now_, None, sid, f"Print order received from {data['who']['name']}: "
                                  + P.n_prints(sum(l_['qty'] for l_ in data['lines']))
                                  + ("" if cid else " (from someone not on file: on the review list)"), "Lumen Aureum"))
+                    import inboxnotice
+                    inboxnotice.arrived(con, "print")
                 con.execute("COMMIT")
                 return True
             except BaseException:

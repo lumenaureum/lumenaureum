@@ -78,6 +78,27 @@ later at the soonest. A restart while the studio is still locked keeps the time 
 more than the one a day. When you sign in after 15 minutes or more locked, Today says once since when the studio was
 locked; the backups and gallery closings that waited catch up then.
 
+## The studio inbox notice
+Beside **Studio locked after a restart**, **Something new in the studio inbox** is a second, optional notice through
+the same ntfy server and topic. It is off until you tick it. When it is on, the app sends a notice when a new website
+inquiry, a client's picks or a print order comes in. The notice says only how many came in, by kind: "3 new: 2
+inquiries, 1 set of picks", or "1 new print order". It never carries a name, an email address, a session title, an ID,
+an amount, a date or a link, because anyone who knows the topic can read it, and anyone near your phone can read its
+lock screen.
+
+What comes in together is one notice, and there is at most one every 30 minutes; the next one carries everything that
+came in meanwhile. Spam and form posts the app throws away are never counted. The counts waiting to be sent are kept in
+the encrypted settings, so a restart neither loses nor repeats them, and turning the notice off or on starts afresh. It
+runs only while the studio is unlocked: while it is locked, the app can't read its settings, and the locked-studio
+notice covers that time. A notice that fails is written to the app's log and tried again ten minutes later at the
+soonest; counting never holds up or breaks taking in the inquiry, picks or order. The audit log records only that the
+notice was turned on or off.
+
+**A backup failed or is late** is a third optional box, off until you tick it. It sends "The last backup failed" or
+"No backup has been made in over a day", with nothing else: never the error's own words, a folder or a server. It is
+sent when backups go wrong, then at most once a day while they stay that way; once a backup works again, the next
+problem is told at once. Like the inbox notice, it runs only while the studio is unlocked.
+
 The app has no key while it is locked, so it can't read the server address, topic and token from the encrypted
 database. It keeps a copy of them, with the studio's time zone, in a small plain file in the data folder,
 `ntfy.json`, and anyone who can read the data folder can read them. Use a topic nobody could guess, and an access

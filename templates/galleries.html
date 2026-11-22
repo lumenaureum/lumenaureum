@@ -1,0 +1,48 @@
+{% extends "base.html" %}{% import "_ui.html" as ui with context %}{% import "_ui_filter.html" as uf with context %}
+{% block title %}Galleries - Lumen Aureum{% endblock %}
+
+{% macro menu_off(label, why) -%}<button type="button" class="ui-menu-item" disabled>{{ label }}<small class="ui-menu-why">{{ why }}</small></button>{%- endmacro %}
+{% block body %}
+<div class="ui-page" data-ui-layout="galleries">
+{%- set n_ = cards|length -%}
+{%- set facts_ = [n_ ~ ' galler' ~ ('y' if n_ == 1 else 'ies')] + ([here|size ~ ' here'] if here else []) + ([host|size ~ ' on the web host'] if n_host else []) -%}
+{{ ui.page_head('Galleries', status=facts_|join(' · ')) }}
+
+{%- set phases_ = [] %}{% set kinds_ = [] %}{% set looks_ = [] %}
+{%- for c in cards %}{% set _ = phases_.append(c.phase) %}{% set _ = kinds_.append(c.kind) %}{% if c.needs %}{% set _ = looks_.append('Needs you') %}{% endif %}{% endfor %}
+{{ uf.filter_bar('galleries', today_iso, status=false,
+                 groups=[dict(key='phase', label='Phase', values=phases_), dict(key='kind', label='Kind', values=kinds_),
+                         dict(key='look', label='Needs you', values=looks_)],
+                 placeholder='Find a client, title or gallery id', noun='galleries',
+                 sorts=[('closing', 'Closing soonest', 'closes', 'asc', false), ('newest', 'Newest', 'made', 'desc', false),
+                        ('host', 'Largest on the web host', 'host', 'desc', true), ('here', 'Largest here', 'here', 'desc', true)],
+                 sort='closing') }}
+
+{% set count_ %}<span data-f-count data-one="gallery" data-many="galleries">{{ n_ }} galler{{ 'y' if n_ == 1 else 'ies' }}</span>{% endset %}
+{% call ui.section(count_, id='gallery-cards') %}
+{% if cards %}<ul class="ui-covers">
+{%- for c in cards %}
+  {%- set tone_ = 'attention' if c.phase == 'Closing' else 'done' if c.phase == 'Closed' else 'neutral' -%}
+  {%- set made_ = [c.kind, c.n ~ ' photo' ~ ('' if c.n == 1 else 's')] + (['made ' ~ nice(c.made)] if c.made else []) + (['online since ' ~ nice(c.since)] if c.since else []) -%}
+  {%- set space_ = ([c.here|size ~ ' here'] if c.here else []) + ([c.host|size ~ ' on the web host'] if c.host is not none else []) -%}
+  {%- set attrs_ %}{{ uf.item(groups=dict(phase=c.phase, kind=c.kind, look='Needs you' if c.needs else ''), sort=dict(closes=c.closes, made=c.made, host=c.host or 0, here=c.here, name=c.client)) }} data-gallery="{{ c.gid }}"{% endset -%}
+  
+  {%- set why_close_ = '' if c.online else 'Not online yet' if c.phase == 'Not online yet' else 'Already off the web' -%}
+  {% call ui.cover_card(url_for('client_stage', hid=c.hid, s=c.sid) ~ '#gallery', c.cover, c.client,
+                        lines=[([c.type_label] + ([c.title] if c.title else []))|join(' · '), made_|join(' · '), c.words,
+                               c.act|join(' · '), c.extras|join(' · '), space_|join(' · ')],
+                        right=ui.chip(c.phase, tone_), attrs=attrs_, notes=c.needs,
+                        menu='show it on the client page, upload, close now') %}
+    <a class="ui-menu-item" href="{{ url_for('client_stage', hid=c.hid, s=c.sid) }}#gallery">Show it on the client page</a>
+    {%- if not c.up_why %}<form method="post" action="{{ url_for('upload_gallery_req', sid=c.sid) }}"><input type="hidden" name="back" value="{{ url_for('galleries_view') }}"><button class="ui-menu-item">Upload</button></form>
+    {%- else %}{{ menu_off('Upload', c.up_why) }}{% endif %}
+    {%- if c.online %}<form method="post" action="{{ url_for('gallery_close_now', sid=c.sid) }}" data-confirm="Take this gallery off the web host now? What the client sent is collected first."><input type="hidden" name="back" value="{{ url_for('galleries_view') }}"><button class="ui-menu-item">Close now</button></form>
+    {%- else %}{{ menu_off('Close now', why_close_) }}{% endif %}
+  {%- endcall %}
+{%- endfor %}
+</ul>{% else %}<p class="ui-mute">No galleries yet. A gallery shows here once it is made.</p>{% endif %}
+{% endcall %}
+</div>
+<script src="{{ url_for('static', filename='filters.js', v=static_v('filters.js')) }}"></script>
+{% endblock %}
+

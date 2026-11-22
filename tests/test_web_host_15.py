@@ -68,7 +68,10 @@ def test_the_inbox_count_never_covers_more_on_a_phone_and_follows_spam(browser, 
         p.goto(BASE + "/")
         n = p.locator("a.ui-inbox .ui-inbox-n").bounding_box()
         more = p.locator("details.ui-nav-more > summary").bounding_box()
-        assert n["x"] + n["width"] <= more["x"], (n, more)
+
+        apart = (n["x"] + n["width"] <= more["x"] or more["x"] + more["width"] <= n["x"]
+                 or n["y"] + n["height"] <= more["y"] or more["y"] + more["height"] <= n["y"])
+        assert apart, (n, more)
         before = p.locator("a.ui-inbox .ui-inbox-n").inner_text()
         p.locator(f"#inq-{ids['Two']} summary").click()
         p.locator(f"#inq-{ids['Two']}").get_by_role("button", name="Spam").click()

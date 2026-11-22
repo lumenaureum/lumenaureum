@@ -390,7 +390,7 @@ def test_every_gallery_and_its_host_record_is_as_1_3_1_left_it(upgraded):
     today = _page(c, "/")
     assert "needs the new link" not in today and "still on your earlier web host" not in today
     assert "of a deleted session" not in today and "still have to come down" not in today
-    assert "1 old copy of a gallery still has to come down" in today
+    assert "1 old gallery folder still has to come down" in today
     for sid in (lane, ivers):
         link = _in_request(A, lambda: A.app.config["gallery_link"](int(sid)))
         assert link.startswith(EXPECTED["gallery_base_url"])

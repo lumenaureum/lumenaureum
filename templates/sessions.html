@@ -12,8 +12,8 @@
 {% set shown_ = rows|selectattr('in_view')|list|length %}
 {% set vlinks_ = [] %}{% for k_, v_ in views.items() if k_ != 'all' %}{% set _ = vlinks_.append((k_, 'Upcoming' if k_ == 'upcoming' else v_[0], url_for('sessions', view=k_, q=request.args.get('q') or None))) %}{% endfor %}
 {{ uf.filter_bar('sessions', today_iso, groups=[dict(key='stage', label='Stage', values=stages_), dict(key='type', label='Type', values=types_),
-                 dict(key='money', label='Money', values=owing_), dict(key='label', label='Labels', values=labs_)],
-                 q=request.args.get('q', ''), placeholder='Filter by name, title or event', noun='sessions', keep=dict(view=view), server=true,
+                 dict(key='money', label='Money', values=owing_)],
+                 q=request.args.get('q', ''), placeholder='Filter by name, title, event, or label:name', noun='sessions', keep=dict(view=view), server=true,
                  views=vlinks_, view=view, default=['open'], clear_url=url_for('sessions', view='all'), nothing=rows and not shown_) }}
 
 {% set count_ %}<span data-f-count data-one="session" data-many="sessions">{{ shown_ }} session{{ '' if shown_ == 1 else 's' }}</span>{% endset %}

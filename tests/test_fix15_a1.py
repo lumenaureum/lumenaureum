@@ -211,8 +211,13 @@ def test_codeword_saved_from_the_client_page(env):
     _session(A, "family", "shot", days=-3, start="10:00", place="Park")
     r = c.post("/session/1/codeword", data={"gallery_codeword": "heron", "back": "/c/1?s=1"}, environ_base=E,
                follow_redirects=True)
-    assert "too easy to guess" in r.get_data(as_text=True)
+    assert 'Use "heron" as the codeword?' in r.get_data(as_text=True)
     assert _sql(A, "SELECT gallery_codeword FROM sessions WHERE id=1")[0][0] in ("", None)
+    c.post("/session/1/codeword", data={"gallery_codeword": "heron", "cw_ok": "1", "back": "/c/1?s=1"}, environ_base=E)
+    assert _sql(A, "SELECT gallery_codeword FROM sessions WHERE id=1")[0][0] == "heron"
+    r = c.post("/session/1/codeword", data={"cw_make": "1", "back": "/c/1?s=1"}, environ_base=E, follow_redirects=True)
+    made = _sql(A, "SELECT gallery_codeword FROM sessions WHERE id=1")[0][0]
+    assert len(made.split()) == 5 and f"Made the codeword &#34;{made}&#34;" in r.get_data(as_text=True)
     r = c.post("/session/1/codeword", data={"gallery_codeword": "heron maple tide", "back": "/c/1?s=1"}, environ_base=E)
     assert r.headers["Location"].endswith("/c/1?s=1")
     assert _sql(A, "SELECT gallery_codeword FROM sessions WHERE id=1")[0][0] == "heron maple tide"
@@ -307,3 +312,21 @@ def test_picks_alone_still_say_picks_came_in(env):
     _sql(A, "UPDATE sessions SET favorites='IMG_1' WHERE id=1")
     _in(A, lambda: A.advance(1))
     assert [h for h in _history(A) if h.startswith("Moved to Delivered: the client's picks came in.")]
+
+def test_make_one_for_me_is_never_a_short_list_and_make_another_replaces_it(env):
+
+    import math
+    from plugins import gallery as G
+    assert len(set(G.CODEWORD_WORDS)) >= 1000 and G.CODEWORD_PICKS * math.log2(len(set(G.CODEWORD_WORDS))) >= 50
+    assert not {"grope", "panty", "arson", "trump", "polio", "xerox"} & set(G.CODEWORD_WORDS)
+    A, c = env
+    _session(A, "family", "shot", days=-3, start="10:00", place="Park")
+    c.post("/session/1/codeword", data={"cw_make": "1", "back": "/c/1?s=1"}, environ_base=E)
+    first = _sql(A, "SELECT gallery_codeword FROM sessions WHERE id=1")[0][0]
+    page = c.get("/c/1?s=1", environ_base=E).get_data(as_text=True)
+    assert f"Codeword: {first}" in page and "Make another" in page
+    seen = {first}
+    for _ in range(3):
+        c.post("/session/1/codeword", data={"cw_make": "1", "back": "/c/1?s=1"}, environ_base=E)
+        seen.add(_sql(A, "SELECT gallery_codeword FROM sessions WHERE id=1")[0][0])
+    assert len(seen) == 4

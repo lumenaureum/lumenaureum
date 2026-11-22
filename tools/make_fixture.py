@@ -2004,6 +2004,9 @@ VERSIONS = {
     "1.5.2": dict(commit="31b64af", scenario=scenario_150, files=("ntfy.json",),
                   dirs=("galleries", "galleries-kept", "host", "web", "photos", "faces"),
                   env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
+    "1.5.3": dict(commit="1b36647", scenario=scenario_150, files=("ntfy.json",),
+                  dirs=("galleries", "galleries-kept", "host", "web", "photos", "faces"),
+                  env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
 }
 
 def inner(version, code, work, made_with):

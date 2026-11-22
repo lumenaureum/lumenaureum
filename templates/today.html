@@ -23,6 +23,7 @@
 <div class="ui-page" data-ui-layout="today">
 
 {{ ui.page_head(today.strftime('%A, %B %-d'), status=(facts_|join(' &middot; ')|safe) if facts_ else '', kicker='Today', id='today-head', sub=updated_) }}
+<div class="ui-today-cols"><div class="ui-today-main">
 
 
 {% if clock_paused or unconfirmed %}{% call sect('Check first', 'check-first') %}
@@ -53,8 +54,8 @@
 
 
 {% set n_lines_ = n_work + B.quiet|length + loose|length %}
-{% if n_lines_ > 1 %}{{ uf.filter_bar('today', today_iso, groups=[dict(key='kind', label='Kind', values=kinds.kind + (['Other'] * loose|length)), dict(key='label', label='Labels', values=kinds.label)],
-                                placeholder='Filter by name or task', scope='work') }}{% endif %}
+{% if n_lines_ > 1 %}{{ uf.filter_bar('today', today_iso, groups=[dict(key='kind', label='Kind', values=kinds.kind + (['Other'] * loose|length))],
+                                placeholder='Filter by name, task, or label:name', scope='work') }}{% endif %}
 
 
 {% if n_work or loose or B.quiet %}{% call sect('Tasks', 'work') %}
@@ -78,8 +79,18 @@
 {% if ns.first %}{% call sect('Today', 'work') %}<p class="ui-needs-line">Nothing waits on you today.</p>{% endcall %}{% endif %}
 
 
+{% if updated %}{% call ui.dismissible(url_for('update_notice_hide'), back, title='Updated to Lumen Aureum ' ~ updated.version, id='update-note', part=true) %}
+  <p>{{ ui.go(url_for('about') ~ '#whats-new', "What's new in " ~ updated.version) }}</p>
+  <p>{% if updated.backup %}A backup of your data from before the update is under {{ ui.go(url_for('vault_view'), 'Settings, Backups') }}: the one marked Before the update{% if updated.backup_at %}, {{ nice(updated.backup_at[:10]) }} at {{ clock(updated.backup_at[11:16]) }}{% endif %}.{% elif updated.changed %}Your data was updated. No backup was made first, because backups aren't set up: {{ ui.go(url_for('vault_view'), 'Settings, Backups') }}.{% else %}Your data didn't need changes, so no backup was made.{% endif %}</p>
+  {% if updated.stages %}<p>{{ updated.stages }}</p>{% endif %}
+  <p class="ui-mute">An update signs everyone out, so each device asks you to sign in again.</p>
+{% endcall %}{% else %}<div id="update-note" data-ui-part hidden></div>{% endif %}
+</div>
+<aside class="ui-today-side">
+
 {% set n_sh = days|sum(attribute='shoots', start=[])|length %}{% set n_due = days|sum(attribute='due', start=[])|length %}
-{% call ui.fold('Next two weeks', id='two-weeks', part=true, count=n_sh + n_due, note=(n_sh ~ (' shoot' if n_sh == 1 else ' shoots') ~ ', ' ~ n_due ~ (' step' if n_due == 1 else ' steps')) if days else 'Nothing planned') %}
+{% call ui.section('Next two weeks', id='two-weeks', part=true) %}
+  {% if days %}<p class="ui-mute">{{ n_sh }} shoot{{ '' if n_sh == 1 else 's' }}, {{ n_due }} step{{ '' if n_due == 1 else 's' }}</p>{% else %}<p class="ui-mute">Nothing booked in the next two weeks.</p>{% endif %}
   {% for d in days %}{% set label_ = d.date.strftime('%a %b %-d') %}
     {% set rows_ %}{% for sh in d.shoots %}{{ ui.list_row(url_for('event_view', eid=sh.eid) if sh.event else url_for('client_stage', hid=sh.hid, s=sh.sid), 'Shoot: ' ~ sh.name,
         (clock(sh.time) if sh.time else ('%d families' % sh.n if sh.event else 'no start time yet')) ~ (', sunset ' ~ sh.light.sunset if sh.light else ''), ui.chip('Shoot', 'attention')) }}{% endfor %}
@@ -89,14 +100,7 @@
   {% endfor %}
   <div class="ui-btnrow">{{ ui.go(url_for('month_view'), 'Month calendar') }}{{ ui.go(url_for('year_view'), 'Year calendar') }}</div>
 {% endcall %}
-
-
-{% if updated %}{% call ui.dismissible(url_for('update_notice_hide'), back, title='Updated to Lumen Aureum ' ~ updated.version, id='update-note', part=true) %}
-  <p>{{ ui.go(url_for('about') ~ '#whats-new', "What's new in " ~ updated.version) }}</p>
-  <p>{% if updated.backup %}A backup of your data from before the update is under {{ ui.go(url_for('vault_view'), 'Settings, Backups') }}: the one marked Before the update{% if updated.backup_at %}, {{ nice(updated.backup_at[:10]) }} at {{ clock(updated.backup_at[11:16]) }}{% endif %}.{% elif updated.changed %}Your data was updated. No backup was made first, because backups aren't set up: {{ ui.go(url_for('vault_view'), 'Settings, Backups') }}.{% else %}Your data didn't need changes, so no backup was made.{% endif %}</p>
-  {% if updated.stages %}<p>{{ updated.stages }}</p>{% endif %}
-  <p class="ui-mute">An update signs everyone out, so each device asks you to sign in again.</p>
-{% endcall %}{% else %}<div id="update-note" data-ui-part hidden></div>{% endif %}
+</aside></div>
 
 </div>
 <div class="vh" id="ui-live" role="status" aria-live="polite"></div>

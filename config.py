@@ -48,11 +48,11 @@ ORGANIZER_PAYER_FLOW = {
     "delivered": [("do", "Deliver the organizer's copies", 21)],
 }
 EVENT_RIGHTS = {"families": ("I keep the copyright in the event photos. Each family receives a permanent personal license to its own"
-                             " photos and to group photos that include its child: to print, share and post them, not to sell them."
+                             " photos and to group photos that include its child: to print, share, and post them, not to sell them."
                              " The organizer may use event photos in its newsletter and on its website, without names."),
                 "organizer": ("The organizer owns the copyright in the event photos under its agreement with me. Each family"
                               " receives, from the organizer through me, a permanent personal license to its own photos and to"
-                              " group photos that include its child: to print, share and post them, not to sell them."),
+                              " group photos that include its child: to print, share, and post them, not to sell them."),
                 "custom": ""}
 
 EVENT_RIGHTS_RELEASE = {"families": ("{photographer} keeps the copyright in the event photos. My family receives a permanent personal"
@@ -61,7 +61,7 @@ EVENT_RIGHTS_RELEASE = {"families": ("{photographer} keeps the copyright in the 
                                      " website, without names."),
                         "organizer": ("The organizer owns the copyright in the event photos under its agreement with"
                                       " {photographer}. My family receives a permanent personal license to our own photos and to"
-                                      " group photos that include {person}: to print, share and post them, not to sell them.")}
+                                      " group photos that include {person}: to print, share, and post them, not to sell them.")}
 
 EVENT_RIGHTS_ORGANIZER = {"organizer": ("When the balance is paid in full, I transfer to the organizer all copyright in the event"
                                         " photos I deliver. The organizer grants each participating family a permanent personal"
@@ -548,7 +548,7 @@ DEFAULT_FEES = preset_fees(BASIC_PRESETS)
 
 DISCOUNTS = [("", "No discount", 0), ("intro", "Introductory rate", 25), ("friends", "Friends and family", 20),
              ("nonprofit", "Nonprofit", 15)]
-QUOTE_TERM_DAYS = 30
+QUOTE_TERM_DAYS = 14
 DELIVERY_DAYS = 14
 RESCHEDULE_FEE = 50
 RETOUCH_PICKS = 5

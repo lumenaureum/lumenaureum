@@ -152,6 +152,17 @@
 
 
 
+{% macro cover_card(href, img, title, lines=[], right='', attrs='', notes=[], menu='') -%}
+<li class="ui-cover" {{ attrs }}><a class="ui-cover-link" href="{{ href }}"><span class="ui-cover-pic">
+{%- if img %}<img src="{{ img }}" alt="" loading="lazy">{% else %}<span class="ms" aria-hidden="true">photo_library</span>{% endif %}</span>
+<span class="ui-cover-main"><span class="ui-cover-title"><b>{{ title }}</b>{{ right }}</span>{% for l_ in lines if l_ %}<small>{{ l_ }}</small>{% endfor %}
+{%- for n_ in notes %}<small class="ui-cover-note ui-cover-note-{{ n_.tone }}">{{ n_.text }}</small>{% endfor %}</span></a>
+{%- if caller is defined %}<details class="ui-rowmore ui-cover-menu"><summary aria-label="Actions for {{ title }}{{ ': ' ~ menu if menu }}" data-tip="Actions{{ ': ' ~ menu if menu }}"><span class="ms" aria-hidden="true">more_horiz</span></summary><div class="ui-more-pop">{{ caller() }}</div></details>{% endif %}</li>
+{%- endmacro %}
+
+
+
+
 {% macro doc_bar(primary='') -%}
 <div class="ui-docbar">{{ primary }}
   <details class="ui-more"><summary class="ui-btn ui-btn-quiet">More</summary><div class="ui-more-pop">{{ caller() }}</div></details>

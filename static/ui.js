@@ -104,6 +104,7 @@ document.addEventListener('submit', async e => {
   }
 });
 function wire(root) {
+uiUnchanged(root);
 root.querySelectorAll('[data-ui-map]:not([data-ui-map-done])').forEach(el => {
   el.dataset.uiMapDone = '1';
   const q = encodeURIComponent(el.dataset.uiMap), ua = navigator.userAgent;
@@ -355,7 +356,8 @@ document.addEventListener('submit', async e => {
   if (f.dataset.uiBusy) return;
   const btn = e.submitter || f.querySelector('button:not([type=button]), [type=submit]');
   const body = new FormData(f); if (e.submitter && e.submitter.name) body.append(e.submitter.name, e.submitter.value);
-  const part = f.closest('[data-ui-part]'), anchorEl = f.closest('[id]'), anchorId = anchorEl && anchorEl.id;
+  const doneClose = f.dataset.uiDoneClose && document.getElementById(f.dataset.uiDoneClose);
+  const part = f.closest('[data-ui-part]'), anchorEl = doneClose || f.closest('[id]'), anchorId = anchorEl && anchorEl.id;
   const top0 = anchorEl ? anchorEl.getBoundingClientRect().top : 0, sig = uiSig(f);
   const prevId = anchorEl && anchorEl.previousElementSibling && anchorEl.previousElementSibling.id;
   const inInline = f.closest('.ui-inline'), boxId = inInline && inInline.id;
@@ -413,6 +415,7 @@ document.addEventListener('submit', async e => {
     keep = uiNote(fl, text_, refused);
     if (!refused) setTimeout(() => fl.remove(), 4700);      // gone with its note, never an empty line left on the row
   }
+  if (doneClose && !refused) { const d = document.getElementById(doneClose.id); if (d && d.matches('details')) d.open = false; }
   const ref = (anchorId && document.getElementById(anchorId)) || keep;
   if (ref && anchorEl) scrollBy({ top: ref.getBoundingClientRect().top - top0, behavior: 'instant' });   // the page does not move under the finger
 });
@@ -615,4 +618,15 @@ document.addEventListener('submit', e => {
 addEventListener('pageshow', e => { if (!e.persisted) return;
   document.querySelectorAll('form[data-busy-now]').forEach(f => { delete f.dataset.busyNow; f.removeAttribute('aria-busy'); f.classList.remove('ui-saving');
     f.querySelectorAll('[data-busy-was]').forEach(b => { b.textContent = b.dataset.busyWas; delete b.dataset.busyWas; }); }); });
+
+function uiUnchanged(root) {
+  root.querySelectorAll('button[data-ui-unchanged]:not([data-ui-unchanged-done])').forEach(b => {
+    const f = b.form; if (!f) return;
+    b.dataset.uiUnchangedDone = '1';
+    const label = b.textContent;
+    b.disabled = true; b.textContent = b.dataset.uiUnchanged;
+    const wake = () => { if (!b.disabled) return; b.disabled = false; b.textContent = label; };
+    f.addEventListener('input', wake); f.addEventListener('change', wake);
+  });
+}
 

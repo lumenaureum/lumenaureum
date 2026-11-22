@@ -14,6 +14,8 @@
   <label class="l">What kind of shoot?</label>
   {% set types_ = C.SESSION_TYPES.items()|selectattr(0, 'in', C.NEW_SESSION_TYPES)|list %}{% set types_ = types_|selectattr(0, 'equalto', last_type)|list + types_|rejectattr(0, 'equalto', last_type)|list %}
   <div class="row" style="flex-wrap:wrap;gap:8px">{% for k, v in types_ %}<a class="btn quiet" href="{{ url_for('inquiry', hid=h.id, type=k, msg=msg.id if msg else None) }}"{% if loop.first %} autofocus{% endif %}>{{ v }}</a>{% endfor %}</div>
+  
+  <p class="ui-mute" style="margin:8px 0 0">Not listed? <a class="ui-go" href="{{ url_for('setup_step', step='shoot') }}#types">Add a session type in Settings</a></p>
   <p class="sub" style="font-size:13px;margin-top:10px">Not listed? <a href="{{ url_for('setup_step', step='shoot') }}">Add a kind of shoot in Settings, What you shoot</a>.</p>
 </div>
 
@@ -28,10 +30,10 @@
   {% if people %}<div class="row" style="flex-wrap:wrap;gap:10px" role="group" aria-labelledby="who-l">
   {%- set kids_ = people|selectattr('role', 'equalto', 'child')|list %}{% set lead_ = (people|selectattr('role', 'in', ['parent', 'adult'])|first) if not kids_ and type_ not in C.ANIMAL_TYPES else none -%}
   {% for m in people %}<label class="ui-check"><input type="checkbox" name="subjects" value="{{ m.id }}" {{ 'checked' if m.role == 'child' or (lead_ and m.id == lead_.id) }}>{{ m.name }}</label>{% endfor %}</div>{% endif %}
-  <datalist id="rels">{% for r in RELATIONS %}<option value="{{ r }}">{% endfor %}</datalist>
+  <datalist id="rels">{% for r in relations_in_use() %}<option value="{{ r }}">{% endfor %}</datalist>
   {%- set age_ %}<div><label class="l" for="f-subject_age">Age</label><span class="agebox"><input type="number" id="f-subject_age" name="subject_age" min="0" max="120" data-age data-minor="subject_minor" data-approx="subject_age_approx" data-majority="{{ majority_age() }}"><label><input type="checkbox" name="subject_age_approx" value="1">approximate</label></span></div>{% endset %}
   <div class="f3 f3-age"><div><label class="l" for="f-subject_name">{{ 'Someone new' if people else 'Name' }}{{ help("Add several at once: Ava, Ben, and Cole.") }}</label><input id="f-subject_name" name="subject_name"></div>
-    <div><label class="l" for="f-subject_relation">Relationship</label><input id="f-subject_relation" name="subject_relation" list="rels" placeholder="daughter, son"{% if type_ in C.ANIMAL_TYPES %} value="pet" title="An animal is never a minor; change it for a person in the photos"{% endif %}></div>
+    <div><label class="l" for="f-subject_relation">Relationship</label><input id="f-subject_relation" name="subject_relation" list="rels" autocomplete="off" placeholder="daughter, son"{% if type_ in C.ANIMAL_TYPES %} value="pet" title="An animal is never a minor; change it for a person in the photos"{% endif %}></div>
     {% if type_ in C.GRAD_TYPES %}<div><label class="l" for="f-grad_year">Grad year</label><input type="number" id="f-grad_year" name="grad_year"></div>{% else %}{{ age_ }}{% endif %}</div>
   <div class="f3 f3-age"><div><span class="ui-label" id="f-subject_gender-l">Gender</span>{{ seg('subject_gender', ['F','M'], by='f-subject_gender-l') }}</div>
     {% if type_ in C.GRAD_TYPES %}{{ age_ }}{% endif %}

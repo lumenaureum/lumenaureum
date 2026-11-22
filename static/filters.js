@@ -32,7 +32,8 @@ const uiFilterStart = bar => {
   };
   const picked = k => st.g[k] || [];
   const okIn = (el, k) => { const p = picked(k); if (!p.length) return true; const h = has(el, k); return p.some(v => h.includes(v)); };
-  const okWords = (el, w) => { if (!w.length) return true; const t = (el.textContent + ' ' + Object.values(el.dataset).join(' ')).toLowerCase(); return w.every(x => t.includes(x)); };
+  const okWords = (el, w) => { if (!w.length) return true; const t = (el.textContent + ' ' + Object.values(el.dataset).join(' ')).toLowerCase();
+    return w.every(x => x.startsWith('label:') ? has(el, 'label').some(l => l.toLowerCase().includes(x.slice(6))) : t.includes(x)); };
   const match = (el, w, skip) => Object.keys(st.g).every(k => k === skip || okIn(el, k)) && okWords(el, w);
   const active = () => Object.values(st.g).some(p => p.length) || words().length > 0;
 

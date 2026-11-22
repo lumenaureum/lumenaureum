@@ -236,7 +236,7 @@ GROUPS = [
              what="A message to your phone when the studio restarts and stays locked.",
              ep="settings_view", args={"tab": "notifications"},
              fields=[dict(key="ntfy_server", label="Locked-studio notice", anchor="notice", input=None,
-                          words="ntfy notice notification notifications phone push locked restart unlock topic")]),
+                          words="ntfy notice notification notifications phone push locked restart unlock topic inbox new inquiry picks print order")]),
         dict(id="network", label="Who can reach this", sub="the addresses that can connect",
              what="Which devices can open Lumen Aureum.",
              ep="setup_step", args={"step": "network"},

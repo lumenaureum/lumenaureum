@@ -57,7 +57,7 @@ def test_an_old_copy_that_cant_be_reached_at_expiry_is_listed_and_comes_down_lat
     assert "manifest.bin" in _files(site.host, gid)
     assert [tuple(r) for r in site.q("SELECT gallery_id FROM gallery_leftovers")] == [(gid,)]
     assert f"Old Copy Away (an old copy, folder {gid})" in _move_page(site)
-    assert "1 old copy of a gallery still has to come down" in site.c.get("/", environ_base=E).get_data(as_text=True)
+    assert "1 old gallery folder still has to come down" in site.c.get("/", environ_base=E).get_data(as_text=True)
     (site.host / ".vault-root-off").rename(site.host / ".vault-root")
     site.q("DELETE FROM settings WHERE key LIKE 'gallery_unreachable:%'")
     site.sync()

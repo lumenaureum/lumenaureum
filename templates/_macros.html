@@ -5,7 +5,7 @@
 {%- if num -%}<a class="tel" href="tel:{{ num|replace('-', '')|replace(' ', '') }}">{{ num }}</a> <a class="sms" href="sms:{{ num|replace('-', '')|replace(' ', '') }}">text</a>{%- endif -%}
 {%- endmacro %}
 {% macro avatar(hid, size=32) -%}{%- set f = face(hid) -%}
-{%- if f.url -%}<img class="av" draggable="false" src="{{ f.url }}" alt="" style="width:{{ size }}px;height:{{ size }}px">
+{%- if f.url -%}<img class="av" draggable="false" loading="lazy" src="{{ f.url }}" alt="" style="width:{{ size }}px;height:{{ size }}px">
 {%- else -%}<span class="av" style="width:{{ size }}px;height:{{ size }}px;font-size:{{ [(size * 0.38)|int, 10]|max }}px;background:{{ f.color }}">{{ f.initials }}</span>{%- endif -%}
 {%- endmacro %}
 {% macro event_avatar(eid, name, size=32) -%}<span class="av ev" style="width:{{ size }}px;height:{{ size }}px;font-size:{{ [(size * 0.38)|int, 10]|max }}px">{{ (name.split()|map('first')|select('upper')|list)[:2]|join('') if name else 'EV' }}</span>{%- endmacro %}

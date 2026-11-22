@@ -299,14 +299,9 @@ nav {{ margin-top: 18px; display: flex; flex-wrap: wrap; gap: 4px 24px; justify-
 nav a {{ color: var(--mute); text-decoration: none; padding: 4px 0; border-bottom: 1px solid transparent; }}
 nav a:hover, nav a[aria-current] {{ color: var(--ink); border-bottom-color: var(--gold); }}
 #logo {{ display: block; max-height: 72px; max-width: min(320px, 70vw); width: auto; height: auto; }}
-header.two {{ display: grid; grid-template-columns: auto 1px minmax(0, 1fr); column-gap: 28px; align-items: center;
-  max-width: 980px; text-align: left; }}
-header.two #brand {{ grid-column: 1; justify-self: end; }}
-header.two .rule {{ grid-column: 2; width: 1px; height: 100%; min-height: 90px; margin: 0; align-self: stretch; }}
-header.two .words {{ grid-column: 3; }} header.two nav {{ justify-content: flex-start; }}
-@media (max-width: 640px) {{ header.two {{ display: block; text-align: center; }}
-  header.two #brand {{ display: inline-block; margin-bottom: 18px; }}
-  header.two .rule {{ width: 56px; height: 1px; min-height: 0; margin: 0 auto 16px; }} header.two nav {{ justify-content: center; }} }}
+header.two {{ text-align: center; }}       /* with a logo: logo, a short gold rule, then the words, all centered */
+header.two #brand {{ display: inline-block; margin-bottom: 18px; }}
+header.two .rule {{ width: 56px; height: 1px; margin: 0 auto 16px; }}
 main {{ flex: 1 0 auto; width: 100%; max-width: 1140px; margin: 0 auto; padding: 0 20px 28px; }}
 .carousel {{ position: relative; margin: 0 auto; width: 100%; aspect-ratio: {ratio}; }}
 .carousel img {{ position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0;
@@ -2779,6 +2774,8 @@ def register(ctx):
                       (sha, None, None, now_, why or "waiting"))
                     if item:
                         items.take(q, x, "inquiry", "", item)
+                    if not why:
+                        ctx.inbox_arrived("inquiry")
                     _g.db.commit()
                 except BaseException:
                     _g.db.rollback()

@@ -97,44 +97,41 @@ def _shot(A, sid):
     con.commit()
     con.close()
 
-def test_a_refused_codeword_stays_in_the_field(tmp_path, monkeypatch):
+def test_a_weak_codeword_asks_once_then_saves(tmp_path, monkeypatch):
+
     A, c = _app(tmp_path, monkeypatch)
     sid = _new(A, c, "family", subject_name="Ava")
     _shot(A, sid)
     assert _delivery(c, sid, "spruce otter raven").status_code == 302
     r = _delivery(c, sid, "blue")
-    assert r.status_code == 302
+    page = r.get_data(as_text=True)
+    assert r.status_code == 200 and 'Use "blue" as the codeword?' in page and "Use it anyway" in page
+    assert "Anyone with the gallery link could try words until one opens it." in page
     assert _q(A, "SELECT gallery_codeword FROM sessions WHERE id=?", (sid,))[0][0] == "spruce otter raven"
-    page = c.get(f"/session/{sid}/edit", environ_base=E).get_data(as_text=True)
-    assert "That codeword is too easy to guess. Use three or more words, or 14 letters or more" in page
-    field = re.search(r'<input name="gallery_codeword"[^>]*>', page).group(0)
-    assert 'value="blue"' in field and 'aria-invalid="true"' in field
-    assert "Not saved: this codeword is too easy to guess." in page
-    assert 'The saved codeword is still "spruce otter raven".' in page
+    assert c.post(f"/session/{sid}/delivery", data={"gallery_codeword": "blue", "cw_ok": "1"}, environ_base=E).status_code == 302
+    assert _q(A, "SELECT gallery_codeword FROM sessions WHERE id=?", (sid,))[0][0] == "blue"
 
-    page = c.get(f"/session/{sid}/edit", environ_base=E).get_data(as_text=True)
-    assert 'value="spruce otter raven"' in re.search(r'<input name="gallery_codeword"[^>]*>', page).group(0)
-    assert "Not saved:" not in page
-
-def test_a_refused_codeword_at_intake_is_quoted_back(tmp_path, monkeypatch):
-
+def test_a_weak_codeword_at_intake_asks_and_keeps_the_form(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
-    sid = _new(A, c, "family", subject_name="Ava", gallery_codeword="blue  sky")
-    assert (_q(A, "SELECT gallery_codeword FROM sessions WHERE id=?", (sid,))[0][0] or "") == ""
-    page = c.get(f"/session/{sid}/edit", environ_base=E).get_data(as_text=True)
-    assert "The gallery codeword &#34;blue sky&#34; wasn&#39;t saved: it is too easy to guess." in page
-    assert "Use three or more words, or 14 letters or more" in page
+    before = _q(A, "SELECT COUNT(*) FROM sessions")[0][0]
+    r = c.post("/inquiry", data={"gallery_codeword": "blue  sky", "type": "family"}, environ_base=E)
+    page = r.get_data(as_text=True)
+    assert r.status_code == 200 and 'Use "blue sky" as the codeword?' in page
+    assert 'name="type" value="family"' in page
+    assert _q(A, "SELECT COUNT(*) FROM sessions")[0][0] == before
 
-def test_a_refused_codeword_is_only_put_back_on_its_own_session(tmp_path, monkeypatch):
+def test_make_one_for_me_saves_a_generated_codeword(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)
-    one, two = _new(A, c, "family", subject_name="Ava"), _new(A, c, "family", subject_name="Ben")
-    for s_ in (one, two):
-        _shot(A, s_)
-        _delivery(c, s_, "spruce otter raven")
-    _delivery(c, one, "blue")
-    page = c.get(f"/session/{two}/edit", environ_base=E).get_data(as_text=True)
-    assert 'value="spruce otter raven"' in re.search(r'<input name="gallery_codeword"[^>]*>', page).group(0)
-    assert "Not saved:" not in page
+    sid = _new(A, c, "family", subject_name="Ava")
+    _shot(A, sid)
+    page = c.get(f"/session/{sid}/edit", environ_base=E).get_data(as_text=True)
+    assert 'name="cw_make"' in page and "Make one for me" in page
+    assert c.post(f"/session/{sid}/delivery", data={"gallery_codeword": "", "cw_make": "1"}, environ_base=E).status_code == 302
+    w = _q(A, "SELECT gallery_codeword FROM sessions WHERE id=?", (sid,))[0][0]
+    from plugins import gallery as G
+    assert len(w.split()) == 5 and all(p_ in G.CODEWORD_WORDS for p_ in w.split()) and G.codeword_strong(w)
+    page = c.get(f"/session/{sid}/edit", environ_base=E).get_data(as_text=True)
+    assert "Saved the gallery codeword, but" not in page
 
 def _stale_session(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)

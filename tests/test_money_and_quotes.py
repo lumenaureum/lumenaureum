@@ -85,3 +85,84 @@ def test_fees_discount_requote_and_send(tmp_path, monkeypatch):
     assert con.execute("SELECT COUNT(*) FROM quote_versions WHERE session_id=?", (sid,)).fetchone()[0] == 1
     con.close()
     assert c.post(f"/session/{sid}/quote/requote", environ_base=E).status_code in (302, 303)
+
+def test_a_discount_with_no_reason_never_reads_no_discount(tmp_path, monkeypatch):
+
+    A, c, sid = _app(tmp_path, monkeypatch)
+    with A.app.test_request_context():
+        A.db()
+        key = A.current_schedule()["items"][0]["key"]
+    c.post(f"/session/{sid}/quote/fee", data={"fee_key": key, "qty": "1"}, environ_base=E)
+    c.post(f"/session/{sid}/quote/discount", data={"pct": "100", "reason": ""}, environ_base=E)
+    con = A.connect()
+    labels = [r[0] for r in con.execute("SELECT label FROM lines WHERE session_id=? AND kind='discount'", (sid,))]
+    con.close()
+    assert labels == ["Discount (100%)"] and round(_tot(A, sid)["quoted"], 2) == 0
+
+def test_a_quote_with_nothing_to_pay_names_no_deposit(tmp_path, monkeypatch):
+
+    A, c, sid = _app(tmp_path, monkeypatch)
+    with A.app.test_request_context():
+        A.db()
+        key = A.current_schedule()["items"][0]["key"]
+    c.post(f"/session/{sid}/quote/fee", data={"fee_key": key, "qty": "1"}, environ_base=E)
+    with A.app.test_request_context():
+        A.db()
+        s = A.q("SELECT s.*, h.name AS household FROM sessions s JOIN households h ON h.id=s.household_id WHERE s.id=?", (sid,), one=True)
+        paid_terms = dict(A.quote_terms(s, A.totals(sid)))
+    assert "deposit" in paid_terms["Booking"].lower() and "Payment" in paid_terms
+    c.post(f"/session/{sid}/quote/discount", data={"pct": "100", "reason": ""}, environ_base=E)
+    with A.app.test_request_context():
+        A.db()
+        free_terms = dict(A.quote_terms(s, A.totals(sid)))
+    assert free_terms["Booking"] == "There is nothing to pay for this session: no deposit and no balance."
+    assert "Payment" not in free_terms
+
+def test_a_quote_with_nothing_to_pay_talks_about_money_nowhere(tmp_path, monkeypatch):
+
+    import re as _re
+    A, c, sid = _app(tmp_path, monkeypatch)
+    import config as C
+    for t_ in C.SESSION_TYPES:
+        terms = dict(A.nothing_to_pay_terms([list(x_) for x_ in C.build_terms(t_, "Studio")]))
+        assert terms["Booking"] == "There is nothing to pay for this session: no deposit and no balance." and "Payment" not in terms
+        for h_, v_ in terms.items():
+            if h_ != "Booking":
+                assert not _re.search(r"\$\s?\d|deposit|balance|refund|\bfee|mileage rate|once the balance", v_, _re.I), (t_, h_, v_)
+    fam = dict(A.nothing_to_pay_terms([list(x_) for x_ in C.build_terms("family", "Studio")]))
+    assert "free reschedule" in fam["Cancellation"] and "Delivery" in fam
+
+def test_an_agreement_with_nothing_to_pay_says_no_charge(tmp_path, monkeypatch):
+
+    A, c, sid = _app(tmp_path, monkeypatch)
+    with A.app.test_request_context():
+        A.db()
+        key = A.current_schedule()["items"][0]["key"]
+    c.post(f"/session/{sid}/quote/fee", data={"fee_key": key, "qty": "1"}, environ_base=E)
+    page = c.get(f"/session/{sid}/agreement", environ_base=E).get_data(as_text=True)
+    assert "<td>Balance</td>" in page
+    c.post(f"/session/{sid}/quote/discount", data={"pct": "100", "reason": ""}, environ_base=E)
+    page = c.get(f"/session/{sid}/agreement", environ_base=E).get_data(as_text=True)
+    assert "<td>Price</td><td>No charge" in page and "<td>Balance</td>" not in page and "<td>Deposit</td>" not in page
+
+def test_a_quote_is_never_good_for_zero_days(tmp_path, monkeypatch):
+
+    A, c, sid = _app(tmp_path, monkeypatch)
+    import config as C
+    assert C.QUOTE_TERM_DAYS == 14
+    con = A.connect()
+    con.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('quote_term_days', '0')")
+    con.commit()
+    con.close()
+    with A.app.test_request_context():
+        A.db()
+        assert A.quote_term() == 14
+    for bad in ("0", "400"):
+        c.post("/settings", data={"quote_term_days": bad}, environ_base=E)
+        con = A.connect()
+        assert con.execute("SELECT value FROM settings WHERE key='quote_term_days'").fetchone()[0] == "0"
+        con.close()
+    c.post("/settings", data={"quote_term_days": "10"}, environ_base=E)
+    with A.app.test_request_context():
+        A.db()
+        assert A.quote_term() == 10

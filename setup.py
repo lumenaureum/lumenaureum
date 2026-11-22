@@ -1072,7 +1072,9 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
                 term = int(f.get("quote_term_days") or C.QUOTE_TERM_DAYS)
             except (KeyError, ValueError):
                 return "Whole numbers, please (the mileage rate may have cents)."
-            if any(v < 0 for v in kv.values()) or rate < 0 or term < 0 or kv["EVENT_DEPOSIT_PCT"] > 100:
+            if not 1 <= term <= 365:
+                return "Quotes are good for 1 to 365 days."
+            if any(v < 0 for v in kv.values()) or rate < 0 or kv["EVENT_DEPOSIT_PCT"] > 100:
                 return "Amounts can't be negative, and the event deposit is a percentage up to 100."
             methods = [m for m in PAYMENT_CHOICES if f.get("pay_" + m)] + \
                       [m.strip() for m in f.get("pay_other", "").split(",") if m.strip()]

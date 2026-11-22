@@ -38,7 +38,9 @@
 {% if cw_on and not s.gallery_codeword and not (g and g.cw_fixed == 'none') %}{% call ph.fact_row('This gallery asks for a codeword the client chooses. None yet.') %}{{ ui.opener('f-codeword-' ~ s.id, 'Add the codeword') }}{% endcall %}
   
   {% call ui.inline_form('f-codeword-' ~ s.id, 'Add the codeword') %}<form method="post" action="{{ url_for('session_codeword', sid=s.id) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ url_for('client_stage', hid=s.household_id, s=s.id) }}">
-    <input name="gallery_codeword" maxlength="60" required autocomplete="off" class="ui-grow" placeholder="three words, e.g. heron maple tide" aria-label="Gallery codeword"><button class="ui-btn ui-btn-primary">Save the codeword</button>{{ help("Three words the client chose with you, in person or on the phone. The gallery asks for them. They are never printed on the letter or written into any email the app drafts.") }}</form>{% endcall %}{% endif %}
+    <input name="gallery_codeword" maxlength="60" required autocomplete="off" class="ui-grow" placeholder="three words, e.g. heron maple tide" aria-label="Gallery codeword"><button class="ui-btn ui-btn-primary">Save the codeword</button><button class="ui-btn ui-btn-quiet" name="cw_make" value="1" formnovalidate>Make one for me</button>{{ help("Three words the client chose with you, in person or on the phone. The gallery asks for them. They are never printed on the letter or written into any email the app drafts.") }}</form>{% endcall %}{% endif %}
+
+{% if cw_on and s.gallery_codeword and not (g and g.cw_fixed) %}{% call ph.fact_row('Codeword: ' ~ s.gallery_codeword) %}{{ ui.action(url_for('session_codeword', sid=s.id), 'Make another', {'cw_make': '1'}, url_for('client_stage', hid=s.household_id, s=s.id), 'quiet') }}{% endcall %}{% endif %}
 {% if stale_cw %}{% call ph.fact_row('The codeword changed after this build: rebuild so the gallery asks for the new one.', tone='attention') %}
   {{ ui.action(url_for('build_gallery', sid=s.id), 'Rebuild with the new codeword', {'from': 'finals' if use_fin else 'uploads'}, None, 'primary', inplace=false) }}{% endcall %}{% endif %}
 {% if stale_mark %}{% call ph.fact_row('Built before the proof mark was turned on: these proofs carry no mark.', tone='attention') %}
@@ -59,7 +61,7 @@
     {% call ph.fact_row((who ~ ' can download ' ~ ph_n if us == 'up' else ph_n ~ ' to download') ~ ' · adopted ' ~ nice(g.adopted), id='gal-photos') %}{% endcall %}
     {% if us == 'up' and not (job and job.state == 'running') %}{% call ph.fact_row('Built in the format from before 1.4: the old page, no closing notice' if g.adopted_fmt == 'pre-1.4' else 'Made outside this app (on another install, or by an earlier release): its page is as it came, and this app does not run its closing', tone='attention', id='gal-adopted') %}
       {{ ui.action(url_for('gallery_bring_up_to_date', sid=s.id), 'Bring this gallery up to date', {}, None, 'primary', inplace=false,
-           confirm='Rebuild this gallery with the current page, sealed format, credit, Download all and closing notice, from ' ~ adopted_from.words ~ '? The link and key stay the same, so the link the families have keeps working. The gallery online is read and checked first; it changes only once the new build is complete.') }}
+           confirm='Rebuild this gallery with the current page, sealed format, credit, Download all and closing notice, from ' ~ adopted_from.words ~ '? The link stays the same, so the link the families have keeps working. The gallery online is read and checked first; it changes only once the new build is complete.') }}
     {% endcall %}{% endif %}
   {% else %}
   {% set photos_line %}{% if us == 'up' and not stale %}{{ who }} can {{ 'download' if dl else 'pick from' }} {{ ph_n }}{% else %}{{ ph_n }}{{ ' to download' if dl }}{% endif %} &middot; made {{ nice(g.built_at) }}{% endset %}

@@ -136,7 +136,8 @@ def test_labels_filter_today_too(env):
     c.post("/client/4/labels", data={"label": "Slow to pay"}, environ_base=E)
     page = _today(c)
     assert 'data-f-g-label="Slow to pay"' in page.split('id="line-s4"', 1)[1].split(">", 1)[0]
-    assert re.search(r'data-f-key="label" data-f-val="Slow to pay"', page)
+
+    assert 'data-f-key="label"' not in page and "label:name" in page
 
 def test_today_chips_count_kinds_and_mark_mine_waiting_and_due(env):
     A, c = env

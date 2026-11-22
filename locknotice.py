@@ -132,9 +132,9 @@ def _post(url, body, headers):
         if r.status >= 300:
             raise OSError(f"the server answered {r.status}")
 
-def send(cfg, text):
+def send(cfg, text, title=TITLE):
 
-    headers = {"Title": TITLE, "Content-Type": "text/plain; charset=utf-8"}
+    headers = {"Title": title, "Content-Type": "text/plain; charset=utf-8"}
     if cfg.get("token"):
         headers["Authorization"] = f"Bearer {cfg['token']}"
     try:

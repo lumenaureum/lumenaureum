@@ -15,14 +15,14 @@
       <label><span>Contact name</span><input name="contact_name" maxlength="200" required autofocus value="{{ vals.contact_name or '' }}"></label>
       <label><span>Email (optional)</span><input type="email" name="email" maxlength="200" value="{{ vals.email or '' }}"></label>
       <label><span>Phone (optional)</span><input type="tel" name="phone" maxlength="200" value="{{ vals.phone or '' }}"></label>
-      <label><span>Relationship (optional){{ help("Who this person is to the client, such as mother, father, or agent.") }}</span><input name="contact_relation" list="rels" value="{{ vals.contact_relation or '' }}"></label>
+      <label><span>Relationship (optional){{ help("Who this person is to the client, such as mother, father, or agent.") }}</span><input name="contact_relation" list="rels" autocomplete="off" value="{{ vals.contact_relation or '' }}"></label>
       <label><span>Family name (optional){{ help("The name the client is listed under, such as The Sample Family. Blank: the contact name.") }}</span><input name="household_name" maxlength="200" value="{{ vals.household_name or '' }}"></label>
       <label><span>Company (optional){{ help("Only if they bill as a company. A company is listed and sorted by its own name, and gets business options such as a PO number.") }}</span><input name="company" maxlength="200" value="{{ vals.company or '' }}"></label>
       <div><span class="ui-label" id="gender-l">Gender (optional)</span><div class="ui-field-inline">{{ seg('contact_gender', ['F','M'], by='gender-l') }}</div></div>
       <div><label for="contact-age" class="ui-label">Age (optional)</label><div class="ui-field-inline"><input type="number" id="contact-age" name="contact_age" min="0" max="120" class="ui-input-qty">
         <label class="ui-check"><input type="checkbox" name="contact_age_approx" value="1">approximate</label></div></div>
     </div>
-    <datalist id="rels">{% for r in RELATIONS %}<option value="{{ r }}">{% endfor %}</datalist>
+    <datalist id="rels">{% for r in relations_in_use() %}<option value="{{ r }}">{% endfor %}</datalist>
   {% endcall %}
   {% call ui.section('How they found you') %}
     <div class="ui-form-grid">

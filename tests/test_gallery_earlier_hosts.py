@@ -104,7 +104,7 @@ def test_a_deleted_clients_gallery_on_an_unreachable_earlier_host_is_kept_in_min
     assert not site.q("SELECT 1 FROM households WHERE id=?", (hid,))
     assert "manifest.bin" in _files(site.host, gid)
     assert [tuple(r) for r in site.q("SELECT gallery_id FROM gallery_leftovers")] == [(gid,)]
-    assert "1 gallery of a deleted session still has to come down from a web host" in _today(site)
+    assert "1 old gallery folder still has to come down from a web host" in _today(site)
     page = _move_page(site)
     assert f"gallery (folder {gid})" in page and "This host is gone for good" in page
     assert not any(str(site.host) in h for h in _history(site))

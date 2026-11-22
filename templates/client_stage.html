@@ -1,4 +1,13 @@
 {% extends "base.html" %}{% from "_macros.html" import avatar, phone, sym, seg, help with context %}{% import "_ui.html" as ui with context %}{% import "_ui_mail.html" as uim with context %}{% import "_ui_photos.html" as ph with context %}
+{% macro hrow_(r, anchor) -%}
+      <div class="hrow k-{{ r.kind|replace(" ", "-") }}"{% if r.written and r.written[:16] != r.at[:16] %} data-tip="Written {{ nice(r.written[:10]) }}, {{ clock(r.written[11:16]) }}"{% endif %}>
+        <span class="htime">{{ r.time }}</span>
+        {{ sym(r.icon if r.kind == 'audit' else {'audit':'history','note':'edit_note','call':'call','text':'sms','email':'mail','in person':'groups'}.get(r.kind, 'edit_note'), 'next', 18) }}
+        <div class="htext"><span>{{ r.text }}</span>{% if r.note %}<em>{{ r.note }}</em>{% endif %}
+          {% if r.kind == 'audit' and r.who != 'Owner' %}<small>{{ r.who }}</small>{% endif %}{% if r.gone %}<small class="ui-mute">From a deleted session</small>{% endif %}</div>
+        {% if r.lid %}<form method="post" action="{{ url_for('note_delete', lid=r.lid) }}" class="ui-action hdel" data-confirm="Delete this note?" data-ui-inplace><input type="hidden" name="back" value="{{ anchor }}"><button class="ui-x" title="Delete this note" aria-label="Delete note: {{ r.text|truncate(40) }}">&times;</button></form>{% endif %}
+      </div>
+{%- endmacro %}
 {% block title %}{{ h.name }} - Lumen Aureum{% endblock %}
 
 {% block body %}
@@ -87,11 +96,15 @@
 {% elif s.stage == 'inquiry' %}{% call ui.needs('Their message', id='message') %}{{ message_ }}
   <div class="ui-btnrow">
     
-    {% set reply_ = reply_draft(s.id) %}{% set replied_ = replied_on(s.id) if reply_ else '' %}
-    {% if reply_ %}{{ uim.mail_action(url_for('session_reply', sid=s.id), reply_, 'Reply again' if replied_ else 'Reply', back, 'quiet' if replied_ else 'primary') }}{% endif %}
-    {{ ui.button_link('#billing', 'Build a quote', 'quiet' if reply_ and not replied_ else 'primary') }}
+    {% set reply_ = reply_ways(s.id) %}{% set replied_ = replied_on(s.id) %}
+    {{ ui.button_link(reply_.email.href, 'Reply by email', 'quiet' if replied_ else 'primary') }}{{ ui.button_link(reply_.text.href, 'Reply by text') }}
+    {{ ui.button_link('#billing', 'Build a quote', 'quiet' if not replied_ else 'primary') }}
     {{ dont_book() }}
-  </div>{% if reply_ %}<p class="ui-mute">{% if replied_ %}You replied {{ nice(replied_) }}. {% endif %}Reply opens an email to {{ mail_preview(reply_).to }} in your mail app.</p>{% endif %}{{ dont_book_form() }}{% endcall %}
+  </div>
+  
+  {% if replied_ %}<p class="ui-mute">You replied {{ nice(replied_) }}.</p>
+  {% else %}<form method="post" action="{{ url_for('session_reply', sid=s.id) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ back }}">
+    {{ seg('how', REPLY_HOW.items()|list, 'email', label='How you replied') }}<button class="ui-btn ui-btn-quiet">Mark replied</button></form>{% endif %}{{ dont_book_form() }}{% endcall %}
 {% elif s.stage == 'quoted' %}{% call ui.needs('The quote', id='quote-now') %}
   <p class="ui-needs-line">{% if lines %}{{ money(t.quoted) }}{% if versions %}, sent {{ nice(versions[0].at[:10]) }}{% else %}, not sent yet{% endif %}{% if t.deposit_short > 0.005 %} &middot; deposit {{ money(t.deposit_short) }} due{% endif %}{% else %}No quote lines yet{% endif %}</p>
   <div class="ui-btnrow">
@@ -143,7 +156,9 @@
       {%- if edit_q and l.kind in ('fee', 'passthrough', 'custom') and l.unit %}<form method="post" action="{{ url_for('line_qty', lid=l.id) }}" class="ui-qty" data-ui-inplace><input type="hidden" name="back" value="{{ back }}"><input type="number" name="qty" step="0.5" min="0.5" value="{{ '%g' % (l.qty or 1) }}" data-autosubmit aria-label="Quantity"></form>
       {%- elif l.kind not in ('discount', 'tax') and (l.qty or 1) != 1 %}<span class="ui-mute">{{ '%g' % l.qty }} &times; </span>{% endif -%}
       <span class="ui-money-name">{{ l.label|replace(' x ' ~ ('%g' % (l.qty or 1)), '') }}{% if l.unit == 'mile' %} <small class="ui-mute" title="Travel is free within {{ C.TRAVEL_FREE_MILES }} miles: enter only the miles beyond that, each way counted">(miles beyond {{ C.TRAVEL_FREE_MILES }})</small>{% endif %}</span>
-      {%- if l.kind not in ('discount', 'tax') and edit_q %}<form method="post" action="{{ url_for('money_delete', what='line', rid=l.id) }}" class="ui-action" data-ui-inplace><input type="hidden" name="back" value="{{ back }}"><button class="ui-x" title="Remove this line" aria-label="Remove line {{ l.label }}">&times;</button></form>{% endif %}
+      
+      {%- if l.kind == 'portfolio' and edit_q %}<form method="post" action="{{ url_for('portfolio_set', sid=s.id) }}" class="ui-action" data-ui-inplace><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="set" value="declined"><button class="ui-x" title="Remove: the client does not allow portfolio use" aria-label="Remove the portfolio discount: the client does not allow portfolio use">&times;</button></form>
+      {%- elif l.kind not in ('discount', 'tax') and edit_q %}<form method="post" action="{{ url_for('money_delete', what='line', rid=l.id) }}" class="ui-action" data-ui-inplace><input type="hidden" name="back" value="{{ back }}"><button class="ui-x" title="Remove this line" aria-label="Remove line {{ l.label }}">&times;</button></form>{% endif %}
     {% endcall %}{% endfor %}
     {% if lines %}{{ ui.money_total('Total', money(t.quoted)) }}{% endif %}
     {% for p_ in x_.payments %}{% call ui.money_row(money(p_.amount), 'ui-money-sub') %}{{ nice(p_.received) if p_.received else '' }} {{ p_.kind }}{% if p_.method == 'other' and p_.note %}, {{ p_.note }}{% elif p_.method %}, {{ p_.method }}{% endif %}{% endcall %}{% endfor %}
@@ -306,6 +321,20 @@
 {% for title, html in blocks if title not in block_key %}{% call ui.fold(title, id='blk-' ~ loop.index) %}{{ html }}{% endcall %}{% endfor %}
 
 
+{% set notes_ = history|selectattr('lid')|list %}
+{% call ui.section('Notes', id='notes', part=true) %}
+    <form method="post" action="{{ url_for('client_note', hid=h.id) }}" class="note-form" data-ui-inplace>
+      <input type="hidden" name="session_id" value="{{ s.id }}"><input type="hidden" name="back" value="{{ back }}#notes">
+      <textarea name="text" rows="2" placeholder="Note" aria-label="Note" required></textarea>
+      <div class="ui-form-row">{{ seg('channel', ['note','call','text','email','in person'], 'note', label='Channel') }}
+        <label class="mini">When <input type="datetime-local" name="when" class="ui-input-date" max="{{ now_iso }}"></label>
+        <button class="ui-btn ui-btn-primary">Save note</button></div>
+    </form>
+  <div class="hlist">{% for r in notes_[:5] %}{{ hrow_(r, back ~ '#notes') }}{% endfor %}</div>
+  {% if notes_|length > 5 %}{% call ui.fold('Earlier notes', id='notes-earlier', count=notes_|length - 5) %}<div class="hlist">{% for r in notes_[5:] %}{{ hrow_(r, back ~ '#notes') }}{% endfor %}</div>{% endcall %}{% endif %}
+{% endcall %}
+
+
 {% call ui.fold('Details and history', id='more', cls='ui-fold-more', always=true, count=history|length) %}
   <div class="ui-btnrow">
     {{ ui.go(url_for('session_edit', sid=s.id), 'Edit session details') }}
@@ -313,26 +342,13 @@
     {% if T.paperwork == 4 and j.docs %}{{ ui.go(url_for('session_edit', sid=s.id) ~ '#paperwork', 'Paperwork') }}{% endif %}
   </div>
   
-  {% call ui.fold('History', id='history', part=true, count=history|length, open=true) %}
-    <form method="post" action="{{ url_for('client_note', hid=h.id) }}" class="note-form" data-ui-inplace>
-      <input type="hidden" name="session_id" value="{{ s.id }}"><input type="hidden" name="back" value="{{ back }}#history">
-      <textarea name="text" rows="2" placeholder="Note" aria-label="Note" required></textarea>
-      <div class="ui-form-row">{{ seg('channel', ['note','call','text','email','in person'], 'note', label='Channel') }}
-        <label class="mini">When <input type="datetime-local" name="when" class="ui-input-date" max="{{ now_iso }}"></label>
-        <input class="hsearch ui-grow" type="search" placeholder="Search notes" aria-label="Search notes" data-filter-rows=".hrow" data-filter-heads=".hday">
-        <button class="ui-btn ui-btn-primary">Save note</button></div>
-    </form>
+  {% call ui.fold('History', id='history', part=true, count=history|length, open=true, always=true) %}
+    <div class="ui-form-row"><input class="hsearch ui-grow" type="search" placeholder="Search notes and history" aria-label="Search notes and history" data-filter-rows=".hrow" data-filter-heads=".hday"></div>
     {% set ns = namespace(day='') %}
     <div class="hlist">
     {% for r in history %}
       {% if r.day != ns.day %}{% set ns.day = r.day %}<div class="hday">{{ nice(r.day) }}</div>{% endif %}
-      <div class="hrow k-{{ r.kind|replace(" ", "-") }}"{% if r.written and r.written[:16] != r.at[:16] %} data-tip="Written {{ nice(r.written[:10]) }}, {{ clock(r.written[11:16]) }}"{% endif %}>
-        <span class="htime">{{ r.time }}</span>
-        {{ sym(r.icon if r.kind == 'audit' else {'audit':'history','note':'edit_note','call':'call','text':'sms','email':'mail','in person':'groups'}.get(r.kind, 'edit_note'), 'next', 18) }}
-        <div class="htext"><span>{{ r.text }}</span>{% if r.note %}<em>{{ r.note }}</em>{% endif %}
-          {% if r.kind == 'audit' and r.who != 'Owner' %}<small>{{ r.who }}</small>{% endif %}{% if r.gone %}<small class="ui-mute">From a deleted session</small>{% endif %}</div>
-        {% if r.lid %}<form method="post" action="{{ url_for('note_delete', lid=r.lid) }}" class="ui-action hdel" data-confirm="Delete this note?" data-ui-inplace><input type="hidden" name="back" value="{{ back }}#history"><button class="ui-x" title="Delete this note" aria-label="Delete note: {{ r.text|truncate(40) }}">&times;</button></form>{% endif %}
-      </div>
+      {{ hrow_(r, back ~ '#history') }}
     {% endfor %}
     </div>
   {% endcall %}

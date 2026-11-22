@@ -2,6 +2,21 @@
 
 New features, behavior changes, security fixes, and other fixes in each release.
 
+## 1.5.4 (2026-11-21)
+
+### New
+- A Galleries page with every gallery in one place.
+- Optional phone notices for new inquiries, picks, print orders, and failed backups.
+- Search by label in filter boxes, such as label:personal.
+
+### Changed
+- Reply by email or text, and note how you replied.
+- Free sessions no longer mention deposits or fees.
+- Gallery codewords: strong codewords are offered to choose from.
+
+### Fixed
+- Several small fixes to quotes, discounts, and wording.
+
 ## 1.5.3 (2026-11-20)
 
 ### New
