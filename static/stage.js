@@ -4,12 +4,14 @@
     const base = fromBottom ? 18 : 20;  // rows clear the Today face and Shoot marker above, the axis labels below
     const marks = [...box.querySelectorAll('.jm')];
     marks.forEach(m => { m.style.top = ''; m.style.bottom = ''; m.style.top = '0px'; });
-    const items = marks.map(m => ({ m, r: m.getBoundingClientRect() })).sort((a, b) => a.r.left - b.r.left);
+    const items = marks.map(m => { const r = m.getBoundingClientRect(), n = m.querySelector('.jn');
+      return { m, left: r.left, right: Math.max(r.right, n ? n.getBoundingClientRect().right : 0) }; })
+      .sort((a, b) => a.left - b.left);
     const rows = [];
     items.forEach(it => {
-      let k = rows.findIndex(end => it.r.left >= end + GAP);
+      let k = rows.findIndex(end => it.left >= end + GAP);
       if (k < 0) { rows.push(0); k = rows.length - 1; }
-      rows[k] = it.r.right;
+      rows[k] = it.right;
       it.m.style.top = ''; it.m.style[fromBottom ? 'bottom' : 'top'] = (base + k * ROW) + 'px';
     });
     box.style.height = Math.max(40, rows.length * ROW + base + 6) + 'px';

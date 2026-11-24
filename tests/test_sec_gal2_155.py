@@ -110,8 +110,8 @@ def test_the_lost_path_waits_and_keeps_only_the_public_key(env):
     assert r.location.endswith("/security#master-pending")
     p = json.loads(setting(A, "master_pending"))
     assert set(p) == {"pub", "asked", "due"} and p["pub"].startswith("age1")
-    from datetime import datetime
-    due = datetime.fromisoformat(p["due"])
+    import auth
+    due = auth.studio_time(p["due"])
     assert timedelta(hours=47, minutes=59) <= due - t0 <= timedelta(hours=48, minutes=1)
 
     con = A.connect()

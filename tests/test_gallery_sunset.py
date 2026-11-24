@@ -333,3 +333,26 @@ def test_the_earlier_host_is_never_cleared_before_the_move(env, tmp_path):
     switch_host(A, tmp_path, base="https://photos.example/g/")
     c.post("/galleries/clear-old", environ_base=E)
     assert host_has(host / GID, "manifest.bin", gallery_key(A))
+
+def test_a_gallery_taken_down_early_reads_closed_not_its_old_days_left(env):
+
+    A, c, G, host = env
+    go_live(A, G, days_ago(2))
+    page = c.get("/c/1?s=1", environ_base=E).get_data(as_text=True)
+    assert f"{A.C.GALLERY_DAYS - 2} days left" in page
+    c.post("/session/1/gallery/take-down", environ_base=E)
+    for _ in range(100):
+        if one(A, "SELECT removed_at FROM galleries WHERE session_id=1")[0]:
+            break
+        time.sleep(0.05)
+    assert one(A, "SELECT removed_at FROM galleries WHERE session_id=1")[0]
+    page = c.get("/c/1?s=1", environ_base=E).get_data(as_text=True)
+    assert "days left" not in page
+    assert re.search(r"Gallery: closed [A-Z][a-z]{2} [A-Z][a-z]{2} \d+", page), "the fold heading says closed"
+    assert "Gallery closed " in page
+
+    con = A.connect()
+    con.execute("UPDATE sessions SET first_visit=? WHERE id=1", (days_ago(A.C.GALLERY_DAYS - 1),))
+    con.commit(); con.close()
+    today = c.get("/", environ_base=E).get_data(as_text=True)
+    assert not re.search(r"Gallery (closes|deletes)", today), "Today still counts down a gallery already off the web"

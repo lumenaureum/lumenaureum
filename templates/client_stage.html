@@ -74,7 +74,7 @@
 {% else %}{% call ph.fact_row(('From the client, ' ~ from_client.said) if from_client.said else 'From the client' ~ ( (': last checked ' ~ ('just now' if ck_ < 1 else '1 min ago' if ck_ == 1 else ck_ ~ ' min ago' if ck_ < 120 else (ck_ // 60) ~ ' hours ago')) if ck_ is not none else ''), id='from-client') %}{{ ui.action(url_for('client_check_now', hid=h.id), 'Check now', {}, back, 'quiet') }}{% endcall %}{% endif %}{% endif %}{% endset %}
 {% set follow_ = acts|selectattr('followup')|first if s.stage == 'quoted' else none %}
 
-{% set pencil_ %}{% if s.stage in ('inquiry', 'quoted') and s.shoot_date and not s.event_id %}
+{% set pencil_ %}{% if s.stage in ('inquiry', 'quoted') and s.shoot_date and (not s.event_id or penciled(s)) %}
   {%- set day_ = nice(s.shoot_date[:10]) %}{% set holds_ = date_holds(s.shoot_date, s.id) %}{% set pen_ = penciled(s) %}{% set lapsed_ = pencil_lapsed(s) %}
   {%- set line_ = ((holds_.words ~ ' ') if holds_ else '') ~ (('The hold on ' ~ day_ ~ ' lapsed ' ~ nice(s.pencil_until[:10]) ~ '.') if lapsed_ else ('Penciled in ' ~ day_ ~ ', held until ' ~ nice(s.pencil_until[:10]) ~ '.') if pen_ else '') %}
   {%- set do_ %}{% if not pen_ %}{{ ui.action(url_for('session_pencil', sid=s.id), 'Pencil in ' ~ day_, dict(act='pencil'), back, 'quiet') }}{{ help('Holds ' ~ day_ ~ ' on your calendar for ' ~ PENCIL_DAYS ~ ' days, so other inquiries for that day show it. Only you see it.') }}
@@ -326,7 +326,7 @@
 
 {% set delivery_ %}
   <div class="ui-form-row">
-    {% if expires %}{% set left = (expires - today).days %}{{ ui.chip((left ~ (' day left' if left == 1 else ' days left')) if left >= 0 else 'Gallery deleted ' ~ nice(expires.isoformat()), 'attention' if 0 <= left <= 1 else 'neutral', tip=('Warning: ' if 0 <= left <= 1 else '') ~ 'Gallery ' ~ ('deletes ' if left >= 0 else 'deleted ') ~ nice(expires.isoformat())) }}{% endif %}
+    {% if off_web %}{{ ui.chip('Gallery closed ' ~ nice(off_web.isoformat()), 'neutral', tip='Off the web since ' ~ nice(off_web.isoformat()) ~ '. The photos are still here.') }}{% elif expires %}{% set left = (expires - today).days %}{{ ui.chip((left ~ (' day left' if left == 1 else ' days left')) if left >= 0 else 'Gallery closed ' ~ nice(expires.isoformat()), 'attention' if 0 <= left <= 1 else 'neutral', tip=('Warning: ' if 0 <= left <= 1 else '') ~ 'Gallery ' ~ ('closes ' if left >= 0 else 'closed ') ~ nice(expires.isoformat())) }}{% endif %}
   </div>
   {% set fk = C.WORKFLOW[s.type].values()|sum(start=[])|map(attribute=1)|list %}
   <ul class="ui-checks">
@@ -370,7 +370,7 @@
 {% if T.picks == 2 and (s.retouch_picks or s.favorites or s.veto) %}{% call ui.fold('Picks: ' ~ ((s.retouch_picks or '').strip().splitlines()|length) ~ (' retouched' if rt_sent_ else ' to retouch'), id='picks', part=true) %}
   {% if s.retouch_picks %}<p class="ui-pre">{{ s.retouch_picks }}</p>{% endif %}
   {% if s.favorites %}{{ ui.fact('Portfolio', s.favorites) }}{% endif %}{% if s.veto %}{{ ui.fact("Don't show", s.veto) }}{% endif %}{% endcall %}{% endif %}
-{% if T.gallery == 2 and 'Gallery' in block_by %}{% set gl_ = (expires - today).days if expires else none %}{% call ui.fold('Gallery' ~ ('' if gl_ is none else (': deleted ' ~ nice(expires.isoformat()) if gl_ < 0 else ': ' ~ gl_ ~ (' day left' if gl_ == 1 else ' days left'))), id='gallery-sec') %}{{ block_by['Gallery'] }}{% endcall %}{% endif %}
+{% if T.gallery == 2 and 'Gallery' in block_by %}{% set gl_ = (expires - today).days if expires and not off_web else none %}{% call ui.fold('Gallery' ~ (': closed ' ~ nice(off_web.isoformat()) if off_web else ('' if gl_ is none else (': closed ' ~ nice(expires.isoformat()) if gl_ < 0 else ': ' ~ gl_ ~ (' day left' if gl_ == 1 else ' days left')))), id='gallery-sec') %}{{ block_by['Gallery'] }}{% endcall %}{% endif %}
 
 
 {% if T.message == 3 %}{% call ui.fold('Their message', id='message') %}{{ message_ }}{% endcall %}{% endif %}

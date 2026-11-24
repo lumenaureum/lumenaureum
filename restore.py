@@ -19,10 +19,11 @@ NAME_OK = re.compile(r"^db/[A-Za-z0-9._-]{1,120}\.age$")
 STAMP_OK = re.compile(r"^\d{4}-\d{2}-\d{2}-\d{6}$")
 MOVED = ("crm.db", "crm.db-wal", "crm.db-shm", "keyring.json", "storage.json")
 COPIED = ("deletions.json", "doc-numbers.json", "deletions.unverified.json")
-FACES_KIND = {"db": "faces", "manual": "manual-faces", "upgrade": "upgrade-faces"}
+FACES_KIND = {"db": "faces", "manual": "manual-faces", "upgrade": "upgrade-faces",
+              "reset": "reset-faces"}
 KEEP_DAYS = 30
 WARN_DAYS = 5
-BACKUP_KINDS = ("db", "faces", "manual", "manual-faces", "upgrade", "upgrade-faces", "reset", "found")
+BACKUP_KINDS = ("db", "faces", "manual", "manual-faces", "upgrade", "upgrade-faces", "reset", "reset-faces", "found")
 
 class Refused(Exception):
     pass
@@ -52,13 +53,13 @@ def forget():
 datakey.ON_LOCK.append(lambda: PENDING.clear())
 
 def take(tok):
+
     with _GUARD:
         p_ = PENDING.get(tok or "")
         if p_ and time.time() - p_["at"] > TTL:
             PENDING.pop(tok, None)
             p_ = None
-    if p_ is None and tok:
-        _drop_stage()
+            _drop_stage()
     return p_
 
 def folder_backups(folder):
@@ -140,6 +141,9 @@ def faces_partner(con, name):
         nxt = con.execute("SELECT MIN(id) FROM vault_objects WHERE kind=? AND id>?", (r[0], r[1])).fetchone()[0]
         f_ = con.execute("SELECT name FROM vault_objects WHERE kind=? AND id>? AND id<? AND deleted IS NULL "
                          "ORDER BY id LIMIT 1", (FACES_KIND[r[0]], r[1], nxt or 1 << 62)).fetchone()
+        if not f_ and r[0] == "reset":
+            from vault import web as W
+            return W.reset_faces_before_161(con).get(name)
     except Exception:
         return None
     return f_[0] if f_ else None
@@ -396,7 +400,7 @@ def check(source, secret, *, connect=None, schema_now, fresh, folder="", upload=
                 c_.close()
         tok = secrets.token_urlsafe(16)
         with _GUARD:
-            PENDING[tok] = dict(stage=str(stage), key=key, label=label, checked=checked, then=then, now=now,
+            PENDING[tok] = dict(id=secrets.token_hex(8), stage=str(stage), key=key, label=label, checked=checked, then=then, now=now,
                                 down=sorted(set(now_online) - set(then_online)) if not fresh else [],
                                 marked=sorted(set(then_online) - set(now_online)) if not fresh else [],
                                 gone_photos=gone_photos, gone_other=gone_other, at=time.time(), fresh=fresh, faces=faces,
@@ -517,6 +521,8 @@ def apply(tok, connect, restart, fresh_done=None):
     busy = [j_["label"] for j_ in list(jobs.JOBS.values()) if j_.get("state") == "running"]
     if busy:
         raise Refused(f"Wait until this finishes: {busy[0]}. Then restore.")
+    if not all((Path(p_["stage"]) / f_).is_file() for f_ in ("crm.db", "keyring.json")):
+        raise Refused("That check has expired. Check the backup again.")
     data = data_dir()
     stamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
     dest = aside_root() / stamp if not p_["fresh"] else None
@@ -655,7 +661,7 @@ def register(app, connect, audit, *, schema_now, soft_restart, end_sessions):
             r = page(fresh=True, step="choose", folder=folder, folders=folders, items=items, asides=[], err=err,
                      need_code=bool(folder) and not listed)
         else:
-            r = page(fresh=False, step="choose", items=W.backups(connect), asides=set_aside_copies(), err=err,
+            r = page(fresh=False, step="choose", items=W.backups(connect, reset=True), asides=set_aside_copies(), err=err,
                      folder="", folders=[])
         r.status_code = status
         return r
@@ -722,6 +728,10 @@ def register(app, connect, audit, *, schema_now, soft_restart, end_sessions):
         p_ = take(tok)
         if not p_ or p_["fresh"] != fresh:
             return choose(fresh, "That check has expired. Check the backup again.", 400)
+        sent = request.form.get("check")
+        if sent is not None and not hmac.compare_digest(sent, p_["id"]):
+            return choose(fresh, "Another backup was checked after this one, so nothing was restored. Check the backup "
+                                 "again.", 409)
         pw = request.form.get("password", "")
         same = False
         if not fresh:

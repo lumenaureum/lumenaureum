@@ -181,7 +181,7 @@ def test_no_extension_is_offered_for_a_gallery_put_back_online(site):
     page = site.c.get(f"/session/{sid}/edit", environ_base=E).get_data(as_text=True)
     with site.A.app.app_context():
         nice = site.A.nice((date.today() + timedelta(days=14)).isoformat())
-    assert f"Deletes {nice}" in page and 'name="extension_used" value="1" ' not in page and "back online" in page
+    assert f"Closes {nice}" in page and 'name="extension_used" value="1" ' not in page and "back online" in page
     site.c.post(f"/session/{sid}/quick", data={"act": "extend"}, environ_base=E)
     assert f"until={(date.today() + timedelta(days=14)).isoformat()}\n" in host_text(site.host / site.gid(sid), "limits.txt")
 

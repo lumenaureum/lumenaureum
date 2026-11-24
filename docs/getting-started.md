@@ -112,12 +112,16 @@ your pages then use your word.
 A type's page can also split the balance after the deposit into installments: equal payments, one a month on the
 booking's day of the month, the last on the day the balance is due (spread evenly when there are fewer months than payments).
 The dates are kept once the session is booked: moving the shoot date later does not move them unless you set them again
-on the plan. A reschedule fee, if you add one, goes on the last payment.
+on the plan. A reschedule fee, if you add one, goes on the last payment. A session billed on another session's quote
+(an engagement on the wedding's) has its fee added to that quote.
 A plan has at most 4 payments; a plan set before that limit keeps its schedule. The agreement, the quote and the invoice
 list the dated amounts under the balance. One session can have its own plan: **Pay in installments** on its Billing.
+A plan changed on a type's page or in its walkthrough reaches only sessions whose quote is not sent yet; the others keep the plan they had.
 Changes apply to new quotes; a quote already sent keeps the terms it was sent with.
 The app counts an amount as overdue only once its own due date under these terms has passed: the deposit's,
 each installment's, or the balance's. After the shoot and before the balance is due, the balance reads "due".
+An issued invoice keeps the due date printed on it, even after the terms change.
+A late installment shows on Today, with Remind them, before the shoot too.
 
 ### 6. Taxes (optional)
 No taxes, or a list of them. Each tax has a name as your invoices show it (Sales tax, VAT, GST), a rate, and how it is
@@ -134,7 +138,8 @@ decision with your accountant). After setup this page is Settings, Taxes.
 - **Per client.** **Tax exempt** in the client's Details, with an optional exemption certificate number: their quotes
   carry no tax on every session not yet booked.
 - Once the client says yes, the session keeps each tax as it was: its name, rate, and whether it applied. Changing a
-  rate, or a client's exemption, later changes open quotes only.
+  rate, or a client's exemption, later changes open quotes only. Saving Settings, Taxes updates every open quote at
+  once, and History notes each quote whose total changed: send it again if the client already has it.
 
 ### 7. Documents (optional)
 Who owns the photos once paid, for each session type: **Client** (the copyright transfers once the balance is paid)
@@ -471,7 +476,8 @@ document, a gallery or an email.
 
 On the month calendar, tap a day to see its shoots and steps, under the month on a phone and beside it
 on a wider screen. A crowded day shows the first few and
-"+ 3 more".
+"+ 3 more". A lead's date shows lighter, as "Penciled in" or, when you have not penciled it, "Not penciled"; the year
+view and its free Saturdays count only bookings and penciled dates.
 
 ### Your sessions on your phone's calendar (optional)
 Settings, Calendar link, **Turn on the calendar link** makes a private link your phone's calendar app can subscribe

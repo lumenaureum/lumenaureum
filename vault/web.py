@@ -119,13 +119,15 @@ def start_scheduler(app, connect, db_path, faces_dir):
             time.sleep(60)
     threading.Thread(target=loop, name="vault-backup", daemon=True).start()
 
-def backups(connect, limit=30):
+def backups(connect, limit=30, reset=False):
 
     con = connect()
     try:
-        rows = con.execute("""SELECT name, MIN(created) created, MAX(size) size, GROUP_CONCAT(DISTINCT backend) at, MAX(kind)
-                              FROM vault_objects WHERE kind IN ('db', 'manual', 'upgrade') AND deleted IS NULL
-                              GROUP BY name ORDER BY MAX(id) DESC LIMIT ?""", (limit,)).fetchall()
+        old_faces = set(reset_faces_before_161(con).values()) if reset else set()
+        rows = [r for r in con.execute(f"""SELECT name, MIN(created) created, MAX(size) size, GROUP_CONCAT(DISTINCT backend) at,
+                                           MAX(kind) FROM vault_objects WHERE kind IN ('db', 'manual', 'upgrade'{", 'reset'" if reset else ""})
+                                           AND deleted IS NULL GROUP BY name ORDER BY MAX(id) DESC LIMIT ?""", (limit,))
+                if r[0] not in old_faces]
         second = {r[0] for r in con.execute("SELECT name FROM vault_secondary")} if con.execute(
             "SELECT 1 FROM sqlite_master WHERE name='vault_secondary'").fetchone() else set()
         was = {}
@@ -140,9 +142,33 @@ def backups(connect, limit=30):
                  what=KIND_WORDS.get(r[4] or "db", ""), was=(was.get(r[0], "") if isinstance(was, dict) else ""))
             for r in rows]
 
-KIND_WORDS = {"db": "Daily", "manual": "Back up now", "upgrade": "Before the update"}
+def reset_faces_before_161(con):
+
+    from datetime import datetime
+    try:
+        rows = con.execute("""SELECT name, MIN(id), MIN(created) FROM vault_objects WHERE kind='reset' AND deleted IS NULL
+                              GROUP BY name ORDER BY MIN(id)""").fetchall()
+        newer = [r[0] for r in con.execute("SELECT MIN(id) FROM vault_objects WHERE kind='reset-faces' GROUP BY name")]
+    except Exception:
+        return {}
+    out, prev = {}, None
+    for name, id_, created in rows:
+        if prev and not any(i < id_ for i in newer):
+            try:
+                near = 0 <= (datetime.fromisoformat(created[:19]) - datetime.fromisoformat(prev[2][:19])).total_seconds() <= 120
+            except (TypeError, ValueError):
+                near = False
+            if near:
+                out[prev[0]] = name
+                prev = None
+                continue
+        prev = (name, id_, created)
+    return out
+
+KIND_WORDS = {"db": "Daily", "manual": "Back up now", "upgrade": "Before the update", "reset": "Before a reset"}
 OBJ_WORDS = {"db": "Daily backups", "faces": "Daily backups, faces", "manual": "Back up now", "manual-faces": "Back up now, faces",
              "upgrade": "Before an update", "upgrade-faces": "Before an update, faces", "reset": "Before a reset",
+             "reset-faces": "Before a reset, faces",
              "found": "Found in the backup folder", "session": "Sessions in the safe copy",
              "session-lost": "Sessions locked to a lost master key"}
 

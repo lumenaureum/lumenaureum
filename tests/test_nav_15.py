@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_client_page_141 import BASE, E, _tab, browser, env
 
 ITEMS = ["Today", "Clients", "Sessions", "Calendar", "Finances", "Search", "Settings", "+ Contact", "+ Inquiry", "Sign out"]
+ALWAYS = ["Today", "Clients", "Sessions", "Search", "+ Contact"]
 PAGES = ["/", "/clients", "/sessions", "/money"]
 
 def _inquiry(A):
@@ -61,13 +62,7 @@ def test_every_nav_item_is_visible_or_reachable(browser, env, width):
             assert right <= width + 0.5, (path, right)
             assert p.locator("nav.top a.ui-inbox").is_visible(), "the badge is always on screen"
             if width > 760:
-                for label in ITEMS:
-                    assert _visible_in_bar(p, label), (path, label)
-                assert not p.locator("nav.top .ui-nav-more").is_visible()
-                if width >= 1280:
-                    tops = p.evaluate("[...document.querySelectorAll('nav.top > *')].filter(e => e.checkVisibility())"
-                                      ".map(e => { const r = e.getBoundingClientRect(); return (r.top + r.bottom) / 2; })")
-                    assert max(tops) - min(tops) < 20, tops
+                _desktop_checks(p, path, ITEMS)
             else:
                 for label in ("Today", "Clients", "Sessions"):
                     assert _visible_in_bar(p, label), (path, label)
@@ -91,5 +86,68 @@ def test_every_nav_item_is_visible_or_reachable(browser, env, width):
             p.wait_for_url(BASE + "/money")
             p.locator("nav.top a.ui-nav-search").click()
             p.wait_for_url(BASE + "/search")
+    finally:
+        ctx.close()
+
+def _one_row(p):
+    mid = p.evaluate("[...document.querySelectorAll('nav.top > *, nav.top nav.sections > a')].filter(e => e.checkVisibility())"
+                     ".map(e => { const r = e.getBoundingClientRect(); return (r.top + r.bottom) / 2; })")
+    return max(mid) - min(mid) < 20, mid
+
+def _desktop_checks(p, path, items):
+
+    ok, mid = _one_row(p)
+    assert ok, (path, mid)
+    for label in ALWAYS:
+        assert _visible_in_bar(p, label), (path, label)
+    folded = [label for label in items if not _visible_in_bar(p, label)]
+    more = p.locator("nav.top .ui-nav-more > summary")
+    if not folded:
+        assert not more.is_visible(), path
+        return
+    assert more.is_visible(), (path, folded)
+    more.click()
+    pop = p.locator("nav.top .ui-nav-more .ui-more-pop")
+    for label in folded:
+        assert pop.get_by_text(label, exact=True).is_visible(), (path, label)
+    for label in items:
+        if label not in folded and label != "Search":
+            assert not pop.get_by_text(label, exact=True).is_visible(), (path, "in the bar AND in More", label)
+    more.click()
+
+def _equipment_on(A):
+    con = A.connect()
+    try:
+        con.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('plugin_on_equipment', '1')")
+        con.commit()
+    finally:
+        con.close()
+
+@pytest.mark.parametrize("width", [1024, 1280, 1440])
+def test_a_plugin_section_never_spills_the_desktop_bar(browser, env, width):
+
+    A, c = env
+    _inquiry(A)
+    _equipment_on(A)
+    ctx, p = _tab(browser, c, width=width)
+    try:
+        p.goto(BASE + "/")
+        items = ITEMS + ["Equipment"]
+        _desktop_checks(p, "/", items)
+        if not _visible_in_bar(p, "Equipment"):
+            p.locator("nav.top .ui-nav-more > summary").click()
+            p.locator("nav.top .ui-nav-more .ui-more-pop").get_by_text("Equipment", exact=True).click()
+            p.wait_for_url("**/equipment**")
+        else:
+            p.goto(BASE + "/equipment")
+        assert _visible_in_bar(p, "Equipment"), "the section you are on stays in the bar"
+        _desktop_checks(p, "/equipment", items)
+
+        p.set_viewport_size({"width": 900, "height": 800})
+        p.wait_for_timeout(150)
+        _desktop_checks(p, "/equipment (900px)", items)
+        p.set_viewport_size({"width": width, "height": 800})
+        p.wait_for_timeout(150)
+        _desktop_checks(p, "/equipment (back)", items)
     finally:
         ctx.close()

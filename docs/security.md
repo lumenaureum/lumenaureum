@@ -102,6 +102,7 @@ session after that would be sealed to their key, a password change would not und
 new master key asked for without the old one does not take effect for 48 hours:
 
 - Only its public half waits, in the encrypted settings, with the time it was asked for and the time it takes effect.
+  Both are kept in UTC, so changing the studio's time zone doesn't shorten or lengthen the 48 hours.
   The secret half was shown once and has left memory; nothing on disk can open anything with it.
 - Until then the current key keeps working: backups, sealed sessions and photo keys are still sealed to it, and it
   still opens the keyring.
@@ -111,7 +112,8 @@ new master key asked for without the old one does not take effect for 48 hours:
   effect in 48 hours. If it wasn't you, sign in and cancel it in Settings, Security." (title "Studio master key"),
   once per request, in those words only. This one is always on, with no box to untick (Settings, Notifications lists
   it, ticked and grayed out): it goes whenever a notice server is set up, so someone with your password and a code
-  can't turn it off before asking.
+  can't turn it off before asking. Removing or replacing the server doesn't stop it either: for 30 days the first
+  server removed or replaced keeps getting this one notice, and nothing else, as well as any server set up now.
 - A second request while one waits is refused, before a recovery code is used up; cancel the waiting one first. The
   first one keeps its time, so a request can't be swapped for another or pushed back quietly.
 - The app checks at each sign-in, on page loads and every few minutes. A restart during the wait changes nothing:
@@ -228,7 +230,8 @@ is set up (an install that turned it off keeps it off). What each one sends is t
   ("Studio master key", see "The 48-hour wait"), and by this one when it takes effect.
 
 **A new master key was asked for** ("Studio master key") is not one of the boxes: like the locked-studio notice it is
-always on, with no way to turn it off, whenever a notice server is set up. See "The 48-hour wait".
+always on, with no way to turn it off, whenever a notice server is set up, and for 30 days it also goes to the first
+server removed or replaced. See "The 48-hour wait".
 
 Each one's last notice is kept in the encrypted settings, so a restart doesn't repeat it, and turning a box off or on
 starts afresh. One notice that fails, or a check behind it that fails, is written to the app's log and never stops
@@ -499,7 +502,8 @@ the calendar app asks, the studio answers with a standard calendar file, and not
   A reverse proxy in front of the app keeps its own access log, which would hold the link: turn that log off for
   `/calendar-feed/`, or make a new link if one ever landed there.
 - **Replace or stop in one step.** **Make a new link** replaces the secret, and the old address stops at once (every
-  phone must subscribe again). **Turn off the calendar link** deletes it.
+  phone must subscribe again); nothing else does, so turning it on again from a page opened earlier keeps the link
+  phones use. **Turn off the calendar link** deletes it.
 - **Who can reach it.** The same as the app: the network allow-list and HTTPS still apply; only the sign-in is
   replaced by the secret. A wrong address counts toward the same limits as a wrong password (5 in 15 minutes locks
   that address, 20 an hour per network), on its own count, so a phone still asking with an old link never locks you
@@ -546,6 +550,13 @@ The studio page is public and unencrypted, like any website; see [Studio page](s
   websites listed in Settings (https only, each checked again before it goes into the header), and
   `frame-ancestors 'none'` for the button, so another site can't frame it to trick visitors. Nothing from the other
   website comes back to the app, and nothing of the app's goes to it but that address.
+- **The Contact page in a frame.** The threat: another site shows the studio's Contact page inside a frame and
+  overlays its own buttons, so a visitor's clicks or typing go somewhere they didn't intend. A page's own content
+  policy can't forbid framing, so on a host that reads `.htaccess` (Apache), `contact/.htaccess` sends
+  `frame-ancestors 'none'` and `X-Frame-Options: DENY` for that folder (only when the server has mod_headers, so a host
+  without it serves the page unchanged rather than an error). It stays out of the site's top folder on purpose: there
+  it would also reach `inquiry-form.php`, whose own header lists the sites allowed to frame it. Other hosts: the
+  Contact page can be framed there; the form still seals to the studio's key in the browser.
 - **The inquiries folder** holds only sealed files, the rate list `.rate.php` (hashed addresses and times, behind a
   PHP exit line, so fetching it shows nothing) and an empty `index.html` (so a web server that lists folders shows
   nothing), on any web server; `inquiries/.htaccess` closes it once more where the server reads it. Taking the site
@@ -711,9 +722,12 @@ UTF-16 with its mark, or else the Windows/Latin-1 encoding older spreadsheets sa
 text-direction characters removed and is cut to a set length; nothing in the file is ever run, opened or followed.
 The uploaded file is kept only in the app's memory while you check the columns and the preview (an hour at most,
 and gone at a restart): it is never written to disk outside the encrypted database. Nothing is written until you
-press Import, and a client already here is never merged on its own: you pick Skip or Update for each. **Remove this
-import** takes back the clients an import added that you have not worked with since; each one is recorded on the
-deletions list like any other deleted client.
+press Import, and a client already here is never merged on its own: you pick Skip or Update for each. On Update, a
+person in the file is the person here with the same email, else the same name, else the same phone; a phone a family
+shares never writes one partner's email or birth date over the other's (the new person is added instead), and notes
+are added to, never replaced. **Remove this import** takes back the clients an import added that you have not worked
+with since (a session, note, label or event among them); each one is recorded on the deletions list like any other
+deleted client.
 
 A file's **Minor** column never quietly turns a child into an adult. Minor status protects children (a parent or
 guardian signs for them, and agreements keep the clause about a child turning 18), so the app reads a Minor value the

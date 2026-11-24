@@ -1,9 +1,11 @@
 {% extends "base.html" %}{% from "_macros.html" import stage_pill, phone, seg, avatar with context %}{% import "_ui.html" as ui with context %}
 {% block title %}{{ e.name }} - Lumen Aureum{% endblock %}
 {% block body %}
-{% set need_rel = fams|selectattr('n_docs')|list %}
+
+{% set coming = fams|rejectattr('s.stage', 'equalto', 'lost')|list %}
+{% set need_rel = coming|selectattr('n_docs')|list %}
 {% set signed = need_rel|selectattr('released')|list|length %}
-{% set delivered = fams|selectattr('s.stage', 'in', ['delivered','closed'])|list|length %}
+{% set delivered = coming|selectattr('s.stage', 'in', ['delivered','closed'])|list|length %}
 {% set open_steps = steps|rejectattr('done')|list %}
 {% set one_, many_ = nouns %}{% set One_, Many_ = one_|capitalize, many_|capitalize %}{% set people_ = one_ == 'person' %}
 
@@ -20,7 +22,7 @@
   <div><div class="k">Releases</div><div class="v">{% if need_rel %}<span class="pill">{{ signed }} of {{ need_rel|length }} {{ many_ if need_rel|length != 1 else one_ }} signed</span>{% else %}None to sign{% endif %}</div></div>
   <div class="hl-wide"><div class="k">Next step</div><div class="v" style="{{ 'color:var(--red)' if open_steps and open_steps[0].due and open_steps[0].due < today.isoformat() }}">{{ open_steps[0].title if open_steps else (fam_open or '-') }}</div>
     {% if open_steps and open_steps[0].due %}<div class="sub" style="font-size:12px">{{ nice(open_steps[0].due) }}</div>{% endif %}</div>
-  <div><div class="k">Delivered</div><div class="v">{{ delivered }}/{{ fams|length }}</div></div>
+  <div><div class="k">Delivered</div><div class="v">{{ delivered }}/{{ coming|length }}</div></div>
 </div>
 
 
@@ -70,7 +72,7 @@
   </form>{% endif %}
   {% if e.billing == 'families' %}<form method="post" action="{{ url_for('event_family_price', eid=e.id) }}" class="row" style="margin-bottom:10px;gap:8px">
     <label for="f-family_price" class="ui-label">Price per {{ one_ }}, before tax</label><input type="number" step="0.01" min="0" id="f-family_price" name="amount" placeholder="$" value="{{ '%g' % e.family_price if e.family_price else '' }}" style="width:110px;margin:0">
-    {% if taxed %}<label class="row" style="gap:6px;font-size:13px"><input type="checkbox" name="tax_in" value="1" style="width:auto;margin:0"{{ ' checked' if e.family_tax_in }}>Includes sales tax</label>{% endif %}
+    {% if taxed %}<label class="row" style="gap:6px;font-size:13px"><input type="checkbox" name="tax_in" value="1" style="width:auto;margin:0"{{ ' checked' if e.family_tax_in }}>Includes {{ tax_word|lower if tax_word in ('Sales tax', 'Taxes') else tax_word }}</label>{% endif %}
     <button class="ui-btn ui-btn-quiet">Set for {{ many_ }} without one</button></form>
 {% endif %}
   {% if pipe_i and cur_i + 1 < C.STAGES|length %}{% set to_ = stage_label[C.STAGES[cur_i + 1]] %}{% set left_ = (fam_open ~ '. ') if fam_open else '' %}
@@ -91,7 +93,7 @@
       {% else %}<form method="post" action="{{ url_for('event_releases', eid=e.id) }}" class="inline" data-confirm="Mark the {{ f.s.household }} release signed? Do this once you have the signed copy back."><input type="hidden" name="session_id" value="{{ f.s.id }}">
         <span>{{ f.n_signed }} of {{ f.n_docs }} signed</span> <button class="ui-btn ui-btn-small" aria-label="Mark the {{ f.s.household }} release signed">Mark signed</button></form>{% endif %}</td>
     
-    {% if f.t is not none %}<td data-l="Payment" data-v="{{ f.t.due }}">{% if not f.t.quoted %}<span class="mute">No price yet</span>{% elif f.t.due < -0.005 %}<span class="pill">{{ money(f.t.paid) }} paid, {{ money(-f.t.due) }} credit</span>{% elif f.t.due <= 0.005 %}<span class="pill">{{ money(f.t.paid) }} paid in full</span>{% else %}{% if f.s.id in owing %}{{ ui.pick_box('fpay', f.s.id, 'Select ' ~ f.s.household ~ ', ' ~ money(f.t.due) ~ ' owed') }}{% endif %}<span>{% if f.t.paid > 0.005 %}{{ money(f.t.paid) }} paid, {% endif %}{{ money(f.t.due) }} owed</span>
+    {% if f.t is not none %}<td data-l="Payment" data-v="{{ f.t.due }}">{% if not f.t.quoted %}<span class="mute">No price yet</span>{% elif f.s.stage == 'lost' and f.t.paid <= 0.005 %}<span class="mute">Nothing owed</span>{% elif f.t.due < -0.005 %}<span class="pill">{{ money(f.t.paid) }} paid, {{ money(-f.t.due) }} credit</span>{% elif f.t.due <= 0.005 %}<span class="pill">{{ money(f.t.paid) }} paid in full</span>{% else %}{% if f.s.id in owing %}{{ ui.pick_box('fpay', f.s.id, 'Select ' ~ f.s.household ~ ', ' ~ money(f.t.due) ~ ' owed') }}{% endif %}<span>{% if f.t.paid > 0.005 %}{{ money(f.t.paid) }} paid, {% endif %}{{ money(f.t.due) }} owed</span>
       
       {% set dep_ = f.s.stage in ('quoted', 'booked') and f.t.deposit_short > 0.005 %}
       {% set pay_ = dict(form='deposit_paid' if dep_ else 'pay_balance', verb='Record payment', sid=f.s.id, dep_amt=f.t.deposit_short, pay_amt=f.t.due) %}

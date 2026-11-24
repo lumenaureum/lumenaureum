@@ -345,6 +345,19 @@ def card_files(folder):
     folder = Path(folder)
     return [(p_.relative_to(folder).as_posix(), p_) for p_ in sorted(folder.rglob("*")) if p_.is_file()]
 
+def card_taken(dest, code):
+
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    box = Path(dest) / CARD_DIR
+    if not box.exists():
+        return False
+    try:
+        blob = (box / "manifest.bin").read_bytes()
+        AESGCM(key_bytes(card_key(code))).decrypt(blob[:12], blob[12:], b"lumen-aureum-gallery:manifest.bin")
+        return False
+    except Exception:
+        return True
+
 def write_card(built, dest):
 
     dest = Path(dest)
@@ -2680,7 +2693,13 @@ def register(ctx):
                 pass
         n_fin = len(uploaded(s["id"], "final"))
         if build_from_finals(s, n_fin):
-            return {"from": "finals"} if n_fin else None
+            if n_fin:
+                return {"from": "finals"}
+            upto_ = g["built_upto"] if "built_upto" in g.keys() else None
+            if needs_finals(s) and upto_ and upto_ == newest_upload(s["id"], "export"):
+                return {"from": "uploads", "proofs_ok": "1"}
+
+            return None
         return {"from": "uploads"} if uploaded(s["id"]) else None
 
     def setting_(k):
@@ -2773,7 +2792,7 @@ def register(ctx):
             r_ = q("SELECT COUNT(*) n FROM photo_files WHERE session_id=? AND kind=? AND state='done' AND done_at > ?",
                    (s["id"], kind, upto), one=True)
         else:
-            r_ = q("SELECT COUNT(*) n FROM photo_files WHERE session_id=? AND kind=? AND state='done' AND substr(done_at,1,10) > ?",
+            r_ = q("SELECT COUNT(*) n FROM photo_files WHERE session_id=? AND kind=? AND state='done' AND date(done_at, 'localtime') > ?",
                    (s["id"], kind, g["built_at"][:10]), one=True)
         return r_["n"] if r_ else 0
 
@@ -2878,6 +2897,9 @@ def register(ctx):
             lk = locks.session(sid)
             lk.acquire()
             try:
+                relink_ = app.config.get("prints_relink")
+                with app.app_context():
+                    relinked = relink_(sid) if callable(relink_) else None
                 out, n, skipped = build(gid, src, key, progress, picks=picks_cfg, credit=credit, brand=brand, mark=mark,
                                         download=download, cws=cw_id(g, gid), keep_full=keep_full)
                 if adopt is not None and skipped:
@@ -2893,6 +2915,8 @@ def register(ctx):
                     x("""UPDATE galleries SET built_at=?, n_files=?, out_dir=?, ekey=?, proof=?, built_upto=?, brand_fp=?
                          WHERE session_id=?""", (date.today().isoformat(), n, str(out) + "/", key, 1 if mark else 0, upto,
                                                  brand_fp, sid))
+                    if relinked:
+                        relinked()
                     x("UPDATE sessions SET gallery_built=? WHERE id=?", (date.today().isoformat(), sid))
                     ctx.audit(("Download gallery" if download else "Gallery") + f" built: {n} photos encrypted" + (f"; skipped (not a JPEG this can read): {', '.join(skipped[:10])}" if skipped else ""),
                               sid=sid, who="Lumen Aureum")
@@ -5288,6 +5312,22 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
         return date.fromisoformat(restored_until(r, gdays(sid)))
 
     app.config["gallery_restored_end"] = restored_end
+
+    def removed_on(sid):
+
+        import sqlite3
+        try:
+            r = q("SELECT upload_state, removed_at FROM galleries WHERE session_id=?", (sid,), one=True)
+        except sqlite3.OperationalError:
+            return None
+        if not (r and r["removed_at"]):
+            return None
+        try:
+            return date.fromisoformat(str(r["removed_at"])[:10])
+        except ValueError:
+            return None
+
+    app.config["gallery_removed_on"] = removed_on
     app.config["gallery_download"] = download_built
     app.config["gallery_download_online"] = download_online
     app.config["gallery_brand"] = gallery_brand
@@ -5463,7 +5503,7 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
         picking = not dl and picking_type(s)
         kind = "Download" if dl else "Proofing" if picking or g["proof"] else "Delivery"
         left, closes, on_host_after = None, "", False
-        if building:
+        if building and not host_up:
             phase, words = "Not online yet", job.get("label") or "Building the gallery"
         elif us == "removed" or g["removed_at"]:
             phase, words = "Closed", "Closed " + ctx.nice((g["removed_at"] or "")[:10]) + ", off the web"
@@ -5482,6 +5522,9 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
             phase, words = "Online", f"Online · its {w['days']} days start when the client first opens it"
         else:
             phase, words = "Not online yet", "Not online yet"
+        if building and host_up:
+
+            words = (job.get("label") or "Rebuilding the gallery") + " · clients see the current copy until the new one replaces it"
 
         act = []
         if host_up or us == "removed":
@@ -5631,12 +5674,26 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
 
         def work(job):
             job["total"], made, failed = len(todo), 0, []
+            cur = {}
+
+            def now_():
+
+                if not cur:
+                    return ""
+                st_ = JOBS.get(cur["sid"]) or {}
+                if st_.get("state") != "running":
+                    return cur["who"]
+                what_ = st_.get("label") or "Making the gallery"
+                n_ = f", {st_['done']} of {st_['total']}" if st_.get("total") else ""
+                return f"{cur['who']}: {what_[:1].lower()}{what_[1:]}{n_}"
+            job["now_fn"] = now_
             for i_, (sid_, f_, who_) in enumerate(todo):
+                cur.update(sid=sid_, who=who_ or "A gallery")
                 if JOBS.get(sid_, {}).get("state") != "running":
                     JOBS.pop(sid_, None)
                     try:
                         with app.test_request_context():
-                            start_build(sid_, f_.get("from"), f_.get("source_dir", ""), None, sync=True)
+                            start_build(sid_, f_.get("from"), f_.get("source_dir", ""), f_.get("proofs_ok"), sync=True)
                     except Exception as e_:
                         app.logger.exception("gallery rebuild with the new details %s", sid_)
                         JOBS[sid_] = dict(state="error", done=0, total=0, error=str(e_)[:200])
@@ -6018,6 +6075,10 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
             dest, why = card_folder(request.form.get("folder"))
             if dest is None:
                 return refuse(why)
+            mine = card_row(sid)
+            if card_taken(dest, mine["code"] if mine else ""):
+                return refuse(f"This card already holds another session's sealed photos. Use another card, or move "
+                              f"the \"{CARD_DIR}\" folder off it first.")
         src, why = card_source(s, bool(request.form.get("proofs_ok")), (request.form.get("source_dir") or "").strip())
         if src is None:
             return refuse(why)

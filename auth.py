@@ -9,7 +9,7 @@ import struct
 import threading
 import time
 from collections import defaultdict, deque
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from flask import abort, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -233,11 +233,16 @@ def _setting(con, k):
     r = con.execute("SELECT value FROM settings WHERE key=?", (k,)).fetchone()
     return r[0] if r else None
 
+def studio_time(iso):
+
+    dt = datetime.fromisoformat(iso)
+    return dt.astimezone().replace(tzinfo=None) if dt.tzinfo else dt
+
 def master_pending(con):
 
     try:
         v = json.loads(_setting(con, MASTER_PENDING) or "null")
-        due = datetime.fromisoformat(v["due"])
+        due = studio_time(v["due"])
     except (ValueError, TypeError, KeyError):
         return None
     if not isinstance(v, dict) or not v.get("pub"):
@@ -409,7 +414,7 @@ def register(app, connect, allowed, audit, on_unlock):
             LAST_SEEN.pop(sid, None)
         with app.test_request_context():
             audit("Replaced a lost master key, asked for on "
-                  f"{when_text(datetime.fromisoformat(p['asked']))} (every device signed out)" +
+                  f"{when_text(studio_time(p['asked']))} (every device signed out)" +
                   (f"; {n} sealed session{'s' if n != 1 else ''} stay closed to the new key" if n else ""))
             _cred_changed()
             from flask import g as g_
@@ -907,9 +912,10 @@ def register(app, connect, allowed, audit, on_unlock):
                                                  "not kept. Cancel the waiting one first to ask for a different one.")
                             return redirect(url_for("security") + "#master-pending")
                         due_ = now_ + MASTER_WAIT
+                        utc_ = now_.astimezone(timezone.utc)
                         _put(con, MASTER_PENDING, json.dumps(dict(
-                            pub=st["pub"], asked=now_.isoformat(timespec="seconds"),
-                            due=due_.isoformat(timespec="seconds"))))
+                            pub=st["pub"], asked=utc_.isoformat(timespec="seconds"),
+                            due=(utc_ + MASTER_WAIT).isoformat(timespec="seconds"))))
                         con.commit()
                     finally:
                         con.close()

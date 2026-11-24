@@ -31,7 +31,7 @@ NAMES = {
                 "city", "town", "state", "province", "zip", "zipcode", "postalcode", "country"},
     "client_notes": {"notes", "note", "clientnotes", "comments", "comment"},
     "person": {"person", "name", "fullname", "contact", "contactname", "personname", "firstname", "first",
-               "givenname", "middlename", "lastname", "last", "surname", "familyname"},
+               "givenname", "middlename", "additionalname", "lastname", "last", "surname", "familyname"},
     "relationship": {"relationship", "relation", "relationshiptoclient"},
     "email": {"email", "emailaddress", "mail", "email1", "email1value"},
     "phone": {"phone", "phonenumber", "mobile", "mobilephone", "cell", "cellphone", "telephone", "tel", "homephone",
@@ -43,6 +43,17 @@ NAMES = {
 }
 JOIN = {"person": " ", "address": ", ", "client_notes": "\n", "person_notes": "\n", "client": " ", "company": " "}
 CAP = {"client_notes": 4000, "person_notes": 2000, "address": 500}
+
+FULL_NAME = {"name", "fullname", "contactname", "personname"}
+NAME_PARTS = {"firstname", "first", "givenname", "middlename", "additionalname", "lastname", "last", "surname",
+              "familyname"}
+
+NOT_VALUE = ("label", "type", "phonetic", "nickname", "prefix", "suffix", "title", "fileas", "displayname", "fax",
+             "pager", "organization", "manager", "assistant")
+
+PLACE_WORDS = {"city", "town", "state", "province", "country"}
+
+OTHER_ADDRESS = ("business", "work", "other")
 YES = {"yes", "y", "true", "1", "x", "minor"}
 NO = {"no", "n", "false", "0", "adult"}
 
@@ -58,15 +69,26 @@ def guess(header):
     for h in header:
         n_ = norm_header(h)
         k_ = next((k for k, words in NAMES.items() if n_ in words), None)
-        if k_ is None and n_:
+        if k_ is None and n_ and not any(w in n_ for w in NOT_VALUE):
+            words_ = set(re.findall(r"[a-z]+", (h or "").lower()))
             for words, key in ((("email", "mail"), "email"), (("phone", "mobile", "cell"), "phone"),
                                (("birth",), "birth_date"), (("address", "street", "zip", "postal"), "address"),
                                (("company", "business"), "company"), (("relation",), "relationship"),
                                (("note", "comment"), "client_notes"), (("name",), "person")):
-                if any(w in n_ for w in words):
+                if any(w in n_ for w in words) or key == "address" and PLACE_WORDS & words_:
                     k_ = key
                     break
         out.append(k_ or LEAVE_OUT)
+    norms = [norm_header(h) for h in header]
+    if any(n_ in FULL_NAME for n_ in norms):
+        out = [LEAVE_OUT if k_ == "person" and n_ in NAME_PARTS else k_ for n_, k_ in zip(norms, out)]
+
+    formatted = next((i for i, (n_, k_) in enumerate(zip(norms, out)) if k_ == "address" and n_.endswith("formatted")),
+                     None)
+    if formatted is not None:
+        out = [LEAVE_OUT if k_ == "address" and i != formatted else k_ for i, k_ in enumerate(out)]
+    elif any(k_ == "address" and n_.startswith("home") for n_, k_ in zip(norms, out)):
+        out = [LEAVE_OUT if k_ == "address" and n_.startswith(OTHER_ADDRESS) else k_ for n_, k_ in zip(norms, out)]
     return out
 
 def decode(raw):
@@ -97,7 +119,11 @@ def read(raw):
         rows = list(csv.reader(io.StringIO(text, newline=""), delimiter=delim))
     except csv.Error:
         raise ImportProblem("The file could not be read as CSV. Save it from your spreadsheet as CSV and try again.")
-    rows = [r for r in rows if any((c or "").strip() for c in r)]
+
+    while rows and not filled(rows[0]):
+        rows.pop(0)
+    while rows and not filled(rows[-1]):
+        rows.pop()
     if not rows:
         raise ImportProblem("The file is empty.")
     header = [clean(h, 80) for h in rows[0]]
@@ -106,10 +132,15 @@ def read(raw):
     body = rows[1:]
     if not body:
         raise ImportProblem("The file has a header row and nothing under it.")
-    if len(body) > MAX_ROWS:
-        raise ImportProblem(f"The file has {len(body)} rows; the most one import takes is {MAX_ROWS}. Split it.")
+    n_ = sum(1 for r in body if filled(r))
+    if n_ > MAX_ROWS:
+        raise ImportProblem(f"The file has {n_} rows; the most one import takes is {MAX_ROWS}. Split it.")
     w_ = len(header)
     return header, [(r + [""] * w_)[:w_] for r in body], enc
+
+def filled(row):
+
+    return any((c or "").strip() for c in row)
 
 _CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f​-‏‪-‮⁦-⁩]")
 
@@ -150,6 +181,8 @@ def records(header, rows, mapping):
 
     out = []
     for i, r in enumerate(rows):
+        if not filled(r):
+            continue
         parts = {}
         for col, key in zip(r, mapping):
             if key:
@@ -183,7 +216,7 @@ def records(header, rows, mapping):
 
 def groups(recs):
 
-    by_key, order, problems = {}, [], []
+    by_key, order, problems, seen = {}, [], [], {}
     for row, v, notes in recs:
         name = v.get("client") or v.get("company") or v.get("person")
         if not name:
@@ -192,6 +225,12 @@ def groups(recs):
             continue
         key = ("n", v["client_number"]) if v.get("client_number") else \
               ("c", v["client"].lower()) if v.get("client") else ("r", row)
+        same = tuple(sorted(v.items()))
+        if same in seen:
+            first, key = seen[same]
+            by_key[key]["notes"].append((row, f"Same as row {first}: left out"))
+            continue
+        seen[same] = (row, key)
         gr = by_key.get(key)
         if gr is None:
             gr = by_key[key] = dict(key=key, rows=[], people=[], notes=[],
@@ -209,9 +248,14 @@ def groups(recs):
         pname = v.get("person") or (v.get("client") or v.get("company") if any(
             v.get(k) for k in ("email", "phone", "birth_date", "relationship")) or "person" not in v else "")
         if pname:
-            gr["people"].append(dict(name=pname, relationship=v.get("relationship", ""), email=v.get("email", ""),
-                                     phone=v.get("phone", ""), birth_date=v.get("birth_date", ""),
-                                     minor=v.get("minor"), notes=v.get("person_notes", ""), row=row))
+            p_ = dict(name=pname, relationship=v.get("relationship", ""), email=v.get("email", ""),
+                      phone=v.get("phone", ""), birth_date=v.get("birth_date", ""), minor=v.get("minor"),
+                      notes=v.get("person_notes", ""))
+            twin = next((x_ for x_ in gr["people"] if dict(x_, row=None) == dict(p_, row=None)), None)
+            if twin:
+                gr["notes"].append((row, f"{pname} is also on row {twin['row']}: added once"))
+            else:
+                gr["people"].append(dict(p_, row=row))
     return [by_key[k] for k in order], problems
 
 def same_text(a, b):

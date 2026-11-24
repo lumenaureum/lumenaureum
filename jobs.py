@@ -54,10 +54,31 @@ def running(key):
     j = JOBS.get(key)
     return bool(j and j["state"] == "running")
 
+def status_text(j):
+
+    out = "working..." + (f" ({j.get('done', 0)} of {j['total']} done)" if j.get("total") else "")
+    fn = j.get("now_fn")
+    if fn:
+        try:
+            now = (fn() or "").strip()
+        except Exception:
+            now = ""
+        if now:
+            out += " \u00b7 " + now
+    return out
+
+def live():
+
+    return [dict(key=j["key"], text=j["text"]) for j in visible() if j["state"] == "running"]
+
 def visible():
 
     now = time.time()
     with _LOCK:
         for k in [k for k, j in JOBS.items() if j["ended"] and now - j["ended"] > (600 if j["state"] == "error" else 30)]:
             JOBS.pop(k, None)
-        return [dict(j) for j in JOBS.values() if not j.get("quiet") or j["state"] == "error"]
+        out = [dict(j) for j in JOBS.values() if not j.get("quiet") or j["state"] == "error"]
+    for j in out:
+        if j["state"] == "running":
+            j["text"] = status_text(j)
+    return out

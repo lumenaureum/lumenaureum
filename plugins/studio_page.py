@@ -803,6 +803,8 @@ def build_site(out_dir, conf, photos):
                 put("llms.txt", llms_text(conf, about, site_url, common["contact_page"], bool(form and not form_off)))
             if conf.get("htaccess"):
                 put(".htaccess", f"ErrorDocument 404 {site_path}404.html\n")
+                if common["contact_page"]:
+                    put("contact/.htaccess", CONTACT_HTACCESS)
         old = out_dir.parent / f".{out_dir.name}.old"
         shutil.rmtree(old, ignore_errors=True)
         if out_dir.exists():
@@ -979,7 +981,14 @@ def clean_inquiry(data, types):
         return out, "incomplete"
     return out, ""
 
-NAME_OK = re.compile(r"^(?:(?:photos|assets|about|galleries|contact)/)?[A-Za-z0-9][A-Za-z0-9._-]{0,120}$|^(?:inquiries/)?\.htaccess$|^inquiries/index\.html$")
+NAME_OK = re.compile(r"^(?:(?:photos|assets|about|galleries|contact)/)?[A-Za-z0-9][A-Za-z0-9._-]{0,120}$|^(?:inquiries/|contact/)?\.htaccess$|^inquiries/index\.html$")
+
+CONTACT_HTACCESS = """# Lumen Aureum: the Contact page's form is never shown inside another site's frame.
+<IfModule mod_headers.c>
+Header always set Content-Security-Policy "frame-ancestors 'none'"
+Header always set X-Frame-Options "DENY"
+</IfModule>
+"""
 INQ_DIR = "inquiries"
 
 SITE_TOP_NAMES = frozenset({"photos", "assets", "about", "contact", INQ_DIR, "index.html", "404.html", "sealed.php",

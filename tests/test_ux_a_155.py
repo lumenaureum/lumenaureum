@@ -159,7 +159,7 @@ def test_event_highlights_wrap_and_venue_and_next_step_get_room(event):
     assert re.search(r'<div class="hl-wide"><div class="k">Next step</div>', p)
     v = re.search(r"\.highlights \.v \{([^}]*)\}", CSS).group(1)
     assert "nowrap" not in v and "ellipsis" not in v and "overflow-wrap: anywhere" in v
-    assert ".highlights { grid-template-columns: repeat(2, minmax(0, 1fr)); }" in CSS
+    assert ".highlights > div, .highlights > .hl-wide { flex: 1 1 40%; min-width: 0; }" in CSS
 
 def test_event_family_rows_label_the_parent_say_releases_one_way_and_take_a_payment(event):
     A, c, eid = event

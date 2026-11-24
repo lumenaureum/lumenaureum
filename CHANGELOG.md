@@ -2,6 +2,31 @@
 
 New features, behavior changes, security fixes, and other fixes in each release.
 
+## 1.6.1 (2026-11-24)
+
+### Changed
+- On a desktop, sections that don't fit in the top bar move into More.
+- Rebuild all shows which gallery it is on.
+- A tax change updates quotes not yet accepted.
+
+### Fixed
+- Restore can't pick the wrong backup.
+- Client import keeps notes and reads Google and Outlook files.
+- Taxes are no longer charged twice, and tax-exempt clients pay none on prints.
+- Group events never bill twice.
+- Payment plans no longer mark earlier bookings overdue.
+- Late installments show on Today.
+- Print orders keep their files after a rebuild.
+- Wedding statements bill the couple.
+- Older galleries no longer mark evening uploads as new (UTC vs local time).
+- The calendar no longer shows inquiries as shoots.
+- A gallery being rebuilt stays online, and one taken down early shows as closed.
+- Layout fixes on phone and desktop.
+
+### Security
+- Changing the time zone can't shorten the 48-hour master key wait.
+- Removing the phone notice server keeps the master key notice on.
+
 ## 1.6.0 (2026-11-23)
 
 ### New

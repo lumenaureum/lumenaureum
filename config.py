@@ -231,12 +231,15 @@ def dw(text):
         return text
     def cap(s_, like):
         return s_[0].upper() + s_[1:] if like[0].isupper() else s_
-    def art(m):
-        a_ = "an" if w[0] in "aeiou" else "a"
-        return cap(a_, m.group(1)) + " " + cap(w, m.group(2))
-    out = re.sub(r"\b([Aa]n?) ([Dd])eposit\b(?!s)", art, str(text))
-    out = re.sub(r"\b([Dd])eposits\b", lambda m: cap(w, m.group(1)) + ("es" if w.endswith(("s", "x", "ch", "sh")) else "s"), out)
-    out = re.sub(r"\b([Dd])eposit\b", lambda m: cap(w, m.group(1)), out)
+    def swap(m):
+        if m.group(1):
+            return m.group(1)
+        a_, d_, pl = m.group(2, 3, 4)
+        word = cap(w, d_) + (("es" if w.endswith(("s", "x", "ch", "sh")) else "s") if pl else "")
+        if a_ and not pl:
+            a_ = cap("an" if w[0] in "aeiou" else "a", a_)
+        return (a_ + " " if a_ else "") + word
+    out = re.sub(r"(?i:\b((?:an? )?%s(?:e?s)?)\b)|\b(?:([Aa]n?) )?([Dd])eposit(s?)\b" % re.escape(w), swap, str(text))
     try:
         from markupsafe import Markup
         return Markup(out) if isinstance(text, Markup) else out

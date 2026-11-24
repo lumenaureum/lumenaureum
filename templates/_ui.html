@@ -42,7 +42,8 @@
     {% if kicker %}<div class="ui-kicker">{{ kicker }}</div>{% endif %}
     <h1>{{ title }}</h1>
     
-    {% if status and sub %}<p class="ui-status">{{ status }}<span class="ui-sep" aria-hidden="true"> &middot; </span><span class="ui-head-sub">{{ sub }}</span></p>
+    
+    {% if status and sub %}<div class="ui-status">{{ status|trim }}<span class="ui-sep" aria-hidden="true">&nbsp;&middot; </span><span class="ui-head-sub">{{ sub }}</span></div>
     {% elif status %}<p class="ui-status">{{ status }}</p>
     {% elif sub %}<div class="ui-head-sub">{{ sub }}</div>{% endif %}
   </div>

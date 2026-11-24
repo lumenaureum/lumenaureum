@@ -63,7 +63,7 @@ def main(argv):
         _unlock()
         con = D.connect(DB)
         for name, kind, created, size in con.execute("""SELECT name, kind, MIN(created), MAX(size) FROM vault_objects
-                WHERE kind IN ('db','faces','reset','manual','manual-faces','upgrade','upgrade-faces','found') AND deleted IS NULL
+                WHERE kind IN ('db','faces','reset','reset-faces','manual','manual-faces','upgrade','upgrade-faces','found') AND deleted IS NULL
                 GROUP BY name ORDER BY MAX(id) DESC"""):
             print(f"{created}  {kind:13}  {(size or 0):>12,}  {name}")
         return 0

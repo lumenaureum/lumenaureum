@@ -132,6 +132,12 @@ def step(is_unlocked, connect, settings, now=None, backup_problem=None, problems
                 status_tick(connect, cfg, kind, ask(), now)
         except Exception:
             log.warning("the %s notice check failed", kind, exc_info=True)
+    try:
+        also = newmaster_also(connect)
+        if also and (not cfg or (also.get("server"), also.get("topic")) != (cfg.get("server"), cfg.get("topic"))):
+            status_tick(connect, also, "newmaster", newmaster_fact(connect), now, state=KEY_NEWMASTER_ALSO_STATE)
+    except Exception:
+        log.warning("the newmaster notice check failed", exc_info=True)
     return told
 
 def start_loop(is_unlocked, connect, settings, applog, backup_problem=None, problems=None):
@@ -207,9 +213,10 @@ def status_on(con, kind):
     v = _get(con, key)
     return v == "1" or (v is None and kind in DEFAULT_ON)
 
-def status_tick(connect, cfg, kind, fact, now=None):
+def status_tick(connect, cfg, kind, fact, now=None, state=None):
 
     key_on, key_state, title, words, again = STATUS[kind]
+    key_state = state or key_state
     now = now or _now()
     with LOCK:
         con = connect()
@@ -283,6 +290,10 @@ NEWMASTER_TEXT = ("A new master key was asked for. It takes effect in 48 hours. 
                   "it in Settings, Security.")
 KEY_MASTER_PENDING = "master_pending"
 
+KEY_NEWMASTER_ALSO = "newmaster_notice_also"
+NEWMASTER_ALSO_DAYS = 30
+KEY_NEWMASTER_ALSO_STATE = "newmaster_notice_also_state"
+
 def _newmaster(fact, now):
     return (str(fact), NEWMASTER_TEXT) if fact else None
 
@@ -301,6 +312,41 @@ def newmaster_fact(connect):
     except ValueError:
         return None
     return v.get("asked") if isinstance(v, dict) else None
+
+def _epoch():
+
+    return time.time()
+
+def _kept(raw):
+
+    try:
+        v = json.loads(raw) if raw else None
+    except ValueError:
+        return None
+    if not (isinstance(v, dict) and v.get("server") and v.get("topic")):
+        return None
+    kept = v.get("kept")
+    if not isinstance(kept, (int, float)) or not 0 <= _epoch() - kept < NEWMASTER_ALSO_DAYS * 86400:
+        return None
+    return v
+
+def keep_for_newmaster(con, had, new=None):
+
+    if not had or (new and (new.get("server"), new.get("topic")) == (had.get("server"), had.get("topic"))):
+        return
+    if not _kept(_get(con, KEY_NEWMASTER_ALSO)):
+        _put(con, KEY_NEWMASTER_ALSO, json.dumps(dict(server=had.get("server"), topic=had.get("topic"),
+                                                      token=had.get("token") or "", kept=int(_epoch())),
+                                                 sort_keys=True))
+
+def newmaster_also(connect):
+
+    con = connect()
+    try:
+        raw = _get(con, KEY_NEWMASTER_ALSO)
+    finally:
+        con.close()
+    return _kept(raw)
 
 def credential_fact(connect):
 

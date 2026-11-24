@@ -42,7 +42,9 @@ PAGE = """{% extends "base.html" %}{% import "_ui.html" as ui with context %}{% 
     <label><span>Bought (optional)</span><input type="date" name="bought" value="{{ (e.bought or '') if e else '' }}" class="ui-input-date"></label>
     <label><span>Renews on (optional){{ help("A warranty or insurance date. Today reminds you " ~ renew_days ~ " days before.") }}</span><input type="date" name="renews" value="{{ (e.renews or '') if e else '' }}" class="ui-input-date"></label>
     <label><span>Price paid (optional)</span><input name="price" inputmode="decimal" value="{{ ('%.2f'|format(e.price_cents / 100)) if e and e.price_cents is not none else '' }}" placeholder="0.00"></label>
-    <label><span>{{ 'Replace the receipt' if e and e.receipt_fid else 'Receipt (optional)' }}{{ help("A photo or PDF of the receipt, up to " ~ max_mb ~ " MB. Kept sealed like your photos, and backed up with them.") }}</span><input type="file" name="receipt" accept="image/*,application/pdf"></label>
+    {#- the app's drop area, never the browser's raw file control: that ran off the screen at 820px (layout review #3) -#}
+    <div><span class="ui-label">{{ 'Replace the receipt' if e and e.receipt_fid else 'Receipt (optional)' }}{{ help("A photo or PDF of the receipt, up to " ~ max_mb ~ " MB. Kept sealed like your photos, and backed up with them.") }}</span>
+      {{ ui.file_pick('receipt', 'the receipt', accept='image/*,application/pdf', id='receipt-' ~ (e.id if e else 'new')) }}</div>
   </div>
 {%- endmacro %}
 {% call ui.section('Your equipment', id='equipment', part=true) %}
@@ -195,14 +197,16 @@ def register(ctx):
         v = (v or "").replace("$", "").replace(",", "").strip()
         if not v:
             return None
-        from decimal import Decimal, InvalidOperation
+        from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
         try:
             d = Decimal(v)
         except InvalidOperation:
+            d = None
+        if d is None or not d.is_finite():
             raise ValueError("The price isn't a number.") from None
         if d < 0 or d > 10_000_000:
             raise ValueError("The price is out of range.")
-        return int((d * 100).quantize(Decimal("1")))
+        return int((d * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
     def day_in(v):
         from datetime import date

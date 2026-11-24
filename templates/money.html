@@ -10,8 +10,9 @@
 {% set pr_cost = ((prints.cost + (prints.lab_tax or 0)) / 100) if pr_on else 0 %}
 {% set all_in = total + pr_in %}{% set tax_all = tax_due + pr_tax %}
 {% set net_ = all_in - exp.a - mileage - tax_all - pr_cost %}
+{% set tax_lc = tax_word|lower if tax_word in ('Sales tax', 'Taxes') else tax_word %}
 {% set years_ %}{{ pg.pager(url_for('money_view', year=year-1), year-1, year, url_for('money_view', year=year+1), year+1, 'Year') }}{% endset %}
-{{ ui.page_head('Finances ' ~ year, status=money(all_in) ~ ' received, ' ~ money(net_) ~ ' net after expenses, mileage and sales tax', sub=years_) }}
+{{ ui.page_head('Finances ' ~ year, status=money(all_in) ~ ' received, ' ~ money(net_) ~ ' net after expenses, mileage and ' ~ tax_lc, sub=years_) }}
 
 
 {% if outstanding %}{% call ui.needs('Owed to you', id='owed') %}
@@ -37,11 +38,11 @@
     {% if pr_cost %}{% call ui.money_row(money(-pr_cost)) %}Print lab cost{% endcall %}{% endif %}
     {% call ui.money_row(money(-tax_all) if tax_all else money(0)) %}{{ tax_word }} to remit{% if pr_tax %}{{ help("Includes " ~ money(pr_tax) ~ " on print invoices.") }}{% endif %}{% if tax_due and tax_adjusted|abs > 0.005 %}{{ help(('Includes ' if tax_adjusted > 0 else 'After ') ~ money(tax_adjusted|abs) ~ (' added' if tax_adjusted > 0 else ' taken back') ~ ' this year on money received earlier: a price changed after payment, a booking called off or reopened.') }}{% endif %}{% endcall %}
     {% if tax_names|length > 1 %}{% for n_, v_ in tax_names %}{% call ui.money_row(money(-v_), 'ui-money-sub') %}{{ n_ }}{% endcall %}{% endfor %}{% endif %}
-    {{ ui.money_total('Net, after ' ~ (tax_word|lower if tax_word in ('Sales tax', 'Taxes') else tax_word), money(net_)) }}
+    {{ ui.money_total('Net, after ' ~ tax_lc, money(net_)) }}
   {% endcall %}
   {% if refunds or tips or written_off %}{% call ui.money_table('Inside and beside received') %}
     {% if refunds %}{% call ui.money_row(money(-refunds), 'ui-money-sub') %}Refunds{{ help("Counted in Received.") }}{% endcall %}{% endif %}
-    {% if tips %}{% call ui.money_row(money(tips), 'ui-money-sub') %}Tips{{ help("Counted in Received. No sales tax is figured on tips.") }}{% endcall %}{% endif %}
+    {% if tips %}{% call ui.money_row(money(tips), 'ui-money-sub') %}Tips{{ help("Counted in Received. No tax is figured on tips.") }}{% endcall %}{% endif %}
     {% if written_off %}{% call ui.money_row(money(written_off), 'ui-money-sub') %}Balances waived{{ help("Never received, so not in Received." ~ (" A balance written off earlier was paid this year." if written_off < 0 else "")) }}{% endcall %}{% endif %}
   {% endcall %}{% endif %}
   {% if fixes %}{% call ui.fold('Corrections to closed years', id='fixes', count=fixes|length) %}
@@ -102,7 +103,7 @@
     {% call ui.money_row(money(prints.received / 100)) %}Received for prints{% endcall %}
     {% call ui.money_row(money(prints.sales / 100)) %}Print sales{% endcall %}
     {% call ui.money_row(money(prints.shipping / 100)) %}Shipping charged{% endcall %}
-    {% call ui.money_row(money(prints.tax / 100)) %}Sales tax collected on print invoices{% endcall %}
+    {% call ui.money_row(money(prints.tax / 100)) %}{{ tax_word }} collected on print invoices{% endcall %}
     {% call ui.money_row(money(-prints.cost / 100)) %}Print lab cost{% endcall %}
     {% if prints.lab_tax %}{% call ui.money_row(money(-prints.lab_tax / 100)) %}The lab's sales tax{% endcall %}{% endif %}
     {{ ui.money_total('Profit on prints', money(prints.profit / 100)) }}

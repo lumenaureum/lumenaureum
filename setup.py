@@ -1354,6 +1354,7 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             err_ = save_taxes_form(f, get, put)
             if err_:
                 return err_
+            _app().retax_after_taxes()
             if f.get("prints_shown"):
                 put(tax_prints="1" if f.get("tax_prints") else "0", tax_print_shipping="1" if f.get("tax_print_shipping") else "0")
             return None

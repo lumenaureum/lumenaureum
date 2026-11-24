@@ -455,7 +455,7 @@ def test_the_header_after_the_shoot_says_when_it_was_shot_once(env):
     A, c, tmp = env
     _session(A, "shot", days=-46)
     head = _page(c).split('<header class="ui-head"', 1)[1].split("</header>", 1)[0]
-    assert "Shot " in head and " for " not in head.split("ui-status", 1)[1].split("</p>", 1)[0]
+    assert "Shot " in head and " for " not in head.split("ui-status", 1)[1].split("</p>", 1)[0].split("</div>", 1)[0]
     assert head.count("Shot ") == 1
 
 @pytest.fixture(scope="module")
@@ -593,3 +593,18 @@ def test_the_components_page_shows_the_photo_rows_and_facts_with_actions(env):
     for words in ("Retouch 2 photos", "Browse RAW files", "Get the photos to Alex", "Choose how to deliver", "Handed over in person",
                   "Preview the gallery", "the client sees a warning"):
         assert words in t, words
+
+def test_a_pre_15_gallery_counts_an_upload_by_its_local_day_not_utc(env):
+
+    A, c, tmp = env
+    _sql(A, "INSERT OR REPLACE INTO settings (key, value) VALUES ('timezone', 'America/New_York')")
+    A.apply_settings()
+    _session(A, "delivered", days=-20, delivery_method="link", favorites="img1.jpg")
+    upload(c, 1, "img1.jpg", jpeg(), kind="export")
+    _gallery(A, tmp, opened_days_ago=2)
+    _sql(A, "UPDATE galleries SET built_at='2026-11-16', built_upto=NULL")
+    _sql(A, "UPDATE photo_files SET done_at='2026-11-17 02:40:13'")
+    assert "new photo" not in _block(_page(c))
+    _sql(A, "UPDATE photo_files SET done_at='2026-11-17 15:00:00'")
+    b = _block(_page(c))
+    assert "1 new photo since the gallery was made" in b and "Add them" in b

@@ -547,6 +547,7 @@ class PluginContext:
         self.correction_in = lambda f_: correction_in(f_)
         self.taxes = lambda: taxes_list()
         self.tax_pct_at = lambda address_="", included_=False: tax_pct_at(address_, included_)
+        self.tax_word_at = lambda address_="": tax_word_at(address_)
         self.doc_number = lambda sid_, kind_, prefix_="INV": doc_number(sid_, kind_, prefix_)
         self.long_date = lambda iso_: long_date(iso_)
         self.detail_stops = lambda s_: detail_stops(s_)
@@ -941,6 +942,14 @@ def _commit_request(resp):
             g.db.rollback()
             if g.pop("applied", None):
                 apply_settings()
+    if g.pop("retax_open_after", None):
+        g.pop("tx", None)
+        try:
+            retax_open_quotes()
+            db().commit()
+        except Exception:
+            db().rollback()
+            app.logger.exception("bringing open quotes in line with new taxes")
     if g.pop("sync_open_after", None):
         g.pop("tx", None)
         try:
@@ -1667,16 +1676,24 @@ def _tax_rules(info, items):
                 out.setdefault(k_, {}).update(v_)
     return out
 
-def tax_pct_at(address="", included=False):
+def _taxes_at(address="", included=False):
 
     items = taxes_list()
     rules = _tax_rules(dict(session_id=None, address=address or "", type=""), items)
-    tot = 0.0
+    out = []
     for t_ in items:
         r_ = rules.get(t_["key"], {})
         if bool(r_.get("on", t_["default"])) and t_["included"] == included:
-            tot += _rate_of(r_.get("rate", t_["rate"]))
-    return round(tot, 4)
+            out.append((t_["name"], _rate_of(r_.get("rate", t_["rate"]))))
+    return out
+
+def tax_pct_at(address="", included=False):
+
+    return round(sum(r_ for _n, r_ in _taxes_at(address, included)), 4)
+
+def tax_word_at(address=""):
+
+    return tax_word([n_ for n_, r_ in _taxes_at(address) if r_ > 0])
 
 def session_taxes(sid):
 
@@ -2505,7 +2522,8 @@ def payment_schedule(sid, t_=None, booked_only=False, paid=False):
     if not rows_:
         return []
     pre_ = booked_only and not _booked_on(sid)
-    return [dict(n=r_["n"], of=r_["of"], amount=r_["amount"], **({"paid": r_["status"] == "paid"} if paid else {}),
+    return [dict(n=r_["n"], of=r_["of"], amount=r_["left"] if paid and r_["status"] != "paid" else r_["amount"],
+                 **({"paid": r_["status"] == "paid"} if paid else {}),
                  due=("set by the day you book" if pre_ and r_["n"] < r_["of"] else
                       long_date(r_["due"]) if r_["due"] else "once the shoot date is set")) for r_ in rows_]
 
@@ -2574,17 +2592,29 @@ def session_reschedule_fee(sid):
     fee = round(float(C.RESCHEDULE_FEE), 2)
     n_ = reschedules(sid)
     if request.form.get("act") == "add":
-        ensure_quote(sid)
 
-        qt_ = q("SELECT schedule_id FROM quotes WHERE session_id=?", (sid,), one=True)
+        on_plan = billed_on_plan(sid)
+        bill = plan_head(sid) if on_plan else sid
+        if on_plan and q("SELECT 1 FROM sessions WHERE id=? AND stage IN ('lost','closed')", (bill,), one=True):
+            return _refuse(f"{plan_head_label(sid)} is closed or canceled, so its quote can't take the fee. Nothing was changed.", back)
+        ensure_quote(bill)
+
+        qt_ = q("SELECT schedule_id FROM quotes WHERE session_id=?", (bill,), one=True)
         sch_ = (schedule(qt_["schedule_id"]) if qt_ else None) or current_schedule()
         it_ = next((i_ for i_ in sch_["items"] if i_.get("key") == "reschedule"), None)
-        lock_tax_rate(sid)
+        lock_tax_rate(bill)
+        label_ = RESCHED_FEE_LABEL
+        if on_plan:
+            label_ += ", " + C.doc_label(q("SELECT type FROM sessions WHERE id=?", (sid,), one=True)["type"])
         x("""INSERT INTO lines (session_id, label, amount, kind, fee_key, taxable, untaxed) VALUES (?,?,?, 'custom', 'reschedule', ?, ?)""",
-          (sid, RESCHED_FEE_LABEL, fee, fee_taxable(it_) if it_ else 1, fee_untaxed(it_) if it_ else ""))
-        reapply_discount(sid)
-        audit(f"Added the reschedule fee, {money(fee)}, for reschedule {n_} (the Terms charge each one after the free one)", sid=sid)
-        session["notice"] = f"Added the {money(fee)} reschedule fee to the balance."
+          (bill, label_, fee, fee_taxable(it_) if it_ else 1, fee_untaxed(it_) if it_ else ""))
+        reapply_discount(bill)
+        audit(f"Added the reschedule fee, {money(fee)}, for reschedule {n_} (the Terms charge each one after the free one)"
+              + (f", on the quote of {plan_head_label(sid)}" if on_plan else ""), sid=sid)
+        if on_plan:
+            audit(f"Added the reschedule fee of a session billed on this quote, {money(fee)}", sid=bill)
+        session["notice"] = (f"Added the {money(fee)} reschedule fee to the balance"
+                             + (f" of {plan_head_label(sid)}." if on_plan else "."))
     elif request.form.get("act") == "waive":
         audit(f"Waived the reschedule fee, {money(fee)}, for reschedule {n_}", sid=sid)
         session["notice"] = "Waived. Nothing was added."
@@ -2718,9 +2748,12 @@ def owed_billed(s, t):
 def balance_due_date(shoot_date, stype=None, issued=None, sid=None):
 
     if stype in C.NET_TERMS_TYPES and issued is None and sid is not None:
-        inv_ = q("SELECT issued FROM doc_numbers WHERE session_id=? AND kind='INV'", (sid,), one=True)
+        inv_ = q("SELECT number, issued FROM doc_numbers WHERE session_id=? AND kind='INV'", (sid,), one=True)
         if not inv_ or not inv_["issued"]:
             return None
+        printed = _issued_due(inv_["number"])
+        if printed:
+            return printed
         issued = inv_["issued"]
     if issued and stype in C.NET_TERMS_TYPES:
         return (d(issued) + timedelta(days=C.BALANCE_NET_DAYS)).isoformat()
@@ -2732,6 +2765,15 @@ def balance_due_date(shoot_date, stype=None, issued=None, sid=None):
         return (d(shoot_date) + timedelta(days=C.BALANCE_NET_DAYS)).isoformat()
     days = C.delivery_days(stype)
     return (d(shoot_date) + timedelta(days=days)).isoformat()
+
+def _issued_due(number):
+
+    r_ = q("SELECT data FROM bill_snapshots WHERE number=?", (number,), one=True)
+    try:
+        rule = (json.loads(r_["data"]) or {}).get("due_rule") if r_ and r_["data"] else None
+        return datetime.strptime(rule, "%B %d, %Y").date().isoformat() if rule else None
+    except (ValueError, TypeError, AttributeError):
+        return None
 
 AFTER_REFUND = {"release": "releases once nothing is owed", "hold": "stays held until paid again"}
 
@@ -2804,6 +2846,11 @@ def gallery_expires(s):
     if not opened:
         return None
     return d(opened) + timedelta(days=C.gallery_days(s["type"]) * (2 if s["extension_used"] else 1))
+
+def gallery_off_web(sid):
+
+    fn_ = app.config.get("gallery_removed_on")
+    return fn_(sid) if callable(fn_) else None
 
 def gallery_restored(sid):
 
@@ -2939,6 +2986,25 @@ def _sync_after_rules():
         g.sync_open_after = True
     else:
         sync_open_sessions()
+
+def retax_after_taxes():
+
+    if has_request_context() and g.get("tx"):
+        g.retax_open_after = True
+    else:
+        retax_open_quotes()
+
+def retax_open_quotes():
+
+    for r_ in q("SELECT id FROM sessions WHERE tax_rate IS NULL AND stage IN ('inquiry','quoted')"):
+        sid = r_["id"]
+        was = totals(sid)["quoted"]
+        reapply_tax(sid)
+        _invoice_still_sent(sid)
+        sync_charges(sid)
+        now_ = totals(sid)["quoted"]
+        if abs(now_ - was) > 0.005:
+            audit(f"Taxes changed in Settings: the quote is now {money(now_)} (was {money(was)})", sid=sid)
 
 def sync_open_sessions():
 
@@ -3373,6 +3439,38 @@ def agreement_signers(sid):
         names = [ch[0]["name"]] if ch else []
     return rows, names
 
+def signers_follow_couple(hid):
+
+    added = []
+    for s_ in q("""SELECT * FROM sessions WHERE household_id=? AND stage NOT IN ('closed','lost') AND plan_of IS NULL
+                   ORDER BY id""", (hid,)):
+        if s_["type"] not in C.COUPLE_TYPES or s_["type"] not in C.NEEDS_AGREEMENT or not C.ALL_SIGN.get(s_["type"]):
+            continue
+        rows = q("SELECT * FROM documents WHERE session_id=? AND kind='agreement' ORDER BY id", (s_["id"],))
+        if not rows or any(r_["status"] == "signed" for r_ in rows) \
+                or q("SELECT 1 FROM audit WHERE session_id=? AND action LIKE 'Who signs the agreement:%'", (s_["id"],), one=True):
+            continue
+        have = {r_["about_person"] for r_ in rows if r_["about_person"]}
+        blank = [r_ for r_ in rows if not r_["about_person"]]
+        for p_ in couple_of(hid, s_["type"], agreement_days(s_["id"])):
+            if p_["id"] in have:
+                continue
+            if blank:
+                x("UPDATE documents SET about_person=?, signer=? WHERE id=?", (p_["id"], p_["name"], blank.pop(0)["id"]))
+            else:
+                x("INSERT INTO documents (session_id, kind, about_person, signer) VALUES (?, 'agreement', ?, ?)",
+                  (s_["id"], p_["id"], p_["name"]))
+            x("DELETE FROM documents WHERE session_id=? AND kind='release' AND about_person=? AND status != 'signed'",
+              (s_["id"], p_["id"]))
+            have.add(p_["id"])
+            if p_["name"] not in added:
+                added.append(p_["name"])
+        sync_workflow_tasks(s_["id"])
+    return added
+
+def signs_notice(names):
+    return f"{oxford(names)} now sign{'s' if len(names) == 1 else ''} the agreement too."
+
 @app.post("/session/<int:sid>/signers")
 def session_signers(sid):
 
@@ -3732,7 +3830,7 @@ def _needs_you():
     for s in q("""SELECT s.*, h.name AS household FROM sessions s JOIN households h ON h.id=s.household_id
                   WHERE s.first_visit IS NOT NULL"""):
         exp = gallery_expires(s)
-        if exp and t <= exp <= t + timedelta(days=2):
+        if exp and t <= exp <= t + timedelta(days=2) and not gallery_off_web(s["id"]):
             galleries.append(dict(s=s, expires=exp))
     out["galleries"] = galleries
     quiet = []
@@ -4670,6 +4768,18 @@ def build_actions(only_sid=None):
                                  more_items=[m_ for m_ in remind_items(s, tt, None, "balance") + [waive_item(s["id"])] if m_],
                                  when=balance_when(s, tt), stage=s["stage"], detail=owed_detail(s["id"], s, tt, inv_),
                                  verb=f"Record payment ({money(tt['due'])})", href=url_for("session_edit", sid=s["id"]) + "#money"))
+        elif not has_bal_step and s["stage"] == "booked":
+
+            late_ = [r_ for r_ in installment_schedule(s["id"], tt) if r_["status"] == "late"]
+            if late_:
+                amt_ = round(min(sum(r_["left"] for r_ in late_), tt["due"]), 2)
+                of_ = (f"installment {late_[0]['n']} of {late_[0]['of']}" if len(late_) == 1 else
+                       f"installments {late_[0]['n']} to {late_[-1]['n']} of {late_[0]['of']}")
+                acts.append(dict(who=who, what=f"{s['household']} owes {money(amt_)}, {of_}", theirs=True,
+                                 since=late_[0]["due"], when=late_[0]["due"], stage=s["stage"],
+                                 more_items=[m_ for m_ in remind_items(s, tt, None, "balance") + [waive_item(s["id"])] if m_],
+                                 detail=owed_detail(s["id"], s, tt, inv_),
+                                 verb=f"Record payment ({money(amt_)})", href=url_for("session_edit", sid=s["id"]) + "#money"))
         if s["stage"] == "booked" and not s["event_id"] and not s["date_tentative"] and shoot_started(s):
             acts.append(dict(who=who, what=f"The shoot, {nice(s['shoot_date'])}" + (f", {clock(s['start_time'])}" if s["start_time"] else ""),
                              when=None, stage=s["stage"], verb="Shoot done", post=url_for("quick", sid=s["id"]),
@@ -4694,8 +4804,9 @@ def build_actions(only_sid=None):
                              also=dict(verb=f"Extend the hold {C.PENCIL_DAYS} days", post=url_for("session_pencil", sid=s["id"]),
                                       fields=dict(act="extend"))))
         exp = gallery_expires(s)
-        if exp and t <= exp <= t + timedelta(days=2) and not s["extension_used"] and not gallery_restored(s["id"]):
-            acts.append(dict(who=who, what=f"Gallery deletes {nice(exp.isoformat())}", when=exp.isoformat(),
+        if exp and t <= exp <= t + timedelta(days=2) and not s["extension_used"] and not gallery_restored(s["id"]) \
+                and not gallery_off_web(s["id"]):
+            acts.append(dict(who=who, what=f"Gallery closes {nice(exp.isoformat())}", when=exp.isoformat(),
                              stage=s["stage"], verb="Give extension", post=url_for("quick", sid=s["id"]),
                              fields=dict(act="extend")))
         if s["stage"] == "quoted":
@@ -4715,10 +4826,11 @@ def build_actions(only_sid=None):
                + ("" if only_sid is None else " AND s.id=?"), () if only_sid is None else (only_sid,)):
 
         exp = gallery_expires(s)
-        if exp and t <= exp <= t + timedelta(days=2) and not s["extension_used"] and not gallery_restored(s["id"]):
+        if exp and t <= exp <= t + timedelta(days=2) and not s["extension_used"] and not gallery_restored(s["id"]) \
+                and not gallery_off_web(s["id"]):
             acts.append(dict(who=dict(name=s["household"], sub=C.SESSION_TYPES.get(s["type"], s["type"]),
                                       link=url_for("session_view", sid=s["id"]), type=s["type"], hid=s["household_id"]),
-                             what=f"Gallery deletes {nice(exp.isoformat())}", when=exp.isoformat(),
+                             what=f"Gallery closes {nice(exp.isoformat())}", when=exp.isoformat(),
                              stage=s["stage"], verb="Give extension", post=url_for("quick", sid=s["id"]),
                              fields=dict(act="extend")))
     for s in q("""SELECT s.*, h.name AS household FROM sessions s JOIN households h ON h.id=s.household_id
@@ -5157,7 +5269,8 @@ def jobs_state():
         return {"state": j_.get("state") or "idle", "done": j_.get("done", 0), "total": j_.get("total", 0)}
     js = jobs.visible()
     run = [j for j in js if j["state"] == "running"]
-    return {"state": "running" if run else "idle", "done": sum(j["done"] for j in run), "total": sum(j["total"] for j in run)}
+    return {"state": "running" if run else "idle", "done": sum(j["done"] for j in run), "total": sum(j["total"] for j in run),
+            "jobs": [dict(key=j["key"], text=j["text"]) for j in run]}
 
 def jobs_visible():
     import jobs
@@ -6105,7 +6218,7 @@ def client_stage(hid):
                            kept_tax=kept_deposit_tax(sr["id"]), **_tax_view(sr["id"]),
                            can_move=can_move, now_iso=datetime.now(TZ).strftime("%Y-%m-%dT%H:%M"),
                            j=journey(sr, my), t=totals(sr["id"]), intake=json.loads(sr["intake"] or "{}"),
-                           panels=panels, tabs=tabs, light_=light(sr["shoot_date"], sr["type"], shoot_place(full)), expires=gallery_expires(sr),
+                           panels=panels, tabs=tabs, light_=light(sr["shoot_date"], sr["type"], shoot_place(full)), expires=gallery_expires(sr), off_web=gallery_off_web(sr["id"]),
                            contact=household_contact(people),
                            lines=q("SELECT * FROM lines WHERE session_id=? ORDER BY kind IN ('discount','tax'), kind='tax', id", (sr["id"],)),
                            quote=quote_of(sr["id"]), fee_sched=(quote_of(sr["id"]) or {}).get("schedule") or current_schedule(),
@@ -6135,7 +6248,8 @@ def event_date(eid):
     e = q("SELECT * FROM events WHERE id=?", (eid,), one=True) or abort(404)
     new_date = request.form.get("date") or None
     x("UPDATE events SET date=? WHERE id=?", (new_date, eid))
-    for srow in q("SELECT id, shoot_date FROM sessions WHERE event_id=?", (eid,)):
+
+    for srow in q("SELECT id, shoot_date FROM sessions WHERE event_id=? OR payer_event=?", (eid, eid)):
         if srow["shoot_date"] in (None, e["date"]):
             x("UPDATE sessions SET shoot_date=? WHERE id=?", (new_date, srow["id"]))
             releases_follow(sid=srow["id"])
@@ -6159,6 +6273,7 @@ def two_weeks(acts):
             by[r["shoot_date"]]["shoots"].append(dict(
                 event=sh["event"], eid=r["event_id"], hid=r["household_id"], n=sh["n"], sid=r["id"],
                 name=r["event_name"] if sh["event"] else r["household"].replace("The ", ""),
+                lead=not sh["event"] and r["stage"] in LEAD_STAGES, penciled=not sh["event"] and penciled(r),
                 time=r["start_time"], light=light(r["shoot_date"], r["type"], shoot_place(r)),
                 link=url_for("event_view", eid=r["event_id"]) if sh["event"] else url_for("session_view", sid=r["id"])))
     for a in acts:
@@ -6195,12 +6310,18 @@ def year_view():
         y = int(request.args.get("y") or t.year)
     except ValueError:
         y = t.year
+    held = {}
+    for r in q("""SELECT s.shoot_date d, COALESCE(e.name, h.name) n, s.id, s.event_id, s.stage, s.shoot_date, s.pencil_until
+                  FROM sessions s JOIN households h ON h.id=s.household_id LEFT JOIN events e ON e.id=s.event_id
+                  WHERE substr(s.shoot_date,1,4)=? AND s.stage NOT IN ('lost') ORDER BY s.shoot_date, s.id""", (str(y),)):
+        if r["stage"] in LEAD_STAGES and not penciled(r):
+            continue
+        k_ = (r["d"], r["event_id"] or -r["id"])
+        h_ = held.setdefault(k_, [r["n"], True])
+        h_[1] = h_[1] and penciled(r)
     booked = {}
-    for r in q("""SELECT s.shoot_date d, COALESCE(e.name, h.name) n, s.stage, s.shoot_date, s.pencil_until FROM sessions s
-                  JOIN households h ON h.id=s.household_id LEFT JOIN events e ON e.id=s.event_id
-                  WHERE substr(s.shoot_date,1,4)=? AND s.stage NOT IN ('lost') GROUP BY s.shoot_date, COALESCE(s.event_id, -s.id)""",
-               (str(y),)):
-        booked.setdefault(r["d"], []).append(r["n"] + (" (penciled)" if penciled(r) else ""))
+    for (day_, _k), (n_, pen_) in held.items():
+        booked.setdefault(day_, []).append(n_ + (" (penciled)" if pen_ else ""))
     cal_ = _cal.Calendar(firstweekday=6)
     months = [dict(m=m, title=date(y, m, 1).strftime("%B"),
                    weeks=[[dict(iso=dd.isoformat(), num=dd.day, other=dd.month != m, sat=dd.weekday() == 5,
@@ -6245,7 +6366,8 @@ def month_view():
                                                       where=where_[0] if where_ else "",
                                                       link=url_for("client_stage", hid=r["household_id"], s=r["id"]),
                                                       done=r["stage"] in ("shot", "delivered", "closed"),
-                                                      penciled=penciled(r)))
+                                                      penciled=penciled(r),
+                                                      lead=r["stage"] in LEAD_STAGES))
     for a in acts:
         w_ = a.get("when")
         if w_ and w_ in by:
@@ -6353,10 +6475,11 @@ def _search_matches(hid, term):
     matched = [f"{lab}: {first(h[col])}" for col, lab in (("company", "Company"), ("address", "Address"))
                if h and t_ in (h[col] or "").lower()]
     ses = []
-    for s_ in q("SELECT id, type, stage, shoot_date, intake FROM sessions WHERE household_id=? ORDER BY COALESCE(shoot_date,'9999') DESC", (hid,)):
+    for s_ in q("SELECT id, type, stage, shoot_date, stops, intake FROM sessions WHERE household_id=? ORDER BY COALESCE(shoot_date,'9999') DESC", (hid,)):
         d_ = dict(s_)
         intake = json.loads(d_.pop("intake") or "{}")
-        d_["hit"] = next((first(str(intake[k])) for k in ("address", "venue") if t_ in str(intake.get(k) or "").lower()), "")
+        intake["stops"] = d_.pop("stops")
+        d_["hit"] = next((first(str(intake[k])) for k in ("stops", "address", "venue") if t_ in str(intake.get(k) or "").lower()), "")
         ses.append(d_)
     return ses, matched
 
@@ -6377,8 +6500,8 @@ def search():
                       LEFT JOIN sessions s ON s.household_id=h.id
                       WHERE h.name LIKE ? OR h.company LIKE ? OR h.address LIKE ? OR p.name LIKE ? OR p.email LIKE ? OR p.phone LIKE ? OR
                       REPLACE(p.phone,'-','') LIKE ? OR json_extract(s.intake, '$.address') LIKE ?
-                      OR json_extract(s.intake, '$.venue') LIKE ? ORDER BY h.name""",
-                   (like, like, like, like, like, like, f"%{term.replace('-', '')}%", like, like)):
+                      OR json_extract(s.intake, '$.venue') LIKE ? OR s.stops LIKE ? ORDER BY h.name""",
+                   (like, like, like, like, like, like, f"%{term.replace('-', '')}%", like, like, like)):
             ses, matched = _search_matches(h["id"], term)
             people = q("SELECT name, phone, email FROM people WHERE household_id=?", (h["id"],))
             hits.append(dict(kind="client", h=h, sessions=ses, people=people, matched=matched))
@@ -6534,6 +6657,9 @@ def session_stage(sid):
             x("UPDATE sessions SET lost_reason=? WHERE id=?", (why_, sid))
 
             money_changed(sid, "reason")
+    ev_ = q("SELECT event_id FROM sessions WHERE id=?", (sid,), one=True)
+    if ev_ and ev_["event_id"] and "lost" in (old_, stage):
+        _org_line_said(ev_["event_id"])
     if request.headers.get("X-Fetch"):
         return ("", 204)
     return redirect(safe_back(request.form.get("back")) or url_for("session_view", sid=sid))
@@ -6956,12 +7082,10 @@ def _update_ops(hid, gr):
         if c_[k_] and not CC.same_text(c_[k_], h[k_]):
             ops.append(("household", (k_, c_[k_]), words))
     if c_["notes"] and not CC.has_text(c_["notes"], h["notes"]):
-        ops.append(("household", ("notes", ((h["notes"] or "").rstrip() + "\n\n" + c_["notes"]).strip()), "notes added"))
+        ops.append(("household", ("notes", c_["notes"]), "notes added"))
     here = [dict(p_) for p_ in q("SELECT * FROM people WHERE household_id=? ORDER BY id", (hid,))]
     for p in gr["people"]:
-        same = next((x_ for x_ in here if p["email"] and (x_["email"] or "").strip().lower() == p["email"].lower()), None) \
-            or next((x_ for x_ in here if CC.phone_key(p["phone"]) and CC.phone_key(x_["phone"]) == CC.phone_key(p["phone"])), None) \
-            or next((x_ for x_ in here if (x_["name"] or "").strip().lower() == p["name"].lower()), None)
+        same = _same_person(here, p)
         if same is None:
             ops.append(("person_add", p, f"adds {p['name']}"))
             continue
@@ -6978,9 +7102,28 @@ def _update_ops(hid, gr):
         if p["minor"] is not None and same["role"] != "pet" and int(p["minor"]) != int(minor_on(now_)):
             ops.append(("person", (same["id"], "is_minor", int(p["minor"])), f"{same['name']}'s minor mark"))
         if p["notes"] and not CC.has_text(p["notes"], same["notes"]):
-            ops.append(("person", (same["id"], "notes", ((same["notes"] or "").rstrip() + "\n\n" + p["notes"]).strip()),
-                        f"{same['name']}'s notes added"))
+            ops.append(("person", (same["id"], "notes", p["notes"]), f"{same['name']}'s notes added"))
     return ops
+
+def _same_person(here, p):
+
+    if p["email"]:
+        hit = next((x_ for x_ in here if (x_["email"] or "").strip().lower() == p["email"].lower()), None)
+        if hit:
+            return hit
+    hit = next((x_ for x_ in here if (x_["name"] or "").strip().lower() == p["name"].lower()), None)
+    if hit or not CC.phone_key(p["phone"]):
+        return hit
+
+    def differs(a, b):
+        return bool(a and b) and not CC.same_text(a, b)
+    return next((x_ for x_ in here if CC.phone_key(x_["phone"]) == CC.phone_key(p["phone"])
+                 and not differs(p["email"], (x_["email"] or "").strip())
+                 and not differs(p["birth_date"], (x_["birth_date"] or "")[:10])), None)
+
+def _with_note(old, new):
+
+    return old if CC.has_text(new, old) else ((old or "").rstrip() + "\n\n" + new).strip()
 
 def import_plan(d_):
 
@@ -7077,7 +7220,9 @@ def _apply_import(plan, picks, file_name):
         hid = gr["hid"]
         for op, a_, _w in gr["ops"]:
             if op == "household":
-                x(f"UPDATE households SET {dbmod.ident(a_[0])}=? WHERE id=?", (a_[1], hid))
+                v_ = _with_note(q("SELECT notes FROM households WHERE id=?", (hid,), one=True)["notes"], a_[1]) \
+                    if a_[0] == "notes" else a_[1]
+                x(f"UPDATE households SET {dbmod.ident(a_[0])}=? WHERE id=?", (v_, hid))
             elif op == "person_add":
                 _add_person(hid, a_)
             elif op == "person":
@@ -7090,6 +7235,9 @@ def _apply_import(plan, picks, file_name):
                     x("UPDATE people SET relation=?, gender=?, role=? WHERE id=?", (rel, gender, role, pid_))
                 elif col_ == "is_minor":
                     _set_minor_mark(pid_, v_)
+                elif col_ == "notes":
+                    x("UPDATE people SET notes=? WHERE id=?",
+                      (_with_note(q("SELECT notes FROM people WHERE id=?", (pid_,), one=True)["notes"], v_), pid_))
                 else:
                     x(f"UPDATE people SET {dbmod.ident(col_)}=? WHERE id=?", (v_, pid_))
         if any(o_[0] == "household" and o_[1][0] == "address" for o_ in gr["ops"]):
@@ -7152,7 +7300,8 @@ def clients_import_check(token):
     plan = import_plan(d_)
     samples = [next((r_[i] for r_ in d_["rows"] if r_[i].strip()), "")[:60] for i in range(len(d_["header"]))]
     return render_template("clients_import.html", d=d_, token=token, plan=plan, sig=_plan_sig(plan), fields=CC.FIELDS,
-                           samples=samples, batches=[], max_mb=0, max_rows=0)
+                           samples=samples, n_rows=sum(1 for r_ in d_["rows"] if CC.filled(r_)), batches=[], max_mb=0,
+                           max_rows=0)
 
 @app.post("/clients/import/<token>/columns")
 def clients_import_columns(token):
@@ -7204,7 +7353,9 @@ def clients_import_confirm(token):
 
 def _untouched_since_import(hid):
 
+    ev_ = [c_ for c_ in ("payer_hid", "contact_hid") if c_ in dbmod.columns(db(), "events")]
     return not (q("SELECT 1 FROM sessions WHERE household_id=? LIMIT 1", (hid,), one=True)
+                or any(q(f"SELECT 1 FROM events WHERE {c_}=? LIMIT 1", (hid,), one=True) for c_ in ev_)
                 or q("SELECT 1 FROM log WHERE household_id=? LIMIT 1", (hid,), one=True)
                 or q("SELECT 1 FROM audit WHERE household_id=? AND action != ? LIMIT 1", (hid, IMPORT_ADDED), one=True)
                 or q("SELECT 1 FROM client_labels WHERE household_id=? LIMIT 1", (hid,), one=True)
@@ -7521,6 +7672,9 @@ def person_add(hid):
        f.get("phone", ""), rel, gender, by, approx))
     _save_birth_date(pid_, f, new=True)
     _same_name_notice(f["name"], hid)
+    signs_ = signers_follow_couple(hid)
+    if signs_:
+        session["notice"] = " ".join(filter(None, (session.get("notice"), signs_notice(signs_))))
 
     return redirect(url_for("client_view", hid=hid, added=pid_) + "#people")
 
@@ -7581,7 +7735,18 @@ def person_save(pid):
     if f.get("delete"):
 
         x("DELETE FROM documents WHERE about_person=? AND kind='release' AND status != 'signed'", (pid,))
+
+        signs_ = q("SELECT id, session_id FROM documents WHERE about_person=? AND kind='agreement' AND status != 'signed'", (pid,))
+        for d_ in signs_:
+            if q("SELECT 1 FROM documents WHERE session_id=? AND kind='agreement' AND id != ?", (d_["session_id"], d_["id"]), one=True):
+                x("DELETE FROM documents WHERE id=?", (d_["id"],))
+            else:
+                x("UPDATE documents SET about_person=NULL, signer='' WHERE id=?", (d_["id"],))
         x("DELETE FROM people WHERE id=?", (pid,))
+        for sid_ in {d_["session_id"] for d_ in signs_}:
+            sync_workflow_tasks(sid_)
+        if signs_:
+            session["notice"] = f"{p['name']} no longer signs the agreement."
     else:
         rel, gender, by, role, minor, approx = person_fields(f, cur=p)
         x("""UPDATE people SET name=?, role=?, is_minor=?, grad_year=?, email=?, phone=?, relation=?, gender=?, birth_year=?, age_approx=?
@@ -7590,6 +7755,9 @@ def person_save(pid):
            f.get("phone", ""), rel, gender, by, approx, pid))
         _save_birth_date(pid, f)
         releases_follow(pid=pid)
+        signs_ = signers_follow_couple(p["household_id"])
+        if signs_:
+            session["notice"] = " ".join(filter(None, (session.get("notice"), signs_notice(signs_))))
     return redirect(url_for("client_view", hid=p["household_id"]) + "#people")
 
 @app.post("/log")
@@ -7671,7 +7839,7 @@ def session_edit(sid):
         receipt_no=(q("SELECT number FROM doc_numbers WHERE session_id=? AND kind='R'", (sid,), one=True) or {"number": ""})["number"],
         expenses=q("SELECT * FROM expenses WHERE session_id=? ORDER BY date", (sid,)),
         log=q("SELECT * FROM log WHERE session_id=? ORDER BY at DESC", (sid,)),
-        t=totals(sid), expires=gallery_expires(s), restored=gallery_restored(sid), panels=panels, tabs=tabs, wf=workflow(sid),
+        t=totals(sid), expires=gallery_expires(s), off_web=gallery_off_web(sid), restored=gallery_restored(sid), panels=panels, tabs=tabs, wf=workflow(sid),
         contact=household_contact(q("SELECT * FROM people WHERE household_id=? ORDER BY role='parent' DESC, id",
                                     (s["household_id"],))),
         events=q("SELECT id, name FROM events ORDER BY date DESC"), minutes=session_minutes(sid, s["type"]),
@@ -8099,8 +8267,8 @@ def _start_session_delete(sid, s):
     hid, created, eid = s["household_id"], s["created"], s["event_id"]
 
     def work(job):
-        _delete_session(sid, hid, created, act, eid)
-        return "Deleted the session and everything on it."
+        said_ = _delete_session(sid, hid, created, act, eid)
+        return "Deleted the session and everything on it." + (" " + said_ if said_ else "")
     jobs.start(app, f"session-delete:{sid}", "Deleting a session and everything on it", work)
 
 def _delete_session(sid, hid, created, act, eid=None):
@@ -8149,6 +8317,12 @@ def _delete_session(sid, hid, created, act, eid=None):
             db().rollback()
             raise
         _record_deletion(sid, created, kind="session")
+        if eid:
+            try:
+                if not _org_line(eid):
+                    return ORG_LINE_KEPT
+            except Exception:
+                app.logger.exception("organizer's line after delete %s", sid)
 
 def _pass_plan_on(sid):
 
@@ -8576,10 +8750,15 @@ def _keep_books(sids, why="client deleted"):
             x("INSERT INTO books (received, amount, tax, type, kind, tax_parts) VALUES (?,?,?,?,?,?)",
               (e_["day"], e_["amount"], round(e_["tax"], 2), s_["type"] if s_ else "", e_["kind"],
                json.dumps(e_["parts"]) if e_["parts"] and set(e_["parts"]) != {LEGACY_TAX_NAME} else None))
-        for e_ in q("SELECT date, amount, miles, rate FROM expenses WHERE session_id=?", (sid,)):
+        kept_ = {}
+        for e_ in q("SELECT id, date, amount, miles, rate, corrects, late_from, note FROM expenses WHERE session_id=? ORDER BY id",
+                    (sid,)):
 
-            x("INSERT INTO expenses (session_id, date, label, amount, miles, rate) VALUES (NULL,?,?,?,?,?)",
-              (e_["date"], f"Session expense ({why})", e_["amount"], e_["miles"], e_["rate"]))
+            kept_[e_["id"]] = x("""INSERT INTO expenses (session_id, date, label, amount, miles, rate, corrects, late_from, note)
+                                   VALUES (NULL,?,?,?,?,?,?,?,?)""",
+                                (e_["date"], f"Session expense ({why})", e_["amount"], e_["miles"], e_["rate"],
+                                 kept_.get(e_["corrects"], e_["corrects"]) if e_["corrects"] else None, e_["late_from"],
+                                 e_["note"] or ""))
 
 @app.post("/task/<int:tid>")
 def task_toggle(tid):
@@ -9562,6 +9741,10 @@ def quote_terms(s, t):
 
     terms = [list(x_) for x_ in C.build_terms(s["type"], setting("business_name"))]
     if t["quoted"] > 0.005:
+        for x_ in terms:
+            if x_[0] == "Booking" and t["deposit_req"] > 0.005:
+                x_[1] = re.sub(r"^(An? )\$[\d,]+(?:\.\d\d)?(?= [^.]* holds your date)",
+                               lambda m: m.group(1) + C._money(t["deposit_req"]), x_[1], count=1)
         return terms
     return nothing_to_pay_terms(terms)
 
@@ -10604,7 +10787,10 @@ def agreement_ctx(sid):
                ORDER BY p.name COLLATE NOCASE""", (sid,))
     _, signers = agreement_signers(sid)
     lic_bits = license_words(s)
-    scope = [f"{l_['label']}" for l_ in q("SELECT label FROM lines WHERE session_id=? AND kind NOT IN ('discount','tax','credit') ORDER BY id", (sid,))]
+    covers = [r_["id"] for r_ in plan_sessions(sid)] if q("SELECT 1 FROM sessions WHERE plan_of=?", (sid,), one=True) else [sid]
+
+    scope = [f"{l_['label']}" for sid_ in covers for l_ in q(
+        "SELECT label FROM lines WHERE session_id=? AND kind NOT IN ('discount','tax','credit') ORDER BY id", (sid_,))]
     def price_of(sid_):
         lq = q("SELECT * FROM quote_versions WHERE session_id=? ORDER BY id DESC LIMIT 1", (sid_,), one=True)
         if lq:
@@ -11234,6 +11420,12 @@ def statement_ctx(hid, month):
         if r_["id"] not in invoiced and totals(r_["id"])["quoted"] > 0.005]
     payer = q("""SELECT name FROM people WHERE household_id=? AND role IN ('parent','adult') ORDER BY """ + BOOKER_FIRST + """, id
                  LIMIT 1""", (hid,), one=True)
+
+    types_ = [r_["type"] for r_ in q("SELECT type FROM sessions WHERE household_id=? ORDER BY id DESC", (hid,))]
+    ctype_ = types_[0] if types_ and all(t_ in C.COUPLE_TYPES for t_ in types_) else None
+    if ctype_:
+        couple_ = couple_names(couple_of(hid, ctype_))
+        payer = dict(name=couple_) if couple_ else next(iter(client_people(hid, ctype_)), payer)
     company = (h["company"] or "").strip()
     return dict(hid=hid, month=month, title=first.strftime("%B %Y"), opening=opening, invoices=inv_rows, payments=pay_rows,
                 closing=closing, not_invoiced=not_invoiced, start_long=long_date(a_), end_long=long_date((nxt - timedelta(days=1)).isoformat()),
@@ -11500,8 +11692,18 @@ def detail_stops(s):
             app.logger.exception("detail locations")
         if stops:
             break
-    return stops or [dict(time=clock(s["start_time"]) if i == 0 else "", name=n, note="")
-                     for i, n in enumerate(l_.strip() for l_ in (s["stops"] or "").splitlines() if l_.strip())]
+    stops = stops or [dict(time=clock(s["start_time"]) if i == 0 else "", name=n, note="")
+                      for i, n in enumerate(l_.strip() for l_ in (s["stops"] or "").splitlines() if l_.strip())]
+    if not stops:
+        try:
+            intake_ = json.loads(s["intake"] or "{}")
+        except ValueError:
+            intake_ = {}
+        venue_ = str(intake_.get("venue") or "").strip()
+        addr_ = [l_.strip() for l_ in str(intake_.get("address") or "").splitlines() if l_.strip()]
+        if venue_ or addr_:
+            stops = [dict(time=clock(s["start_time"]), name=venue_ or addr_[0], note="\n".join(addr_ if venue_ else addr_[1:]))]
+    return stops
 
 def details_ctx(sid):
     s = session_full(sid)
@@ -11929,7 +12131,7 @@ def event_view(eid):
     contact = q("SELECT id, name FROM households WHERE id=?", (c_,), one=True) if c_ else None
     return render_template("event.html", e=e, fams=fams, steps=event_steps(eid), sign_day=event_sign_day(e), nouns=event_nouns(e),
                            owing=[f_["s"]["id"] for f_ in fams if f_["t"] and f_["t"]["due"] > 0.005 and f_["s"]["stage"] != "lost"],
-                           taxed=bool(taxes_list()),
+                           taxed=bool(taxes_list()), tax_word=tax_word(),
                            open_from=books_open_from(),
                            payer=payer, households=hh, payer_total=totals(payer["id"]) if payer else None, contact=contact,
                            fam_open=family_open_words(event_family_open(eid)))
@@ -12007,8 +12209,19 @@ def event_edit(eid):
     new_date = f.get("date") or None
     x("UPDATE events SET name=?, date=?, venue=?, notes=? WHERE id=?",
       (f.get("name") or e["name"], new_date, f.get("venue", ""), f.get("notes", ""), eid))
+    new_name = f.get("name") or e["name"]
+    if new_name != e["name"]:
+
+        for srow in q("SELECT id FROM sessions WHERE event_id=? OR payer_event=?", (eid, eid)):
+            x("UPDATE sessions SET title=? WHERE id=? AND title=?", (new_name, srow["id"], e["name"]))
+            if not quote_locked(srow["id"]) and not q("SELECT 1 FROM doc_numbers WHERE session_id=? AND kind LIKE 'INV%'",
+                                                    (srow["id"],), one=True):
+                x("UPDATE lines SET label=? WHERE session_id=? AND label=?",
+                  (f"{new_name} - family session", srow["id"], f"{e['name']} - family session"))
+        _org_line(eid)
     if new_date != e["date"]:
-        for srow in q("SELECT id, shoot_date, date_tentative FROM sessions WHERE event_id=?", (eid,)):
+
+        for srow in q("SELECT id, shoot_date, date_tentative FROM sessions WHERE event_id=? OR payer_event=?", (eid, eid)):
             if srow["shoot_date"] in (None, e["date"]):
                 x("UPDATE sessions SET shoot_date=? WHERE id=?", (new_date, srow["id"]))
                 date_moved(srow["id"], srow["shoot_date"], was_tentative=srow["date_tentative"])
@@ -12029,6 +12242,21 @@ def _event_payer(eid, hid):
     sync_workflow_tasks(sid)
     return sid
 
+def _billed_on(sid, signed=True):
+
+    return q("""SELECT (SELECT COUNT(*) FROM payments WHERE session_id=? AND voided IS NULL)
+                       + (SELECT COUNT(*) FROM documents WHERE session_id=? AND status='signed' AND ?)
+                       + (SELECT COUNT(*) FROM doc_numbers WHERE session_id=? AND kind LIKE 'INV%')
+                       + (SELECT COUNT(*) FROM charges WHERE session_id=?) n""",
+             (sid, sid, 1 if signed else 0, sid, sid), one=True)["n"] > 0
+
+def _family_lines(eid):
+
+    return [(r_["sid"], r_["lid"]) for r_ in q("""SELECT s.id sid, l.id lid FROM sessions s JOIN lines l ON l.session_id=s.id
+                                                 WHERE s.event_id=? AND s.stage != 'lost' AND l.kind='custom'
+                                                 AND COALESCE(l.fee_key, '')='' AND l.label LIKE '% - family session'""",
+                                              (eid,))]
+
 @app.post("/event/<int:eid>/billing")
 def event_billing(eid):
 
@@ -12037,8 +12265,38 @@ def event_billing(eid):
     if _stale_edit("event_rights", eid, (("rights_note", "Rights"),), e):
         g.edit_clash_form, g.edit_clash_what, g.edit_clash_reload = "event_rights", "event", url_for("event_view", eid=eid) + "#billing"
         return event_view(eid), 409
-    if f.get("billing") in ("free", "organizer", "families"):
-        x("UPDATE events SET billing=? WHERE id=?", (f["billing"], eid))
+    back_ = url_for("event_view", eid=eid) + "#billing"
+    was_, now_ = e["billing"] or "free", f.get("billing") if f.get("billing") in ("free", "organizer", "families") else None
+    ps_ = q("SELECT id, stage FROM sessions WHERE payer_event=?", (eid,), one=True)
+
+    if now_ and now_ != was_ and was_ == "organizer" and ps_ and ps_["stage"] != "lost" and _billed_on(ps_["id"], signed=False):
+        return _refuse("The organizer has already paid or been invoiced. Void or refund that on the organizer's "
+                       "session first. Nothing was changed.", back_)
+    fam_lines_ = _family_lines(eid) if now_ and now_ != was_ and was_ == "families" else []
+
+    fam_ = [r_["id"] for r_ in q("SELECT id FROM sessions WHERE event_id=? AND stage != 'lost'", (eid,))] \
+        if now_ and now_ != was_ and was_ == "families" else []
+    if any(_billed_on(sid_, signed=False) or quote_locked(sid_) for sid_ in fam_):
+        return _refuse(f"Some {event_nouns(e)[1]} have already paid, been invoiced or booked their quote. Refund or "
+                       "void that on their pages first. Nothing was changed.", back_)
+    if now_:
+        x("UPDATE events SET billing=? WHERE id=?", (now_, eid))
+    if now_ and now_ != was_:
+        for sid_, lid_ in fam_lines_:
+            x("DELETE FROM lines WHERE id=?", (lid_,))
+            reapply_discount(sid_)
+        if fam_lines_:
+            audit(f"Who pays changed: the event's price was taken off {len(fam_lines_)} unpaid "
+                  f"{event_nouns(e)[0] if len(fam_lines_) == 1 else event_nouns(e)[1]} at {e['name']}")
+        if was_ == "organizer" and ps_ and ps_["stage"] not in ("lost", "closed"):
+            set_stage(ps_["id"], "lost")
+            audit("Who pays changed: the organizer no longer pays, so their bill is closed as Lost", sid=ps_["id"])
+        elif now_ == "organizer" and ps_ and ps_["stage"] == "lost":
+            back_to_ = stage_before_lost(ps_["id"])
+            back_to_ = back_to_ if back_to_ in C.STAGES else "inquiry"
+            set_stage(ps_["id"], back_to_)
+            audit(f"Who pays changed: the organizer pays again, so their bill is open again at "
+                  f"{C.STAGE_LABELS[back_to_]}", sid=ps_["id"])
 
     if f.get("rights") in C.EVENT_RIGHTS:
         x("UPDATE events SET rights=? WHERE id=?", (f["rights"], eid))
@@ -12068,19 +12326,14 @@ def event_billing(eid):
         ps_ = q("SELECT id, household_id FROM sessions WHERE payer_event=?", (eid,), one=True)
         if ps_ and ps_["household_id"] != hid:
 
-            done_ = q("""SELECT (SELECT COUNT(*) FROM payments WHERE session_id=? AND voided IS NULL)
-                                + (SELECT COUNT(*) FROM documents WHERE session_id=? AND status='signed')
-                                + (SELECT COUNT(*) FROM doc_numbers WHERE session_id=? AND kind LIKE 'INV%')
-                                + (SELECT COUNT(*) FROM charges WHERE session_id=?) n""",
-                      (ps_["id"],) * 4, one=True)["n"]
-            if not done_:
+            if not _billed_on(ps_["id"]) and not q("SELECT 1 FROM quote_versions WHERE session_id=?", (ps_["id"],), one=True):
                 x("UPDATE sessions SET household_id=? WHERE id=?", (hid, ps_["id"]))
             else:
-                audit("Organizer changed; the billing session stays with the previous organizer (payments, signatures, "
-                      "an invoice or charges recorded)", sid=ps_["id"])
-                session["notice"] = ("The billing session stays with the previous organizer: it already has payments, a "
-                                     "signature or an invoice issued to them, and their statements keep it. To bill the new "
-                                     "organizer instead, void and reissue there, or bill them separately.")
+                audit("Organizer changed; the billing session stays with the previous organizer (a quote, payments, "
+                      "signatures, an invoice or charges recorded)", sid=ps_["id"])
+                session["notice"] = ("The billing session stays with the previous organizer: a quote, invoice, signature or "
+                                     "payment of theirs is on it. To bill the new organizer instead, void and reissue there, "
+                                     "or bill them separately.")
         if not ps_:
             _event_payer(eid, hid)
     e = q("SELECT * FROM events WHERE id=?", (eid,), one=True)
@@ -12117,26 +12370,69 @@ def event_releases(eid):
           (day, day, eid))
     return redirect(safe_back(request.form.get("back")) or url_for("event_view", eid=eid))
 
+def _family_on_file(name, contact, email, phone):
+
+    em_, ph_ = (email or "").strip().lower(), _digits(phone)
+    for h_ in q("SELECT id FROM households WHERE lower(trim(name))=lower(?) ORDER BY id", (name,)):
+        ad_ = q("SELECT name, email, phone FROM people WHERE household_id=? AND role IN ('parent','adult')", (h_["id"],))
+        if not (contact or em_ or ph_) and not ad_:
+            return h_["id"]
+        for p_ in ad_:
+            if (contact and " ".join((p_["name"] or "").split()).lower() == contact.lower()) \
+                    or (em_ and (p_["email"] or "").strip().lower() == em_) or (len(ph_) >= 7 and _digits(p_["phone"]) == ph_):
+                return h_["id"]
+    return None
+
 @app.post("/event/<int:eid>/family")
 def event_family(eid):
     e = q("SELECT * FROM events WHERE id=?", (eid,), one=True) or abort(404)
     f = request.form
-    hid = x("INSERT INTO households (id, name, source, address) VALUES (?,?,?,?)", (next_id("households"), f["household_name"], e["name"], f.get("address", "")))
-    if event_nouns(e)[0] == "person":
-        pid_ = x("INSERT INTO people (household_id, name, role, email, phone) VALUES (?,?, 'adult', ?, ?)",
-                 (hid, f["household_name"], f.get("email", ""), f.get("phone", "")))
+    back_ = url_for("event_view", eid=eid) + "#families"
+    one_ = event_nouns(e)[0]
+    fam_name = " ".join((f.get("household_name") or "").split())
+    if not fam_name:
+        return _refuse(f"Enter the {one_}'s name. Nothing was added.", back_)
+    contact_ = " ".join((f.get("household_name") if one_ == "person" else f.get("parent_name") or "").split())
+
+    hid = _family_on_file(fam_name, contact_, f.get("email"), f.get("phone"))
+    if hid and q("SELECT 1 FROM sessions WHERE event_id=? AND household_id=?", (eid, hid), one=True):
+        return _refuse(f"{fam_name} is already on this event. Nothing was added."
+                       + ("" if contact_ or one_ == "person" else " A different family? Add its parent's name."), back_)
+    joined_ = bool(hid)
+    if joined_:
+        session["notice"] = f"{fam_name} is already a client, so they were added as that client."
+        audit(f"Added {fam_name}, already a client, to {e['name']}", hid=hid)
+    else:
+        hid = x("INSERT INTO households (id, name, source, address) VALUES (?,?,?,?)", (next_id("households"), fam_name, e["name"], f.get("address", "")))
+
+    def _on_file(name_, roles_):
+        r_ = q(f"""SELECT id FROM people WHERE household_id=? AND lower(name)=lower(?) AND role IN ({','.join('?' * len(roles_))})
+                   ORDER BY id LIMIT 1""", (hid, name_, *roles_), one=True) if joined_ else None
+        return r_["id"] if r_ else None
+    if one_ == "person":
+        pid_ = _on_file(fam_name, ("parent", "adult")) or x(
+            "INSERT INTO people (household_id, name, role, email, phone) VALUES (?,?, 'adult', ?, ?)",
+            (hid, fam_name, f.get("email", ""), f.get("phone", "")))
         sid_ = create_session(hid, C.EVENT_TYPE, "booked", e["name"], e["date"], event_id=eid, subject_ids=[pid_])
         if e["billing"] == "families" and e["family_price"] and sid_:
             _price_family(sid_, e)
         _org_line_said(eid)
         return redirect(url_for("event_view", eid=eid) + "#families")
-    if f.get("parent_name"):
+    if contact_ and not _on_file(contact_, ("parent", "adult")):
         x("INSERT INTO people (household_id, name, role, email, phone, relation) VALUES (?,?,?,?,?,?)",
-          (hid, f["parent_name"], "parent", f.get("email", ""), f.get("phone", ""), "parent"))
-    subjects = []
+          (hid, contact_, "parent", f.get("email", ""), f.get("phone", ""), "parent"))
+    subjects, kids_ = [], []
     for raw in [n.strip() for n in re.split(r",|\band\b|&", f.get("children", "")) if n.strip()]:
+        if kids_ and re.fullmatch(r"\(?\d{1,2}\)?", raw) and not trailing_age(kids_[-1], commas=False):
+            kids_[-1] += " " + raw.strip("()")
+        else:
+            kids_.append(raw)
+    for raw in kids_:
         m = trailing_age(raw, commas=False)
         name, age = (m[0].strip(), int(m[1])) if m else (raw, None)
+        if (pid_ := _on_file(name, ("child",))):
+            subjects.append(pid_)
+            continue
 
         minor_ = 1 if age is None or age < majority_age() else 0
         subjects.append(x("INSERT INTO people (household_id, name, role, is_minor, birth_year, age_approx) VALUES (?,?, 'child', ?, ?, ?)",
@@ -12196,11 +12492,13 @@ def _org_line(eid):
     reapply_discount(sid)
     return True
 
+ORG_LINE_KEPT = ("The organizer's quote was already booked, so its price stays as agreed. To bill for the change, use "
+                 "Replace the quote on the organizer's session.")
+
 def _org_line_said(eid):
 
     if not _org_line(eid):
-        session["notice"] = ("The organizer's quote was already booked, so its price stays as agreed. To bill for the "
-                             "change, use Replace the quote on the organizer's session.")
+        session["notice"] = ORG_LINE_KEPT
 
 app.jinja_env.globals["event_nouns"] = event_nouns
 
@@ -13107,6 +13405,8 @@ def settings_import():
     session["import_result"] = result
     if new_rules:
         sync_open_sessions()
+    if any(k_ in new_settings for k_ in ("taxes", "tax_mode", "sales_tax_pct")):
+        retax_open_quotes()
     return redirect(back)
 
 def _save_rules(**kv):
@@ -13318,6 +13618,14 @@ UNAGREED_SQL = """SELECT id FROM sessions WHERE type=? AND stage IN ('inquiry','
                   AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.session_id=sessions.id AND p.voided IS NULL)
                   AND NOT EXISTS (SELECT 1 FROM documents d WHERE d.session_id=sessions.id AND d.status='signed')"""
 
+def _keep_agreed_plans(key, had, t):
+
+    if max(int(t.get("installments") or 0), 1) == max(had, 1):
+        return
+    for r_ in q("SELECT id FROM sessions WHERE type=? AND installments IS NULL", (key,)):
+        if not q(UNAGREED_SQL + " AND id=?", (key, r_["id"]), one=True):
+            x("UPDATE sessions SET installments=? WHERE id=?", (had, r_["id"]))
+
 def _walk_state():
     try:
         return json.loads(setting("walk") or "{}")
@@ -13350,10 +13658,12 @@ def type_walk(key, n):
         step, act = steps[n], request.form.get("act") or ("save" if request.form.get("cw_all_off") else None)
         if act == "save":
             before_ = json.dumps(t, sort_keys=True)
+            plan_had_ = int(t.get("installments") or 0)
             step["put"](request.form)
             if json.dumps(t, sort_keys=True) != before_:
                 mine["changed"] = True
             _save_rules(TYPES=types)
+            _keep_agreed_plans(key, plan_had_, t)
             if step["id"] in ("portfolio", "deposit"):
                 for r_ in q(UNAGREED_SQL, (key,)):
                     reapply_discount(r_["id"])
@@ -13743,6 +14053,7 @@ def type_edit(key):
             had_ = int(t.pop("installments", None) or 0)
             if n_ and n_ >= 2:
                 t["installments"] = n_ if n_ == had_ else min(n_, C.INSTALLMENTS_MAX)
+            plan_had_ = had_
         t["policy"] = dict(free_reschedule=bool(f.get("free_reschedule")), outfits=bool(f.get("outfits")),
                            wear=((f.get("wear") or "").strip().rstrip(".")[:200] or C.DEFAULT_WEAR),
                            **{k_: (f.get(k_) or "").strip()[:200] for k_, _, _ in C.FILL_INS},
@@ -13766,6 +14077,8 @@ def type_edit(key):
             if qs != base:
                 t["questions"] = [list(q_) for q_ in qs]
         _save_rules(TYPES=types)
+        if "installments" in f:
+            _keep_agreed_plans(key, plan_had_, t)
         for r_ in q("SELECT id FROM sessions WHERE type=? AND stage NOT IN ('closed','lost')", (key,)):
             sync_workflow_tasks(r_["id"])
             if q(UNAGREED_SQL + " AND id=?", (key, r_["id"]), one=True):
@@ -14675,6 +14988,7 @@ def security_notice():
                 if mark_:
                     mark_("ntfy", True)
             had = ntfy_settings()
+            inboxnotice.keep_for_newmaster(db(), had, dict(server=server, topic=topic))
             _put_setting("ntfy_server", server)
             _put_setting("ntfy_topic", topic)
             if token or f.get("drop_token") or f.get("replace"):
@@ -14708,6 +15022,7 @@ def security_notice():
             if mark_:
                 mark_("ntfy", True)
             had = ntfy_settings()
+            inboxnotice.keep_for_newmaster(db(), had, v)
             _put_setting("ntfy_server", v["server"])
             _put_setting("ntfy_topic", v["topic"])
             _put_setting("ntfy_token", v.get("token", ""))
@@ -14750,6 +15065,7 @@ def security_notice():
             audit(f"Turned on the {name_} notice" if on_ else f"Turned off the {name_} notice")
         session["notice"] = said_ if on_ else f"The {name_} notice is off."
     elif act == "remove":
+        inboxnotice.keep_for_newmaster(db(), ntfy_settings())
         for k_ in NTFY_KEYS + (inboxnotice.KEY_ON, inboxnotice.KEY_STATE, inboxnotice.KEY_CRED_AT) + tuple(
                 k2_ for v_ in inboxnotice.STATUS.values() for k2_ in v_[:2] if k2_):
             x("DELETE FROM settings WHERE key=?", (k_,))
@@ -14788,11 +15104,14 @@ def calendar_feed_entries():
         had_ = events.get(k_)
         if not had_:
             events[k_] = dict(e_, key=k_)
-        elif isinstance(had_["start"], datetime) and isinstance(e_["start"], datetime):
+            continue
+        firm_ = had_ if not had_["tentative"] else e_ if not e_["tentative"] else None
+        if isinstance(had_["start"], datetime) and isinstance(e_["start"], datetime):
             had_["start"], had_["end"] = min(had_["start"], e_["start"]), max(had_["end"], e_["end"])
-            had_["tentative"] = had_["tentative"] and e_["tentative"]
         elif isinstance(e_["start"], datetime):
-            events[k_] = dict(e_, key=k_)
+            had_["start"], had_["end"] = e_["start"], e_["end"]
+        if firm_:
+            had_["tentative"], had_["summary"] = False, firm_["summary"]
     return out + list(events.values())
 
 @app.get("/calendar-feed/<token>.ics", endpoint="calendar_feed")
@@ -14830,7 +15149,9 @@ app.jinja_env.globals["calendar_feed_url"] = calendar_feed_url
 def calendar_link_settings():
 
     act_, had_ = request.form.get("act"), bool(setting(calfeed.KEY_TOKEN))
-    if act_ in ("on", "new"):
+    if act_ == "on" and had_:
+        session["notice"] = "The calendar link is already on."
+    elif act_ in ("on", "new"):
         _put_setting(calfeed.KEY_TOKEN, calfeed.new_token())
         if act_ == "new" and had_:
             audit("Made a new calendar link (the old one stopped working)")

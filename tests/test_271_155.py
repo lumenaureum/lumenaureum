@@ -209,3 +209,46 @@ def test_the_galleries_page_lists_them_and_rebuilds_them_all(env):
     assert FLAG not in page and "Rebuild all" not in page
     hist = [r_[0] for r_ in sql(A, "SELECT action FROM audit")]
     assert "Rebuilt 2 galleries with the new studio details." in hist
+
+def test_rebuild_all_shows_which_gallery_and_how_far_while_it_runs(env, monkeypatch):
+
+    A, c, hid, sid = env
+    built(A, c, sid)
+    sql(A, "UPDATE sessions SET title='Fall Portraits' WHERE id=?", (sid,))
+    sql(A, "UPDATE settings SET value='Another Studio' WHERE key='studio_name'")
+    gl = A.app.config["gallery_take_down"].__globals__
+    import jobs
+    seen = []
+    real = gl["build"]
+
+    def watched(gid, src, key, progress=lambda d, t: None, **kw):
+        progress(1, 2)
+        seen.append([j["text"] for j in jobs.live() if j["key"] == "gallery-rebuild-details"])
+        with A.app.test_request_context():
+            st = A.app.view_functions["jobs_state"]()
+        seen.append([x["text"] for x in st["jobs"] if x["key"] == "gallery-rebuild-details"])
+        return real(gid, src, key, progress, **kw)
+    monkeypatch.setitem(gl, "build", watched)
+    c.post("/galleries/rebuild-details", environ_base=E)
+    join("gallery", sid)
+    want = "working... (0 of 1 done) · Fall Portraits: making the gallery, 1 of 2"
+    assert seen and seen[0] == [want] and seen[1] == [want], seen
+    raw = c.get("/galleries", environ_base=E).get_data(as_text=True)
+    assert 'data-job-text="gallery-rebuild-details"' not in raw
+
+def test_a_gallery_online_keeps_its_status_while_it_is_rebuilt(env):
+
+    A, c, hid, sid = env
+    built(A, c, sid)
+    online(A, c, sid)
+    JOBS = A.app.config["gallery_take_down"].__globals__["JOBS"]
+    JOBS[sid] = dict(state="running", done=1, total=2, error="", label="")
+    try:
+        page = text(c, "/galleries")
+        assert "Not online yet" not in page
+        assert "Rebuilding the gallery · clients see the current copy until the new one replaces it" in page
+        sql(A, "UPDATE galleries SET upload_state=NULL WHERE session_id=?", (sid,))
+        page = text(c, "/galleries")
+        assert "Not online yet" in page and "Building the gallery" in page
+    finally:
+        JOBS.pop(sid, None)

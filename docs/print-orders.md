@@ -56,11 +56,14 @@ Turning print orders **off** again (Settings, Plugins, Turn off):
      is on) and can order prints; nothing to download. The full-size files are sealed and kept on this computer, never
      put on your web host, and opened only when you prepare an order for the lab. Off until you turn it on, per gallery.
      While it sells prints the gallery has no Retouch or Suggest for portfolio buttons; turn the switch off and build
-     the gallery again to bring them back.
+     the gallery again to bring them back. The switch stays on while an order from these proofs is open: the order is
+     printed from the full-size files. Building the gallery again keeps open orders' photos.
 3. **Taxes** (Settings, Taxes; the choices show once you have at least one tax): charge tax on prints (yes by
    default) and on shipping (no by default). A print order is charged the taxes that are added on top of the price
    and apply to every session; a tax included in the price adds nothing to a print order. A plugin's tax rule can
-   change that by where the order ships (pick up: where the studio is). Whether to charge tax on prints and shipping, and at what rate, is your decision with your accountant;
+   change that by where the order ships (pick up: where the studio is). An order from a client marked Tax exempt
+   in their details carries no tax. The invoice names the tax as Settings does (VAT, or Taxes for several). Whether to
+   charge tax on prints and shipping, and at what rate, is your decision with your accountant;
    Lumen Aureum applies what you choose. The lab's own sales tax is your cost, not tax you collected.
 
 Print ordering needs a web host that runs PHP 7.4 or later (Setup checks it). On a plain bucket the gallery says
@@ -160,7 +163,7 @@ Each order's page shows:
   order closed (closed, canceled or expired), then reduced to city, state and ZIP. A client's own address is never
   reduced, including an orderer you added to the family or made a client of their own. Issued invoices stay as they
   were printed.
-- Finances shows print sales, shipping charged, sales tax collected on print invoices, the lab's cost and your
+- Finances shows print sales, shipping charged, tax collected on print invoices, the lab's cost and your
   profit, kept apart from your sessions. For a year with print orders, the accountant export adds `prints.csv` and
   `print-lab-costs.csv` (one line per lab cost as paid: the date paid, the lab order, and whether it was a lab order,
   a remake or a lab refund).

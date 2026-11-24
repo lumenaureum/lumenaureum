@@ -92,14 +92,14 @@
 </div>
 <aside class="ui-today-side">
 
-{% set n_sh = days|sum(attribute='shoots', start=[])|length %}{% set n_due = days|sum(attribute='due', start=[])|length %}
+{% set n_sh = days|sum(attribute='shoots', start=[])|rejectattr('lead')|list|length %}{% set n_due = days|sum(attribute='due', start=[])|length %}
 {% call ui.section('Next two weeks', id='two-weeks', part=true) %}
   {% if days %}<p class="ui-mute">{{ n_sh }} shoot{{ '' if n_sh == 1 else 's' }}, {{ n_due }} step{{ '' if n_due == 1 else 's' }}</p>{% else %}<p class="ui-mute">Nothing booked in the next two weeks.</p>{% endif %}
   {% for d in days %}{% set label_ = d.date.strftime('%a %b %-d') %}
-    {% set rows_ %}{% for sh in d.shoots %}{{ ui.list_row(url_for('event_view', eid=sh.eid) if sh.event else url_for('client_stage', hid=sh.hid, s=sh.sid), 'Shoot: ' ~ sh.name,
-        (clock(sh.time) if sh.time else ('%d families' % sh.n if sh.event else 'no start time yet')) ~ (', sunset ' ~ sh.light.sunset if sh.light else ''), ui.chip('Shoot', 'attention')) }}{% endfor %}
+    {% set rows_ %}{% for sh in d.shoots %}{{ ui.list_row(url_for('event_view', eid=sh.eid) if sh.event else url_for('client_stage', hid=sh.hid, s=sh.sid), ('Penciled in: ' if sh.penciled else 'Not penciled: ' if sh.lead else 'Shoot: ') ~ sh.name,
+        (clock(sh.time) if sh.time else ('%d families' % sh.n if sh.event else 'no start time yet')) ~ (', sunset ' ~ sh.light.sunset if sh.light else ''), '' if sh.lead else ui.chip('Shoot', 'attention')) }}{% endfor %}
       {% for x in d.due %}{{ ui.list_row(url_for('event_view', eid=x.eid) if x.eid else (url_for('client_stage', hid=x.hid) if x.hid else x.who), x.name, x.what) }}{% endfor %}{% endset %}
-    {% if d.due|length > 5 %}{% call ui.fold(label_ ~ ': ' ~ (d.shoots|length ~ ' shoot' ~ ('' if d.shoots|length == 1 else 's') ~ ', ' if d.shoots else '') ~ d.due|length ~ ' steps', id='day-' ~ d.iso) %}{{ rows_ }}{% endcall %}
+    {% set firm_ = d.shoots|rejectattr('lead')|list|length %}{% if d.due|length > 5 %}{% call ui.fold(label_ ~ ': ' ~ (firm_ ~ ' shoot' ~ ('' if firm_ == 1 else 's') ~ ', ' if firm_ else '') ~ d.due|length ~ ' steps', id='day-' ~ d.iso) %}{{ rows_ }}{% endcall %}
     {% else %}<h3 class="ui-sub-title">{{ label_ }}</h3>{{ rows_ }}{% endif %}
   {% endfor %}
   <div class="ui-btnrow">{{ ui.go(url_for('month_view'), 'Month calendar') }}{{ ui.go(url_for('year_view'), 'Year calendar') }}</div>

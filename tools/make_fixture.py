@@ -834,7 +834,10 @@ class More130(More120):
         from datetime import datetime, timedelta, timezone
         post("/settings", **STUDIO)
         post("/setup/tax", tax_mode="flat", sales_tax_pct="6")
-        assert x.in_request(lambda: A.sales_tax_pct()) == 6.0
+        if hasattr(A, "sales_tax_pct"):
+            assert x.in_request(lambda: A.sales_tax_pct()) == 6.0
+        else:
+            assert [t["rate"] for t in x.in_request(lambda: A.taxes_list())] == [6.0]
 
         _, s_ellis = self._client(x, "Ellis", "Jamie Ellis", "jamie@example.com", "Ellis family", f"{YEAR}-10-04", 300)
         assert round(x.in_request(lambda: A.totals(s_ellis))["quoted"], 2) == 318.00
@@ -2148,6 +2151,10 @@ VERSIONS = {
                   env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
 
     "1.5.4": dict(commit="02128b8", scenario=scenario_154, files=("ntfy.json",),
+                  dirs=("galleries", "galleries-kept", "host", "web", "photos", "faces"),
+                  env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
+
+    "1.6.0": dict(commit="5f7dbe6", scenario=scenario_154, files=("ntfy.json",),
                   dirs=("galleries", "galleries-kept", "host", "web", "photos", "faces"),
                   env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
 

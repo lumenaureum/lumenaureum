@@ -170,7 +170,8 @@ def test_calendar_day_cell_is_one_target_and_a_crowded_day_shows_more(tmp_path, 
 
     day = page.split('id="day-2027-03-13"', 1)[1].split("</section>", 1)[0]
     assert " hidden" in page.split('id="day-2027-03-13"', 1)[1][:80]
-    assert len(re.findall(r'class="ui-row" href="/c/\d+\?s=\d+"><span class="ui-row-main"><b>[^<]+</b><small>Shoot', day)) == 6
+
+    assert len(re.findall(r'class="ui-row" href="/c/\d+\?s=\d+"><span class="ui-row-main"><b>[^<]+</b><small>Not penciled', day)) == 6
 
     page = _page(c, "/calendar?m=2027-03&d=2027-03-13")
     assert 'class="mwrap mwrap-open"' in page

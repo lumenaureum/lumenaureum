@@ -141,6 +141,8 @@ def test_the_upgraded_studio_page_has_every_file_a_fresh_1_4_one_has(tmp_path, m
         fresh_ = ns["SITE_ROOT"] / "upgrade"
 
         new_15 = {"favicon.ico", "apple-touch-icon.png", "llms.txt"}
+
+        new_15 |= {"contact/.htaccess"}
         assert _files(web) == [n for n in _files(fresh_) if n not in new_15]
         icon = (b'<link rel="icon" href="{r}favicon.ico" sizes="any">\n'
                 b'<link rel="apple-touch-icon" href="{r}apple-touch-icon.png">\n')

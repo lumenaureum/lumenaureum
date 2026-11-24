@@ -172,7 +172,7 @@
     <label><span>Files delivered by</span><select name="delivery_method" data-autosubmit title="How the files reach the client: the agreement says this">{% for k_, v_ in C.DELIVERY_METHODS.items() %}<option value="{{ k_ }}"{{ ' selected' if k_ == dm_ }}>{{ v_[0] }}</option>{% endfor %}</select></label>
     <label><span>Files delivered on</span><input type="date" name="sd_shipped" value="{{ s.sd_shipped or '' }}" data-autosubmit class="ui-input-date"></label>
   </div>
-  {% if expires %}{{ ui.fact('Gallery', ('Deletes ' if expires >= today else 'Deleted ') ~ nice(expires.isoformat())) }}<p>
+  {% if expires %}{{ ui.fact('Gallery', ('Closed ' ~ nice(off_web.isoformat()) ~ ', off the web') if off_web else (('Closes ' if expires >= today else 'Closed ') ~ nice(expires.isoformat()))) }}<p>
     {% if restored %}<small class="ui-mute">Put back online for the days chosen then; the extension was for the first window.</small>{% else %}<label class="ui-check"><input type="checkbox" name="extension_used" value="1"{{ ' checked' if s.extension_used }} data-autosubmit>+{{ C.gallery_days(s.type) }} days</label>{% endif %}</p>{% endif %}
   <div class="ui-form-grid">
     <label><span>Client's portfolio suggestions</span><input name="favorites" value="{{ s.favorites }}"></label>

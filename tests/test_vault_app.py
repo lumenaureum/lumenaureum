@@ -52,13 +52,14 @@ r = c.post('/settings/reset', data={'confirm': 'RESET'}, environ_base={'REMOTE_A
 con = A.connect()
 print('after reset households', con.execute('SELECT COUNT(*) FROM households').fetchone()[0],
       'reset objects', con.execute("SELECT COUNT(*) FROM vault_objects WHERE kind='reset'").fetchone()[0],
+      'faces objects', con.execute("SELECT COUNT(*) FROM vault_objects WHERE kind='reset-faces'").fetchone()[0],
       'keys kept', con.execute("SELECT COUNT(*) FROM vault_keys WHERE orphaned IS NOT NULL").fetchone()[0],
       'faces dir', A.FACES.exists())
 """, tmp_path)
     assert "live 2" in out, out
     assert "plain in blob False" in out, out
     assert "restored The Harlows" in out and "restored plaintext False" in out, out
-    assert "after reset households 0 reset objects 2 keys kept 1 faces dir False" in out, out
+    assert "after reset households 0 reset objects 1 faces objects 1 keys kept 1 faces dir False" in out, out
 
 def test_gallery_host_local_and_sftp(tmp_path):
     hosts = [{"type": "local", "path": str(tmp_path / "web")}]

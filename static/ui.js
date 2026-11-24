@@ -156,6 +156,7 @@ document.addEventListener('submit', async e => {
 });
 function wire(root) {
 uiUnchanged(root);
+uiSepFit();
 root.querySelectorAll('.qh:not([aria-expanded])').forEach(q => q.setAttribute('aria-expanded', 'false'));   // (?) bubbles
 root.querySelectorAll('[data-ui-map]:not([data-ui-map-done])').forEach(el => {
   el.dataset.uiMapDone = '1';
@@ -185,7 +186,8 @@ root.querySelectorAll('[data-show-if]').forEach(el => {
   if (!form) return;
   const vals = val.split('|');                                     // one choice, or any of several: "tax_mode=flat|regional"
   const sync = () => { const r = form.querySelector(`[name="${name}"]:checked`); el.hidden = !(r && vals.includes(r.value)); };
-  form.addEventListener('change', sync); sync(); });
+  form.addEventListener('change', sync); sync();
+  form.addEventListener('reset', () => setTimeout(sync, 0)); });    // Discard changes (a reset) sends no 'change'
 root.querySelectorAll('[data-after-refund]').forEach(box => {
   const form = box.closest('form'); if (!form) return;
   const paid = parseFloat(box.dataset.paid) || 0, amt = form.querySelector('input[name=amount]');
@@ -336,6 +338,8 @@ document.querySelectorAll('[data-filter-rows]').forEach(inp => inp.addEventListe
 document.querySelectorAll('[data-poll]').forEach(el => { const t = setInterval(async () => {
   try { const r = await (await fetch(el.dataset.poll)).json();
     if (r.state !== 'running') { clearInterval(t); location.reload(); return; }
+    (r.jobs || []).forEach(x => { const s = document.querySelector('aside.jobs [data-job-text="' + CSS.escape(x.key) + '"]');
+      if (s && s.textContent !== x.text) s.textContent = x.text; });
     const bar = document.getElementById(el.dataset.bar), n = document.getElementById(el.dataset.count);
     if (bar) bar.style.width = (r.total ? 100 * r.done / r.total : 0) + '%';
     if (n) n.textContent = r.done + ' / ' + r.total;
@@ -738,6 +742,13 @@ addEventListener('hashchange', uiFound); uiFound();
     nav.scrollTop = Math.max(0, want);
   }
 })();
+(() => {
+  const nav = document.querySelector('.settabs'); if (!nav) return;
+  const mark = () => { const t = nav.scrollTop, more = nav.scrollHeight - nav.clientHeight;
+    nav.classList.toggle('ui-more-above', more > 2 && t > 2);
+    nav.classList.toggle('ui-more-below', more > 2 && t < more - 2); };
+  nav.addEventListener('scroll', mark, { passive: true }); addEventListener('resize', mark); mark();
+})();
 
 (() => {
   const mw = document.querySelector('.mwrap'); if (!mw) return;
@@ -866,5 +877,69 @@ function uiUnchanged(root) {
   document.addEventListener('change', e => { if (e.target.matches && e.target.matches('input[type=checkbox][form]')) sync(); });
   new MutationObserver(sync).observe(document.documentElement, { childList: true, subtree: true });   // a part swapped in place
   sync();
+})();
+
+(function () {
+  const bar = document.querySelector('nav.top.ui-topnav');
+  const more = bar && bar.querySelector('.ui-nav-more');
+  if (!bar || !more) return;
+  const phone = window.matchMedia('(max-width: 760px)');
+  const shown = el => el.checkVisibility ? el.checkVisibility() : el.offsetParent !== null;
+  function oneRow() {
+    const els = [...bar.children, ...bar.querySelectorAll('nav.sections > a')].filter(shown);
+    const mid = els.map(e => { const r = e.getBoundingClientRect(); return (r.top + r.bottom) / 2; });
+    return Math.max(...mid) - Math.min(...mid) < 20;
+  }
+  function fit() {
+    bar.querySelectorAll('.ui-nav-folded').forEach(e => e.classList.remove('ui-nav-folded'));
+    more.querySelectorAll('.ui-more-show').forEach(e => e.classList.remove('ui-more-show'));
+    bar.classList.remove('ui-nav-folding', 'ui-nav-brandless');
+    if (phone.matches || oneRow()) return;
+    bar.classList.add('ui-nav-brandless');                   // the name gives way to the mark before any section moves
+    if (oneRow()) return;
+    bar.classList.add('ui-nav-folding');                     // the More button takes room too: fold with it shown
+    const secs = [...bar.querySelectorAll('nav.sections > a[data-more-key]')].filter(a => !a.classList.contains('on'));
+    const order = [...secs.filter(a => a.hasAttribute('data-nav-plugin')).reverse(),
+                   ...secs.filter(a => !a.hasAttribute('data-nav-plugin')).reverse(),
+                   ...['signout', 'inquiry', 'settings'].map(k => bar.querySelector(`:scope > [data-more-key="${k}"]`)).filter(Boolean)];
+    for (const el of order) {
+      if (oneRow()) break;
+      el.classList.add('ui-nav-folded');
+      const item = more.querySelector(`.ui-more-pop > [data-more-key="${el.dataset.moreKey}"]`);
+      if (item) item.classList.add('ui-more-show');
+    }
+  }
+  let queued = false;
+  const later = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; fit(); }); } };
+  window.addEventListener('resize', later);
+  phone.addEventListener('change', later);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(later);   // a late font changes widths
+  fit();
+})();
+function uiSepFit() {
+  document.querySelectorAll('.ui-sep').forEach(s => {
+    s.classList.remove('ui-sep-off');
+    const nx = s.nextElementSibling, a = s.getClientRects();
+    const b = nx ? [...nx.getClientRects()].filter(r => r.width > 0) : [];
+    if (!a.length || !b.length) return;
+    if (b[0].top >= a[a.length - 1].bottom - 2) s.classList.add('ui-sep-off');
+  });
+}
+(function () {
+  let queued = false;
+  const later = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; uiSepFit(); }); } };
+  window.addEventListener('resize', later);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(later);
+  uiSepFit();
+})();
+(function () {
+  if (!document.querySelector('body.home nav.top a.cta')) return;
+  let last = scrollY;
+  addEventListener('scroll', () => {
+    const y = scrollY, edge = y < 40 || y + innerHeight >= document.documentElement.scrollHeight - 4;
+    if (!edge && Math.abs(y - last) < 8) return;
+    document.body.classList.toggle('ui-fab-away', !edge && y > last);
+    last = y;
+  }, { passive: true });
 })();
 

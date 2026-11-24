@@ -203,17 +203,19 @@ def register(ctx):
                     email=email, rate_cents=cents_in(f.get("rate")))
 
     def cents_in(v):
-        from decimal import Decimal, InvalidOperation
+        from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
         v = (v or "").replace("$", "").replace(",", "").strip()
         if not v:
             return None
         try:
             d = Decimal(v)
         except InvalidOperation:
+            d = None
+        if d is None or not d.is_finite():
             raise ValueError("The usual pay isn't a number. Nothing was saved.") from None
         if d < 0 or d > 1_000_000:
             raise ValueError("The usual pay is out of range. Nothing was saved.")
-        return int((d * 100).quantize(Decimal("1")))
+        return int((d * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
     def sheet_of(sid):
         r = q("SELECT notes, client_contact FROM call_sheets WHERE session_id=?", (sid,), one=True)

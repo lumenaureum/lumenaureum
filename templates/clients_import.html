@@ -24,7 +24,7 @@
 {% endcall %}{% endif %}
 {% else %}
 {%- set n_add = plan.add|length -%}
-{{ ui.page_head('Import ' ~ d.file, kicker='Clients', status=(d.rows|length) ~ ' row' ~ ('' if d.rows|length == 1 else 's') ~ ', read as ' ~ d.enc) }}
+{{ ui.page_head('Import ' ~ d.file, kicker='Clients', status=n_rows ~ ' row' ~ ('' if n_rows == 1 else 's') ~ ', read as ' ~ d.enc) }}
 {% call ui.needs('Ready to import') %}
   <p>{% if n_add %}Adds {{ n_add }} client{{ '' if n_add == 1 else 's' }}.{% else %}No new clients in this file.{% endif %}
     {%- if plan.match %} {{ plan.match|length }} {{ 'is' if plan.match|length == 1 else 'are' }} already here: Skip or Update each below.{% endif %}

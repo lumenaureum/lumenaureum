@@ -139,12 +139,15 @@ the newest backup opens**, which tests a backup with your master key without cha
 
 ### In the app
 **An existing studio:** Settings, Backups, **Restore from a backup**.
-1. Choose a backup from the list (newest first), or a backup file from this computer, and paste your master key
+1. Choose a backup from the list (newest first; the copy made before a reset is there too, as Before a reset), or a
+   backup file from this computer, and paste your master key
    (the one the studio had when the backup was made). Press **Check this backup**. The app opens it in a scratch
    folder in the data folder and checks it: a backup from the list must match the fingerprint recorded when it was
    made; a file from your computer has no record to compare with, so the next screen says it was not checked.
 2. The next screen shows what changes, side by side: clients, sessions, galleries online, payments, uploaded photos,
    the newest client and session, and the last change. Type your current password and press **Restore and restart**.
+   Only the last backup checked can be restored: if you check another one (in another tab or on another device),
+   Restore and restart on the earlier review restores nothing and asks you to check again.
 3. The data here now (`crm.db`, `keyring.json`, `storage.json`, the face photos, and a copy of `deletions.json` and
    `doc-numbers.json`) moves into `set-aside/<date and time>` in the data folder, with a README.txt saying what it is.
    The face photos made with the backup come back with it. A file from your computer holds no face photos: choose the

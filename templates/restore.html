@@ -70,6 +70,7 @@
 {% endcall %}
 <form method="post" autocomplete="off" id="restore-confirm" style="margin-top:12px">
   <input type="hidden" name="go" value="restore">
+  <input type="hidden" name="check" value="{{ p.id }}">
   {% if not fresh %}<div class="sui-field"><label class="l" for="r-pw">Your password{{ help("The password you use now, to confirm it is you.") }}</label>
     <input type="password" id="r-pw" name="password" required autocomplete="current-password"></div>{% endif %}
   <div class="ui-btnrow" style="margin-top:12px"><button class="ui-btn ui-btn-primary">Restore and restart</button></div>

@@ -16,7 +16,7 @@
      aria-controls="day-{{ c.iso }}" aria-expanded="{{ 'true' if c.iso == day else 'false' }}"
      aria-label="{{ c.long }}{{ ', today' if c.today }}: {% if n_ %}{{ c.shoots|length }} shoot{{ '' if c.shoots|length == 1 else 's' }}, {{ c.due|length }} due{% else %}nothing{% endif %}">
     <span class="mnum">{{ c.num }}</span>
-    {% for sh in c.shoots[:SHOOTS_SHOWN] %}<span class="mshoot {{ 'done' if sh.done }}{{ ' ui-penciled' if sh.penciled }}"{% if sh.penciled %} title="Penciled in"{% endif %}>
+    {% for sh in c.shoots[:SHOOTS_SHOWN] %}<span class="mshoot {{ 'done' if sh.done }}{{ ' ui-penciled' if sh.penciled else ' mlead' if sh.lead }}"{% if sh.penciled %} title="Penciled in"{% elif sh.lead %} title="Not penciled"{% endif %}>
       {% if sh.event %}{{ event_avatar(sh.eid, sh.name, 20) }}{% else %}{{ avatar(sh.hid, 20) }}{% endif %}{{ sym('photo_camera', 'next', 15) }}<span>{{ sh.name.replace('The ', '') }}</span></span>{% endfor %}
     {% if c.due %}<span class="mdue">{% for a in c.due[:DUE_SHOWN] %}<span class="badged {{ 'theirs' if a.theirs }}">{{ sym(a.sym, a.status if a.status in ('late','soon') else 'next', 22) }}{% if a.who.hid %}<span class="badge-face">{{ avatar(a.who.hid, 13) }}</span>{% elif a.who.eid %}<span class="badge-face">{{ event_avatar(a.who.eid, a.who.name, 13) }}</span>{% endif %}</span>{% endfor %}</span>{% endif %}
     {% if more_ %}<span class="mmore">+ {{ more_ }} more</span>{% endif %}
@@ -27,7 +27,7 @@
 {% for wk in weeks %}{% for c in wk %}
   <section class="mday" id="day-{{ c.iso }}" data-day="{{ c.iso }}" aria-label="{{ c.long }}"{% if c.iso != day %} hidden{% endif %}>
     <h2 class="ui-sec-title">{{ c.long }}{{ ', today' if c.today }}</h2>
-    {% for sh in c.shoots %}{{ ui.list_row(sh.link, sh.name, ('Penciled in' if sh.penciled else 'Shoot') ~ (', ' ~ clock(sh.time) if sh.time else '') ~ (', ' ~ sh.where if sh.where else '') ~ (', ' ~ sh.n ~ ' families' if sh.event else '')) }}{% endfor %}
+    {% for sh in c.shoots %}{{ ui.list_row(sh.link, sh.name, ('Penciled in' if sh.penciled else 'Not penciled' if sh.lead else 'Shoot') ~ (', ' ~ clock(sh.time) if sh.time else '') ~ (', ' ~ sh.where if sh.where else '') ~ (', ' ~ sh.n ~ ' families' if sh.event else '')) }}{% endfor %}
     {% for a in c.due %}{{ ui.list_row(client_link(a.who.link) if a.who and a.who.link else url_for('home'), a.who.name, a.tip or a.what, ui.chip('late', 'late') if a.status == 'late' else '') }}{% endfor %}
     {% if not c.shoots and not c.due %}<p class="ui-mute">Nothing on this day.</p>{% endif %}
     <div class="ui-btnrow"><a class="ui-go mday-close" href="{{ url_for('month_view', m=ym) }}">Back to the whole month</a></div>

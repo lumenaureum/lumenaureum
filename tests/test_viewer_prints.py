@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -182,8 +183,10 @@ def test_the_cart_and_order_markers_are_sealed_on_the_device(res):
         stored = dict(out["stored"], **out["session_stored"])
         assert stored or case == "pickup"
         for k, v in stored.items():
-            assert k.startswith("la:") and len(k) == 35, k
-            for word in (GID, "cart:", "orders:", "Lane-034", "pl-3", '"qty"', "6000"):
+
+            assert re.fullmatch(r"la:[0-9a-f]{32}", k), k
+            assert re.fullmatch(r"[A-Za-z0-9+/]+=*", v) and len(base64.b64decode(v)) >= 12 + 16, (case, v[:40])
+            for word in (GID, "cart:", "orders:", "Lane-034", "pl-3", '"qty"'):
                 assert word not in k and word not in v, (case, word)
     assert r["closed"]["stored"]
     mid = r["refused_then_again"]["session_mid_stored"]

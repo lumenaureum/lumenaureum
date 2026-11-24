@@ -52,7 +52,7 @@ def _sealed_backup(db_path, faces_dir, kind, keep):
                 ft = os.path.join(tmpd, "faces.tar")
                 with tarfile.open(ft, "w") as tf:
                     S.add_tree(tf, faces_dir, "faces", skip_bad=True)
-                names.append(S.seal_file(con, ft, bks, kind={"db": "faces", "manual": "manual-faces", "upgrade": "upgrade-faces"}.get(kind, kind), prefix="db"))
+                names.append(S.seal_file(con, ft, bks, kind={"db": "faces", "manual": "manual-faces", "upgrade": "upgrade-faces", "reset": "reset-faces"}.get(kind, kind), prefix="db"))
         finally:
             shutil.rmtree(tmpd, ignore_errors=True)
         prune(con, bks, keep)
@@ -86,7 +86,7 @@ def prune(con, bks, keep=KEEP):
             except IOError:
                 pass
     for name, created in con.execute("""SELECT name, MIN(created) FROM vault_objects
-                                        WHERE kind IN ('reset','manual','manual-faces','upgrade','upgrade-faces','found') AND deleted IS NULL
+                                        WHERE kind IN ('reset','reset-faces','manual','manual-faces','upgrade','upgrade-faces','found') AND deleted IS NULL
                                         GROUP BY name""").fetchall():
         if (now - datetime.fromisoformat(created)).days > 30:
             _drop(con, by, name, now)

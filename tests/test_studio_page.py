@@ -145,6 +145,12 @@ def test_build_output_and_metadata_stripped(env):
     assert '<a href="https://example.org/x">link</a>' in about and "<script>x" not in about and "&lt;script&gt;" in about
     assert "/g/" not in (out / "robots.txt").read_text()
     assert "ErrorDocument 404 /404.html" in (out / ".htaccess").read_text()
+
+    contact_ht = (out / "contact" / ".htaccess").read_text()
+    assert "frame-ancestors 'none'" in contact_ht and 'X-Frame-Options "DENY"' in contact_ht
+    assert "<IfModule mod_headers.c>" in contact_ht
+    assert "frame-ancestors" not in (out / ".htaccess").read_text()
+    S.check_name("contact/.htaccess", "g")
     pv = c.get("/studio-page/preview/", environ_base=E)
     assert pv.status_code == 200 and b"Pat Lens" in pv.data
     assert c.get("/studio-page/preview/about/", environ_base=E).status_code == 200

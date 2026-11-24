@@ -210,8 +210,14 @@ def register(ctx):
         r_ = q("SELECT proofs FROM print_galleries WHERE session_id=?", (sid,), one=True)
         return bool(r_ and r_["proofs"])
 
+    def open_orders(sid):
+        return bool(q(f"SELECT 1 FROM print_orders WHERE session_id=? AND state IN ({','.join('?' * len(P.OPEN))})",
+                      (sid, *P.OPEN), one=True))
+
     def keep_full(s):
 
+        if G.is_print(s["gallery_id"] or "") and open_orders(s["id"]):
+            return True
         return bool(active() and prints_on() and s["type"] not in type_off() and proofs_switch(s["id"]))
 
     app.config["prints_keep_full"] = keep_full
@@ -376,6 +382,10 @@ def register(ctx):
     def ship_of(o):
         return payload_of(o).get("ship") or {"how": "pickup"}
 
+    def tax_lc(word):
+
+        return word.lower() if word in ("Sales tax", "Taxes") else word
+
     def tax_flags():
         taxed = bool(ctx.taxes())
         on_prints = setting("tax_prints", "1") == "1" and taxed
@@ -388,6 +398,14 @@ def register(ctx):
         return setting("business_address") if sh.get("how") == "pickup" else \
             "\n".join(x_ for x_ in (sh.get("addr1"), sh.get("addr2"), f"{sh.get('city', '')}, {sh.get('state', '')} {sh.get('zip', '')}") if x_)
 
+    def exempt_buyer(o):
+
+        if not o.get("contact_id"):
+            return False
+        r_ = q("""SELECT h.tax_exempt FROM people p JOIN households h ON h.id=p.household_id WHERE p.id=?""",
+               (o["contact_id"],), one=True)
+        return bool(r_ and r_["tax_exempt"])
+
     def figures(o, lines=None):
 
         lines = lines if lines is not None else lines_of(o["id"])
@@ -395,8 +413,11 @@ def register(ctx):
         dest = P.dest_of(ship_of(o)) or "us"
         ship = o["ship_cents"] if o.get("ship_cents") is not None else rule_ship(o)
         on_prints, on_ship = tax_flags()
+        exempt = False
         if o.get("tax_rate") is not None:
             rate = float(o["tax_rate"])
+        elif exempt_buyer(o):
+            rate, exempt = 0.0, on_prints or on_ship
         else:
             rate = ctx.tax_pct_at(tax_address(o) or "") if (on_prints or on_ship) else 0.0
         taxable = (sub if on_prints else 0) + ((ship or 0) if on_ship else 0)
@@ -405,7 +426,8 @@ def register(ctx):
         paid = sum(p_["amount_cents"] if p_["kind"] == "payment" else -p_["amount_cents"] for p_ in pays)
         total = sub + (ship or 0) + tax
         return dict(sub=sub, ship=ship, ship_missing=ship is None, rate=rate, taxable=taxable, tax=tax, total=total,
-                    paid=paid, balance=total - paid, pays=[dict(p_) for p_ in pays], dest=dest)
+                    exempt=exempt, tax_name=ctx.tax_word_at(tax_address(o) or ""), paid=paid, balance=total - paid,
+                    pays=[dict(p_) for p_ in pays], dest=dest)
 
     def rule_ship(o):
 
@@ -559,6 +581,29 @@ def register(ctx):
             return None
         return {it.get("o"): it for it in m.get("items", []) if it.get("o")}
 
+    def relink(sid):
+
+        old = photo_files(dict(session_id=sid)) or {}
+        lines = [dict(r_) for r_ in q(f"""SELECT l.id, l.photo_file FROM print_order_lines l JOIN print_orders o ON
+                                          o.id=l.order_id WHERE o.session_id=? AND o.state IN ({','.join('?' * len(P.OPEN))})""",
+                                      (sid, *P.OPEN))]
+
+        def after():
+            new = photo_files(dict(session_id=sid))
+            if not new or not lines or not old:
+                return
+            for l_ in lines:
+                was = old.get(l_["photo_file"])
+                if l_["photo_file"] in new or not was:
+                    continue
+                same = [f_ for f_, it in new.items() if it.get("n") == was.get("n")
+                        and (it.get("ow"), it.get("oh")) == (was.get("ow"), was.get("oh"))]
+                if len(same) == 1:
+                    x("UPDATE print_order_lines SET photo_file=? WHERE id=?", (same[0], l_["id"]))
+        return after
+
+    app.config["prints_relink"] = relink
+
     def full_size(o, line):
 
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -682,7 +727,8 @@ td.r,th.r{text-align:right}.mute{color:#6b6157}.tot td{font-weight:700;border-bo
                                 qty=l_["qty"], each=P.dollars(l_["each_cents"]), amount=P.dollars(l_["each_cents"] * l_["qty"]))
                            for l_ in lines],
                     ship_label=ship_label, ship=P.dollars(f_["ship"] or 0),
-                    tax_line=(f"Sales tax ({f_['rate']:g}%)" if f_["tax"] else ""), tax=P.dollars(f_["tax"]),
+                    tax_line=(f"{f_['tax_name']} ({f_['rate']:g}%)" if f_["tax"] else ""), tax_name=f_["tax_name"],
+                    tax=P.dollars(f_["tax"]),
                     total=f_["total"], total_s=P.dollars(f_["total"]), sub=f_["sub"], ship_cents=f_["ship"] or 0,
                     tax_cents=f_["tax"], rate=f_["rate"], policy=POLICY_LINE,
                     arrive=(setting("prints_arrive", ARRIVE_DEFAULT) if sh.get("how") == "other" else ""),
@@ -1338,7 +1384,7 @@ and once paid, Prepare for the lab gives you the files and an order sheet for an
   <table class="r" style="max-width:640px"><tbody>
   <tr><td>Prints</td><td class="r">{{ dollars(f.sub) }}</td>{% if cost_lines is not none %}<td class="mute">your lab cost {{ dollars(cost_lines) }}</td>{% endif %}</tr>
   <tr><td>Shipping charged ({{ rule_words }})</td><td class="r">{% if f.ship is none %}<span style="color:var(--warn)">type the lab's shipping</span>{% else %}{{ dollars(f.ship) }}{% endif %}</td><td class="mute">{% if o.ship_lab_cents is not none %}the lab's shipping {{ dollars(o.ship_lab_cents) }}{% endif %}</td></tr>
-  <tr><td>Sales tax{% if f.rate %} ({{ '%g' % f.rate }}%){% endif %}</td><td class="r">{{ dollars(f.tax) }}</td><td class="mute"></td></tr>
+  <tr><td>{{ f.tax_name }}{% if f.rate %} ({{ '%g' % f.rate }}%){% elif f.exempt %} (client tax exempt){% endif %}</td><td class="r">{{ dollars(f.tax) }}</td><td class="mute"></td></tr>
   <tr><td><b>Total</b></td><td class="r"><b>{{ dollars(f.total) }}</b></td>{% if profit is not none %}<td class="mute">profit {{ dollars(profit) }}</td>{% endif %}</tr>
   <tr><td>Paid</td><td class="r">{{ dollars(f.paid) }}</td><td></td></tr><tr><td>Balance</td><td class="r">{{ dollars(f.balance) }}</td><td></td></tr></tbody></table>
   {% if editable %}<form method="post" action="{{ url_for('prints_act', oid_=o.id, do='shipping') }}" class="row" style="gap:6px;flex-wrap:wrap;align-items:end">
@@ -1536,7 +1582,7 @@ and once paid, Prepare for the lab gives you the files and an order sheet for an
         out = [f"Invoice {o['invoice_number']} for {P.n_prints(n_)} from {('the gallery of ' + s_['name']) if s_ else 'your gallery'}: "
                f"{P.dollars(f_['total'])}"
                + (f" (prints {P.dollars(data['sub'])}, shipping {P.dollars(data.get('ship_cents') or 0)}"
-                  + (f", sales tax {P.dollars(data['tax_cents'])}" if data.get("tax_cents") else "") + ")"
+                  + (f", {tax_lc(data.get('tax_name') or 'Sales tax')} {P.dollars(data['tax_cents'])}" if data.get("tax_cents") else "") + ")"
                   if data.get("sub") is not None else "") + "."]
         if f_["paid"] > 0:
             out.append(f"Paid so far: {P.dollars(f_['paid'])}. Balance: {P.dollars(max(f_['balance'], 0))}.")
@@ -2411,6 +2457,10 @@ and once paid, Prepare for the lab gives you the files and an order sheet for an
             x("""INSERT INTO print_galleries (session_id, gid, off) VALUES (?,?,?) ON CONFLICT(session_id) DO UPDATE SET off=excluded.off""",
               (sid, r_["gallery_id"], 0 if on else 1))
         else:
+            if not on and proofs_switch(sid) and open_orders(sid):
+
+                return refuse("A print order from these proofs is still open. Finish or cancel it first: it needs "
+                              "the full-size files.", ctx.safe_back(request.form.get("back")) or url_for("session_view", sid=sid))
             x("""INSERT INTO print_galleries (session_id, gid, proofs) VALUES (?,?,?)
                  ON CONFLICT(session_id) DO UPDATE SET proofs=excluded.proofs""", (sid, r_["gallery_id"], 1 if on else 0))
         return redirect(ctx.safe_back(request.form.get("back")) or url_for("session_view", sid=sid))

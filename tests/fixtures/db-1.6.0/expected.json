@@ -1,0 +1,9269 @@
+{
+ "account_activity": [
+  {
+   "text": "Exported accounts for 2026",
+   "who": "Owner"
+  },
+  {
+   "text": "Set up the locked-studio notice",
+   "who": "Owner"
+  },
+  {
+   "text": "Checked the master key",
+   "who": "Owner"
+  }
+ ],
+ "agreements": {
+  "1": [
+   "needed",
+   null
+  ],
+  "10": [
+   "signed",
+   "2026-11-23"
+  ],
+  "11": [
+   "needed",
+   null
+  ],
+  "12": [
+   "needed",
+   null
+  ],
+  "13": [
+   "needed",
+   null
+  ],
+  "14": [
+   "needed",
+   null
+  ],
+  "16": [
+   "needed",
+   null
+  ],
+  "17": [
+   "needed",
+   null
+  ],
+  "18": [
+   "needed",
+   null
+  ],
+  "19": [
+   "needed",
+   null
+  ],
+  "2": [
+   "needed",
+   null
+  ],
+  "20": [
+   "needed",
+   null
+  ],
+  "21": [
+   "needed",
+   null
+  ],
+  "22": [
+   "needed",
+   null
+  ],
+  "23": [
+   "needed",
+   null
+  ],
+  "24": [
+   "needed",
+   null
+  ],
+  "25": [
+   "needed",
+   null
+  ],
+  "26": [
+   "needed",
+   null
+  ],
+  "27": [
+   "needed",
+   null
+  ],
+  "28": [
+   "signed",
+   "2026-11-23"
+  ],
+  "3": [
+   "needed",
+   null
+  ],
+  "4": [
+   "needed",
+   null
+  ],
+  "8": [
+   "signed",
+   "2026-11-23"
+  ],
+  "9": [
+   "signed",
+   "2026-11-23"
+  ]
+ },
+ "app_version": "1.6.0",
+ "bill_snapshots": {
+  "INV-2026-0001": {
+   "balance": 250.0,
+   "kind": "INV",
+   "paid": 100.0,
+   "payments": 1,
+   "session": 1,
+   "total": 350.0
+  },
+  "INV-2026-0002": {
+   "balance": 60.0,
+   "kind": "INV",
+   "paid": 0.0,
+   "payments": 0,
+   "session": 7,
+   "total": 60.0
+  },
+  "INV-2026-0003": {
+   "balance": 218.0,
+   "kind": "INV",
+   "paid": 100.0,
+   "payments": 1,
+   "session": 12,
+   "total": 318.0
+  },
+  "R-2026-0001": {
+   "balance": 0.0,
+   "kind": "R",
+   "paid": 310.0,
+   "payments": 3,
+   "session": 1,
+   "total": 350.0
+  },
+  "R-2026-0002": {
+   "balance": 0.0,
+   "kind": "R",
+   "paid": 318.0,
+   "payments": 2,
+   "session": 12,
+   "total": 318.0
+  },
+  "R-2026-0003": {
+   "balance": 0.0,
+   "kind": "R",
+   "paid": 175.0,
+   "payments": 1,
+   "session": 8,
+   "total": 175.0
+  },
+  "R-2026-0004": {
+   "balance": 0.0,
+   "kind": "R",
+   "paid": 159.0,
+   "payments": 1,
+   "session": 24,
+   "total": 159.0
+  }
+ },
+ "bills": {
+  "1": {
+   "invoice": {
+    "balance": 250.0,
+    "number": "INV-2026-0001",
+    "paid": 100.0,
+    "since": "This is the invoice as issued. It has since been paid in full.",
+    "total": 350.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "R-2026-0001",
+    "paid": 310.0,
+    "since": "",
+    "total": 350.0
+   }
+  },
+  "10": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 400.0,
+    "since": "",
+    "total": 400.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 400.0,
+    "since": "",
+    "total": 400.0
+   }
+  },
+  "11": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 200.0,
+    "since": "",
+    "total": 200.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 200.0,
+    "since": "",
+    "total": 200.0
+   }
+  },
+  "12": {
+   "invoice": {
+    "balance": 218.0,
+    "number": "INV-2026-0003",
+    "paid": 100.0,
+    "since": "This is the invoice as issued. It has since been paid in full.",
+    "total": 318.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "R-2026-0002",
+    "paid": 318.0,
+    "since": "",
+    "total": 318.0
+   }
+  },
+  "13": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 50.0,
+    "since": "",
+    "total": 212.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 50.0,
+    "since": "",
+    "total": 212.0
+   }
+  },
+  "14": {
+   "invoice": {
+    "balance": 165.0,
+    "number": "",
+    "paid": 100.0,
+    "since": "",
+    "total": 265.0
+   },
+   "receipt": {
+    "balance": 165.0,
+    "number": "",
+    "paid": 100.0,
+    "since": "",
+    "total": 265.0
+   }
+  },
+  "16": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 159.0,
+    "since": "",
+    "total": 159.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 159.0,
+    "since": "",
+    "total": 159.0
+   }
+  },
+  "17": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 159.0,
+    "since": "",
+    "total": 159.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 159.0,
+    "since": "",
+    "total": 159.0
+   }
+  },
+  "18": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 0.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 0.0
+   }
+  },
+  "19": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 159.0,
+    "since": "",
+    "total": 159.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 159.0,
+    "since": "",
+    "total": 159.0
+   }
+  },
+  "2": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 150.0,
+    "since": "",
+    "total": 150.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 150.0,
+    "since": "",
+    "total": 150.0
+   }
+  },
+  "20": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 371.0,
+    "since": "",
+    "total": 371.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 371.0,
+    "since": "",
+    "total": 371.0
+   }
+  },
+  "21": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 182.0,
+    "since": "",
+    "total": 212.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 182.0,
+    "since": "",
+    "total": 212.0
+   }
+  },
+  "22": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 0.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 0.0
+   }
+  },
+  "23": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 212.0,
+    "since": "",
+    "total": 212.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 212.0,
+    "since": "",
+    "total": 212.0
+   }
+  },
+  "24": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 159.0,
+    "since": "",
+    "total": 159.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "R-2026-0004",
+    "paid": 159.0,
+    "since": "",
+    "total": 159.0
+   }
+  },
+  "25": {
+   "invoice": {
+    "balance": 297.5,
+    "number": "",
+    "paid": 100.0,
+    "since": "",
+    "total": 397.5
+   },
+   "receipt": {
+    "balance": 297.5,
+    "number": "",
+    "paid": 100.0,
+    "since": "",
+    "total": 397.5
+   }
+  },
+  "26": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 0.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 0.0
+   }
+  },
+  "27": {
+   "invoice": {
+    "balance": 159.0,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 159.0
+   },
+   "receipt": {
+    "balance": 159.0,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 159.0
+   }
+  },
+  "28": {
+   "invoice": {
+    "balance": 2394.0,
+    "number": "",
+    "paid": 945.0,
+    "since": "",
+    "total": 3339.0
+   },
+   "receipt": {
+    "balance": 2394.0,
+    "number": "",
+    "paid": 945.0,
+    "since": "",
+    "total": 3339.0
+   }
+  },
+  "29": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 0.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 0.0
+   }
+  },
+  "3": {
+   "invoice": {
+    "balance": 175.0,
+    "number": "",
+    "paid": 75.0,
+    "since": "",
+    "total": 250.0
+   },
+   "receipt": {
+    "balance": 175.0,
+    "number": "",
+    "paid": 75.0,
+    "since": "",
+    "total": 250.0
+   }
+  },
+  "30": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 47.7,
+    "since": "",
+    "total": 47.7
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 47.7,
+    "since": "",
+    "total": 47.7
+   }
+  },
+  "31": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 47.7,
+    "since": "",
+    "total": 47.7
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 47.7,
+    "since": "",
+    "total": 47.7
+   }
+  },
+  "32": {
+   "invoice": {
+    "balance": 47.7,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 47.7
+   },
+   "receipt": {
+    "balance": 47.7,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 47.7
+   }
+  },
+  "33": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 47.7,
+    "since": "",
+    "total": 47.7
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 47.7,
+    "since": "",
+    "total": 47.7
+   }
+  },
+  "34": {
+   "invoice": {
+    "balance": 47.7,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 47.7
+   },
+   "receipt": {
+    "balance": 47.7,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 47.7
+   }
+  },
+  "35": {
+   "invoice": {
+    "balance": 47.7,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 47.7
+   },
+   "receipt": {
+    "balance": 47.7,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 47.7
+   }
+  },
+  "36": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 47.7,
+    "since": "",
+    "total": 47.7
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 47.7,
+    "since": "",
+    "total": 47.7
+   }
+  },
+  "4": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 0.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 0.0
+   }
+  },
+  "6": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 60.0,
+    "since": "",
+    "total": 60.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 60.0,
+    "since": "",
+    "total": 60.0
+   }
+  },
+  "7": {
+   "invoice": {
+    "balance": 60.0,
+    "number": "INV-2026-0002",
+    "paid": 0.0,
+    "since": "",
+    "total": 60.0
+   },
+   "receipt": {
+    "balance": 60.0,
+    "number": "",
+    "paid": 0.0,
+    "since": "",
+    "total": 60.0
+   }
+  },
+  "8": {
+   "invoice": {
+    "balance": 0.0,
+    "number": "",
+    "paid": 175.0,
+    "since": "",
+    "total": 175.0
+   },
+   "receipt": {
+    "balance": 0.0,
+    "number": "R-2026-0003",
+    "paid": 175.0,
+    "since": "",
+    "total": 175.0
+   }
+  },
+  "9": {
+   "invoice": {
+    "balance": 200.0,
+    "number": "",
+    "paid": 100.0,
+    "since": "",
+    "total": 300.0
+   },
+   "receipt": {
+    "balance": 200.0,
+    "number": "",
+    "paid": 100.0,
+    "since": "",
+    "total": 300.0
+   }
+  }
+ },
+ "booked_hint": {
+  "1": "",
+  "10": "",
+  "11": "",
+  "12": "",
+  "13": "",
+  "14": "",
+  "16": "",
+  "17": "",
+  "18": "",
+  "19": "",
+  "2": "",
+  "20": "",
+  "21": "",
+  "22": "",
+  "23": "",
+  "24": "",
+  "25": "",
+  "26": "",
+  "27": "",
+  "28": "deposit still open",
+  "29": "",
+  "3": "deposit and agreement still open",
+  "30": "",
+  "31": "",
+  "32": "",
+  "33": "",
+  "34": "",
+  "35": "",
+  "36": "",
+  "4": "",
+  "6": "",
+  "7": "",
+  "8": "",
+  "9": ""
+ },
+ "booked_hint_before_signing": "deposit and agreement still open",
+ "booked_on": {
+  "10": "2026-11-23",
+  "11": "2026-11-23",
+  "12": "2026-11-23",
+  "13": "2026-11-23",
+  "14": "2026-11-23",
+  "16": "2026-11-23",
+  "17": "2026-11-23",
+  "19": "2026-11-23",
+  "2": "2026-11-23",
+  "20": "2026-11-23",
+  "21": "2026-11-23",
+  "23": "2026-11-23",
+  "25": "2026-11-23",
+  "27": "2026-11-23",
+  "28": "2026-11-23",
+  "29": "2026-11-23",
+  "3": "2026-11-23",
+  "30": "2026-11-23",
+  "31": "2026-11-23",
+  "32": "2026-11-23",
+  "33": "2026-11-23",
+  "34": "2026-11-23",
+  "35": "2026-11-23",
+  "36": "2026-11-23",
+  "6": "2026-11-23",
+  "7": "2026-11-23",
+  "8": "2026-11-23",
+  "9": "2026-11-23"
+ },
+ "books": [
+  [
+   1,
+   "2026-07-15",
+   127.2,
+   7.2,
+   "family",
+   "balance"
+  ],
+  [
+   2,
+   "2026-07-15",
+   20.0,
+   0.0,
+   "family",
+   "tip"
+  ]
+ ],
+ "business": {
+  "business_email": "hello@studio.example",
+  "business_name": "Lark & Pine Studio",
+  "photographer_name": "Avery Marsh"
+ },
+ "business_clients": {
+  "22": 1
+ },
+ "charges": [
+  [
+   1,
+   1,
+   "2026-11-23",
+   350.0,
+   "INV-2026-0001",
+   ""
+  ],
+  [
+   2,
+   2,
+   "2026-11-23",
+   150.0,
+   "",
+   "Work done"
+  ],
+  [
+   3,
+   7,
+   "2026-11-23",
+   60.0,
+   "INV-2026-0002",
+   ""
+  ],
+  [
+   4,
+   9,
+   "2026-11-23",
+   300.0,
+   "",
+   "Work done"
+  ],
+  [
+   5,
+   10,
+   "2026-11-23",
+   400.0,
+   "",
+   "Work done"
+  ],
+  [
+   6,
+   11,
+   "2026-11-23",
+   200.0,
+   "",
+   "Work done"
+  ],
+  [
+   7,
+   12,
+   "2026-11-23",
+   318.0,
+   "INV-2026-0003",
+   ""
+  ],
+  [
+   8,
+   13,
+   "2026-11-23",
+   212.0,
+   "",
+   "Work done"
+  ],
+  [
+   9,
+   14,
+   "2026-11-23",
+   100.0,
+   "",
+   "Canceled, deposit kept"
+  ],
+  [
+   10,
+   16,
+   "2026-11-23",
+   159.0,
+   "",
+   "Work done"
+  ],
+  [
+   11,
+   17,
+   "2026-11-23",
+   159.0,
+   "",
+   "Work done"
+  ],
+  [
+   12,
+   19,
+   "2026-11-23",
+   159.0,
+   "",
+   "Work done"
+  ],
+  [
+   13,
+   20,
+   "2026-11-23",
+   371.0,
+   "",
+   "Work done"
+  ],
+  [
+   14,
+   21,
+   "2026-11-23",
+   212.0,
+   "",
+   "Work done"
+  ],
+  [
+   15,
+   23,
+   "2026-11-23",
+   212.0,
+   "",
+   "Work done"
+  ],
+  [
+   16,
+   25,
+   "2026-11-23",
+   397.5,
+   "",
+   "Work done"
+  ],
+  [
+   17,
+   30,
+   "2026-11-23",
+   47.7,
+   "",
+   "Work done"
+  ],
+  [
+   18,
+   31,
+   "2026-11-23",
+   47.7,
+   "",
+   "Work done"
+  ],
+  [
+   19,
+   33,
+   "2026-11-23",
+   47.7,
+   "",
+   "Work done"
+  ],
+  [
+   20,
+   36,
+   "2026-11-23",
+   47.7,
+   "",
+   "Work done"
+  ]
+ ],
+ "check_ins": [
+  [
+   7,
+   "email",
+   "Checked in by email"
+  ]
+ ],
+ "clients": {
+  "1": "Lane",
+  "10": "Ellis",
+  "11": "Foster",
+  "12": "Grant",
+  "14": "Hale",
+  "15": "Ivers",
+  "16": "Ada Lovelace",
+  "17": "Nash",
+  "18": "Wren",
+  "19": "Olsen",
+  "2": "Ortiz",
+  "20": "Upton",
+  "21": "Yates",
+  "22": "Vance",
+  "23": "Zeller",
+  "24": "Quinn",
+  "25": "Abbott",
+  "26": "Wynn and Sato",
+  "27": "Abara",
+  "28": "Brandt",
+  "29": "Castillo",
+  "3": "Moss",
+  "30": "Dunmore",
+  "31": "Eklund",
+  "32": "Farrow",
+  "33": "Gupta",
+  "4": "Bell",
+  "5": "Chen",
+  "6": "Price",
+  "7": "Kim",
+  "8": "Reyes",
+  "9": "Diaz"
+ },
+ "clients_150": {
+  "ellis": 10,
+  "foster": 11,
+  "kim": 7,
+  "vance": 22,
+  "zeller": 23
+ },
+ "codeword_policy": {
+  "engagement": true,
+  "event": true,
+  "family": true,
+  "headshot": false,
+  "wedding": true
+ },
+ "codewords": {
+  "1": "amber harbor willow",
+  "22": "copper lantern meadow"
+ },
+ "dark_page_sha256": "f229b5a0729ab50ffdd24eab038be5a98e4188d7da4c3f8bc5067c70ca985f1d",
+ "data_folder": "/tmp/tmpin57e_ob",
+ "deleted": {
+  "client": 34,
+  "quote": 2,
+  "quoted_session": 5,
+  "session": 37
+ },
+ "deleted_130": {
+  "client": 13,
+  "session": 15
+ },
+ "deletions": [
+  {
+   "at": "2026-11-23 22:52:33",
+   "created": "2026-11-23 22:52:33",
+   "id": 5,
+   "kind": "session",
+   "mac": "86ccb561436b3117f5d9cf2ef23bfb5e43a63341e8c26a900bd666d34635baa7"
+  },
+  {
+   "at": "2026-11-23 22:52:38",
+   "created": "2026-11-24 03:52:38",
+   "id": 13,
+   "mac": "f2555aaac07217d337fd90310d05d600c481de5468e6524723917d403242263b"
+  },
+  {
+   "at": "2026-11-23 22:52:49",
+   "created": "2026-11-24 03:52:49",
+   "id": 34,
+   "mac": "e323dc13b415458e201310be124d773a63a5268e6cae90b2347d9a41ba39ae04"
+  }
+ ],
+ "delivered": {
+  "10": {
+   "expires": "2026-12-23",
+   "files_delivered": true,
+   "first_visit": "2026-11-21",
+   "sd_shipped": "2026-11-23",
+   "stage": "delivered"
+  },
+  "11": {
+   "expires": null,
+   "files_delivered": false,
+   "first_visit": null,
+   "sd_shipped": null,
+   "stage": "shot"
+  }
+ },
+ "delivery_history": {
+  "10": "Delivery changed from USB drive to Download link",
+  "11": "Delivery changed from USB drive to Download link",
+  "20": "Delivery changed from USB drive to Download link",
+  "28": "Delivery changed from USB drive to Download link"
+ },
+ "delivery_method": {
+  "1": null,
+  "10": "link",
+  "11": "link",
+  "12": null,
+  "13": null,
+  "14": null,
+  "16": null,
+  "17": null,
+  "18": null,
+  "19": null,
+  "2": null,
+  "20": "link",
+  "21": null,
+  "22": null,
+  "23": null,
+  "24": null,
+  "25": null,
+  "26": null,
+  "27": null,
+  "28": "link",
+  "29": null,
+  "3": null,
+  "30": null,
+  "31": null,
+  "32": null,
+  "33": null,
+  "34": null,
+  "35": null,
+  "36": null,
+  "4": null,
+  "6": null,
+  "7": null,
+  "8": null,
+  "9": null
+ },
+ "deposit_due": {
+  "1": "2026-11-23",
+  "10": "2026-11-23",
+  "11": "2026-11-23",
+  "12": "2026-11-23",
+  "13": "2026-11-23",
+  "14": "2026-11-23",
+  "16": "2026-11-23",
+  "17": "2026-11-23",
+  "19": "2026-11-23",
+  "2": "2026-11-23",
+  "20": "2026-11-23",
+  "21": "2026-11-23",
+  "23": "2026-11-23",
+  "25": "2026-11-23",
+  "26": "2026-11-30",
+  "27": "2026-11-30",
+  "28": "2026-11-23",
+  "29": "2026-11-23",
+  "3": "2026-11-23",
+  "30": "2026-11-23",
+  "31": "2026-11-23",
+  "32": "2026-11-23",
+  "33": "2026-11-23",
+  "34": "2026-11-23",
+  "35": "2026-11-23",
+  "36": "2026-11-23",
+  "6": "2026-11-23",
+  "7": "2026-11-23",
+  "8": "2026-11-23",
+  "9": "2026-11-23"
+ },
+ "doc_numbers": {
+  "INV-2026-0001": {
+   "issued": "2026-11-23",
+   "kind": "INV",
+   "session": 1
+  },
+  "INV-2026-0002": {
+   "issued": "2026-11-23",
+   "kind": "INV",
+   "session": 7
+  },
+  "INV-2026-0003": {
+   "issued": "2026-11-23",
+   "kind": "INV",
+   "session": 12
+  },
+  "INV-2026-0004": {
+   "issued": "2026-11-23",
+   "kind": "PRINT:5",
+   "session": 20
+  },
+  "INV-2026-0005": {
+   "issued": "2026-11-23",
+   "kind": "PRINT:3",
+   "session": 20
+  },
+  "INV-2026-0006": {
+   "issued": "2026-11-23",
+   "kind": "PRINT:2",
+   "session": 20
+  },
+  "INV-2026-0007": {
+   "issued": "2026-11-23",
+   "kind": "PRINT:6",
+   "session": 20
+  },
+  "R-2026-0001": {
+   "issued": "2026-11-23",
+   "kind": "R",
+   "session": 1
+  },
+  "R-2026-0002": {
+   "issued": "2026-11-23",
+   "kind": "R",
+   "session": 12
+  },
+  "R-2026-0003": {
+   "issued": "2026-11-23",
+   "kind": "R",
+   "session": 8
+  },
+  "R-2026-0004": {
+   "issued": "2026-11-23",
+   "kind": "R",
+   "session": 24
+  }
+ },
+ "download_galleries": {
+  "10": {
+   "built_files": [
+    ".download",
+    ".htaccess",
+    ".online",
+    ".online-was",
+    "037d73c3e7719df2be9289f6.bin",
+    "108b09912159bdb3d1a14158.bin",
+    "1cedaaeec0eae8f6fbfcaded.bin",
+    "23e3fafa0de4054c5a2c4eed.bin",
+    "3f946a932273167634d5139e.bin",
+    "58d3c0b4dfb2135d4e85215b.bin",
+    "7380443732d8843796367849.bin",
+    "87e1fece5743d226b1f57c7c.bin",
+    "ac69364a5a39d0a5962877c9.bin",
+    "c0fc56039744e5ddae90e31e.bin",
+    "c47561cfd7844e83ace2e45e.bin",
+    "d87f32b90c8c9bef3a467c16.bin",
+    "f76af8962d6d2252aa00acc0.bin",
+    "font.woff2",
+    "gate.php",
+    "index.html",
+    "manifest.bin",
+    "orders.php",
+    "picks.php",
+    "sealed.php",
+    "seen-key.php",
+    "seen.php"
+   ],
+   "dl": 1,
+   "gallery_id": "g-Lub6xduZzli2VQOrViTPlH8",
+   "host_files": [
+    ".htaccess",
+    "037d73c3e7719df2be9289f6.bin",
+    "108b09912159bdb3d1a14158.bin",
+    "1cedaaeec0eae8f6fbfcaded.bin",
+    "23e3fafa0de4054c5a2c4eed.bin",
+    "37bf0425a0ee119ac3786401.bin",
+    "3f946a932273167634d5139e.bin",
+    "58d3c0b4dfb2135d4e85215b.bin",
+    "7380443732d8843796367849.bin",
+    "87e1fece5743d226b1f57c7c.bin",
+    "ac69364a5a39d0a5962877c9.bin",
+    "c0fc56039744e5ddae90e31e.bin",
+    "c47561cfd7844e83ace2e45e.bin",
+    "d87f32b90c8c9bef3a467c16.bin",
+    "f76af8962d6d2252aa00acc0.bin",
+    "fbe15d4f887ef8d003ca49e1.bin",
+    "font.woff2",
+    "gate.php",
+    "index.html",
+    "limits.php",
+    "offer-kid.php",
+    "orders",
+    "orders.php",
+    "picks.php",
+    "sealed.php",
+    "seen-at.php",
+    "seen-key.php",
+    "seen.php"
+   ],
+   "is_download": true,
+   "items": [
+    {
+     "n": "final-1.jpg",
+     "o": "c0fc56039744e5ddae90e31e.bin",
+     "on": "final-1.jpg",
+     "os": 19001
+    },
+    {
+     "n": "final-2.jpg",
+     "o": "7380443732d8843796367849.bin",
+     "on": "final-2.jpg",
+     "os": 19029
+    },
+    {
+     "n": "final-3.jpg",
+     "o": "58d3c0b4dfb2135d4e85215b.bin",
+     "on": "final-3.jpg",
+     "os": 19000
+    }
+   ],
+   "manifest_sha256": "f62fa6920b4e40b057d386e1a06dc18332a099e761d3c217275140d110ad1d1b",
+   "online_download": true,
+   "site": "https://studio.example.com",
+   "title": "Reyes autumn portraits",
+   "zips": [
+    {
+     "name": "Reyes autumn portraits.zip",
+     "parts": [
+      "ac69364a5a39d0a5962877c9.bin",
+      "23e3fafa0de4054c5a2c4eed.bin",
+      "3f946a932273167634d5139e.bin",
+      "108b09912159bdb3d1a14158.bin"
+     ],
+     "size": 57346
+    }
+   ]
+  },
+  "11": {
+   "built_files": [
+    ".download",
+    ".htaccess",
+    ".online",
+    ".online-was",
+    "01f275ad18d3575c204d087d.bin",
+    "141f1b0f7641a05961d6aeab.bin",
+    "1eadc3b21217743b37a8b402.bin",
+    "4ca876d90cc969bcf18e5f3f.bin",
+    "57ccb1e282a70794760ad565.bin",
+    "62ce128ebdb3d2612f2f6a57.bin",
+    "6533702e802f85b77cd13653.bin",
+    "6eaea3025cc6e0efbadae25e.bin",
+    "7b2c731aa193c18bbb2623d9.bin",
+    "947bfb16f96c03f63a87d373.bin",
+    "9752377294e88672c44bfca5.bin",
+    "b7a22bc0ddd178572d46255d.bin",
+    "c588866485b1358311f3cd25.bin",
+    "cf5febb929a59d87598c1c26.bin",
+    "cfd694154bbf05262ee7c4f7.bin",
+    "e32904682bfee53737fd028f.bin",
+    "f05e4666ee7102527ccfe408.bin",
+    "font.woff2",
+    "gate.php",
+    "index.html",
+    "manifest.bin",
+    "orders.php",
+    "picks.php",
+    "sealed.php",
+    "seen-key.php",
+    "seen.php"
+   ],
+   "dl": 1,
+   "gallery_id": "g-ExzjaGE1Vj4swMZeT-XfpIY",
+   "host_files": [
+    ".htaccess",
+    "01f275ad18d3575c204d087d.bin",
+    "141f1b0f7641a05961d6aeab.bin",
+    "1eadc3b21217743b37a8b402.bin",
+    "4ca876d90cc969bcf18e5f3f.bin",
+    "57ccb1e282a70794760ad565.bin",
+    "62ce128ebdb3d2612f2f6a57.bin",
+    "6533702e802f85b77cd13653.bin",
+    "6eaea3025cc6e0efbadae25e.bin",
+    "7b2c731aa193c18bbb2623d9.bin",
+    "809cb93daa0821456ee81db3.bin",
+    "947bfb16f96c03f63a87d373.bin",
+    "9752377294e88672c44bfca5.bin",
+    "b7a22bc0ddd178572d46255d.bin",
+    "c588866485b1358311f3cd25.bin",
+    "cf5febb929a59d87598c1c26.bin",
+    "cfd694154bbf05262ee7c4f7.bin",
+    "d9961701ed0dd1a7937db2b4.bin",
+    "e32904682bfee53737fd028f.bin",
+    "f05e4666ee7102527ccfe408.bin",
+    "font.woff2",
+    "gate.php",
+    "index.html",
+    "limits.php",
+    "offer-kid.php",
+    "orders",
+    "orders.php",
+    "picks.php",
+    "sealed.php",
+    "seen-key.php",
+    "seen.php"
+   ],
+   "is_download": true,
+   "items": [
+    {
+     "n": "diaz1.jpg",
+     "o": "57ccb1e282a70794760ad565.bin",
+     "on": "diaz1.jpg",
+     "os": 19038
+    },
+    {
+     "n": "diaz2.jpg",
+     "o": "01f275ad18d3575c204d087d.bin",
+     "on": "diaz2.jpg",
+     "os": 18994
+    },
+    {
+     "n": "diaz3.jpg",
+     "o": "7b2c731aa193c18bbb2623d9.bin",
+     "on": "diaz3.jpg",
+     "os": 19015
+    },
+    {
+     "n": "diaz4.jpg",
+     "o": "6533702e802f85b77cd13653.bin",
+     "on": "diaz4.jpg",
+     "os": 18985
+    }
+   ],
+   "manifest_sha256": "a6b72e37a18bd6bf85c11be2e0f3a8833577d905bc779a16cfd9a800fc28e0f6",
+   "online_download": true,
+   "site": "https://studio.example.com",
+   "title": "Diaz",
+   "zips": [
+    {
+     "name": "Diaz.zip",
+     "parts": [
+      "947bfb16f96c03f63a87d373.bin",
+      "f05e4666ee7102527ccfe408.bin",
+      "62ce128ebdb3d2612f2f6a57.bin",
+      "cfd694154bbf05262ee7c4f7.bin",
+      "4ca876d90cc969bcf18e5f3f.bin"
+     ],
+     "size": 76430
+    }
+   ]
+  }
+ },
+ "end_contact": [
+  [
+   11,
+   "2026-11-23"
+  ]
+ ],
+ "event": {
+  "families": [
+   "Bell",
+   "Chen"
+  ],
+  "id": 1
+ },
+ "expenses": [
+  [
+   25,
+   "2026-10-24",
+   "Drive to the river park",
+   0.0,
+   18.0,
+   0.7
+  ]
+ ],
+ "export": {
+  "expenses.csv": [
+   [
+    "date",
+    "what",
+    "client",
+    "session",
+    "amount",
+    "correction of"
+   ]
+  ],
+  "mileage.csv": [
+   [
+    "date",
+    "purpose",
+    "client",
+    "session",
+    "miles",
+    "rate",
+    "amount",
+    "correction of"
+   ],
+   [
+    "2026-10-24",
+    "Drive to the river park",
+    "Zeller",
+    "Zeller family",
+    "18",
+    "0.7",
+    "12.60",
+    ""
+   ]
+  ],
+  "payments.csv": [
+   [
+    "date received",
+    "client",
+    "session",
+    "session date",
+    "invoice",
+    "receipt",
+    "kind",
+    "method",
+    "check number",
+    "amount",
+    "voided",
+    "correction of"
+   ],
+   [
+    "2026-02-20",
+    "Lane",
+    "Lane family",
+    "2026-03-14",
+    "INV-2026-0001",
+    "R-2026-0001",
+    "deposit",
+    "check",
+    "",
+    "100.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-03-02",
+    "Wynn and Sato",
+    "Wynn and Sato wedding",
+    "2026-09-19",
+    "",
+    "",
+    "deposit",
+    "check",
+    "",
+    "945.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-03-20",
+    "Lane",
+    "Lane family",
+    "2026-03-14",
+    "INV-2026-0001",
+    "R-2026-0001",
+    "balance",
+    "card",
+    "",
+    "250.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-04-02",
+    "Lane",
+    "Lane family",
+    "2026-03-14",
+    "INV-2026-0001",
+    "R-2026-0001",
+    "refund",
+    "card",
+    "",
+    "-40.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-05-01",
+    "Ortiz",
+    "Ortiz family",
+    "2026-06-06",
+    "",
+    "",
+    "deposit",
+    "cash",
+    "",
+    "75.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-05-16",
+    "Bell",
+    "Spring Recital",
+    "2026-05-16",
+    "",
+    "",
+    "balance",
+    "cash",
+    "",
+    "60.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-06-20",
+    "Moss",
+    "Moss family",
+    "2026-06-20",
+    "",
+    "",
+    "balance",
+    "card",
+    "",
+    "150.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-07-01",
+    "Kim",
+    "Kim family",
+    "2026-08-22",
+    "",
+    "",
+    "deposit",
+    "check",
+    "",
+    "100.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-07-15",
+    "Deleted client",
+    "Family",
+    "",
+    "",
+    "",
+    "balance",
+    "",
+    "",
+    "127.20",
+    "no",
+    ""
+   ],
+   [
+    "2026-07-15",
+    "Deleted client",
+    "Family",
+    "",
+    "",
+    "",
+    "tip",
+    "",
+    "",
+    "20.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-08-01",
+    "Grant",
+    "Grant family",
+    "2026-11-07",
+    "",
+    "",
+    "deposit",
+    "card",
+    "",
+    "75.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-08-15",
+    "Reyes",
+    "Reyes autumn portraits",
+    "2026-09-19",
+    "",
+    "",
+    "deposit",
+    "card",
+    "",
+    "150.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-09-01",
+    "Grant",
+    "Grant family",
+    "2026-11-07",
+    "",
+    "",
+    "balance",
+    "card",
+    "",
+    "100.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-09-05",
+    "Ellis",
+    "Ellis family",
+    "2026-10-04",
+    "INV-2026-0003",
+    "R-2026-0002",
+    "deposit",
+    "card",
+    "",
+    "100.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-09-12",
+    "Foster",
+    "Foster family",
+    "2026-09-20",
+    "",
+    "",
+    "deposit",
+    "card",
+    "",
+    "50.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-09-25",
+    "Reyes",
+    "Reyes autumn portraits",
+    "2026-09-19",
+    "",
+    "",
+    "balance",
+    "card",
+    "",
+    "250.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-09-26",
+    "Hale",
+    "Hale family",
+    "2026-09-26",
+    "",
+    "",
+    "balance",
+    "card",
+    "",
+    "159.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-09-26",
+    "Ivers",
+    "Ivers family",
+    "2026-09-26",
+    "",
+    "",
+    "balance",
+    "card",
+    "",
+    "159.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-10-01",
+    "Zeller",
+    "Zeller family",
+    "2026-10-24",
+    "",
+    "",
+    "deposit",
+    "other",
+    "",
+    "100.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-10-02",
+    "Olsen",
+    "Olsen family",
+    "2026-10-31",
+    "",
+    "",
+    "deposit",
+    "card",
+    "",
+    "100.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-10-03",
+    "Diaz",
+    "Family",
+    "2026-10-03",
+    "",
+    "",
+    "balance",
+    "cash",
+    "",
+    "200.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-10-08",
+    "Abara",
+    "Maple Grove Elementary picture day",
+    "2026-10-08",
+    "",
+    "",
+    "balance",
+    "cash",
+    "",
+    "47.70",
+    "no",
+    ""
+   ],
+   [
+    "2026-10-08",
+    "Brandt",
+    "Maple Grove Elementary picture day",
+    "2026-10-08",
+    "",
+    "",
+    "balance",
+    "cash",
+    "",
+    "47.70",
+    "no",
+    ""
+   ],
+   [
+    "2026-10-08",
+    "Dunmore",
+    "Maple Grove Elementary picture day",
+    "2026-10-08",
+    "",
+    "",
+    "balance",
+    "cash",
+    "",
+    "47.70",
+    "no",
+    ""
+   ],
+   [
+    "2026-10-08",
+    "Gupta",
+    "Maple Grove Elementary picture day",
+    "2026-10-08",
+    "",
+    "",
+    "balance",
+    "cash",
+    "",
+    "47.70",
+    "no",
+    ""
+   ],
+   [
+    "2026-10-10",
+    "Ellis",
+    "Ellis family",
+    "2026-10-04",
+    "INV-2026-0003",
+    "R-2026-0002",
+    "balance",
+    "card",
+    "",
+    "218.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-10-10",
+    "Ellis",
+    "Ellis family",
+    "2026-10-04",
+    "INV-2026-0003",
+    "R-2026-0002",
+    "tip",
+    "cash",
+    "",
+    "50.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-10-12",
+    "Ellis",
+    "Ellis family",
+    "2026-10-04",
+    "INV-2026-0003",
+    "R-2026-0002",
+    "tip",
+    "cash",
+    "",
+    "-10.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-10-17",
+    "Wren",
+    "Wren family",
+    "2026-10-17",
+    "",
+    "",
+    "balance",
+    "card",
+    "",
+    "371.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-10-20",
+    "Grant",
+    "Grant family",
+    "2026-11-07",
+    "",
+    "",
+    "refund",
+    "card",
+    "",
+    "-75.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-10-24",
+    "Nash",
+    "Nash family",
+    "2026-10-24",
+    "",
+    "",
+    "balance",
+    "card",
+    "",
+    "159.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-10-31",
+    "Olsen",
+    "Olsen family",
+    "2026-10-31",
+    "",
+    "",
+    "balance",
+    "card",
+    "",
+    "112.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-11-02",
+    "Olsen",
+    "Olsen family",
+    "2026-10-31",
+    "",
+    "",
+    "refund",
+    "card",
+    "",
+    "-30.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-11-08",
+    "Yates",
+    "Yates family",
+    "2026-11-08",
+    "",
+    "",
+    "balance",
+    "card",
+    "",
+    "212.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-11-09",
+    "Price",
+    "Price headshots",
+    "2026-07-10",
+    "",
+    "R-2026-0003",
+    "balance",
+    "card",
+    "",
+    "175.00",
+    "no",
+    ""
+   ],
+   [
+    "2026-11-10",
+    "Vance",
+    "Vance headshots",
+    "2026-11-10",
+    "",
+    "R-2026-0004",
+    "balance",
+    "card",
+    "",
+    "159.00",
+    "no",
+    ""
+   ]
+  ],
+  "print-lab-costs.csv": [
+   [
+    "date paid",
+    "invoice",
+    "billed to",
+    "lab",
+    "what",
+    "lab order",
+    "products",
+    "shipping",
+    "other",
+    "the lab's sales tax"
+   ],
+   [
+    "2026-11-23",
+    "INV-2026-0006",
+    "Harper Wren",
+    "Sample Lab",
+    "lab order",
+    "L-1001",
+    "12.40",
+    "6.75",
+    "0.00",
+    "0.80"
+   ]
+  ],
+  "prints.csv": [
+   [
+    "date received",
+    "invoice",
+    "billed to",
+    "kind",
+    "method",
+    "amount",
+    "print sales",
+    "shipping charged",
+    "sales tax collected",
+    "correction of"
+   ],
+   [
+    "2026-11-03",
+    "INV-2026-0004",
+    "Harper Wren",
+    "payment",
+    "card",
+    "10.00",
+    "7.25",
+    "2.32",
+    "0.43",
+    ""
+   ],
+   [
+    "2026-11-04",
+    "INV-2026-0005",
+    "Harper Wren",
+    "payment",
+    "card",
+    "39.50",
+    "28.62",
+    "9.16",
+    "1.72",
+    ""
+   ],
+   [
+    "2026-11-05",
+    "INV-2026-0006",
+    "Harper Wren",
+    "payment",
+    "card",
+    "34.50",
+    "25.00",
+    "8.00",
+    "1.50",
+    ""
+   ],
+   [
+    "2026-11-06",
+    "INV-2026-0007",
+    "Harper Wren",
+    "payment",
+    "card",
+    "34.50",
+    "25.00",
+    "8.00",
+    "1.50",
+    ""
+   ],
+   [
+    "2026-11-07",
+    "INV-2026-0007",
+    "Harper Wren",
+    "refund",
+    "card",
+    "-34.50",
+    "-25.00",
+    "-8.00",
+    "-1.50",
+    ""
+   ]
+  ],
+  "sales-tax.csv": [
+   [
+    "client",
+    "session",
+    "session date",
+    "invoice",
+    "counted as",
+    "received",
+    "taxable amount",
+    "rate (%)",
+    "sales tax",
+    "exempt"
+   ],
+   [
+    "Lane",
+    "Lane family",
+    "2026-03-14",
+    "INV-2026-0001",
+    "payments received",
+    "310.00",
+    "0.00",
+    "",
+    "0.00",
+    "no"
+   ],
+   [
+    "Wynn and Sato",
+    "Wynn and Sato wedding",
+    "2026-09-19",
+    "",
+    "payments received",
+    "945.00",
+    "891.51",
+    "6",
+    "53.49",
+    "no"
+   ],
+   [
+    "Ortiz",
+    "Ortiz family",
+    "2026-06-06",
+    "",
+    "payments received",
+    "75.00",
+    "0.00",
+    "",
+    "0.00",
+    "no"
+   ],
+   [
+    "Bell",
+    "Spring Recital",
+    "2026-05-16",
+    "",
+    "payments received",
+    "60.00",
+    "0.00",
+    "",
+    "0.00",
+    "no"
+   ],
+   [
+    "Moss",
+    "Moss family",
+    "2026-06-20",
+    "",
+    "payments received",
+    "150.00",
+    "0.00",
+    "",
+    "0.00",
+    "no"
+   ],
+   [
+    "Kim",
+    "Kim family",
+    "2026-08-22",
+    "",
+    "payments received",
+    "100.00",
+    "0.00",
+    "",
+    "0.00",
+    "no"
+   ],
+   [
+    "Grant",
+    "Grant family",
+    "2026-11-07",
+    "",
+    "kept deposit",
+    "175.00",
+    "165.09",
+    "6",
+    "9.91",
+    "no"
+   ],
+   [
+    "Reyes",
+    "Reyes autumn portraits",
+    "2026-09-19",
+    "",
+    "payments received",
+    "400.00",
+    "0.00",
+    "",
+    "0.00",
+    "no"
+   ],
+   [
+    "Ellis",
+    "Ellis family",
+    "2026-10-04",
+    "INV-2026-0003",
+    "payments received",
+    "358.00",
+    "300.00",
+    "6",
+    "18.00",
+    "no"
+   ],
+   [
+    "Foster",
+    "Foster family",
+    "2026-09-20",
+    "",
+    "payments received",
+    "50.00",
+    "47.17",
+    "6",
+    "2.83",
+    "no"
+   ],
+   [
+    "Hale",
+    "Hale family",
+    "2026-09-26",
+    "",
+    "payments received",
+    "159.00",
+    "150.00",
+    "6",
+    "9.00",
+    "no"
+   ],
+   [
+    "Ivers",
+    "Ivers family",
+    "2026-09-26",
+    "",
+    "payments received",
+    "159.00",
+    "150.00",
+    "6",
+    "9.00",
+    "no"
+   ],
+   [
+    "Zeller",
+    "Zeller family",
+    "2026-10-24",
+    "",
+    "payments received",
+    "100.00",
+    "94.34",
+    "6",
+    "5.66",
+    "no"
+   ],
+   [
+    "Olsen",
+    "Olsen family",
+    "2026-10-31",
+    "",
+    "payments received",
+    "182.00",
+    "171.70",
+    "6",
+    "10.30",
+    "no"
+   ],
+   [
+    "Diaz",
+    "Family",
+    "2026-10-03",
+    "",
+    "payments received",
+    "200.00",
+    "0.00",
+    "",
+    "0.00",
+    "no"
+   ],
+   [
+    "Abara",
+    "Maple Grove Elementary picture day",
+    "2026-10-08",
+    "",
+    "payments received",
+    "47.70",
+    "45.00",
+    "6",
+    "2.70",
+    "no"
+   ],
+   [
+    "Brandt",
+    "Maple Grove Elementary picture day",
+    "2026-10-08",
+    "",
+    "payments received",
+    "47.70",
+    "45.00",
+    "6",
+    "2.70",
+    "no"
+   ],
+   [
+    "Dunmore",
+    "Maple Grove Elementary picture day",
+    "2026-10-08",
+    "",
+    "payments received",
+    "47.70",
+    "45.00",
+    "6",
+    "2.70",
+    "no"
+   ],
+   [
+    "Gupta",
+    "Maple Grove Elementary picture day",
+    "2026-10-08",
+    "",
+    "payments received",
+    "47.70",
+    "45.00",
+    "6",
+    "2.70",
+    "no"
+   ],
+   [
+    "Wren",
+    "Wren family",
+    "2026-10-17",
+    "",
+    "payments received",
+    "371.00",
+    "350.00",
+    "6",
+    "21.00",
+    "no"
+   ],
+   [
+    "Grant",
+    "Grant family",
+    "2026-11-07",
+    "",
+    "payments received",
+    "-75.00",
+    "0.00",
+    "",
+    "0.00",
+    "no"
+   ],
+   [
+    "Nash",
+    "Nash family",
+    "2026-10-24",
+    "",
+    "payments received",
+    "159.00",
+    "150.00",
+    "6",
+    "9.00",
+    "no"
+   ],
+   [
+    "Yates",
+    "Yates family",
+    "2026-11-08",
+    "",
+    "payments received",
+    "212.00",
+    "200.00",
+    "6",
+    "12.00",
+    "no"
+   ],
+   [
+    "Price",
+    "Price headshots",
+    "2026-07-10",
+    "",
+    "payments received",
+    "175.00",
+    "0.00",
+    "",
+    "0.00",
+    "no"
+   ],
+   [
+    "Vance",
+    "Vance headshots",
+    "2026-11-10",
+    "",
+    "payments received",
+    "159.00",
+    "150.00",
+    "6",
+    "9.00",
+    "no"
+   ],
+   [
+    "Grant",
+    "Grant family",
+    "2026-11-07",
+    "",
+    "called off: only what is kept stays taxed",
+    "0.00",
+    "-70.75",
+    "6",
+    "-4.25",
+    "no"
+   ],
+   [
+    "Deleted client",
+    "Family",
+    "",
+    "",
+    "payments received",
+    "147.20",
+    "",
+    "",
+    "7.20",
+    ""
+   ]
+  ],
+  "summary.csv": [
+   [
+    "month",
+    "received",
+    "refunds (in received)",
+    "tips (in received, not taxed)",
+    "expenses",
+    "miles",
+    "mileage",
+    "sales tax",
+    "net, after sales tax",
+    "written off (not received)"
+   ],
+   [
+    "2026-01",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00"
+   ],
+   [
+    "2026-02",
+    "100.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0",
+    "0.00",
+    "0.00",
+    "100.00",
+    "0.00"
+   ],
+   [
+    "2026-03",
+    "1195.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0",
+    "0.00",
+    "53.49",
+    "1141.51",
+    "0.00"
+   ],
+   [
+    "2026-04",
+    "-40.00",
+    "-40.00",
+    "0.00",
+    "0.00",
+    "0",
+    "0.00",
+    "0.00",
+    "-40.00",
+    "0.00"
+   ],
+   [
+    "2026-05",
+    "135.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0",
+    "0.00",
+    "0.00",
+    "135.00",
+    "0.00"
+   ],
+   [
+    "2026-06",
+    "150.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0",
+    "0.00",
+    "0.00",
+    "150.00",
+    "0.00"
+   ],
+   [
+    "2026-07",
+    "247.20",
+    "0.00",
+    "20.00",
+    "0.00",
+    "0",
+    "0.00",
+    "7.20",
+    "240.00",
+    "0.00"
+   ],
+   [
+    "2026-08",
+    "225.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0",
+    "0.00",
+    "4.25",
+    "220.75",
+    "0.00"
+   ],
+   [
+    "2026-09",
+    "818.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0",
+    "0.00",
+    "32.15",
+    "785.85",
+    "0.00"
+   ],
+   [
+    "2026-10",
+    "1415.80",
+    "-75.00",
+    "40.00",
+    "0.00",
+    "18",
+    "12.60",
+    "70.80",
+    "1332.40",
+    "0.00"
+   ],
+   [
+    "2026-11",
+    "516.00",
+    "-30.00",
+    "0.00",
+    "0.00",
+    "0",
+    "0.00",
+    "15.05",
+    "500.95",
+    "162.00"
+   ],
+   [
+    "2026-12",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00"
+   ],
+   [
+    "Total",
+    "4762.00",
+    "-145.00",
+    "60.00",
+    "0.00",
+    "18",
+    "12.60",
+    "182.94",
+    "4566.46",
+    "162.00"
+   ]
+  ],
+  "write-offs.csv": [
+   [
+    "date",
+    "client",
+    "session",
+    "session date",
+    "invoice",
+    "amount written off"
+   ],
+   [
+    "2026-11-23",
+    "Foster",
+    "Foster family",
+    "2026-09-20",
+    "",
+    "162.00"
+   ]
+  ]
+ },
+ "face": {
+  "household": 1,
+  "sha256": "d35eadaf911a707e9c8741faa8251a7e31d8743c45da1862b3e0465af8ab12a7",
+  "size": 2229
+ },
+ "finals": {
+  "10": "final-1.jpg,final-2.jpg,final-3.jpg"
+ },
+ "finances": {
+  "by_month": {
+   "2026-02": 100.0,
+   "2026-03": 1195.0,
+   "2026-04": -40.0,
+   "2026-05": 135.0,
+   "2026-06": 150.0,
+   "2026-07": 247.2,
+   "2026-08": 225.0,
+   "2026-09": 818.0,
+   "2026-10": 1415.8,
+   "2026-11": 516.0
+  },
+  "outstanding": {
+   "25": 297.5,
+   "32": 47.7,
+   "34": 47.7,
+   "35": 47.7,
+   "9": 200.0
+  },
+  "received": {
+   "event": 250.8,
+   "family": 3232.2,
+   "headshot": 334.0,
+   "wedding": 945.0
+  },
+  "refunds": -145.0,
+  "tax_due": 182.94,
+  "total": 4762.0,
+  "upcoming": {
+   "28": 2394.0,
+   "3": 175.0,
+   "7": 60.0
+  }
+ },
+ "galleries": {
+  "1": {
+   "built_at": "2026-11-23",
+   "n_files": 4,
+   "proof": 1,
+   "prune_due": null,
+   "upload_state": "up"
+  },
+  "10": {
+   "built_at": "2026-11-23",
+   "n_files": 3,
+   "proof": 0,
+   "prune_due": null,
+   "upload_state": "up"
+  },
+  "11": {
+   "built_at": "2026-11-23",
+   "n_files": 4,
+   "proof": 0,
+   "prune_due": null,
+   "upload_state": "up"
+  },
+  "16": {
+   "built_at": "2026-11-23",
+   "n_files": 2,
+   "proof": 1,
+   "prune_due": null,
+   "upload_state": "removed"
+  },
+  "17": {
+   "built_at": "2026-11-23",
+   "n_files": 2,
+   "proof": 1,
+   "prune_due": null,
+   "upload_state": "up"
+  },
+  "19": {
+   "built_at": "2026-11-23",
+   "n_files": 2,
+   "proof": 1,
+   "prune_due": null,
+   "upload_state": "error"
+  },
+  "2": {
+   "built_at": "2026-11-23",
+   "n_files": 2,
+   "proof": 1,
+   "prune_due": null,
+   "upload_state": "removed"
+  },
+  "20": {
+   "built_at": "2026-11-23",
+   "n_files": 2,
+   "proof": 0,
+   "prune_due": null,
+   "upload_state": "up"
+  },
+  "23": {
+   "built_at": "2026-11-23",
+   "n_files": 3,
+   "proof": 1,
+   "prune_due": null,
+   "upload_state": "up"
+  },
+  "9": {
+   "built_at": "2026-11-23",
+   "n_files": 2,
+   "proof": 1,
+   "prune_due": null,
+   "upload_state": "up"
+  }
+ },
+ "galleries_130": {
+  "1": {
+   "built_at": "2026-11-23",
+   "dark_at": null,
+   "host_fp": "c7c2d28e92e75216",
+   "limits_contact": "hello@studio.example",
+   "limits_days": 30,
+   "link_base": "https://photos.example.com/g/",
+   "moved_from": "9baa72a3b9c43039",
+   "n_files": 4,
+   "proof": 1,
+   "removed_at": null,
+   "restore_days": null,
+   "restore_once": null,
+   "restored_at": null,
+   "upload_state": "up",
+   "uploaded_at": "2026-11-23"
+  },
+  "10": {
+   "built_at": "2026-11-23",
+   "dark_at": null,
+   "host_fp": "c7c2d28e92e75216",
+   "limits_contact": "hello@studio.example",
+   "limits_days": 30,
+   "link_base": "https://photos.example.com/g/",
+   "moved_from": null,
+   "n_files": 3,
+   "proof": 0,
+   "removed_at": null,
+   "restore_days": null,
+   "restore_once": null,
+   "restored_at": null,
+   "upload_state": "up",
+   "uploaded_at": "2026-11-23"
+  },
+  "11": {
+   "built_at": "2026-11-23",
+   "dark_at": null,
+   "host_fp": "c7c2d28e92e75216",
+   "limits_contact": "hello@studio.example",
+   "limits_days": 30,
+   "link_base": "https://photos.example.com/g/",
+   "moved_from": null,
+   "n_files": 4,
+   "proof": 0,
+   "removed_at": null,
+   "restore_days": null,
+   "restore_once": null,
+   "restored_at": null,
+   "upload_state": "up",
+   "uploaded_at": "2026-11-23"
+  },
+  "16": {
+   "built_at": "2026-11-23",
+   "dark_at": "2026-11-23",
+   "host_fp": "c7c2d28e92e75216",
+   "limits_contact": "hello@studio.example",
+   "limits_days": 30,
+   "link_base": "https://photos.example.com/g/",
+   "moved_from": null,
+   "n_files": 2,
+   "proof": 1,
+   "removed_at": "2026-11-23",
+   "restore_days": null,
+   "restore_once": null,
+   "restored_at": null,
+   "upload_state": "removed",
+   "uploaded_at": "2026-11-23"
+  },
+  "17": {
+   "built_at": "2026-11-23",
+   "dark_at": null,
+   "host_fp": "c7c2d28e92e75216",
+   "limits_contact": "hello@studio.example",
+   "limits_days": 30,
+   "link_base": "https://photos.example.com/g/",
+   "moved_from": null,
+   "n_files": 2,
+   "proof": 1,
+   "removed_at": null,
+   "restore_days": 14,
+   "restore_once": null,
+   "restored_at": "2026-11-23",
+   "upload_state": "up",
+   "uploaded_at": "2026-11-23"
+  },
+  "19": {
+   "built_at": "2026-11-23",
+   "dark_at": null,
+   "host_fp": "c7c2d28e92e75216",
+   "limits_contact": null,
+   "limits_days": null,
+   "link_base": null,
+   "moved_from": null,
+   "n_files": 2,
+   "proof": 1,
+   "removed_at": null,
+   "restore_days": null,
+   "restore_once": null,
+   "restored_at": null,
+   "upload_state": "error",
+   "uploaded_at": null
+  },
+  "2": {
+   "built_at": "2026-11-23",
+   "dark_at": "2026-11-23",
+   "host_fp": "c7c2d28e92e75216",
+   "limits_contact": "hello@studio.example",
+   "limits_days": 30,
+   "link_base": "https://photos.example.com/g/",
+   "moved_from": null,
+   "n_files": 2,
+   "proof": 1,
+   "removed_at": "2026-11-23",
+   "restore_days": null,
+   "restore_once": null,
+   "restored_at": null,
+   "upload_state": "removed",
+   "uploaded_at": "2026-11-23"
+  },
+  "20": {
+   "built_at": "2026-11-23",
+   "dark_at": null,
+   "host_fp": "c7c2d28e92e75216",
+   "limits_contact": "hello@studio.example",
+   "limits_days": 30,
+   "link_base": "https://photos.example.com/g/",
+   "moved_from": null,
+   "n_files": 2,
+   "proof": 0,
+   "removed_at": null,
+   "restore_days": null,
+   "restore_once": null,
+   "restored_at": null,
+   "upload_state": "up",
+   "uploaded_at": "2026-11-23"
+  },
+  "23": {
+   "built_at": "2026-11-23",
+   "dark_at": null,
+   "host_fp": "c7c2d28e92e75216",
+   "limits_contact": "hello@studio.example",
+   "limits_days": 30,
+   "link_base": "https://photos.example.com/g/",
+   "moved_from": null,
+   "n_files": 3,
+   "proof": 1,
+   "removed_at": null,
+   "restore_days": null,
+   "restore_once": null,
+   "restored_at": null,
+   "upload_state": "up",
+   "uploaded_at": "2026-11-23"
+  },
+  "9": {
+   "built_at": "2026-11-23",
+   "dark_at": null,
+   "host_fp": "c7c2d28e92e75216",
+   "limits_contact": "hello@studio.example",
+   "limits_days": 30,
+   "link_base": "https://photos.example.com/g/",
+   "moved_from": null,
+   "n_files": 2,
+   "proof": 1,
+   "removed_at": null,
+   "restore_days": null,
+   "restore_once": null,
+   "restored_at": null,
+   "upload_state": "up",
+   "uploaded_at": "2026-11-23"
+  }
+ },
+ "gallery": {
+  "built_at": "2026-11-23",
+  "codeword": "amber harbor willow",
+  "cw_fixed": "word",
+  "draft_at": "2026-11-23T20:52-05:00",
+  "draft_n": 3,
+  "ekey": "OV7ixCCEIvGbT6R727vVeFXEVq3Jmvjam4aywgkMG-o",
+  "favorites": "",
+  "first_visit": "2026-11-22",
+  "gallery_id": "g-ttTkrNWtwoV920T1Gg-CTiY",
+  "has_codeword_key": true,
+  "key": "LrjU13u2tXF-OvdArM0uPiZ7kfDAlcYQyYoH2qaKm7M",
+  "limits_days": 30,
+  "link_asks_for_word": true,
+  "n_files": 4,
+  "picks_hash": "cce06066d18896f15bc39a5086ad6a1ef826ec793c64f9475f5fa59158c100cd",
+  "removed_at": null,
+  "retouch_picks": "img1.jpg: soften the light",
+  "session": 1,
+  "session_built": "2026-11-23",
+  "still_picking": [
+   "Client is still picking (3 photos marked)"
+  ],
+  "upload_state": "up",
+  "uploaded_at": "2026-11-23",
+  "veto": ""
+ },
+ "gallery_base_url": "https://photos.example.com/g/",
+ "gallery_brand": {
+  "1": {
+   "client": "Lane family",
+   "site": "https://studio.example.com"
+  },
+  "10": {
+   "client": "Reyes autumn portraits",
+   "site": "https://studio.example.com"
+  },
+  "11": {
+   "client": "Diaz",
+   "site": "https://studio.example.com"
+  },
+  "16": {
+   "client": "Hale family",
+   "site": "https://studio.example.com"
+  },
+  "17": {
+   "client": "Ivers family",
+   "site": "https://studio.example.com"
+  },
+  "19": {
+   "client": "Nash family",
+   "site": "https://studio.example.com"
+  },
+  "2": {
+   "client": "Moss family",
+   "site": "https://studio.example.com"
+  },
+  "20": {
+   "client": "Wren family",
+   "site": "https://studio.example.com"
+  },
+  "23": {
+   "client": "Yates family",
+   "site": "https://studio.example.com"
+  },
+  "9": {
+   "client": "Kim family",
+   "site": "https://studio.example.com"
+  }
+ },
+ "gallery_host": {
+  "host_id": "c7c2d28e92e752160d4f44a8f6229259",
+  "type": "local",
+  "was_paths": [
+   "/tmp/tmpin57e_ob/web/g"
+  ]
+ },
+ "headers": {
+  "14": "Quote $265.00 Paid $100.00 Deposit kept $100.00 Profit $94.34",
+  "20": "Quote $371.00 Paid $371.00 Balance $0.00 Profit $350.00",
+  "21": "Quote $212.00 Paid $182.00 Balance $0.00 $30.00 refunded, not owed again Profit $171.70"
+ },
+ "headshot_policy": {
+  "delivery": "as full-resolution files, plus copies sized for profiles and the web",
+  "delivery_method": "usb",
+  "free_reschedule": true,
+  "keep_raw_days": 90,
+  "late_minutes": 15,
+  "license_use": "professional profiles, websites, press and marketing for the people photographed and their employer",
+  "notice_hours": 24,
+  "outfits": true,
+  "wear": "clothes, hair and grooming",
+  "weather": "we shoot indoors or pick a new day at no charge"
+ },
+ "history_150": {
+  "25": [
+   "Added quote line 'Family session' $300.00",
+   "Prepared the quote to send",
+   "Marked the quote sent",
+   "Moved to Quoted: the quote was marked sent. Still open: Intake answered.",
+   "Updated the session",
+   "Moved to Booked: the client said yes. Still open: Intake answered.",
+   "Recorded a $100.00 deposit, other: Two framed prints in trade, at that value",
+   "Canceled the booked quote 2026112306 ($318.00) to replace it: kept in History; the new quote needs the agreement signed; $100.00 paid carries over",
+   "Added quote line 'Extra half hour' $75.00",
+   "Booked the new quote 2026112307 ($397.50), replacing the canceled one ($318.00)",
+   "Updated the session",
+   "Moved to Shot: shoot done. Still open: Intake answered, Agreement signed. Not needed: Send the session sheet, Confirm time and place.",
+   "Added expense 'Drive to the river park' 18 mi"
+  ],
+  "26": [
+   "Did not book: They went elsewhere"
+  ],
+  "27": [
+   "Added quote line 'Headshot session' $150.00",
+   "Prepared the quote to send",
+   "Marked the quote sent",
+   "Moved to Quoted: the quote was marked sent. Still open: Intake answered.",
+   "Updated the session",
+   "Moved to Booked: the client said yes. Still open: Intake answered.",
+   "Canceled the booking: Other (Moved out of state)"
+  ]
+ },
+ "host_caps": {
+  "features": [
+   [
+    "expiry",
+    "Galleries close on their last day, even with Lumen Aureum switched off",
+    true,
+    ""
+   ],
+   [
+    "picks",
+    "Clients' picks come back by themselves (sealed)",
+    true,
+    ""
+   ],
+   [
+    "inquiry",
+    "The studio page's inquiry form",
+    true,
+    ""
+   ],
+   [
+    "prints",
+    "Print ordering from download galleries",
+    true,
+    ""
+   ],
+   [
+    "codeword",
+    "Galleries with a codeword",
+    false,
+    "its web server hands out gallery files without asking for the key"
+   ]
+  ],
+  "fp": "c7c2d28e92e75216",
+  "now_kind": "ok",
+  "setup_kind": "ok"
+ },
+ "hosts": {
+  "current": "web/g",
+  "current_fp": "c7c2d28e92e75216",
+  "earlier": [
+   "host"
+  ],
+  "earlier_fp": [
+   "9baa72a3b9c43039"
+  ]
+ },
+ "id_marks": {
+  "events": 2,
+  "households": 34,
+  "sessions": 37,
+  "tasks": 302
+ },
+ "inquiry_added": {
+  "date_tentative": 1,
+  "household": 16,
+  "name": "Ada Lovelace",
+  "shoot_date": "2026-12-05",
+  "source": "Website",
+  "stage": "inquiry",
+  "type": "family"
+ },
+ "inquiry_review": [
+  {
+   "date": "",
+   "email": "grace@example.org",
+   "message": "Do you travel to the coast?",
+   "name": "Grace Hopper",
+   "phone": "555-0177",
+   "type": "family"
+  }
+ ],
+ "invoice_sent": {
+  "1": "INV-2026-0001"
+ },
+ "issued_text": {
+  "INV-2026-0001": "Invoice Invoice INV-2026-0001 Date November 23, 2026 Terms Due on delivery Bill to Avery Lane Session Family session, March 14, 2026 Services Family session (1 hr) $300.00 Extra prints $50.00 Total $350.00 Payments February 20, 2026 - deposit, check $100.00 Balance due $250.00 How to pay Cash or check. Due on delivery: your photos are released on payment. INV-2026-0001. Questions about this invoice? Just reply or call.",
+  "INV-2026-0002": "Invoice Invoice INV-2026-0002 Date November 23, 2026 Terms Due on delivery Bill to Lee Chen Session Spring Recital, May 16, 2026 Services Spring Recital - family session $60.00 Total $60.00 Payments None yet Balance due $60.00 How to pay Cash or check. Due on delivery: your photos are released on payment. INV-2026-0002. Questions about this invoice? Just reply or call.",
+  "INV-2026-0003": "Invoice Avery Marsh, Lark & Pine Studio hello@studio.example Invoice INV-2026-0003 Date November 23, 2026 Terms Due on delivery Bill to Jamie Ellis Session Family session, October 4, 2026 Services Family session $300.00 Sales tax (6%) $18.00 Total $318.00 Payments September 5, 2026 - deposit, card $100.00 Balance due $218.00 How to pay Cash or check. Checks are made out to Lark & Pine Studio. Due on delivery: your photos are released on payment. INV-2026-0003. Questions about this invoice? Just reply or call.",
+  "R-2026-0001": "Receipt Receipt R-2026-0001 Date April 2, 2026 Received from Avery Lane Session Family session, March 14, 2026 Services Family session (1 hr) $300.00 Extra prints $50.00 Total $350.00 Payments February 20, 2026 - deposit, check $100.00 March 20, 2026 - balance, card $250.00 April 2, 2026 - refund, card -$40.00 Refunded, not owed again $40.00 Total paid $310.00 Thank you. With this payment, the copyright in your delivered photos is yours. R-2026-0001. Questions about this receipt? Just reply or call.",
+  "R-2026-0002": "Receipt Avery Marsh, Lark & Pine Studio hello@studio.example Receipt R-2026-0002 Date October 12, 2026 Received from Jamie Ellis Session Family session, October 4, 2026 Services Family session $300.00 Sales tax (6%) $18.00 Total $318.00 Payments September 5, 2026 - deposit, card $100.00 October 10, 2026 - balance, card $218.00 Total paid $318.00 Thank you. With this payment, the copyright in your delivered photos is yours. R-2026-0002. Questions about this receipt? Just reply or call.",
+  "R-2026-0003": "Receipt Avery Marsh, Lark & Pine Studio hello@studio.example Receipt R-2026-0003 Date November 9, 2026 Received from Jordan Price Session Headshot session, July 10, 2026 Services Headshot session $175.00 Total $175.00 Payments November 9, 2026 - balance, card $175.00 Total paid $175.00 Thank you. Your license to use the photos is set out in your agreement. R-2026-0003 - quote 2026112303. Questions about this receipt? Just reply or call.",
+  "R-2026-0004": "Receipt Avery Marsh, Lark & Pine Studio hello@studio.example Receipt R-2026-0004 Date November 10, 2026 Received from Jules Vance Session Headshot session, November 10, 2026 Services Headshot session $150.00 Sales tax (6%) $9.00 Total $159.00 Payments November 10, 2026 - balance, card $159.00 Total paid $159.00 Thank you. R-2026-0004. Questions about this receipt? Just reply or call."
+ },
+ "kept_picks": [
+  "draft.las",
+  "picks.las"
+ ],
+ "labels": [
+  [
+   10,
+   "Prefers text"
+  ],
+  [
+   10,
+   "Slow to pay"
+  ],
+  [
+   23,
+   "Referral"
+  ]
+ ],
+ "leftovers": [
+  [
+   "g-pbN42tv1zLpc6jhVVsb6q-I",
+   "9baa72a3b9c43039",
+   "2026-11-23"
+  ]
+ ],
+ "license_types": [
+  "engagement",
+  "event",
+  "headshot",
+  "wedding"
+ ],
+ "licensed": {
+  "1": false,
+  "10": false,
+  "11": false,
+  "12": false,
+  "13": false,
+  "14": false,
+  "16": false,
+  "17": false,
+  "18": false,
+  "19": false,
+  "2": false,
+  "20": false,
+  "21": false,
+  "22": false,
+  "23": false,
+  "24": true,
+  "25": false,
+  "26": false,
+  "27": true,
+  "28": true,
+  "29": true,
+  "3": false,
+  "30": true,
+  "31": true,
+  "32": true,
+  "33": true,
+  "34": true,
+  "35": true,
+  "36": true,
+  "4": false,
+  "6": true,
+  "7": true,
+  "8": true,
+  "9": false
+ },
+ "link_clause": "The link stays open for 30 days after you first open it; ask once and I'll extend it.",
+ "links": {
+  "1": {
+   "gallery_id": "g-ttTkrNWtwoV920T1Gg-CTiY",
+   "link_was": null,
+   "page_set": "2205afdebae5e0c6",
+   "sealed_gen": 1
+  },
+  "10": {
+   "gallery_id": "g-Lub6xduZzli2VQOrViTPlH8",
+   "link_was": null,
+   "page_set": "2205afdebae5e0c6",
+   "sealed_gen": 1
+  },
+  "11": {
+   "gallery_id": "g-ExzjaGE1Vj4swMZeT-XfpIY",
+   "link_was": null,
+   "page_set": "2205afdebae5e0c6",
+   "sealed_gen": 1
+  },
+  "16": {
+   "gallery_id": "g-WtkF6j-BzFuHKcOIgB-AOYM",
+   "link_was": null,
+   "page_set": "2205afdebae5e0c6",
+   "sealed_gen": 1
+  },
+  "17": {
+   "gallery_id": "g-CeRwYo2BuR-Eqsr3ICmITnQ",
+   "link_was": null,
+   "page_set": "2205afdebae5e0c6",
+   "sealed_gen": 1
+  },
+  "19": {
+   "gallery_id": "g-x6uwen-eu6_n6bJElpN15O0",
+   "link_was": null,
+   "page_set": null,
+   "sealed_gen": 0
+  },
+  "2": {
+   "gallery_id": "g-pLGFFLh9rSqAJr3fMmNBR-k",
+   "link_was": null,
+   "page_set": "2205afdebae5e0c6",
+   "sealed_gen": 1
+  },
+  "20": {
+   "gallery_id": "g-5JIlsi7XcUKLwMfg-1OyIho",
+   "link_was": null,
+   "page_set": "2205afdebae5e0c6",
+   "sealed_gen": 1
+  },
+  "23": {
+   "gallery_id": "g-1XP6omquksCd8fUiiO_7akc",
+   "link_was": null,
+   "page_set": "2205afdebae5e0c6",
+   "sealed_gen": 1
+  },
+  "9": {
+   "gallery_id": "g-ypipssysSXlfm7KFq8Pos2g",
+   "link_was": null,
+   "page_set": "2205afdebae5e0c6",
+   "sealed_gen": 1
+  }
+ },
+ "logos": {
+  "logo_dark_png": "90b63bd9cc27bcfe9aeef4730dc0a7619186d9d9f6757e6445438d77c1d729fb",
+  "logo_png": "a07057a76eca8ffd61adbf4910fa9b93dd97e8de0925b09efaba11da451bab98"
+ },
+ "lost": {
+  "14": "Canceled",
+  "26": "They went elsewhere",
+  "27": "Other"
+ },
+ "lost_150": {
+  "26": [
+   "lost",
+   "They went elsewhere"
+  ],
+  "27": [
+   "lost",
+   "Other"
+  ]
+ },
+ "made_with": "1.6.0 (5f7dbe6)",
+ "master_checked": "2026-11-23",
+ "money": {
+  "1": {
+   "due": 0.0,
+   "kept": 0.0,
+   "paid": 310.0,
+   "quoted": 350.0,
+   "refund_credit": 40.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "10": {
+   "due": 0.0,
+   "kept": 0.0,
+   "paid": 400.0,
+   "quoted": 400.0,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "11": {
+   "due": 0.0,
+   "kept": 0.0,
+   "paid": 200.0,
+   "quoted": 200.0,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "12": {
+   "due": 0.0,
+   "kept": 0.0,
+   "paid": 318.0,
+   "quoted": 318.0,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 40.0,
+   "written_off": 0.0
+  },
+  "13": {
+   "due": 0.0,
+   "kept": 0.0,
+   "paid": 50.0,
+   "quoted": 212.0,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 162.0
+  },
+  "14": {
+   "due": 165.0,
+   "kept": 100.0,
+   "paid": 100.0,
+   "quoted": 265.0,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "16": {
+   "due": 0.0,
+   "kept": 0.0,
+   "paid": 159.0,
+   "quoted": 159.0,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "17": {
+   "due": 0.0,
+   "kept": 0.0,
+   "paid": 159.0,
+   "quoted": 159.0,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "18": {
+   "due": 0.0,
+   "kept": 0.0,
+   "paid": 0.0,
+   "quoted": 0.0,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "19": {
+   "due": 0.0,
+   "kept": 0.0,
+   "paid": 159.0,
+   "quoted": 159.0,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "2": {
+   "due": 0.0,
+   "kept": 0.0,
+   "paid": 150.0,
+   "quoted": 150.0,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "20": {
+   "due": 0.0,
+   "kept": 0.0,
+   "paid": 371.0,
+   "quoted": 371.0,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "21": {
+   "due": 0.0,
+   "kept": 0.0,
+   "paid": 182.0,
+   "quoted": 212.0,
+   "refund_credit": 30.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "22": {
+   "due": 0.0,
+   "kept": 0.0,
+   "paid": 0.0,
+   "quoted": 0.0,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "23": {
+   "due": 0.0,
+   "kept": 0.0,
+   "paid": 212.0,
+   "quoted": 212.0,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "24": {
+   "due": 0.0,
+   "kept": 0.0,
+   "paid": 159.0,
+   "quoted": 159.0,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "25": {
+   "due": 297.5,
+   "kept": 0.0,
+   "paid": 100.0,
+   "quoted": 397.5,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "26": {
+   "due": 0.0,
+   "kept": 0.0,
+   "paid": 0.0,
+   "quoted": 0.0,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "27": {
+   "due": 159.0,
+   "kept": 0.0,
+   "paid": 0.0,
+   "quoted": 159.0,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "28": {
+   "due": 2394.0,
+   "kept": 0.0,
+   "paid": 945.0,
+   "quoted": 3339.0,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "29": {
+   "due": 0.0,
+   "kept": 0.0,
+   "paid": 0.0,
+   "quoted": 0.0,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "3": {
+   "due": 175.0,
+   "kept": 0.0,
+   "paid": 75.0,
+   "quoted": 250.0,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "30": {
+   "due": 0.0,
+   "kept": 0.0,
+   "paid": 47.7,
+   "quoted": 47.7,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "31": {
+   "due": 0.0,
+   "kept": 0.0,
+   "paid": 47.7,
+   "quoted": 47.7,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "32": {
+   "due": 47.7,
+   "kept": 0.0,
+   "paid": 0.0,
+   "quoted": 47.7,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "33": {
+   "due": 0.0,
+   "kept": 0.0,
+   "paid": 47.7,
+   "quoted": 47.7,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "34": {
+   "due": 47.7,
+   "kept": 0.0,
+   "paid": 0.0,
+   "quoted": 47.7,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "35": {
+   "due": 47.7,
+   "kept": 0.0,
+   "paid": 0.0,
+   "quoted": 47.7,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "36": {
+   "due": 0.0,
+   "kept": 0.0,
+   "paid": 47.7,
+   "quoted": 47.7,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "4": {
+   "due": 0.0,
+   "kept": 0.0,
+   "paid": 0.0,
+   "quoted": 0.0,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "6": {
+   "due": 0.0,
+   "kept": 0.0,
+   "paid": 60.0,
+   "quoted": 60.0,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "7": {
+   "due": 60.0,
+   "kept": 0.0,
+   "paid": 0.0,
+   "quoted": 60.0,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "8": {
+   "due": 0.0,
+   "kept": 0.0,
+   "paid": 175.0,
+   "quoted": 175.0,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  },
+  "9": {
+   "due": 200.0,
+   "kept": 0.0,
+   "paid": 100.0,
+   "quoted": 300.0,
+   "refund_credit": 0.0,
+   "refund_due": 0.0,
+   "tips": 0.0,
+   "written_off": 0.0
+  }
+ },
+ "no_picks": [
+  11,
+  20
+ ],
+ "ntfy_json": {
+  "server": "https://ntfy.example.com",
+  "token": "tk_fixture150example",
+  "topic": "lark-pine-studio-7f3k2q",
+  "tz": "America/New_York"
+ },
+ "number_marks": {
+  "E": 2,
+  "H": 34,
+  "INV-2026-": 7,
+  "Q": 9,
+  "Q-20261123": 9,
+  "R-2026-": 4,
+  "S": 37,
+  "T": 302
+ },
+ "on_host": {
+  "1": {
+   "host": [
+    ".htaccess",
+    "031bd312920d99f7bf92025f.bin",
+    "167689dc9dba507e40da1867.bin",
+    "201d7384a750dd543409b797.bin",
+    "2393ae6290f9d924b9979a4a.bin",
+    "28bc23ecf6fac9f29a11b527.bin",
+    "29ccb18233045905ea3c92e8.bin",
+    "32c28ea6e9ae63f46bb938a0.bin",
+    "3bc0ca96af10a01b86fcbe87.las",
+    "3dc2843c5a49db611846091a.las",
+    "841c1a0f7ede38f7f9005cdd.bin",
+    "ef9aa83acc64919496e4e40a.bin",
+    "font.woff2",
+    "gate.php",
+    "index.html",
+    "limits.php",
+    "orders.php",
+    "picks.php",
+    "sealed.php",
+    "seen-at.php",
+    "seen-key.php",
+    "seen.php"
+   ],
+   "web/g": [
+    ".htaccess",
+    "031bd312920d99f7bf92025f.bin",
+    "167689dc9dba507e40da1867.bin",
+    "201d7384a750dd543409b797.bin",
+    "2393ae6290f9d924b9979a4a.bin",
+    "28bc23ecf6fac9f29a11b527.bin",
+    "29ccb18233045905ea3c92e8.bin",
+    "32c28ea6e9ae63f46bb938a0.bin",
+    "3bc0ca96af10a01b86fcbe87.las",
+    "3dc2843c5a49db611846091a.las",
+    "841c1a0f7ede38f7f9005cdd.bin",
+    "ef9aa83acc64919496e4e40a.bin",
+    "font.woff2",
+    "gate.php",
+    "index.html",
+    "limits.php",
+    "orders.php",
+    "picks.php",
+    "sealed.php",
+    "seen-key.php",
+    "seen.php"
+   ]
+  },
+  "10": {
+   "host": null,
+   "web/g": [
+    ".htaccess",
+    "037d73c3e7719df2be9289f6.bin",
+    "108b09912159bdb3d1a14158.bin",
+    "1cedaaeec0eae8f6fbfcaded.bin",
+    "23e3fafa0de4054c5a2c4eed.bin",
+    "37bf0425a0ee119ac3786401.bin",
+    "3f946a932273167634d5139e.bin",
+    "58d3c0b4dfb2135d4e85215b.bin",
+    "7380443732d8843796367849.bin",
+    "87e1fece5743d226b1f57c7c.bin",
+    "ac69364a5a39d0a5962877c9.bin",
+    "c0fc56039744e5ddae90e31e.bin",
+    "c47561cfd7844e83ace2e45e.bin",
+    "d87f32b90c8c9bef3a467c16.bin",
+    "f76af8962d6d2252aa00acc0.bin",
+    "fbe15d4f887ef8d003ca49e1.bin",
+    "font.woff2",
+    "gate.php",
+    "index.html",
+    "limits.php",
+    "offer-kid.php",
+    "orders",
+    "orders.php",
+    "picks.php",
+    "sealed.php",
+    "seen-at.php",
+    "seen-key.php",
+    "seen.php"
+   ]
+  },
+  "11": {
+   "host": null,
+   "web/g": [
+    ".htaccess",
+    "01f275ad18d3575c204d087d.bin",
+    "141f1b0f7641a05961d6aeab.bin",
+    "1eadc3b21217743b37a8b402.bin",
+    "4ca876d90cc969bcf18e5f3f.bin",
+    "57ccb1e282a70794760ad565.bin",
+    "62ce128ebdb3d2612f2f6a57.bin",
+    "6533702e802f85b77cd13653.bin",
+    "6eaea3025cc6e0efbadae25e.bin",
+    "7b2c731aa193c18bbb2623d9.bin",
+    "809cb93daa0821456ee81db3.bin",
+    "947bfb16f96c03f63a87d373.bin",
+    "9752377294e88672c44bfca5.bin",
+    "b7a22bc0ddd178572d46255d.bin",
+    "c588866485b1358311f3cd25.bin",
+    "cf5febb929a59d87598c1c26.bin",
+    "cfd694154bbf05262ee7c4f7.bin",
+    "d9961701ed0dd1a7937db2b4.bin",
+    "e32904682bfee53737fd028f.bin",
+    "f05e4666ee7102527ccfe408.bin",
+    "font.woff2",
+    "gate.php",
+    "index.html",
+    "limits.php",
+    "offer-kid.php",
+    "orders",
+    "orders.php",
+    "picks.php",
+    "sealed.php",
+    "seen-key.php",
+    "seen.php"
+   ]
+  },
+  "16": {
+   "host": null,
+   "web/g": [
+    "index.html"
+   ]
+  },
+  "17": {
+   "host": null,
+   "web/g": [
+    ".htaccess",
+    "8c9a7430c8c28f2c2c21183c.bin",
+    "a3ab3f5b90b5fd3175cbfcc6.bin",
+    "b2f221660e447688607beae3.bin",
+    "b441e2d3a7de4413dce6ea50.bin",
+    "ef3388f9ae6c68b74beef6b6.bin",
+    "font.woff2",
+    "gate.php",
+    "index.html",
+    "limits.php",
+    "orders.php",
+    "picks.php",
+    "sealed.php",
+    "seen-key.php",
+    "seen.php"
+   ]
+  },
+  "19": {
+   "host": null,
+   "web/g": [
+    ".htaccess",
+    "481a4640bfae06c19f0f22c6.bin",
+    "5ac4a836b886b43d0258273b.bin",
+    "81847f79036fb84970cc4d1b.bin",
+    "c608547accb3d5479c5edcee.bin",
+    "ca687027419c90b56fa404f3.bin",
+    "font.woff2",
+    "gate.php",
+    "index.html",
+    "limits.php",
+    "orders.php",
+    "picks.php",
+    "sealed.php",
+    "seen-key.php",
+    "seen.php"
+   ]
+  },
+  "2": {
+   "host": null,
+   "web/g": [
+    "index.html"
+   ]
+  },
+  "20": {
+   "host": null,
+   "web/g": [
+    ".htaccess",
+    "0125a2ad507e8654e73db2b5.bin",
+    "0252ac8eede1f2aff1cb7e51.bin",
+    "0987ba62040fdfe16f9901ea.bin",
+    "0ad4d9a898e2af4ca6b5fb9d.bin",
+    "0f1096d008fcf0baab6c9197.bin",
+    "2c20c88aff9ea2e3e27e35d6.bin",
+    "521b4c8c7b025f15cae2fe48.bin",
+    "77c20290d2c6f3f558e79018.bin",
+    "7974643f476bf1b6fb4e0810.bin",
+    "8331d956bf6f8f616db41ae0.bin",
+    "ae686ac70596e4343bd698ab.bin",
+    "ee74345221ecd1b4029dda44.bin",
+    "f25d6fb1ed6edbaa6092ccec.bin",
+    "font.woff2",
+    "gate.php",
+    "index.html",
+    "limits.php",
+    "offer-kid.php",
+    "orders",
+    "orders.php",
+    "picks.php",
+    "sealed.php",
+    "seen-key.php",
+    "seen.php"
+   ]
+  },
+  "23": {
+   "host": null,
+   "web/g": [
+    ".htaccess",
+    "1a33fcb935c8ab55fb5cd78d.bin",
+    "1d5616d883081b36d506d574.bin",
+    "22d5892dc9fbe601679e56e8.bin",
+    "2501a36684f6a69d92df9799.bin",
+    "2e8edaa8adec35094a0d7ebb.las",
+    "335b89d65d1691874c88b520.bin",
+    "399ecd565b3941731e16f74b.las",
+    "42e15bedaccb6774a63ec970.bin",
+    "d0d729d32a4d17eb941aa652.bin",
+    "font.woff2",
+    "gate.php",
+    "index.html",
+    "limits.php",
+    "orders.php",
+    "picks.php",
+    "sealed.php",
+    "seen-key.php",
+    "seen.php"
+   ]
+  },
+  "9": {
+   "host": null,
+   "web/g": [
+    ".htaccess",
+    "1244c47ed7eb5dcc2c4b6eea.bin",
+    "2f038b233baf75339a066c2e.bin",
+    "331a42b6ad7ae91880af1ccd.bin",
+    "335b0d05f9c6ef4e77cf6789.bin",
+    "864d439edae6a5cd4b25741f.bin",
+    "font.woff2",
+    "gate.php",
+    "index.html",
+    "limits.php",
+    "orders.php",
+    "picks.php",
+    "sealed.php",
+    "seen-key.php",
+    "seen.php"
+   ]
+  }
+ },
+ "password": "test password 123",
+ "password_work": 19,
+ "payment_notes": {
+  "29": "Two framed prints in trade"
+ },
+ "payments": {
+  "1": {
+   "amount": 100.0,
+   "kind": "deposit",
+   "received": "2026-02-20",
+   "session": 1
+  },
+  "10": {
+   "amount": 200.0,
+   "kind": "balance",
+   "received": "2026-10-03",
+   "session": 11
+  },
+  "11": {
+   "amount": 100.0,
+   "kind": "deposit",
+   "received": "2026-09-05",
+   "session": 12
+  },
+  "12": {
+   "amount": 218.0,
+   "kind": "balance",
+   "received": "2026-10-10",
+   "session": 12
+  },
+  "13": {
+   "amount": 50.0,
+   "kind": "tip",
+   "received": "2026-10-10",
+   "session": 12
+  },
+  "14": {
+   "amount": -10.0,
+   "kind": "tip",
+   "received": "2026-10-12",
+   "session": 12
+  },
+  "15": {
+   "amount": 50.0,
+   "kind": "deposit",
+   "received": "2026-09-12",
+   "session": 13
+  },
+  "16": {
+   "amount": 75.0,
+   "kind": "deposit",
+   "received": "2026-08-01",
+   "session": 14
+  },
+  "17": {
+   "amount": 100.0,
+   "kind": "balance",
+   "received": "2026-09-01",
+   "session": 14
+  },
+  "18": {
+   "amount": -75.0,
+   "kind": "refund",
+   "received": "2026-10-20",
+   "session": 14
+  },
+  "19": {
+   "amount": 159.0,
+   "kind": "balance",
+   "received": "2026-09-26",
+   "session": 16
+  },
+  "2": {
+   "amount": 250.0,
+   "kind": "balance",
+   "received": "2026-03-20",
+   "session": 1
+  },
+  "20": {
+   "amount": 159.0,
+   "kind": "balance",
+   "received": "2026-09-26",
+   "session": 17
+  },
+  "21": {
+   "amount": 159.0,
+   "kind": "balance",
+   "received": "2026-10-24",
+   "session": 19
+  },
+  "22": {
+   "amount": 371.0,
+   "kind": "balance",
+   "received": "2026-10-17",
+   "session": 20
+  },
+  "23": {
+   "amount": 100.0,
+   "kind": "deposit",
+   "received": "2026-10-02",
+   "session": 21
+  },
+  "24": {
+   "amount": 112.0,
+   "kind": "balance",
+   "received": "2026-10-31",
+   "session": 21
+  },
+  "25": {
+   "amount": -30.0,
+   "kind": "refund",
+   "received": "2026-11-02",
+   "session": 21
+  },
+  "26": {
+   "amount": 212.0,
+   "kind": "balance",
+   "received": "2026-11-08",
+   "session": 23
+  },
+  "27": {
+   "amount": 175.0,
+   "kind": "balance",
+   "received": "2026-11-09",
+   "session": 8
+  },
+  "28": {
+   "amount": 159.0,
+   "kind": "balance",
+   "received": "2026-11-10",
+   "session": 24
+  },
+  "29": {
+   "amount": 100.0,
+   "kind": "deposit",
+   "received": "2026-10-01",
+   "session": 25
+  },
+  "3": {
+   "amount": -40.0,
+   "kind": "refund",
+   "received": "2026-04-02",
+   "session": 1
+  },
+  "30": {
+   "amount": 945.0,
+   "kind": "deposit",
+   "received": "2026-03-02",
+   "session": 28
+  },
+  "31": {
+   "amount": 47.7,
+   "kind": "balance",
+   "received": "2026-10-08",
+   "session": 30
+  },
+  "32": {
+   "amount": 47.7,
+   "kind": "balance",
+   "received": "2026-10-08",
+   "session": 31
+  },
+  "33": {
+   "amount": 47.7,
+   "kind": "balance",
+   "received": "2026-10-08",
+   "session": 33
+  },
+  "34": {
+   "amount": 47.7,
+   "kind": "balance",
+   "received": "2026-10-08",
+   "session": 36
+  },
+  "4": {
+   "amount": 150.0,
+   "kind": "balance",
+   "received": "2026-06-20",
+   "session": 2
+  },
+  "5": {
+   "amount": 75.0,
+   "kind": "deposit",
+   "received": "2026-05-01",
+   "session": 3
+  },
+  "6": {
+   "amount": 60.0,
+   "kind": "balance",
+   "received": "2026-05-16",
+   "session": 6
+  },
+  "7": {
+   "amount": 100.0,
+   "kind": "deposit",
+   "received": "2026-07-01",
+   "session": 9
+  },
+  "8": {
+   "amount": 150.0,
+   "kind": "deposit",
+   "received": "2026-08-15",
+   "session": 10
+  },
+  "9": {
+   "amount": 250.0,
+   "kind": "balance",
+   "received": "2026-09-25",
+   "session": 10
+  }
+ },
+ "payments_kept": {
+  "1": {
+   "amount": 100.0,
+   "kind": "deposit",
+   "received": "2026-02-20",
+   "session": 1,
+   "tax": 0.0,
+   "taxable": 0.0,
+   "voided": null
+  },
+  "10": {
+   "amount": 200.0,
+   "kind": "balance",
+   "received": "2026-10-03",
+   "session": 11,
+   "tax": 0.0,
+   "taxable": 0.0,
+   "voided": null
+  },
+  "11": {
+   "amount": 100.0,
+   "kind": "deposit",
+   "received": "2026-09-05",
+   "session": 12,
+   "tax": 5.66,
+   "taxable": 94.34,
+   "voided": null
+  },
+  "12": {
+   "amount": 218.0,
+   "kind": "balance",
+   "received": "2026-10-10",
+   "session": 12,
+   "tax": 12.34,
+   "taxable": 205.66,
+   "voided": null
+  },
+  "13": {
+   "amount": 50.0,
+   "kind": "tip",
+   "received": "2026-10-10",
+   "session": 12,
+   "tax": 0.0,
+   "taxable": 0.0,
+   "voided": null
+  },
+  "14": {
+   "amount": -10.0,
+   "kind": "tip",
+   "received": "2026-10-12",
+   "session": 12,
+   "tax": 0.0,
+   "taxable": 0.0,
+   "voided": null
+  },
+  "15": {
+   "amount": 50.0,
+   "kind": "deposit",
+   "received": "2026-09-12",
+   "session": 13,
+   "tax": 2.83,
+   "taxable": 47.17,
+   "voided": null
+  },
+  "16": {
+   "amount": 75.0,
+   "kind": "deposit",
+   "received": "2026-08-01",
+   "session": 14,
+   "tax": 4.25,
+   "taxable": 70.75,
+   "voided": null
+  },
+  "17": {
+   "amount": 100.0,
+   "kind": "balance",
+   "received": "2026-09-01",
+   "session": 14,
+   "tax": 5.66,
+   "taxable": 94.34,
+   "voided": null
+  },
+  "18": {
+   "amount": -75.0,
+   "kind": "refund",
+   "received": "2026-10-20",
+   "session": 14,
+   "tax": 0.0,
+   "taxable": 0.0,
+   "voided": null
+  },
+  "19": {
+   "amount": 159.0,
+   "kind": "balance",
+   "received": "2026-09-26",
+   "session": 16,
+   "tax": 9.0,
+   "taxable": 150.0,
+   "voided": null
+  },
+  "2": {
+   "amount": 250.0,
+   "kind": "balance",
+   "received": "2026-03-20",
+   "session": 1,
+   "tax": 0.0,
+   "taxable": 0.0,
+   "voided": null
+  },
+  "20": {
+   "amount": 159.0,
+   "kind": "balance",
+   "received": "2026-09-26",
+   "session": 17,
+   "tax": 9.0,
+   "taxable": 150.0,
+   "voided": null
+  },
+  "21": {
+   "amount": 159.0,
+   "kind": "balance",
+   "received": "2026-10-24",
+   "session": 19,
+   "tax": 9.0,
+   "taxable": 150.0,
+   "voided": null
+  },
+  "22": {
+   "amount": 371.0,
+   "kind": "balance",
+   "received": "2026-10-17",
+   "session": 20,
+   "tax": 21.0,
+   "taxable": 350.0,
+   "voided": null
+  },
+  "23": {
+   "amount": 100.0,
+   "kind": "deposit",
+   "received": "2026-10-02",
+   "session": 21,
+   "tax": 5.66,
+   "taxable": 94.34,
+   "voided": null
+  },
+  "24": {
+   "amount": 112.0,
+   "kind": "balance",
+   "received": "2026-10-31",
+   "session": 21,
+   "tax": 6.34,
+   "taxable": 105.66,
+   "voided": null
+  },
+  "25": {
+   "amount": -30.0,
+   "kind": "refund",
+   "received": "2026-11-02",
+   "session": 21,
+   "tax": -1.7,
+   "taxable": -28.3,
+   "voided": null
+  },
+  "26": {
+   "amount": 212.0,
+   "kind": "balance",
+   "received": "2026-11-08",
+   "session": 23,
+   "tax": 12.0,
+   "taxable": 200.0,
+   "voided": null
+  },
+  "27": {
+   "amount": 175.0,
+   "kind": "balance",
+   "received": "2026-11-09",
+   "session": 8,
+   "tax": 0.0,
+   "taxable": 0.0,
+   "voided": null
+  },
+  "28": {
+   "amount": 159.0,
+   "kind": "balance",
+   "received": "2026-11-10",
+   "session": 24,
+   "tax": 9.0,
+   "taxable": 150.0,
+   "voided": null
+  },
+  "29": {
+   "amount": 100.0,
+   "kind": "deposit",
+   "received": "2026-10-01",
+   "session": 25,
+   "tax": 5.66,
+   "taxable": 94.34,
+   "voided": null
+  },
+  "3": {
+   "amount": -40.0,
+   "kind": "refund",
+   "received": "2026-04-02",
+   "session": 1,
+   "tax": 0.0,
+   "taxable": 0.0,
+   "voided": null
+  },
+  "30": {
+   "amount": 945.0,
+   "kind": "deposit",
+   "received": "2026-03-02",
+   "session": 28,
+   "tax": 53.49,
+   "taxable": 891.51,
+   "voided": null
+  },
+  "31": {
+   "amount": 47.7,
+   "kind": "balance",
+   "received": "2026-10-08",
+   "session": 30,
+   "tax": 2.7,
+   "taxable": 45.0,
+   "voided": null
+  },
+  "32": {
+   "amount": 47.7,
+   "kind": "balance",
+   "received": "2026-10-08",
+   "session": 31,
+   "tax": 2.7,
+   "taxable": 45.0,
+   "voided": null
+  },
+  "33": {
+   "amount": 47.7,
+   "kind": "balance",
+   "received": "2026-10-08",
+   "session": 33,
+   "tax": 2.7,
+   "taxable": 45.0,
+   "voided": null
+  },
+  "34": {
+   "amount": 47.7,
+   "kind": "balance",
+   "received": "2026-10-08",
+   "session": 36,
+   "tax": 2.7,
+   "taxable": 45.0,
+   "voided": null
+  },
+  "4": {
+   "amount": 150.0,
+   "kind": "balance",
+   "received": "2026-06-20",
+   "session": 2,
+   "tax": 0.0,
+   "taxable": 0.0,
+   "voided": null
+  },
+  "5": {
+   "amount": 75.0,
+   "kind": "deposit",
+   "received": "2026-05-01",
+   "session": 3,
+   "tax": 0.0,
+   "taxable": 0.0,
+   "voided": null
+  },
+  "6": {
+   "amount": 60.0,
+   "kind": "balance",
+   "received": "2026-05-16",
+   "session": 6,
+   "tax": 0.0,
+   "taxable": 0.0,
+   "voided": null
+  },
+  "7": {
+   "amount": 100.0,
+   "kind": "deposit",
+   "received": "2026-07-01",
+   "session": 9,
+   "tax": 0.0,
+   "taxable": 0.0,
+   "voided": null
+  },
+  "8": {
+   "amount": 150.0,
+   "kind": "deposit",
+   "received": "2026-08-15",
+   "session": 10,
+   "tax": 0.0,
+   "taxable": 0.0,
+   "voided": null
+  },
+  "9": {
+   "amount": 250.0,
+   "kind": "balance",
+   "received": "2026-09-25",
+   "session": 10,
+   "tax": 0.0,
+   "taxable": 0.0,
+   "voided": null
+  }
+ },
+ "picks": {
+  "10": {
+   "favorites": "reyes3.jpg",
+   "retouch_picks": "reyes1.jpg: warmer\nreyes3.jpg",
+   "veto": ""
+  },
+  "11": {
+   "favorites": "",
+   "retouch_picks": "",
+   "veto": ""
+  }
+ },
+ "priced_on": {
+  "1": "2026-11-23",
+  "10": "2026-11-23",
+  "11": "2026-11-23",
+  "12": "2026-11-23",
+  "13": "2026-11-23",
+  "14": "2026-11-23",
+  "16": "2026-11-23",
+  "17": "2026-11-23",
+  "18": null,
+  "19": "2026-11-23",
+  "2": "2026-11-23",
+  "20": "2026-11-23",
+  "21": "2026-11-23",
+  "22": null,
+  "23": "2026-11-23",
+  "24": "2026-11-23",
+  "25": "2026-11-23",
+  "26": null,
+  "27": "2026-11-23",
+  "28": "2026-11-23",
+  "29": null,
+  "3": "2026-11-23",
+  "30": "2026-11-23",
+  "31": "2026-11-23",
+  "32": "2026-11-23",
+  "33": "2026-11-23",
+  "34": "2026-11-23",
+  "35": "2026-11-23",
+  "36": "2026-11-23",
+  "4": null,
+  "6": "2026-11-23",
+  "7": "2026-11-23",
+  "8": "2026-11-23",
+  "9": "2026-11-23"
+ },
+ "primary_type": "local",
+ "print_invoices": {
+  "2": {
+   "number": "INV-2026-0006",
+   "text": "INV-2026-0006 This is the invoice as issued. It has since been paid in full. Invoice INV-2026-0006 November 23, 2026 Lark & Pine Studio Bill to: Harper Wren harper@example.com Prints for Wren family, October 17, 2026 Ship to: Harper Wren, 12 Elm St, Springfield, IL 62704 Print Qty Each Amount 8x10 print, Lustre, Wren-01.jpg, cropped 2 $11.00 $22.00 4x6 print, Lustre, Wren-02.jpg 1 $3.00 $3.00 Shipping, at cost $8.00 Sales tax (6%) $1.50 Total $34.50 Prints are made by our lab after this invoice is paid in full. Prints damaged in shipping, lost or defective are remade by the lab at no cost to you; a crop, size or address you chose is a new order. How to pay: cash or check"
+  },
+  "3": {
+   "number": "INV-2026-0005",
+   "text": "INV-2026-0005 This is the invoice as issued. It has since been paid in full. Invoice INV-2026-0005 November 23, 2026 Lark & Pine Studio Bill to: Harper Wren harper@example.com Prints for Wren family, October 17, 2026 Ship to: Harper Wren, 12 Elm St, Springfield, IL 62704 Print Qty Each Amount 8x10 print, Lustre, Wren-01.jpg, cropped 2 $11.00 $22.00 4x6 print, Lustre, Wren-02.jpg 1 $3.00 $3.00 Shipping, at cost $8.00 Sales tax (6%) $1.50 Total $34.50 Prints are made by our lab after this invoice is paid in full. Prints damaged in shipping, lost or defective are remade by the lab at no cost to you; a crop, size or address you chose is a new order. How to pay: cash or check"
+  },
+  "5": {
+   "number": "INV-2026-0004",
+   "text": "INV-2026-0004 This is the invoice as issued. Payments since leave $24.50 to pay. Invoice INV-2026-0004 November 23, 2026 Lark & Pine Studio Bill to: Harper Wren harper@example.com Prints for Wren family, October 17, 2026 Ship to: Harper Wren, 12 Elm St, Springfield, IL 62704 Print Qty Each Amount 8x10 print, Lustre, Wren-01.jpg, cropped 2 $11.00 $22.00 4x6 print, Lustre, Wren-02.jpg 1 $3.00 $3.00 Shipping, at cost $8.00 Sales tax (6%) $1.50 Total $34.50 Prints are made by our lab after this invoice is paid in full. Prints damaged in shipping, lost or defective are remade by the lab at no cost to you; a crop, size or address you chose is a new order. How to pay: cash or check"
+  },
+  "6": {
+   "number": "INV-2026-0007",
+   "text": "INV-2026-0007 Invoice INV-2026-0007 November 23, 2026 Lark & Pine Studio Bill to: Harper Wren harper@example.com Prints for Wren family, October 17, 2026 Ship to: Harper Wren, 12 Elm St, Springfield, IL 62704 Print Qty Each Amount 8x10 print, Lustre, Wren-01.jpg, cropped 2 $11.00 $22.00 4x6 print, Lustre, Wren-02.jpg 1 $3.00 $3.00 Shipping, at cost $8.00 Sales tax (6%) $1.50 Total $34.50 Prints are made by our lab after this invoice is paid in full. Prints damaged in shipping, lost or defective are remade by the lab at no cost to you; a crop, size or address you chose is a new order. How to pay: cash or check"
+  }
+ },
+ "print_orders": {
+  "canceled": 6,
+  "invoiced": 5,
+  "new": 4,
+  "paid": 3,
+  "shipped": 2,
+  "unmatched": 1
+ },
+ "prints_settings": {
+  "plugin_on_prints": "1",
+  "prints_arrive": "Prints come straight from our lab.",
+  "prints_invoice_days": "3",
+  "prints_large_cents": "25000",
+  "prints_large_n": "25",
+  "prints_last_lab": "Sample Lab",
+  "prints_markup": "3",
+  "prints_next_item": "9",
+  "prints_on": "1",
+  "prints_plv": "2",
+  "prints_saved": "1",
+  "prints_ship": "{\"us\": {\"on\": true, \"rule\": \"cost\", \"handling\": 0, \"flat\": 0, \"say\": \"\"}, \"akhi\": {\"on\": true, \"rule\": \"cost\", \"handling\": 0, \"flat\": 0, \"say\": \"\"}, \"ca\": {\"on\": false, \"rule\": \"cost\", \"handling\": 0, \"flat\": 0, \"say\": \"\"}, \"pickup\": {\"on\": true, \"rule\": \"cost\", \"handling\": 0, \"flat\": 0, \"say\": \"\"}}"
+ },
+ "prints_tables": {
+  "price_list_items": [
+   {
+    "cost_cents": 95,
+    "cost_date": "2026-11-23",
+    "cost_from": "you",
+    "each_cents": 300,
+    "finish": "Lustre",
+    "h": 6.0,
+    "id": "pl-1",
+    "lab": "{}",
+    "label": "4x6 print, Lustre",
+    "offered": 1,
+    "ppi_hide": 150,
+    "ppi_mark": 200,
+    "price_set": 1,
+    "sort": 0,
+    "w": 4.0
+   },
+   {
+    "cost_cents": null,
+    "cost_date": "",
+    "cost_from": "",
+    "each_cents": 2000,
+    "finish": "Lustre",
+    "h": 7.0,
+    "id": "pl-2",
+    "lab": "{}",
+    "label": "5x7 print, Lustre",
+    "offered": 1,
+    "ppi_hide": 150,
+    "ppi_mark": 200,
+    "price_set": 0,
+    "sort": 1,
+    "w": 5.0
+   },
+   {
+    "cost_cents": 340,
+    "cost_date": "2026-11-23",
+    "cost_from": "you",
+    "each_cents": 1100,
+    "finish": "Lustre",
+    "h": 10.0,
+    "id": "pl-3",
+    "lab": "{}",
+    "label": "8x10 print, Lustre",
+    "offered": 1,
+    "ppi_hide": 150,
+    "ppi_mark": 200,
+    "price_set": 1,
+    "sort": 2,
+    "w": 8.0
+   },
+   {
+    "cost_cents": null,
+    "cost_date": "",
+    "cost_from": "",
+    "each_cents": 3500,
+    "finish": "Lustre",
+    "h": 12.0,
+    "id": "pl-4",
+    "lab": "{}",
+    "label": "8x12 print, Lustre",
+    "offered": 1,
+    "ppi_hide": 150,
+    "ppi_mark": 200,
+    "price_set": 0,
+    "sort": 3,
+    "w": 8.0
+   },
+   {
+    "cost_cents": null,
+    "cost_date": "",
+    "cost_from": "",
+    "each_cents": 8000,
+    "finish": "Lustre",
+    "h": 14.0,
+    "id": "pl-5",
+    "lab": "{}",
+    "label": "11x14 print, Lustre",
+    "offered": 1,
+    "ppi_hide": 150,
+    "ppi_mark": 200,
+    "price_set": 0,
+    "sort": 4,
+    "w": 11.0
+   },
+   {
+    "cost_cents": null,
+    "cost_date": "",
+    "cost_from": "",
+    "each_cents": 9500,
+    "finish": "Lustre",
+    "h": 18.0,
+    "id": "pl-6",
+    "lab": "{}",
+    "label": "12x18 print, Lustre",
+    "offered": 1,
+    "ppi_hide": 150,
+    "ppi_mark": 200,
+    "price_set": 0,
+    "sort": 5,
+    "w": 12.0
+   },
+   {
+    "cost_cents": null,
+    "cost_date": "",
+    "cost_from": "",
+    "each_cents": 16500,
+    "finish": "Lustre",
+    "h": 20.0,
+    "id": "pl-7",
+    "lab": "{}",
+    "label": "16x20 print, Lustre",
+    "offered": 1,
+    "ppi_hide": 150,
+    "ppi_mark": 200,
+    "price_set": 1,
+    "sort": 6,
+    "w": 16.0
+   },
+   {
+    "cost_cents": null,
+    "cost_date": "",
+    "cost_from": "",
+    "each_cents": 22500,
+    "finish": "Lustre",
+    "h": 30.0,
+    "id": "pl-8",
+    "lab": "{}",
+    "label": "20x30 print, Lustre",
+    "offered": 1,
+    "ppi_hide": 150,
+    "ppi_mark": 200,
+    "price_set": 0,
+    "sort": 7,
+    "w": 20.0
+   }
+  ],
+  "price_list_versions": [
+   {
+    "json": "c815cde6b5103a2df3dee00e10002d98bfd30ce6d16b9da9effc8af942283a8b",
+    "plv": 1,
+    "saved_at": "2026-11-23T22:52:44"
+   },
+   {
+    "json": "381f96666ab0160fcab255b2248cd87ca11bfd7480c3cfe05cf49345301436a4",
+    "plv": 2,
+    "saved_at": "2026-11-23T22:52:44"
+   }
+  ],
+  "print_galleries": [
+   {
+    "ever": 1,
+    "gid": "g-Lub6xduZzli2VQOrViTPlH8",
+    "host_fp": null,
+    "off": 0,
+    "offer_sig": "75bd8a4928da8b7bd6c9a579e14e2e35d675741dd16560f34ed08028aec994d3",
+    "offered_at": "2026-11-23T22:52:44",
+    "proofs": 0,
+    "session_id": 10
+   },
+   {
+    "ever": 1,
+    "gid": "g-ExzjaGE1Vj4swMZeT-XfpIY",
+    "host_fp": null,
+    "off": 0,
+    "offer_sig": "75bd8a4928da8b7bd6c9a579e14e2e35d675741dd16560f34ed08028aec994d3",
+    "offered_at": "2026-11-23T22:52:44",
+    "proofs": 0,
+    "session_id": 11
+   },
+   {
+    "ever": 1,
+    "gid": "g-5JIlsi7XcUKLwMfg-1OyIho",
+    "host_fp": null,
+    "off": 0,
+    "offer_sig": "75bd8a4928da8b7bd6c9a579e14e2e35d675741dd16560f34ed08028aec994d3",
+    "offered_at": "2026-11-23T22:52:44",
+    "proofs": 0,
+    "session_id": 20
+   }
+  ],
+  "print_lab_costs": [
+   {
+    "at": "2026-11-23T22:52:45",
+    "day": "2026-11-23",
+    "id": 1,
+    "kind": "order",
+    "lab_name": "Sample Lab",
+    "lab_number": "L-1001",
+    "order_id": 2,
+    "other": 0,
+    "products": 1240,
+    "reverses": null,
+    "shipping": 675,
+    "tax": 80
+   }
+  ],
+  "print_order_lines": [
+   {
+    "crop": "[0.0, 0.0333, 1.0, 0.9333]",
+    "crop_confirmed": 0,
+    "each_cents": 2000,
+    "finish": "Lustre",
+    "h": 7.0,
+    "id": 1,
+    "item_id": "pl-2",
+    "label": "5x7 print, Lustre",
+    "n": 1,
+    "order_id": 1,
+    "photo_file": "ee74345221ecd1b4029dda44.bin",
+    "photo_name": "Wren-02.jpg",
+    "ppi": 399,
+    "qty": 1,
+    "shown_cents": 2000,
+    "soft_confirmed": 0,
+    "turn": 0,
+    "w": 5.0
+   },
+   {
+    "crop": "[0.0833, 0.0, 0.8333, 1.0]",
+    "crop_confirmed": 1,
+    "each_cents": 1100,
+    "finish": "Lustre",
+    "h": 10.0,
+    "id": 2,
+    "item_id": "pl-3",
+    "label": "8x10 print, Lustre",
+    "n": 1,
+    "order_id": 2,
+    "photo_file": "77c20290d2c6f3f558e79018.bin",
+    "photo_name": "Wren-01.jpg",
+    "ppi": 249,
+    "qty": 2,
+    "shown_cents": 1100,
+    "soft_confirmed": 0,
+    "turn": 0,
+    "w": 8.0
+   },
+   {
+    "crop": "[0.0, 0.0, 1.0, 1.0]",
+    "crop_confirmed": 1,
+    "each_cents": 300,
+    "finish": "Lustre",
+    "h": 6.0,
+    "id": 3,
+    "item_id": "pl-1",
+    "label": "4x6 print, Lustre",
+    "n": 2,
+    "order_id": 2,
+    "photo_file": "ee74345221ecd1b4029dda44.bin",
+    "photo_name": "Wren-02.jpg",
+    "ppi": 500,
+    "qty": 1,
+    "shown_cents": 300,
+    "soft_confirmed": 0,
+    "turn": 0,
+    "w": 4.0
+   },
+   {
+    "crop": "[0.0833, 0.0, 0.8333, 1.0]",
+    "crop_confirmed": 1,
+    "each_cents": 1100,
+    "finish": "Lustre",
+    "h": 10.0,
+    "id": 4,
+    "item_id": "pl-3",
+    "label": "8x10 print, Lustre",
+    "n": 1,
+    "order_id": 3,
+    "photo_file": "77c20290d2c6f3f558e79018.bin",
+    "photo_name": "Wren-01.jpg",
+    "ppi": 249,
+    "qty": 2,
+    "shown_cents": 1100,
+    "soft_confirmed": 0,
+    "turn": 0,
+    "w": 8.0
+   },
+   {
+    "crop": "[0.0, 0.0, 1.0, 1.0]",
+    "crop_confirmed": 1,
+    "each_cents": 300,
+    "finish": "Lustre",
+    "h": 6.0,
+    "id": 5,
+    "item_id": "pl-1",
+    "label": "4x6 print, Lustre",
+    "n": 2,
+    "order_id": 3,
+    "photo_file": "ee74345221ecd1b4029dda44.bin",
+    "photo_name": "Wren-02.jpg",
+    "ppi": 500,
+    "qty": 1,
+    "shown_cents": 300,
+    "soft_confirmed": 0,
+    "turn": 0,
+    "w": 4.0
+   },
+   {
+    "crop": "[0.0833, 0.0, 0.8333, 1.0]",
+    "crop_confirmed": 0,
+    "each_cents": 1100,
+    "finish": "Lustre",
+    "h": 10.0,
+    "id": 6,
+    "item_id": "pl-3",
+    "label": "8x10 print, Lustre",
+    "n": 1,
+    "order_id": 4,
+    "photo_file": "77c20290d2c6f3f558e79018.bin",
+    "photo_name": "Wren-01.jpg",
+    "ppi": 249,
+    "qty": 2,
+    "shown_cents": 1100,
+    "soft_confirmed": 0,
+    "turn": 0,
+    "w": 8.0
+   },
+   {
+    "crop": "[0.0, 0.0, 1.0, 1.0]",
+    "crop_confirmed": 1,
+    "each_cents": 300,
+    "finish": "Lustre",
+    "h": 6.0,
+    "id": 7,
+    "item_id": "pl-1",
+    "label": "4x6 print, Lustre",
+    "n": 2,
+    "order_id": 4,
+    "photo_file": "ee74345221ecd1b4029dda44.bin",
+    "photo_name": "Wren-02.jpg",
+    "ppi": 500,
+    "qty": 1,
+    "shown_cents": 300,
+    "soft_confirmed": 0,
+    "turn": 0,
+    "w": 4.0
+   },
+   {
+    "crop": "[0.0833, 0.0, 0.8333, 1.0]",
+    "crop_confirmed": 0,
+    "each_cents": 1100,
+    "finish": "Lustre",
+    "h": 10.0,
+    "id": 8,
+    "item_id": "pl-3",
+    "label": "8x10 print, Lustre",
+    "n": 1,
+    "order_id": 5,
+    "photo_file": "77c20290d2c6f3f558e79018.bin",
+    "photo_name": "Wren-01.jpg",
+    "ppi": 249,
+    "qty": 2,
+    "shown_cents": 1100,
+    "soft_confirmed": 0,
+    "turn": 0,
+    "w": 8.0
+   },
+   {
+    "crop": "[0.0, 0.0, 1.0, 1.0]",
+    "crop_confirmed": 1,
+    "each_cents": 300,
+    "finish": "Lustre",
+    "h": 6.0,
+    "id": 9,
+    "item_id": "pl-1",
+    "label": "4x6 print, Lustre",
+    "n": 2,
+    "order_id": 5,
+    "photo_file": "ee74345221ecd1b4029dda44.bin",
+    "photo_name": "Wren-02.jpg",
+    "ppi": 500,
+    "qty": 1,
+    "shown_cents": 300,
+    "soft_confirmed": 0,
+    "turn": 0,
+    "w": 4.0
+   },
+   {
+    "crop": "[0.0833, 0.0, 0.8333, 1.0]",
+    "crop_confirmed": 0,
+    "each_cents": 1100,
+    "finish": "Lustre",
+    "h": 10.0,
+    "id": 10,
+    "item_id": "pl-3",
+    "label": "8x10 print, Lustre",
+    "n": 1,
+    "order_id": 6,
+    "photo_file": "77c20290d2c6f3f558e79018.bin",
+    "photo_name": "Wren-01.jpg",
+    "ppi": 249,
+    "qty": 2,
+    "shown_cents": 1100,
+    "soft_confirmed": 0,
+    "turn": 0,
+    "w": 8.0
+   },
+   {
+    "crop": "[0.0, 0.0, 1.0, 1.0]",
+    "crop_confirmed": 1,
+    "each_cents": 300,
+    "finish": "Lustre",
+    "h": 6.0,
+    "id": 11,
+    "item_id": "pl-1",
+    "label": "4x6 print, Lustre",
+    "n": 2,
+    "order_id": 6,
+    "photo_file": "ee74345221ecd1b4029dda44.bin",
+    "photo_name": "Wren-02.jpg",
+    "ppi": 500,
+    "qty": 1,
+    "shown_cents": 300,
+    "soft_confirmed": 0,
+    "turn": 0,
+    "w": 4.0
+   }
+  ],
+  "print_order_oids": [
+   {
+    "first_seen": "2026-11-23T22:52:44",
+    "gid": "g-5JIlsi7XcUKLwMfg-1OyIho",
+    "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   {
+    "first_seen": "2026-11-23T22:52:44",
+    "gid": "g-5JIlsi7XcUKLwMfg-1OyIho",
+    "oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   {
+    "first_seen": "2026-11-23T22:52:44",
+    "gid": "g-5JIlsi7XcUKLwMfg-1OyIho",
+    "oid": "cccccccccccccccccccccccccccccccc"
+   },
+   {
+    "first_seen": "2026-11-23T22:52:44",
+    "gid": "g-5JIlsi7XcUKLwMfg-1OyIho",
+    "oid": "dddddddddddddddddddddddddddddddd"
+   },
+   {
+    "first_seen": "2026-11-23T22:52:44",
+    "gid": "g-5JIlsi7XcUKLwMfg-1OyIho",
+    "oid": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+   },
+   {
+    "first_seen": "2026-11-23T22:52:44",
+    "gid": "g-5JIlsi7XcUKLwMfg-1OyIho",
+    "oid": "ffffffffffffffffffffffffffffffff"
+   }
+  ],
+  "print_orders": [
+   {
+    "before_payment": 0,
+    "bill_email": "dale@example.org",
+    "bill_name": "Dale Rivers",
+    "browser_at": "2026-11-24T03:52:44.000Z",
+    "cancel_lab": "",
+    "closed_at": null,
+    "collected_at": "2026-11-23T22:52:44",
+    "contact_id": null,
+    "cost_other": null,
+    "cost_products": null,
+    "cost_shipping": null,
+    "cost_tax": null,
+    "delivered_at": null,
+    "env_sha256": "0a63a27e6afc843dd7bc9ff1879b433852b9f0a1d7b64b0860e00a40aff680af",
+    "flags": "{}",
+    "gid": "g-5JIlsi7XcUKLwMfg-1OyIho",
+    "guest": 0,
+    "host_mtime": "2026-11-23T22:52:44",
+    "id": 1,
+    "invoice_data": null,
+    "invoice_html": null,
+    "invoice_issued": null,
+    "invoice_number": null,
+    "invoice_void": null,
+    "lab_id": null,
+    "lab_name": "",
+    "lab_orders": "[]",
+    "lab_problem": "",
+    "lab_tax_pending": 0,
+    "lab_words": "",
+    "oid": "ffffffffffffffffffffffffffffffff",
+    "ordered_at": null,
+    "payload": "2a67a49af0330ca8665754ef107fc9a4c3f54ada3f2e386c5875b418e1ec598e",
+    "plv": 2,
+    "prepared_at": null,
+    "prev_state": null,
+    "reduced_at": null,
+    "remake_note": "",
+    "session_id": 20,
+    "ship_by_hand": 0,
+    "ship_cents": null,
+    "ship_lab_cents": null,
+    "shipped_at": null,
+    "state": "unmatched",
+    "tax_area": null,
+    "tax_rate": null,
+    "told_shipped": null
+   },
+   {
+    "before_payment": 0,
+    "bill_email": "harper@example.com",
+    "bill_name": "Harper Wren",
+    "browser_at": "2026-11-24T03:52:44.000Z",
+    "cancel_lab": "",
+    "closed_at": null,
+    "collected_at": "2026-11-23T22:52:44",
+    "contact_id": 20,
+    "cost_other": null,
+    "cost_products": 1240,
+    "cost_shipping": 675,
+    "cost_tax": 80,
+    "delivered_at": null,
+    "env_sha256": "673da85fbccaba5440963cdc6fbdae4cca25625adab4b707735b0ab5c04c5e01",
+    "flags": "{}",
+    "gid": "g-5JIlsi7XcUKLwMfg-1OyIho",
+    "guest": 0,
+    "host_mtime": "2026-11-23T22:52:44",
+    "id": 2,
+    "invoice_data": "d0dc45df50ca5e4f9ae4fd502bbbaf8263229f38101bf1f1958c0cb299c7f834",
+    "invoice_html": "838ca348f89f0a935028670b4ae99998afa6c73f5ea6c170922cb82d6256c54c",
+    "invoice_issued": "2026-11-23",
+    "invoice_number": "INV-2026-0006",
+    "invoice_void": null,
+    "lab_id": null,
+    "lab_name": "Sample Lab",
+    "lab_orders": "[{\"number\": \"L-1001\", \"status\": \"shipped\", \"at\": \"2026-11-23\", \"remake\": false, \"carrier\": \"UPS\", \"tracking\": \"1Z999AA10123456784\", \"url\": \"https://track.example.com/1Z999AA10123456784\"}]",
+    "lab_problem": "",
+    "lab_tax_pending": 0,
+    "lab_words": "",
+    "oid": "dddddddddddddddddddddddddddddddd",
+    "ordered_at": "2026-11-23T22:52:45",
+    "payload": "ef4783a84131cfa5582dfab408a99570afb000cc6fc51531cb1a8d580ef30812",
+    "plv": 2,
+    "prepared_at": null,
+    "prev_state": "ordered",
+    "reduced_at": null,
+    "remake_note": "",
+    "session_id": 20,
+    "ship_by_hand": 0,
+    "ship_cents": 800,
+    "ship_lab_cents": 800,
+    "shipped_at": "2026-11-23T22:52:45",
+    "state": "shipped",
+    "tax_area": null,
+    "tax_rate": 6.0,
+    "told_shipped": null
+   },
+   {
+    "before_payment": 0,
+    "bill_email": "harper@example.com",
+    "bill_name": "Harper Wren",
+    "browser_at": "2026-11-24T03:52:44.000Z",
+    "cancel_lab": "",
+    "closed_at": null,
+    "collected_at": "2026-11-23T22:52:44",
+    "contact_id": 20,
+    "cost_other": null,
+    "cost_products": null,
+    "cost_shipping": null,
+    "cost_tax": null,
+    "delivered_at": null,
+    "env_sha256": "98aab646c118e9c71447caaf526b66229d9c5f46a8eff8628567f35f7e0b5f79",
+    "flags": "{}",
+    "gid": "g-5JIlsi7XcUKLwMfg-1OyIho",
+    "guest": 0,
+    "host_mtime": "2026-11-23T22:52:44",
+    "id": 3,
+    "invoice_data": "9853a039f2734bb65084f271e67106b93a3800bd0a3504ef99e5248edf86f44c",
+    "invoice_html": "a6bed17ab25fbb08815b508fa2651248cd50a980aaa714f3efe31474c10742fd",
+    "invoice_issued": "2026-11-23",
+    "invoice_number": "INV-2026-0005",
+    "invoice_void": null,
+    "lab_id": null,
+    "lab_name": "",
+    "lab_orders": "[]",
+    "lab_problem": "",
+    "lab_tax_pending": 0,
+    "lab_words": "",
+    "oid": "cccccccccccccccccccccccccccccccc",
+    "ordered_at": null,
+    "payload": "9861238a25e5e7ddabf8b3fa99a0cc1f4d9074ad456da2f6edd3bf0a03e5d753",
+    "plv": 2,
+    "prepared_at": null,
+    "prev_state": "invoiced",
+    "reduced_at": null,
+    "remake_note": "",
+    "session_id": 20,
+    "ship_by_hand": 0,
+    "ship_cents": 800,
+    "ship_lab_cents": 800,
+    "shipped_at": null,
+    "state": "paid",
+    "tax_area": null,
+    "tax_rate": 6.0,
+    "told_shipped": null
+   },
+   {
+    "before_payment": 0,
+    "bill_email": "harper@example.com",
+    "bill_name": "Harper Wren",
+    "browser_at": "2026-11-24T03:52:44.000Z",
+    "cancel_lab": "",
+    "closed_at": null,
+    "collected_at": "2026-11-23T22:52:44",
+    "contact_id": 20,
+    "cost_other": null,
+    "cost_products": null,
+    "cost_shipping": null,
+    "cost_tax": null,
+    "delivered_at": null,
+    "env_sha256": "a5e0404b73df30cec7d7dbad6af3c757f7b14f4a41929d46e6b02d660dafe4de",
+    "flags": "{}",
+    "gid": "g-5JIlsi7XcUKLwMfg-1OyIho",
+    "guest": 0,
+    "host_mtime": "2026-11-23T22:52:44",
+    "id": 4,
+    "invoice_data": null,
+    "invoice_html": null,
+    "invoice_issued": null,
+    "invoice_number": null,
+    "invoice_void": null,
+    "lab_id": null,
+    "lab_name": "",
+    "lab_orders": "[]",
+    "lab_problem": "",
+    "lab_tax_pending": 0,
+    "lab_words": "",
+    "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ordered_at": null,
+    "payload": "375b2d548e4a1eae1eeda58757961892d75a82f4e7462107e0746f9e31e2b9cd",
+    "plv": 2,
+    "prepared_at": null,
+    "prev_state": null,
+    "reduced_at": null,
+    "remake_note": "",
+    "session_id": 20,
+    "ship_by_hand": 0,
+    "ship_cents": null,
+    "ship_lab_cents": null,
+    "shipped_at": null,
+    "state": "new",
+    "tax_area": null,
+    "tax_rate": null,
+    "told_shipped": null
+   },
+   {
+    "before_payment": 0,
+    "bill_email": "harper@example.com",
+    "bill_name": "Harper Wren",
+    "browser_at": "2026-11-24T03:52:44.000Z",
+    "cancel_lab": "",
+    "closed_at": null,
+    "collected_at": "2026-11-23T22:52:44",
+    "contact_id": 20,
+    "cost_other": null,
+    "cost_products": null,
+    "cost_shipping": null,
+    "cost_tax": null,
+    "delivered_at": null,
+    "env_sha256": "c083d4edd8586713d6c03f3afaecafa0c6ef23792be03f32aac1f60c7e600990",
+    "flags": "{}",
+    "gid": "g-5JIlsi7XcUKLwMfg-1OyIho",
+    "guest": 0,
+    "host_mtime": "2026-11-23T22:52:44",
+    "id": 5,
+    "invoice_data": "6a274c9a6672764ae42ef10c90309c36cc7d4a60935e1b3364c289868fa33410",
+    "invoice_html": "a85f4d78e27817b8f04998ef43d30b5ca85a88fa528f4f0f975c97e2606fcbf8",
+    "invoice_issued": "2026-11-23",
+    "invoice_number": "INV-2026-0004",
+    "invoice_void": null,
+    "lab_id": null,
+    "lab_name": "",
+    "lab_orders": "[]",
+    "lab_problem": "",
+    "lab_tax_pending": 0,
+    "lab_words": "",
+    "oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "ordered_at": null,
+    "payload": "2f05671c9a82d29c40f846089d426d12d7dfa44a40158bd097b56d59ecc81eaa",
+    "plv": 2,
+    "prepared_at": null,
+    "prev_state": "new",
+    "reduced_at": null,
+    "remake_note": "",
+    "session_id": 20,
+    "ship_by_hand": 0,
+    "ship_cents": 800,
+    "ship_lab_cents": 800,
+    "shipped_at": null,
+    "state": "invoiced",
+    "tax_area": null,
+    "tax_rate": 6.0,
+    "told_shipped": null
+   },
+   {
+    "before_payment": 0,
+    "bill_email": "harper@example.com",
+    "bill_name": "Harper Wren",
+    "browser_at": "2026-11-24T03:52:44.000Z",
+    "cancel_lab": "",
+    "closed_at": "2026-11-23T22:52:45",
+    "collected_at": "2026-11-23T22:52:44",
+    "contact_id": 20,
+    "cost_other": null,
+    "cost_products": null,
+    "cost_shipping": null,
+    "cost_tax": null,
+    "delivered_at": null,
+    "env_sha256": "f94d365a71294c78bd4a66995564c3edfeb1ad34b299ca042e96f607517270f0",
+    "flags": "{}",
+    "gid": "g-5JIlsi7XcUKLwMfg-1OyIho",
+    "guest": 0,
+    "host_mtime": "2026-11-23T22:52:44",
+    "id": 6,
+    "invoice_data": "281585c0089586f5dc367c09f87746b659cb12babdc38a90c695167cebc17b8e",
+    "invoice_html": "badb58cb4de281ea014b8e918c78b6c0344af6eb1f5d9adc869876156ff1c62b",
+    "invoice_issued": "2026-11-23",
+    "invoice_number": "INV-2026-0007",
+    "invoice_void": null,
+    "lab_id": null,
+    "lab_name": "",
+    "lab_orders": "[]",
+    "lab_problem": "",
+    "lab_tax_pending": 0,
+    "lab_words": "",
+    "oid": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "ordered_at": null,
+    "payload": "71b7bf704998ca4c76acfb70e80f4fe29ba6161fe604cbfd2b2592df3c8052a8",
+    "plv": 2,
+    "prepared_at": null,
+    "prev_state": "paid",
+    "reduced_at": null,
+    "remake_note": "",
+    "session_id": 20,
+    "ship_by_hand": 0,
+    "ship_cents": 800,
+    "ship_lab_cents": 800,
+    "shipped_at": null,
+    "state": "canceled",
+    "tax_area": null,
+    "tax_rate": 6.0,
+    "told_shipped": null
+   }
+  ],
+  "print_payments": [
+   {
+    "amount_cents": 1000,
+    "corrects": null,
+    "id": 1,
+    "kind": "payment",
+    "method": "card",
+    "note": "",
+    "order_id": 5,
+    "received": "2026-11-03",
+    "ref": "",
+    "voided": null
+   },
+   {
+    "amount_cents": 3950,
+    "corrects": null,
+    "id": 2,
+    "kind": "payment",
+    "method": "card",
+    "note": "",
+    "order_id": 3,
+    "received": "2026-11-04",
+    "ref": "",
+    "voided": null
+   },
+   {
+    "amount_cents": 3450,
+    "corrects": null,
+    "id": 3,
+    "kind": "payment",
+    "method": "card",
+    "note": "",
+    "order_id": 2,
+    "received": "2026-11-05",
+    "ref": "",
+    "voided": null
+   },
+   {
+    "amount_cents": 3450,
+    "corrects": null,
+    "id": 4,
+    "kind": "payment",
+    "method": "card",
+    "note": "",
+    "order_id": 6,
+    "received": "2026-11-06",
+    "ref": "",
+    "voided": null
+   },
+   {
+    "amount_cents": 3450,
+    "corrects": null,
+    "id": 5,
+    "kind": "refund",
+    "method": "card",
+    "note": "",
+    "order_id": 6,
+    "received": "2026-11-07",
+    "ref": "",
+    "voided": null
+   }
+  ]
+ },
+ "prints_year": {
+  "any": true,
+  "cost": 1915,
+  "costs": [
+   {
+    "day": "2026-11-23",
+    "invoice": "INV-2026-0006",
+    "lab": "Sample Lab",
+    "number": "L-1001",
+    "other": 0,
+    "products": 1240,
+    "shipping": 675,
+    "tax": 80,
+    "what": "lab order",
+    "who": "Harper Wren"
+   }
+  ],
+  "lab_tax": 80,
+  "profit": 6040,
+  "received": 8400,
+  "refunds": 3450,
+  "rows": [
+   {
+    "amount": 1000,
+    "day": "2026-11-03",
+    "fix": "",
+    "invoice": "INV-2026-0004",
+    "kind": "payment",
+    "method": "card",
+    "sales": 725,
+    "ship": 232,
+    "tax": 43,
+    "who": "Harper Wren"
+   },
+   {
+    "amount": 3950,
+    "day": "2026-11-04",
+    "fix": "",
+    "invoice": "INV-2026-0005",
+    "kind": "payment",
+    "method": "card",
+    "sales": 2862,
+    "ship": 916,
+    "tax": 172,
+    "who": "Harper Wren"
+   },
+   {
+    "amount": 3450,
+    "day": "2026-11-05",
+    "fix": "",
+    "invoice": "INV-2026-0006",
+    "kind": "payment",
+    "method": "card",
+    "sales": 2500,
+    "ship": 800,
+    "tax": 150,
+    "who": "Harper Wren"
+   },
+   {
+    "amount": 3450,
+    "day": "2026-11-06",
+    "fix": "",
+    "invoice": "INV-2026-0007",
+    "kind": "payment",
+    "method": "card",
+    "sales": 2500,
+    "ship": 800,
+    "tax": 150,
+    "who": "Harper Wren"
+   },
+   {
+    "amount": -3450,
+    "day": "2026-11-07",
+    "fix": "",
+    "invoice": "INV-2026-0007",
+    "kind": "refund",
+    "method": "card",
+    "sales": -2500,
+    "ship": -800,
+    "tax": -150,
+    "who": "Harper Wren"
+   }
+  ],
+  "sales": 6087,
+  "shipping": 1948,
+  "tax": 365
+ },
+ "proof_owed": {
+  "9": 200.0
+ },
+ "quote_replacements": [
+  {
+   "booked": true,
+   "new_vid": 7,
+   "old_total": 318.0,
+   "old_vid": 6,
+   "session": 25
+  }
+ ],
+ "quote_versions": {
+  "1": 3,
+  "3": 8,
+  "4": 9,
+  "5": 10,
+  "6": 25,
+  "7": 25,
+  "8": 27,
+  "9": 28
+ },
+ "receipts": {
+  "24": {
+   "license_line": false,
+   "number": "R-2026-0004"
+  },
+  "8": {
+   "license_line": true,
+   "number": "R-2026-0003"
+  }
+ },
+ "refund_credits": {
+  "25": {
+   "amount": 30.0,
+   "session": 21
+  },
+  "3": {
+   "amount": 40.0,
+   "session": 1
+  }
+ },
+ "refund_release": {
+  "1": "release",
+  "14": "release",
+  "21": "hold"
+ },
+ "release_added": "Photos of guests are never posted without their consent.",
+ "release_blocked": {
+  "1": 0.0,
+  "10": 0.0,
+  "11": 0.0,
+  "12": 0.0,
+  "13": 0.0,
+  "14": 165.0,
+  "16": 0.0,
+  "17": 0.0,
+  "18": 0.0,
+  "19": 0.0,
+  "2": 0.0,
+  "20": 0.0,
+  "21": 30.0,
+  "22": 0.0,
+  "23": 0.0,
+  "24": 0.0,
+  "25": 297.5,
+  "26": 0.0,
+  "27": 159.0,
+  "28": 2394.0,
+  "29": 0.0,
+  "3": 175.0,
+  "30": 0.0,
+  "31": 0.0,
+  "32": 47.7,
+  "33": 0.0,
+  "34": 47.7,
+  "35": 47.7,
+  "36": 0.0,
+  "4": 0.0,
+  "6": 0.0,
+  "7": 60.0,
+  "8": 0.0,
+  "9": 200.0
+ },
+ "release_text_sha256": "95bfe3dddf3fd2bb6f1e1928f916d994e44e850a48a63ecf7ec364c6686d6594",
+ "replaced": {
+  "gallery_id": "g-1XP6omquksCd8fUiiO_7akc",
+  "history": [
+   "Replaced the gallery's link: the old link no longer opens anything (what the client sent there was collected first, and their picks and draft go to the new link). The gallery is being built again at its new link; put it online, then send the client the new link with a new QR letter."
+  ],
+  "kept": [
+   "draft.las",
+   "picks.las"
+  ],
+  "old_gallery_id": "g-pbN42tv1zLpc6jhVVsb6q-I",
+  "session": 23,
+  "tasks": [
+   [
+    "Send the client the new gallery link",
+    null
+   ]
+  ]
+ },
+ "rules_sha256": "23c2b88cbf96e5723d518635b295d92d16b9d058da2127a827eb3f0ff0d7d94d",
+ "s3": {
+  "address": "127.0.0.1:46735",
+  "bucket": "studio-backups",
+  "pins": {
+   "127.0.0.1:46735": {
+    "at": "2026-11-23 22:52",
+    "cn": "localhost",
+    "fp": "03:21:D5:05:52:20:26:59:66:01:42:BA:AE:DE:D3:79:52:75:32:D4:E4:ED:0F:6C:C4:4D:A6:30:64:2E:8A:F4",
+    "issuer": "localhost",
+    "names": [
+     "localhost",
+     "127.0.0.1"
+    ],
+    "not_after": "2026-12-24",
+    "not_before": "2026-11-23",
+    "san": true,
+    "self_signed": true,
+    "sha256": "0321d50552202659660142baaeded379527532d4e4ed0f6cc44da630642e8af4",
+    "spki": "b397767febbee9b5a4ac4a994a624a896965bcd51f315661a83a823fff64451e",
+    "spki_fp": "B3:97:76:7F:EB:BE:E9:B5:A4:AC:4A:99:4A:62:4A:89:69:65:BC:D5:1F:31:56:61:A8:3A:82:3F:FF:64:45:1E",
+    "subject": "localhost"
+   }
+  },
+  "secondary": {
+   "access_key": "AKFAKE",
+   "addressing": "path",
+   "bucket": "studio-backups",
+   "endpoint": "https://127.0.0.1:46735",
+   "prefix": "",
+   "type": "s3"
+  }
+ },
+ "sales_tax": {
+  "sales_tax_pct": "6",
+  "tax_mode": "flat"
+ },
+ "schema_version": 9,
+ "school": {
+  "date": "2026-10-08",
+  "event": 2,
+  "families": {
+   "abara": {
+    "children": [
+     "Kofi"
+    ],
+    "due": 0.0,
+    "releases": [
+     "signed"
+    ],
+    "session": 30
+   },
+   "brandt": {
+    "children": [
+     "Max",
+     "Ida",
+     "Paul"
+    ],
+    "due": 0.0,
+    "releases": [
+     "signed",
+     "signed",
+     "signed"
+    ],
+    "session": 31
+   },
+   "castillo": {
+    "children": [
+     "Luis",
+     "Ana"
+    ],
+    "due": 47.7,
+    "releases": [
+     "signed",
+     "signed"
+    ],
+    "session": 32
+   },
+   "dunmore": {
+    "children": [
+     "Finn"
+    ],
+    "due": 0.0,
+    "releases": [
+     "needed"
+    ],
+    "session": 33
+   },
+   "eklund": {
+    "children": [
+     "Elsa",
+     "Nils"
+    ],
+    "due": 47.7,
+    "releases": [
+     "signed",
+     "signed"
+    ],
+    "session": 34
+   },
+   "farrow": {
+    "children": [
+     "June"
+    ],
+    "due": 47.7,
+    "releases": [
+     "needed"
+    ],
+    "session": 35
+   },
+   "gupta": {
+    "children": [
+     "Dev"
+    ],
+    "due": 0.0,
+    "releases": [
+     "signed"
+    ],
+    "session": 36
+   }
+  },
+  "family_price": 45.0,
+  "name": "Maple Grove Elementary picture day"
+ },
+ "served_check": {
+  "bad": {
+   "g-CeRwYo2BuR-Eqsr3ICmITnQ": {
+    "n": 2,
+    "sid": 17,
+    "since": "2026-11-23",
+    "what": [
+     "the page as served",
+     "the page on the host"
+    ]
+   }
+  },
+  "last": 1795492367.089349
+ },
+ "served_history": {
+  "17": "The gallery page or scripts on the web host are not the ones Lumen Aureum put there (the page as served, the page on the host)"
+ },
+ "sessions": {
+  "1": {
+   "due": 0.0,
+   "paid": 310.0,
+   "quoted": 350.0,
+   "refund_credit": 40.0,
+   "stage": "delivered"
+  },
+  "10": {
+   "due": 0.0,
+   "paid": 400.0,
+   "quoted": 400.0,
+   "refund_credit": 0.0,
+   "stage": "delivered"
+  },
+  "11": {
+   "due": 0.0,
+   "paid": 200.0,
+   "quoted": 200.0,
+   "refund_credit": 0.0,
+   "stage": "shot"
+  },
+  "12": {
+   "due": 0.0,
+   "paid": 318.0,
+   "quoted": 318.0,
+   "refund_credit": 0.0,
+   "stage": "shot"
+  },
+  "13": {
+   "due": 0.0,
+   "paid": 50.0,
+   "quoted": 212.0,
+   "refund_credit": 0.0,
+   "stage": "shot"
+  },
+  "14": {
+   "due": 165.0,
+   "paid": 100.0,
+   "quoted": 265.0,
+   "refund_credit": 0.0,
+   "stage": "lost"
+  },
+  "16": {
+   "due": 0.0,
+   "paid": 159.0,
+   "quoted": 159.0,
+   "refund_credit": 0.0,
+   "stage": "shot"
+  },
+  "17": {
+   "due": 0.0,
+   "paid": 159.0,
+   "quoted": 159.0,
+   "refund_credit": 0.0,
+   "stage": "shot"
+  },
+  "18": {
+   "due": 0.0,
+   "paid": 0.0,
+   "quoted": 0.0,
+   "refund_credit": 0.0,
+   "stage": "inquiry"
+  },
+  "19": {
+   "due": 0.0,
+   "paid": 159.0,
+   "quoted": 159.0,
+   "refund_credit": 0.0,
+   "stage": "shot"
+  },
+  "2": {
+   "due": 0.0,
+   "paid": 150.0,
+   "quoted": 150.0,
+   "refund_credit": 0.0,
+   "stage": "shot"
+  },
+  "20": {
+   "due": 0.0,
+   "paid": 371.0,
+   "quoted": 371.0,
+   "refund_credit": 0.0,
+   "stage": "shot"
+  },
+  "21": {
+   "due": 0.0,
+   "paid": 182.0,
+   "quoted": 212.0,
+   "refund_credit": 30.0,
+   "stage": "shot"
+  },
+  "22": {
+   "due": 0.0,
+   "paid": 0.0,
+   "quoted": 0.0,
+   "refund_credit": 0.0,
+   "stage": "inquiry"
+  },
+  "23": {
+   "due": 0.0,
+   "paid": 212.0,
+   "quoted": 212.0,
+   "refund_credit": 0.0,
+   "stage": "delivered"
+  },
+  "24": {
+   "due": 0.0,
+   "paid": 159.0,
+   "quoted": 159.0,
+   "refund_credit": 0.0,
+   "stage": "quoted"
+  },
+  "25": {
+   "due": 297.5,
+   "paid": 100.0,
+   "quoted": 397.5,
+   "refund_credit": 0.0,
+   "stage": "shot"
+  },
+  "26": {
+   "due": 0.0,
+   "paid": 0.0,
+   "quoted": 0.0,
+   "refund_credit": 0.0,
+   "stage": "lost"
+  },
+  "27": {
+   "due": 159.0,
+   "paid": 0.0,
+   "quoted": 159.0,
+   "refund_credit": 0.0,
+   "stage": "lost"
+  },
+  "28": {
+   "due": 2394.0,
+   "paid": 945.0,
+   "quoted": 3339.0,
+   "refund_credit": 0.0,
+   "stage": "booked"
+  },
+  "29": {
+   "due": 0.0,
+   "paid": 0.0,
+   "quoted": 0.0,
+   "refund_credit": 0.0,
+   "stage": "shot"
+  },
+  "3": {
+   "due": 175.0,
+   "paid": 75.0,
+   "quoted": 250.0,
+   "refund_credit": 0.0,
+   "stage": "booked"
+  },
+  "30": {
+   "due": 0.0,
+   "paid": 47.7,
+   "quoted": 47.7,
+   "refund_credit": 0.0,
+   "stage": "shot"
+  },
+  "31": {
+   "due": 0.0,
+   "paid": 47.7,
+   "quoted": 47.7,
+   "refund_credit": 0.0,
+   "stage": "shot"
+  },
+  "32": {
+   "due": 47.7,
+   "paid": 0.0,
+   "quoted": 47.7,
+   "refund_credit": 0.0,
+   "stage": "shot"
+  },
+  "33": {
+   "due": 0.0,
+   "paid": 47.7,
+   "quoted": 47.7,
+   "refund_credit": 0.0,
+   "stage": "shot"
+  },
+  "34": {
+   "due": 47.7,
+   "paid": 0.0,
+   "quoted": 47.7,
+   "refund_credit": 0.0,
+   "stage": "shot"
+  },
+  "35": {
+   "due": 47.7,
+   "paid": 0.0,
+   "quoted": 47.7,
+   "refund_credit": 0.0,
+   "stage": "shot"
+  },
+  "36": {
+   "due": 0.0,
+   "paid": 47.7,
+   "quoted": 47.7,
+   "refund_credit": 0.0,
+   "stage": "shot"
+  },
+  "4": {
+   "due": 0.0,
+   "paid": 0.0,
+   "quoted": 0.0,
+   "refund_credit": 0.0,
+   "stage": "inquiry"
+  },
+  "6": {
+   "due": 0.0,
+   "paid": 60.0,
+   "quoted": 60.0,
+   "refund_credit": 0.0,
+   "stage": "booked"
+  },
+  "7": {
+   "due": 60.0,
+   "paid": 0.0,
+   "quoted": 60.0,
+   "refund_credit": 0.0,
+   "stage": "booked"
+  },
+  "8": {
+   "due": 0.0,
+   "paid": 175.0,
+   "quoted": 175.0,
+   "refund_credit": 0.0,
+   "stage": "booked"
+  },
+  "9": {
+   "due": 200.0,
+   "paid": 100.0,
+   "quoted": 300.0,
+   "refund_credit": 0.0,
+   "stage": "shot"
+  }
+ },
+ "sessions_by_name": {
+  "abbott": 27,
+  "ada": 18,
+  "bell": 6,
+  "chen": 7,
+  "diaz": 11,
+  "ellis": 12,
+  "engagement": 29,
+  "foster": 13,
+  "grant": 14,
+  "hale": 16,
+  "ivers": 17,
+  "kim": 9,
+  "lane": 1,
+  "moss": 2,
+  "nash": 19,
+  "olsen": 21,
+  "ortiz": 3,
+  "ortiz_inquiry": 4,
+  "price": 8,
+  "quinn": 26,
+  "reyes": 10,
+  "school_abara": 30,
+  "school_brandt": 31,
+  "school_castillo": 32,
+  "school_dunmore": 33,
+  "school_eklund": 34,
+  "school_farrow": 35,
+  "school_gupta": 36,
+  "upton": 22,
+  "vance": 24,
+  "wedding": 28,
+  "wren": 20,
+  "yates": 23,
+  "zeller": 25
+ },
+ "settings": {
+  "gallery_bg": "#262422",
+  "gallery_font": "elegant",
+  "proof_mark": "tiled",
+  "proof_mark_strength": "35",
+  "proof_mark_text": "SAMPLE",
+  "timezone": "America/New_York"
+ },
+ "settings_150": {
+  "check_in_snooze_months": "9",
+  "doc_reviews": "{\"release:*\": \"2026-11-23\"}",
+  "home_base": null,
+  "idle_signout_hours": "4",
+  "mileage_rate": "0.7",
+  "ntfy_server": "https://ntfy.example.com",
+  "ntfy_token": "tk_fixture150example",
+  "ntfy_topic": "lark-pine-studio-7f3k2q",
+  "price_approvals": "{\"1\": {\"code\": \"2026112301\", \"on\": \"2026-11-23\"}}"
+ },
+ "side_keys": [
+  "deletions"
+ ],
+ "signed_delivery": {
+  "1": null,
+  "10": null,
+  "11": null,
+  "12": null,
+  "13": null,
+  "14": null,
+  "16": null,
+  "17": null,
+  "18": null,
+  "19": null,
+  "2": null,
+  "20": null,
+  "21": null,
+  "22": null,
+  "23": null,
+  "24": null,
+  "25": null,
+  "26": null,
+  "27": null,
+  "28": null,
+  "29": "as full-resolution digital files through a download link I send you, with an online gallery",
+  "3": null,
+  "30": null,
+  "31": null,
+  "32": null,
+  "33": null,
+  "34": null,
+  "35": null,
+  "36": null,
+  "4": null,
+  "6": null,
+  "7": null,
+  "8": null,
+  "9": null
+ },
+ "site_key_sha256": "d6e16968d836ec905474c82643c4de35f28ec11522a604bdad7573386176cbdc",
+ "site_on_host": [
+  ".htaccess",
+  "404.html",
+  "about/index.html",
+  "apple-touch-icon.png",
+  "assets/font.woff2",
+  "assets/inquiry.js",
+  "assets/logo.png",
+  "assets/site.css",
+  "assets/site.js",
+  "contact/index.html",
+  "favicon.ico",
+  "index.html",
+  "inquiries/.htaccess",
+  "inquiries/index.html",
+  "inquiry.php",
+  "photos/photo-1-2f4397ae.jpg",
+  "robots.txt",
+  "sealed.php",
+  "sitemap.xml"
+ ],
+ "site_settings": {
+  "site_about": "I photograph families as they are.\nSessions run about an hour.",
+  "site_at": "2026-11-23",
+  "site_bg": "",
+  "site_description": "Family and headshot photography.",
+  "site_error": "",
+  "site_hosts": "{\"98b763d8ea72eff3\":{\"site\":{\"type\":\"local\",\"path\":\"/tmp/tmpin57e_ob/web\",\"parent_of\":\"c7c2d28e92e752160d4f44a8f6229259\"},\"gallery\":{\"type\":\"local\",\"path\":\"/tmp/tmpin57e_ob/web/g\",\"host_id\":\"c7c2d28e92e752160d4f44a8f6229259\",\"was_paths\":[\"/tmp/tmpin57e_ob/web/g\"]},\"url\":\"https://photos.example.com/\",\"folder\":\"g\"}}",
+  "site_inq_at": "2026-11-23 22:52",
+  "site_inq_note": "",
+  "site_inquiries": "1",
+  "site_inquiry_salt": "4c8ceec793a7e73743ad6b8037304b79",
+  "site_intro": "Unhurried sessions, natural light.",
+  "site_llms": "0",
+  "site_mark": "0",
+  "site_mark_name": "",
+  "site_name": "Lark & Pine Studio",
+  "site_note": "",
+  "site_on": "1",
+  "site_show_address": "0",
+  "site_show_phone": "0",
+  "site_state": "up",
+  "site_tagline": "Family portraits by the river",
+  "site_theirs": ""
+ },
+ "snapshot_html": {
+  "INV-2026-0001": "6adf389508cb9062f0c6277d8f393632c81561651c51e1014a9e1c4f8e444d47",
+  "INV-2026-0002": "f2717ef4dbeb6fad782b020b95dd11c9fad7503a79fff6e5b87052e31893256f",
+  "INV-2026-0003": "27cb4e921143a685f495c8cf71c42751f8aa70301fdf359ebeca861f131e6897",
+  "R-2026-0001": "819d29bfb065d7554a6bbae376056a12f8efee0d28c3e04160d49e3e3f30f0b2",
+  "R-2026-0002": "86c26f9faf10fbfe56fa656fd4a1f9db4e9b5628a2d2715e5bb1cf3a7584454e",
+  "R-2026-0003": "62f97168d79d07858350afa606757d4cee9cde3f4808add29ca20a79286cd878",
+  "R-2026-0004": "1021ce5a3a4a548a84033cabdb4a0ed90c4d5ab6b9930157dacb4379c5936d31"
+ },
+ "statements": {
+  "1 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "1 2026-02": {
+   "closing": -100.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": [
+    [
+     "February 20, 2026",
+     "deposit",
+     100.0
+    ]
+   ]
+  },
+  "1 2026-03": {
+   "closing": -350.0,
+   "invoices": [],
+   "opening": -100.0,
+   "payments": [
+    [
+     "March 20, 2026",
+     "balance",
+     250.0
+    ]
+   ]
+  },
+  "1 2026-04": {
+   "closing": -350.0,
+   "invoices": [],
+   "opening": -350.0,
+   "payments": [
+    [
+     "April 2, 2026",
+     "refund",
+     -40.0
+    ],
+    [
+     "April 2, 2026",
+     "credit (refund, not owed)",
+     40.0
+    ]
+   ]
+  },
+  "1 2026-05": {
+   "closing": -350.0,
+   "invoices": [],
+   "opening": -350.0,
+   "payments": []
+  },
+  "1 2026-06": {
+   "closing": -350.0,
+   "invoices": [],
+   "opening": -350.0,
+   "payments": []
+  },
+  "1 2026-07": {
+   "closing": -350.0,
+   "invoices": [],
+   "opening": -350.0,
+   "payments": []
+  },
+  "1 2026-08": {
+   "closing": -350.0,
+   "invoices": [],
+   "opening": -350.0,
+   "payments": []
+  },
+  "1 2026-09": {
+   "closing": -350.0,
+   "invoices": [],
+   "opening": -350.0,
+   "payments": []
+  },
+  "1 2026-10": {
+   "closing": -350.0,
+   "invoices": [],
+   "opening": -350.0,
+   "payments": []
+  },
+  "1 2026-11": {
+   "closing": 0.0,
+   "invoices": [
+    [
+     "November 23, 2026",
+     "INV-2026-0001",
+     350.0
+    ]
+   ],
+   "opening": -350.0,
+   "payments": []
+  },
+  "1 2026-12": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "10 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "10 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "10 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "10 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "10 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "10 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "10 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "10 2026-08": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "10 2026-09": {
+   "closing": -100.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": [
+    [
+     "September 5, 2026",
+     "deposit",
+     100.0
+    ]
+   ]
+  },
+  "10 2026-10": {
+   "closing": -318.0,
+   "invoices": [],
+   "opening": -100.0,
+   "payments": [
+    [
+     "October 10, 2026",
+     "balance",
+     218.0
+    ]
+   ]
+  },
+  "10 2026-11": {
+   "closing": 0.0,
+   "invoices": [
+    [
+     "November 23, 2026",
+     "INV-2026-0003",
+     318.0
+    ]
+   ],
+   "opening": -318.0,
+   "payments": []
+  },
+  "10 2026-12": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "11 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "11 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "11 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "11 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "11 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "11 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "11 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "11 2026-08": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "11 2026-09": {
+   "closing": -50.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": [
+    [
+     "September 12, 2026",
+     "deposit",
+     50.0
+    ]
+   ]
+  },
+  "11 2026-10": {
+   "closing": -50.0,
+   "invoices": [],
+   "opening": -50.0,
+   "payments": []
+  },
+  "11 2026-11": {
+   "closing": 0.0,
+   "invoices": [
+    [
+     "November 23, 2026",
+     "Work done",
+     212.0
+    ]
+   ],
+   "opening": -50.0,
+   "payments": [
+    [
+     "November 23, 2026",
+     "written off (not owed)",
+     162.0
+    ]
+   ]
+  },
+  "11 2026-12": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "12 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "12 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "12 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "12 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "12 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "12 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "12 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "12 2026-08": {
+   "closing": -75.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": [
+    [
+     "August 1, 2026",
+     "deposit",
+     75.0
+    ]
+   ]
+  },
+  "12 2026-09": {
+   "closing": -175.0,
+   "invoices": [],
+   "opening": -75.0,
+   "payments": [
+    [
+     "September 1, 2026",
+     "balance",
+     100.0
+    ]
+   ]
+  },
+  "12 2026-10": {
+   "closing": -100.0,
+   "invoices": [],
+   "opening": -175.0,
+   "payments": [
+    [
+     "October 20, 2026",
+     "refund",
+     -75.0
+    ]
+   ]
+  },
+  "12 2026-11": {
+   "closing": 0.0,
+   "invoices": [
+    [
+     "November 23, 2026",
+     "Canceled, deposit kept",
+     100.0
+    ]
+   ],
+   "opening": -100.0,
+   "payments": []
+  },
+  "12 2026-12": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "14 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "14 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "14 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "14 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "14 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "14 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "14 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "14 2026-08": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "14 2026-09": {
+   "closing": -159.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": [
+    [
+     "September 26, 2026",
+     "balance",
+     159.0
+    ]
+   ]
+  },
+  "14 2026-10": {
+   "closing": -159.0,
+   "invoices": [],
+   "opening": -159.0,
+   "payments": []
+  },
+  "14 2026-11": {
+   "closing": 0.0,
+   "invoices": [
+    [
+     "November 23, 2026",
+     "Work done",
+     159.0
+    ]
+   ],
+   "opening": -159.0,
+   "payments": []
+  },
+  "14 2026-12": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "15 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "15 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "15 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "15 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "15 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "15 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "15 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "15 2026-08": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "15 2026-09": {
+   "closing": -159.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": [
+    [
+     "September 26, 2026",
+     "balance",
+     159.0
+    ]
+   ]
+  },
+  "15 2026-10": {
+   "closing": -159.0,
+   "invoices": [],
+   "opening": -159.0,
+   "payments": []
+  },
+  "15 2026-11": {
+   "closing": 0.0,
+   "invoices": [
+    [
+     "November 23, 2026",
+     "Work done",
+     159.0
+    ]
+   ],
+   "opening": -159.0,
+   "payments": []
+  },
+  "15 2026-12": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "16 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "16 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "16 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "16 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "16 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "16 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "16 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "16 2026-08": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "16 2026-09": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "16 2026-10": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "16 2026-11": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "16 2026-12": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "17 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "17 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "17 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "17 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "17 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "17 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "17 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "17 2026-08": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "17 2026-09": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "17 2026-10": {
+   "closing": -159.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": [
+    [
+     "October 24, 2026",
+     "balance",
+     159.0
+    ]
+   ]
+  },
+  "17 2026-11": {
+   "closing": 0.0,
+   "invoices": [
+    [
+     "November 23, 2026",
+     "Work done",
+     159.0
+    ]
+   ],
+   "opening": -159.0,
+   "payments": []
+  },
+  "17 2026-12": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "18 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "18 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "18 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "18 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "18 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "18 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "18 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "18 2026-08": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "18 2026-09": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "18 2026-10": {
+   "closing": -371.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": [
+    [
+     "October 17, 2026",
+     "balance",
+     371.0
+    ]
+   ]
+  },
+  "18 2026-11": {
+   "closing": 54.0,
+   "invoices": [
+    [
+     "November 23, 2026",
+     "Work done",
+     371.0
+    ],
+    [
+     "November 23, 2026",
+     "INV-2026-0006",
+     34.5
+    ],
+    [
+     "November 23, 2026",
+     "INV-2026-0005",
+     34.5
+    ],
+    [
+     "November 23, 2026",
+     "INV-2026-0004",
+     34.5
+    ],
+    [
+     "November 23, 2026",
+     "INV-2026-0007",
+     34.5
+    ]
+   ],
+   "opening": -371.0,
+   "payments": [
+    [
+     "November 3, 2026",
+     "print order",
+     10.0
+    ],
+    [
+     "November 4, 2026",
+     "print order",
+     39.5
+    ],
+    [
+     "November 5, 2026",
+     "print order",
+     34.5
+    ],
+    [
+     "November 6, 2026",
+     "print order",
+     34.5
+    ],
+    [
+     "November 7, 2026",
+     "print refund",
+     -34.5
+    ]
+   ]
+  },
+  "18 2026-12": {
+   "closing": 54.0,
+   "invoices": [],
+   "opening": 54.0,
+   "payments": []
+  },
+  "19 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "19 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "19 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "19 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "19 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "19 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "19 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "19 2026-08": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "19 2026-09": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "19 2026-10": {
+   "closing": -212.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": [
+    [
+     "October 2, 2026",
+     "deposit",
+     100.0
+    ],
+    [
+     "October 31, 2026",
+     "balance",
+     112.0
+    ]
+   ]
+  },
+  "19 2026-11": {
+   "closing": 0.0,
+   "invoices": [
+    [
+     "November 23, 2026",
+     "Work done",
+     212.0
+    ]
+   ],
+   "opening": -212.0,
+   "payments": [
+    [
+     "November 2, 2026",
+     "refund",
+     -30.0
+    ],
+    [
+     "November 2, 2026",
+     "credit (refund, not owed)",
+     30.0
+    ]
+   ]
+  },
+  "19 2026-12": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "2 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "2 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "2 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "2 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "2 2026-05": {
+   "closing": -75.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": [
+    [
+     "May 1, 2026",
+     "deposit",
+     75.0
+    ]
+   ]
+  },
+  "2 2026-06": {
+   "closing": -75.0,
+   "invoices": [],
+   "opening": -75.0,
+   "payments": []
+  },
+  "2 2026-07": {
+   "closing": -75.0,
+   "invoices": [],
+   "opening": -75.0,
+   "payments": []
+  },
+  "2 2026-08": {
+   "closing": -75.0,
+   "invoices": [],
+   "opening": -75.0,
+   "payments": []
+  },
+  "2 2026-09": {
+   "closing": -75.0,
+   "invoices": [],
+   "opening": -75.0,
+   "payments": []
+  },
+  "2 2026-10": {
+   "closing": -75.0,
+   "invoices": [],
+   "opening": -75.0,
+   "payments": []
+  },
+  "2 2026-11": {
+   "closing": -75.0,
+   "invoices": [],
+   "opening": -75.0,
+   "payments": []
+  },
+  "2 2026-12": {
+   "closing": -75.0,
+   "invoices": [],
+   "opening": -75.0,
+   "payments": []
+  },
+  "20 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "20 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "20 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "20 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "20 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "20 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "20 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "20 2026-08": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "20 2026-09": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "20 2026-10": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "20 2026-11": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "20 2026-12": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "21 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "21 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "21 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "21 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "21 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "21 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "21 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "21 2026-08": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "21 2026-09": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "21 2026-10": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "21 2026-11": {
+   "closing": 0.0,
+   "invoices": [
+    [
+     "November 23, 2026",
+     "Work done",
+     212.0
+    ]
+   ],
+   "opening": 0.0,
+   "payments": [
+    [
+     "November 8, 2026",
+     "balance",
+     212.0
+    ]
+   ]
+  },
+  "21 2026-12": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "22 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "22 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "22 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "22 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "22 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "22 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "22 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "22 2026-08": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "22 2026-09": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "22 2026-10": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "22 2026-11": {
+   "closing": -159.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": [
+    [
+     "November 10, 2026",
+     "balance",
+     159.0
+    ]
+   ]
+  },
+  "22 2026-12": {
+   "closing": -159.0,
+   "invoices": [],
+   "opening": -159.0,
+   "payments": []
+  },
+  "23 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "23 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "23 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "23 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "23 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "23 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "23 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "23 2026-08": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "23 2026-09": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "23 2026-10": {
+   "closing": -100.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": [
+    [
+     "October 1, 2026",
+     "deposit",
+     100.0
+    ]
+   ]
+  },
+  "23 2026-11": {
+   "closing": 297.5,
+   "invoices": [
+    [
+     "November 23, 2026",
+     "Work done",
+     397.5
+    ]
+   ],
+   "opening": -100.0,
+   "payments": []
+  },
+  "23 2026-12": {
+   "closing": 297.5,
+   "invoices": [],
+   "opening": 297.5,
+   "payments": []
+  },
+  "24 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "24 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "24 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "24 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "24 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "24 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "24 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "24 2026-08": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "24 2026-09": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "24 2026-10": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "24 2026-11": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "24 2026-12": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "25 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "25 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "25 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "25 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "25 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "25 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "25 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "25 2026-08": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "25 2026-09": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "25 2026-10": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "25 2026-11": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "25 2026-12": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "26 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "26 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "26 2026-03": {
+   "closing": -945.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": [
+    [
+     "March 2, 2026",
+     "deposit",
+     945.0
+    ]
+   ]
+  },
+  "26 2026-04": {
+   "closing": -945.0,
+   "invoices": [],
+   "opening": -945.0,
+   "payments": []
+  },
+  "26 2026-05": {
+   "closing": -945.0,
+   "invoices": [],
+   "opening": -945.0,
+   "payments": []
+  },
+  "26 2026-06": {
+   "closing": -945.0,
+   "invoices": [],
+   "opening": -945.0,
+   "payments": []
+  },
+  "26 2026-07": {
+   "closing": -945.0,
+   "invoices": [],
+   "opening": -945.0,
+   "payments": []
+  },
+  "26 2026-08": {
+   "closing": -945.0,
+   "invoices": [],
+   "opening": -945.0,
+   "payments": []
+  },
+  "26 2026-09": {
+   "closing": -945.0,
+   "invoices": [],
+   "opening": -945.0,
+   "payments": []
+  },
+  "26 2026-10": {
+   "closing": -945.0,
+   "invoices": [],
+   "opening": -945.0,
+   "payments": []
+  },
+  "26 2026-11": {
+   "closing": -945.0,
+   "invoices": [],
+   "opening": -945.0,
+   "payments": []
+  },
+  "26 2026-12": {
+   "closing": -945.0,
+   "invoices": [],
+   "opening": -945.0,
+   "payments": []
+  },
+  "27 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "27 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "27 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "27 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "27 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "27 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "27 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "27 2026-08": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "27 2026-09": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "27 2026-10": {
+   "closing": -47.7,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": [
+    [
+     "October 8, 2026",
+     "balance",
+     47.7
+    ]
+   ]
+  },
+  "27 2026-11": {
+   "closing": 0.0,
+   "invoices": [
+    [
+     "November 23, 2026",
+     "Work done",
+     47.7
+    ]
+   ],
+   "opening": -47.7,
+   "payments": []
+  },
+  "27 2026-12": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "28 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "28 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "28 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "28 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "28 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "28 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "28 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "28 2026-08": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "28 2026-09": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "28 2026-10": {
+   "closing": -47.7,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": [
+    [
+     "October 8, 2026",
+     "balance",
+     47.7
+    ]
+   ]
+  },
+  "28 2026-11": {
+   "closing": 0.0,
+   "invoices": [
+    [
+     "November 23, 2026",
+     "Work done",
+     47.7
+    ]
+   ],
+   "opening": -47.7,
+   "payments": []
+  },
+  "28 2026-12": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "29 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "29 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "29 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "29 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "29 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "29 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "29 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "29 2026-08": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "29 2026-09": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "29 2026-10": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "29 2026-11": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "29 2026-12": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "3 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "3 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "3 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "3 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "3 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "3 2026-06": {
+   "closing": -150.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": [
+    [
+     "June 20, 2026",
+     "balance",
+     150.0
+    ]
+   ]
+  },
+  "3 2026-07": {
+   "closing": -150.0,
+   "invoices": [],
+   "opening": -150.0,
+   "payments": []
+  },
+  "3 2026-08": {
+   "closing": -150.0,
+   "invoices": [],
+   "opening": -150.0,
+   "payments": []
+  },
+  "3 2026-09": {
+   "closing": -150.0,
+   "invoices": [],
+   "opening": -150.0,
+   "payments": []
+  },
+  "3 2026-10": {
+   "closing": -150.0,
+   "invoices": [],
+   "opening": -150.0,
+   "payments": []
+  },
+  "3 2026-11": {
+   "closing": 0.0,
+   "invoices": [
+    [
+     "November 23, 2026",
+     "Work done",
+     150.0
+    ]
+   ],
+   "opening": -150.0,
+   "payments": []
+  },
+  "3 2026-12": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "30 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "30 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "30 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "30 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "30 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "30 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "30 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "30 2026-08": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "30 2026-09": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "30 2026-10": {
+   "closing": -47.7,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": [
+    [
+     "October 8, 2026",
+     "balance",
+     47.7
+    ]
+   ]
+  },
+  "30 2026-11": {
+   "closing": 0.0,
+   "invoices": [
+    [
+     "November 23, 2026",
+     "Work done",
+     47.7
+    ]
+   ],
+   "opening": -47.7,
+   "payments": []
+  },
+  "30 2026-12": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "31 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "31 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "31 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "31 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "31 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "31 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "31 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "31 2026-08": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "31 2026-09": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "31 2026-10": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "31 2026-11": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "31 2026-12": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "32 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "32 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "32 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "32 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "32 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "32 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "32 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "32 2026-08": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "32 2026-09": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "32 2026-10": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "32 2026-11": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "32 2026-12": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "33 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "33 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "33 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "33 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "33 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "33 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "33 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "33 2026-08": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "33 2026-09": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "33 2026-10": {
+   "closing": -47.7,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": [
+    [
+     "October 8, 2026",
+     "balance",
+     47.7
+    ]
+   ]
+  },
+  "33 2026-11": {
+   "closing": 0.0,
+   "invoices": [
+    [
+     "November 23, 2026",
+     "Work done",
+     47.7
+    ]
+   ],
+   "opening": -47.7,
+   "payments": []
+  },
+  "33 2026-12": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "4 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "4 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "4 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "4 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "4 2026-05": {
+   "closing": -60.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": [
+    [
+     "May 16, 2026",
+     "balance",
+     60.0
+    ]
+   ]
+  },
+  "4 2026-06": {
+   "closing": -60.0,
+   "invoices": [],
+   "opening": -60.0,
+   "payments": []
+  },
+  "4 2026-07": {
+   "closing": -60.0,
+   "invoices": [],
+   "opening": -60.0,
+   "payments": []
+  },
+  "4 2026-08": {
+   "closing": -60.0,
+   "invoices": [],
+   "opening": -60.0,
+   "payments": []
+  },
+  "4 2026-09": {
+   "closing": -60.0,
+   "invoices": [],
+   "opening": -60.0,
+   "payments": []
+  },
+  "4 2026-10": {
+   "closing": -60.0,
+   "invoices": [],
+   "opening": -60.0,
+   "payments": []
+  },
+  "4 2026-11": {
+   "closing": -60.0,
+   "invoices": [],
+   "opening": -60.0,
+   "payments": []
+  },
+  "4 2026-12": {
+   "closing": -60.0,
+   "invoices": [],
+   "opening": -60.0,
+   "payments": []
+  },
+  "5 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "5 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "5 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "5 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "5 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "5 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "5 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "5 2026-08": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "5 2026-09": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "5 2026-10": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "5 2026-11": {
+   "closing": 60.0,
+   "invoices": [
+    [
+     "November 23, 2026",
+     "INV-2026-0002",
+     60.0
+    ]
+   ],
+   "opening": 0.0,
+   "payments": []
+  },
+  "5 2026-12": {
+   "closing": 60.0,
+   "invoices": [],
+   "opening": 60.0,
+   "payments": []
+  },
+  "6 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "6 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "6 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "6 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "6 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "6 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "6 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "6 2026-08": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "6 2026-09": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "6 2026-10": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "6 2026-11": {
+   "closing": -175.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": [
+    [
+     "November 9, 2026",
+     "balance",
+     175.0
+    ]
+   ]
+  },
+  "6 2026-12": {
+   "closing": -175.0,
+   "invoices": [],
+   "opening": -175.0,
+   "payments": []
+  },
+  "7 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "7 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "7 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "7 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "7 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "7 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "7 2026-07": {
+   "closing": -100.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": [
+    [
+     "July 1, 2026",
+     "deposit",
+     100.0
+    ]
+   ]
+  },
+  "7 2026-08": {
+   "closing": -100.0,
+   "invoices": [],
+   "opening": -100.0,
+   "payments": []
+  },
+  "7 2026-09": {
+   "closing": -100.0,
+   "invoices": [],
+   "opening": -100.0,
+   "payments": []
+  },
+  "7 2026-10": {
+   "closing": -100.0,
+   "invoices": [],
+   "opening": -100.0,
+   "payments": []
+  },
+  "7 2026-11": {
+   "closing": 200.0,
+   "invoices": [
+    [
+     "November 23, 2026",
+     "Work done",
+     300.0
+    ]
+   ],
+   "opening": -100.0,
+   "payments": []
+  },
+  "7 2026-12": {
+   "closing": 200.0,
+   "invoices": [],
+   "opening": 200.0,
+   "payments": []
+  },
+  "8 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "8 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "8 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "8 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "8 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "8 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "8 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "8 2026-08": {
+   "closing": -150.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": [
+    [
+     "August 15, 2026",
+     "deposit",
+     150.0
+    ]
+   ]
+  },
+  "8 2026-09": {
+   "closing": -400.0,
+   "invoices": [],
+   "opening": -150.0,
+   "payments": [
+    [
+     "September 25, 2026",
+     "balance",
+     250.0
+    ]
+   ]
+  },
+  "8 2026-10": {
+   "closing": -400.0,
+   "invoices": [],
+   "opening": -400.0,
+   "payments": []
+  },
+  "8 2026-11": {
+   "closing": 0.0,
+   "invoices": [
+    [
+     "November 23, 2026",
+     "Work done",
+     400.0
+    ]
+   ],
+   "opening": -400.0,
+   "payments": []
+  },
+  "8 2026-12": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "9 2026-01": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "9 2026-02": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "9 2026-03": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "9 2026-04": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "9 2026-05": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "9 2026-06": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "9 2026-07": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "9 2026-08": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "9 2026-09": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  },
+  "9 2026-10": {
+   "closing": -200.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": [
+    [
+     "October 3, 2026",
+     "balance",
+     200.0
+    ]
+   ]
+  },
+  "9 2026-11": {
+   "closing": 0.0,
+   "invoices": [
+    [
+     "November 23, 2026",
+     "Work done",
+     200.0
+    ]
+   ],
+   "opening": -200.0,
+   "payments": []
+  },
+  "9 2026-12": {
+   "closing": 0.0,
+   "invoices": [],
+   "opening": 0.0,
+   "payments": []
+  }
+ },
+ "storage_keys": [
+  "gallery_host",
+  "gallery_hosts_prev",
+  "primary",
+  "s3_certs",
+  "secondary",
+  "web_certs"
+ ],
+ "studio_files": [
+  [
+   ".htaccess",
+   "98b763d8ea72eff3",
+   "98ffdb0e30a0a6e638a18e154181e33bfb133ff38d4d977485cd988915a2d816"
+  ],
+  [
+   "404.html",
+   "98b763d8ea72eff3",
+   "2639f79c95f88ebcc075ce9d7e9956df97e4b12fd45af2dc19bb08ceae8b6deb"
+  ],
+  [
+   "about/index.html",
+   "98b763d8ea72eff3",
+   "cb2460f87fdef1a4f66696776ee5d642ba2597f34072204cc2a7da0fa57f1909"
+  ],
+  [
+   "apple-touch-icon.png",
+   "98b763d8ea72eff3",
+   "4da5f5ad5c6628babfe33bb000c2fa9b4c4ad57dd11f5d6007d079f60a5277dd"
+  ],
+  [
+   "assets/font.woff2",
+   "98b763d8ea72eff3",
+   "8302275bff43d231134501e23b4193f2fddf8ea76a111b561eda2295852cc438"
+  ],
+  [
+   "assets/inquiry.js",
+   "98b763d8ea72eff3",
+   "7e6099966d451287e6285b7b896b8eefb32ddb742817125c015d3eb6ba5caf90"
+  ],
+  [
+   "assets/logo.png",
+   "98b763d8ea72eff3",
+   "8061134faf7cde404c1a0d395eb4a1f1c21f925b88d5643dca897e7e6423b3b3"
+  ],
+  [
+   "assets/site.css",
+   "98b763d8ea72eff3",
+   "5945c31fd3f684b11dba7ab823cc3ac92ae69f75fc629f445395ff07e8bb8337"
+  ],
+  [
+   "assets/site.js",
+   "98b763d8ea72eff3",
+   "ade3520ade6a3914a9197e57cf4debf3fd5d19fd05fa981fa3be952a736880ef"
+  ],
+  [
+   "contact/index.html",
+   "98b763d8ea72eff3",
+   "dd7ac7220c859cac7a48d64bb948f49f0e829e534643f4bd7831693e80664418"
+  ],
+  [
+   "favicon.ico",
+   "98b763d8ea72eff3",
+   "f03ef2a71bbb46e174e5d0bfcbcad3bee9a4ba1b9688b6a5730394dc35ae4465"
+  ],
+  [
+   "index.html",
+   "98b763d8ea72eff3",
+   "c15a15545f92872b679b10863042fca73c49351b376a071716d7c521dec179e4"
+  ],
+  [
+   "inquiries/.htaccess",
+   "98b763d8ea72eff3",
+   "dbdf47f62a27badc00789cd9369768de4d210117e6b04d534677154701c19435"
+  ],
+  [
+   "inquiries/index.html",
+   "98b763d8ea72eff3",
+   "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  ],
+  [
+   "inquiry.php",
+   "98b763d8ea72eff3",
+   "85b29deb9c3aa17194f3ed4fd7fd5a125c966be6ddd8a99a2c8f280cd5a062b0"
+  ],
+  [
+   "photos/photo-1-2f4397ae.jpg",
+   "98b763d8ea72eff3",
+   "2f4397ae1bb016db32ef706f2a9d256b305fe374a9e9e1c2be8a61384984f574"
+  ],
+  [
+   "robots.txt",
+   "98b763d8ea72eff3",
+   "a9626d9e56aa8cbf33aa3c2fe3d4ae774efdb221dfa5f36350d8b6b64fb8121e"
+  ],
+  [
+   "sealed.php",
+   "98b763d8ea72eff3",
+   "4d2c2db7500ee7f852e6fd9a76ca9c95843707d988c6aa98b8bdf875a32d1ea0"
+  ],
+  [
+   "sitemap.xml",
+   "98b763d8ea72eff3",
+   "613d0c73c537ed1ed3b52efe435cac62062fbf59ebf7808516be665742fb363f"
+  ]
+ ],
+ "studio_inquiries": [
+  [
+   "7aa3089ea6ec88a60e62037077fb1481132563fcadd5853169f1672f79eb72d4",
+   18,
+   16,
+   "added"
+  ],
+  [
+   "b31c636b644aeb9e08ff8d935a5669a4fd05bfbf6e72df2e75b94612623a2460",
+   null,
+   null,
+   "waiting"
+  ]
+ ],
+ "studio_photos": [
+  {
+   "data_sha256": "0b9215232f1d6e0cd699c772e5d8c0a2b363f3c012933ca8e6d8c639e1d67a28",
+   "id": "a0dd1f3b0b414d6e",
+   "name": "river.jpg",
+   "source": "own"
+  }
+ ],
+ "tax_adjustments": [
+  [
+   1,
+   14,
+   "2026-11-23",
+   -4.25,
+   -70.75,
+   "canceled"
+  ]
+ ],
+ "tax_rates": {
+  "1": 0.0,
+  "10": 0.0,
+  "11": 0.0,
+  "12": 6.0,
+  "13": 6.0,
+  "14": 6.0,
+  "16": 6.0,
+  "17": 6.0,
+  "18": null,
+  "19": 6.0,
+  "2": 0.0,
+  "20": 6.0,
+  "21": 6.0,
+  "22": null,
+  "23": 6.0,
+  "24": 6.0,
+  "25": 6.0,
+  "26": null,
+  "27": 6.0,
+  "28": 6.0,
+  "29": 6.0,
+  "3": 0.0,
+  "30": 6.0,
+  "31": 6.0,
+  "32": 6.0,
+  "33": 6.0,
+  "34": 6.0,
+  "35": 6.0,
+  "36": 6.0,
+  "4": null,
+  "6": 0.0,
+  "7": null,
+  "8": 0.0,
+  "9": 0.0
+ },
+ "unreachable": {
+  "gallery_unreachable:9baa72a3b9c43039": "1795492361.0805342"
+ },
+ "upgrade_140": {
+  "finished": "2026-11-24",
+  "local": "done",
+  "quiet": true,
+  "site": "done"
+ },
+ "upload_errors": {
+  "19": "the host dropped the connection"
+ },
+ "web_cert": {
+  "address": "photos.example.com:443",
+  "pins": {
+   "photos.example.com:443": {
+    "at": "2026-11-23 22:52",
+    "cn": "web",
+    "fp": "11:47:4B:61:56:9A:90:5A:CE:89:BB:94:24:F7:FD:D2:B4:61:A8:67:EC:E6:27:DE:7A:2F:B8:80:36:CB:8B:91",
+    "issuer": "web",
+    "names": [
+     "photos.example.com"
+    ],
+    "not_after": "2027-11-24",
+    "not_before": "2026-11-23",
+    "san": true,
+    "self_signed": true,
+    "sha256": "11474b61569a905ace89bb9424f7fdd2b461a867ece627de7a2fb88036cb8b91",
+    "spki": "0083a40a95d6157bb339cf91a6fd0d0ed2ff3f144f381c736d05d734a6c58b0d",
+    "spki_fp": "00:83:A4:0A:95:D6:15:7B:B3:39:CF:91:A6:FD:0D:0E:D2:FF:3F:14:4F:38:1C:73:6D:05:D7:34:A6:C5:8B:0D",
+    "subject": "web"
+   }
+  },
+  "seen": {}
+ },
+ "website": "https://studio.example.com",
+ "wedding": {
+  "agreement": [
+   {
+    "person": "Robin Wynn",
+    "status": "signed"
+   },
+   {
+    "person": "Alex Sato",
+    "status": "signed"
+   }
+  ],
+  "client": 26,
+  "delivery_method": "link",
+  "name": "Wynn and Sato",
+  "people": [
+   [
+    "Robin Wynn",
+    "adult",
+    0
+   ],
+   [
+    "Alex Sato",
+    "adult",
+    0
+   ],
+   [
+    "Ivy Wynn",
+    "child",
+    1
+   ],
+   [
+    "Theo Sato",
+    "child",
+    1
+   ]
+  ],
+  "plan": {
+   "29": 28
+  },
+  "releases": [
+   {
+    "person": "Ivy Wynn",
+    "status": "signed"
+   },
+   {
+    "person": "Theo Sato",
+    "status": "sent"
+   }
+  ],
+  "stages": {
+   "28": "booked",
+   "29": "shot"
+  },
+  "totals": {
+   "28": {
+    "due": 2394.0,
+    "paid": 945.0,
+    "quoted": 3339.0
+   },
+   "29": {
+    "due": 0.0,
+    "paid": 0.0,
+    "quoted": 0.0
+   }
+  }
+ },
+ "write_offs": [
+  [
+   1,
+   13,
+   162.0,
+   "2026-11-23",
+   "waived"
+  ]
+ ],
+ "year": "2026",
+ "year_money": {
+  "by_month": {
+   "2026-02": 100.0,
+   "2026-03": 1195.0,
+   "2026-04": -40.0,
+   "2026-05": 135.0,
+   "2026-06": 150.0,
+   "2026-07": 247.2,
+   "2026-08": 225.0,
+   "2026-09": 818.0,
+   "2026-10": 1415.8,
+   "2026-11": 516.0
+  },
+  "refunds": -145.0,
+  "tax_adjusted": -4.25,
+  "tax_due": 182.94,
+  "tax_rows": [
+   {
+    "amount": 100.0,
+    "day": "2026-02-20",
+    "kind": "deposit",
+    "tax": 0.0,
+    "taxable": 0.0
+   },
+   {
+    "amount": 945.0,
+    "day": "2026-03-02",
+    "kind": "deposit",
+    "tax": 53.49,
+    "taxable": 891.51
+   },
+   {
+    "amount": 250.0,
+    "day": "2026-03-20",
+    "kind": "balance",
+    "tax": 0.0,
+    "taxable": 0.0
+   },
+   {
+    "amount": -40.0,
+    "day": "2026-04-02",
+    "kind": "refund",
+    "tax": 0.0,
+    "taxable": 0.0
+   },
+   {
+    "amount": 75.0,
+    "day": "2026-05-01",
+    "kind": "deposit",
+    "tax": 0.0,
+    "taxable": 0.0
+   },
+   {
+    "amount": 60.0,
+    "day": "2026-05-16",
+    "kind": "balance",
+    "tax": 0.0,
+    "taxable": 0.0
+   },
+   {
+    "amount": 150.0,
+    "day": "2026-06-20",
+    "kind": "balance",
+    "tax": 0.0,
+    "taxable": 0.0
+   },
+   {
+    "amount": 100.0,
+    "day": "2026-07-01",
+    "kind": "deposit",
+    "tax": 0.0,
+    "taxable": 0.0
+   },
+   {
+    "amount": 75.0,
+    "day": "2026-08-01",
+    "kind": "deposit",
+    "tax": 4.25,
+    "taxable": 70.75
+   },
+   {
+    "amount": 150.0,
+    "day": "2026-08-15",
+    "kind": "deposit",
+    "tax": 0.0,
+    "taxable": 0.0
+   },
+   {
+    "amount": 100.0,
+    "day": "2026-09-01",
+    "kind": "balance",
+    "tax": 5.66,
+    "taxable": 94.34
+   },
+   {
+    "amount": 100.0,
+    "day": "2026-09-05",
+    "kind": "deposit",
+    "tax": 5.66,
+    "taxable": 94.34
+   },
+   {
+    "amount": 50.0,
+    "day": "2026-09-12",
+    "kind": "deposit",
+    "tax": 2.83,
+    "taxable": 47.17
+   },
+   {
+    "amount": 250.0,
+    "day": "2026-09-25",
+    "kind": "balance",
+    "tax": 0.0,
+    "taxable": 0.0
+   },
+   {
+    "amount": 159.0,
+    "day": "2026-09-26",
+    "kind": "balance",
+    "tax": 9.0,
+    "taxable": 150.0
+   },
+   {
+    "amount": 159.0,
+    "day": "2026-09-26",
+    "kind": "balance",
+    "tax": 9.0,
+    "taxable": 150.0
+   },
+   {
+    "amount": 100.0,
+    "day": "2026-10-01",
+    "kind": "deposit",
+    "tax": 5.66,
+    "taxable": 94.34
+   },
+   {
+    "amount": 100.0,
+    "day": "2026-10-02",
+    "kind": "deposit",
+    "tax": 5.66,
+    "taxable": 94.34
+   },
+   {
+    "amount": 200.0,
+    "day": "2026-10-03",
+    "kind": "balance",
+    "tax": 0.0,
+    "taxable": 0.0
+   },
+   {
+    "amount": 47.7,
+    "day": "2026-10-08",
+    "kind": "balance",
+    "tax": 2.7,
+    "taxable": 45.0
+   },
+   {
+    "amount": 47.7,
+    "day": "2026-10-08",
+    "kind": "balance",
+    "tax": 2.7,
+    "taxable": 45.0
+   },
+   {
+    "amount": 47.7,
+    "day": "2026-10-08",
+    "kind": "balance",
+    "tax": 2.7,
+    "taxable": 45.0
+   },
+   {
+    "amount": 47.7,
+    "day": "2026-10-08",
+    "kind": "balance",
+    "tax": 2.7,
+    "taxable": 45.0
+   },
+   {
+    "amount": 218.0,
+    "day": "2026-10-10",
+    "kind": "balance",
+    "tax": 12.34,
+    "taxable": 205.66
+   },
+   {
+    "amount": 50.0,
+    "day": "2026-10-10",
+    "kind": "tip",
+    "tax": 0.0,
+    "taxable": 0.0
+   },
+   {
+    "amount": -10.0,
+    "day": "2026-10-12",
+    "kind": "tip",
+    "tax": 0.0,
+    "taxable": 0.0
+   },
+   {
+    "amount": 371.0,
+    "day": "2026-10-17",
+    "kind": "balance",
+    "tax": 21.0,
+    "taxable": 350.0
+   },
+   {
+    "amount": -75.0,
+    "day": "2026-10-20",
+    "kind": "refund",
+    "tax": 0.0,
+    "taxable": 0.0
+   },
+   {
+    "amount": 159.0,
+    "day": "2026-10-24",
+    "kind": "balance",
+    "tax": 9.0,
+    "taxable": 150.0
+   },
+   {
+    "amount": 112.0,
+    "day": "2026-10-31",
+    "kind": "balance",
+    "tax": 6.34,
+    "taxable": 105.66
+   },
+   {
+    "amount": -30.0,
+    "day": "2026-11-02",
+    "kind": "refund",
+    "tax": -1.7,
+    "taxable": -28.3
+   },
+   {
+    "amount": 212.0,
+    "day": "2026-11-08",
+    "kind": "balance",
+    "tax": 12.0,
+    "taxable": 200.0
+   },
+   {
+    "amount": 175.0,
+    "day": "2026-11-09",
+    "kind": "balance",
+    "tax": 0.0,
+    "taxable": 0.0
+   },
+   {
+    "amount": 159.0,
+    "day": "2026-11-10",
+    "kind": "balance",
+    "tax": 9.0,
+    "taxable": 150.0
+   },
+   {
+    "amount": 0.0,
+    "day": "2026-11-23",
+    "kind": "adjustment",
+    "tax": -4.25,
+    "taxable": -70.75
+   },
+   {
+    "amount": 127.2,
+    "day": "2026-07-15",
+    "kind": "balance",
+    "tax": 7.2,
+    "taxable": 0.0
+   },
+   {
+    "amount": 20.0,
+    "day": "2026-07-15",
+    "kind": "tip",
+    "tax": 0.0,
+    "taxable": 0.0
+   }
+  ],
+  "tips": 60.0,
+  "total": 4762.0,
+  "written_off": 162.0
+ },
+ "zip_part": 16384
+}
