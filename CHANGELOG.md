@@ -2,6 +2,59 @@
 
 New features, behavior changes, security fixes, and other fixes in each release.
 
+## 1.6.0 (2026-11-23)
+
+### New
+- Restore a backup in the app, face photos included, even on a new install.
+- Import clients from a spreadsheet, with a preview first.
+- Studio-wide History, with search and filters.
+- Taxes by name: several taxes, on top or included, per fee and session; exempt clients by certificate.
+- Payment plans: up to 4 monthly payments, dated on the agreement, quote and invoice; add or waive the reschedule fee; a canceled deposit kept or turned into credit; call the deposit your own word.
+- Group events: bill the organizer once; record several families paid at once.
+- Sell prints from a proofing gallery; the full-size files stay with you.
+- Deliver sealed photos on an SD card or USB drive.
+- Your inquiry form, or a Book a session button in your studio's colors, on a website made elsewhere (Squarespace, WordPress and the like).
+- Pencil in a lead's date, and subscribe your phone's calendar to your sessions.
+- Replace a lost master key in Settings, Security, after a 48-hour wait any device can cancel.
+- Optional plugins: Equipment with packing lists, and Crew with call sheets.
+
+### Changed
+- Web hosts and backups: pick your provider by name; web host SFTP can use a password; an S3 host asks about gallery codewords.
+- Years close after the next January 31; later corrections go in the open year.
+- Overdue follows your payment terms.
+- Weddings: both partners get drafts, are billed and sign by default.
+- After a studio look change, rebuild earlier galleries in place, links kept.
+- Some settings pages show Unsaved changes with Discard; switches save on tap, with Undo.
+- Faster pages for large studios; one-step photo delete; quicker small uploads.
+- Sessions with nothing to pay say "No charge" and leave money terms out of the agreement.
+- Payment reminders by email or text; more optional phone notices.
+- Changing who pays for a group event leaves who owns the photos as it was.
+- Releases match what each session type licenses; proofs are not the delivered photos; a privacy line under the inquiry form.
+- Demo data includes a wedding couple with an engagement on the same agreement.
+
+### Fixed
+- Galleries: several fixes after a move or reset; cleaning old copies off your web host runs in the background.
+- Couples and families keep the right signer and Bill to; golden hour uses the shoot's place.
+- Chinese, Japanese and Korean names print correctly on every PDF.
+- Photos: several upload and sealing fixes.
+- Agreements: minor status follows the shoot date.
+- Money and group events: several display fixes.
+
+### Security
+- A lost master key's replacement signs out every device; sign-ins say so for 30 days.
+- Restore says when it could not check that a backup came from your app.
+- Sign-in, gallery pages, setup, settings files and error messages: several protections tightened (details in the security guide).
+- A gallery link can save picks from a limited number of devices.
+- The app's image carries fewer system libraries.
+
+### Before you update
+- Plugin authors: a plugin using the regional tax hook must move to tax rules.
+- Phone notices: the new sign-in change notice starts on (Settings, Notifications).
+- New phone notice titles: update any filters (list in the security guide).
+- Behind a reverse proxy? It must replace forwarded headers (operations guide).
+- Custom curl health check? Use `python /app/healthcheck.py` (operations guide).
+- To go back to 1.5.4, restore the backup the app makes at your first 1.6.0 sign-in (Rolling back).
+
 ## 1.5.4 (2026-11-21)
 
 ### New

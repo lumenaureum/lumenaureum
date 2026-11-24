@@ -45,13 +45,6 @@
   custom.addEventListener("input", () => { const r = f.querySelector("input[name=gallery_bg][value=custom]"); if (r) r.checked = true; paint(); });
   f.addEventListener("input", paint);
   f.addEventListener("change", paint);
-  const lf = document.getElementById("gl-logo");
-  if (lf) lf.addEventListener("submit", () => {
-    lf.querySelectorAll("input[data-look]").forEach(i => i.remove());
-    const add = (n, v) => { const i = document.createElement("input"); i.type = "hidden"; i.name = n; i.value = v; i.dataset.look = "1"; lf.append(i); };
-    add("look_posted", "1");
-    new FormData(f).forEach((v, n) => { if (n !== "look_posted") add(n, v); });
-  });
   paint();
 })();
 

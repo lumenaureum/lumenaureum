@@ -7,6 +7,26 @@
 <p class="sui-tip">Client records, settings and backups are encrypted. Signing in unlocks it; after a restart it stays
   locked until you sign in again. Your master key (on paper) opens it if your password is lost.</p>
 
+{% if master_pending %}
+{% call ui.needs('A new master key is waiting', id='master-pending', part=false) %}
+  <p class="ui-needs-line">A new master key takes effect on {{ master_pending.when }}. Until then the current key keeps
+    working. When it takes effect, every device is signed out, this one too. If you didn't ask for it, cancel it.{{ help("Someone with your password and one two-factor or recovery code could ask for a new master key, and every backup after that would be sealed to it. So a new key asked for without the old one waits 48 hours, the app tells your phone when notices are set up, and any signed-in device can cancel it. If you asked for it, keep the new key safe: it takes effect on its own.") }}</p>
+  <div class="ui-btnrow">{{ ui.action(url_for('master_pending_cancel'), 'Cancel the new master key', {}, url_for('security') ~ '#master-key', 'primary', inplace=false, confirm='Cancel the new master key? The current one stays in use.') }}</div>
+{% endcall %}
+{% endif %}
+
+{% if rotate_due %}
+{% call ui.needs('Rotate the data key', id='rotate-due', part=false) %}
+  <p class="ui-needs-line">Your master key was replaced on {{ rotate_due }}. Until the data key is rotated, the old key
+    can still open your data through any earlier backup.{{ help("Replacing the master key re-wraps the same data key to the new one. Every keyring from before, including the one inside each backup, still opens that data key with the old master key. If the old key may have been found or seen, rotate the data key. Backups made before the rotation still open with the old key, holding the data as it was then.") }}</p>
+  <ol id="rotate-steps">
+    <li>Stop Lumen Aureum.</li>
+    <li>Run <span class="mono">docker compose run --rm lumenaureum python -m vault.cli rotate</span> (it asks for your password).</li>
+    <li>Start Lumen Aureum and sign in. This note goes away by itself.</li>
+  </ol>
+{% endcall %}
+{% endif %}
+
 {% call sui.section('Password', id='password') %}
   <form method="post" class="f" autocomplete="off"><input type="hidden" name="act" value="password">
     <div><label class="l" for="pw-current">Current password</label><input type="password" id="pw-current" name="current" autocomplete="current-password" required></div>
@@ -34,13 +54,28 @@
 
 {% call sui.section('Master key', id='master-key', tip="Kept on paper and in your password manager, never by the app. Check now and then that you can still find it.") %}
   <div class="ui-btnrow">{{ ui.button_link(url_for('master_key_check'), 'Check your master key') }}</div>
+  
+  {% call ui.fold('Replace a lost master key', id='new-master', always=true) %}
+  <p>A new master key opens everything here once it takes effect, and your password keeps working. Without the old key,
+    it takes effect 48 hours after you confirm it, until then any signed-in device can cancel it, and when it does,
+    every device is signed out, this one too. It can't open what
+    was sealed with the lost key: sessions and photos already moved into the vault, and earlier backups. If you still
+    have the old key, type it below: the new key takes effect at once and those move to it. Either way, the old key
+    keeps opening those earlier backups, and through them your data today, until you also rotate the data key: the
+    steps show here afterwards.</p>
+  <form method="post" class="f" autocomplete="off"><input type="hidden" name="act" value="newmaster">
+    <div><label class="l" for="cur-newmaster">Current password</label><input type="password" id="cur-newmaster" name="current" autocomplete="current-password" required></div>
+    <div><label class="l" for="code-newmaster">Two-factor code{{ help("The code from your phone's authenticator app, or one of your recovery codes.") }}</label><input id="code-newmaster" name="code" inputmode="numeric" autocomplete="one-time-code" required></div>
+    <div><label class="l" for="old-newmaster">Old master key, if you have it{{ help("Still have the old key? Type it here and everything sealed with it moves to the new key, so nothing stays closed to you. Lost it? Leave this empty. If the old key may have been seen, a new key is not enough on its own: rotate the data key afterwards too.") }}</label><input type="password" id="old-newmaster" name="old_master" placeholder="AGE-SECRET-KEY-1..." autocomplete="off"></div>
+    <div class="sui-save"><button class="ui-btn ui-btn-quiet">Make a new master key</button></div></form>
+  {% endcall %}
 {% endcall %}
 
 {% call sui.section('Signing out', id='devices') %}
   
   <form method="post" action="{{ url_for('settings_view') }}" class="f" id="idle"><input type="hidden" name="idle_posted" value="1"><input type="hidden" name="back" value="{{ url_for('security') }}#idle">
     {{ sui.field('idle_signout_hours', 'Sign out when idle', idle_hours(), type='number', unit='hours', width='90px', help="With no tap and no page opened for this long, the app signs out. A warning comes 2 minutes before, with Stay signed in. What you typed and did not save is kept.", attrs='min="1" max="72"') }}
-    <div class="sui-save"><button class="ui-btn ui-btn-primary">Save</button></div></form>
+    <div class="sui-save"><button class="ui-btn ui-btn-primary">Save the idle time</button></div></form>
   <form method="post" class="ui-form-row" autocomplete="off" style="align-items:end;margin-top:14px"><input type="hidden" name="act" value="others">
     <div><label class="l" for="cur-others">Current password</label><input type="password" id="cur-others" name="current" autocomplete="current-password" required style="width:240px;margin:0"></div>
     <button class="ui-btn ui-btn-quiet">Sign out every other device</button></form>

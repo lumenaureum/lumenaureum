@@ -250,7 +250,9 @@ def test_viewer_takes_the_newer_host_draft(runs):
 def test_viewer_keeps_newer_local_picks_and_saves_them_up(runs):
     r = runs["local_newer"]
     assert r["kept"]["picks"] == {"n:a.jpg": {"r": True, "n": "soften"}}
-    assert [d["u"] for d in r["drafts"]] == ["picks.php?kind=draft"] and r["drafts"][0]["proof"] == 32
+
+    assert len(r["drafts"]) == 1 and re.fullmatch(r"picks\.php\?kind=draft&dev=[0-9a-f]{16}", r["drafts"][0]["u"])
+    assert r["drafts"][0]["proof"] == 32 and r["drafts"][0]["payload"]["d"] == r["drafts"][0]["u"][-16:]
     assert r["drafts"][0]["payload"]["picks"][0]["name"] == "a.jpg"
 
 def test_viewer_keeps_local_picks_when_the_host_fails(runs):

@@ -45,7 +45,8 @@ def test_galleries_accept_an_https_address(env):
              gallery_path=str(g), gallery_base_url="https://photos.example.com/g")
     assert r.status_code == 302, r.data
     from vault import web as VW
-    assert VW.config()["gallery_host"] == {"type": "local", "path": str(g)}
+    host = VW.config()["gallery_host"]
+    assert (host["type"], host["path"]) == ("local", str(g))
     con = A.connect()
     try:
         assert con.execute("SELECT value FROM settings WHERE key='gallery_base_url'").fetchone()[0] == \

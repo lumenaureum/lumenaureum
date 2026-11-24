@@ -257,7 +257,7 @@ def test_other_payment_says_what_and_counts_at_its_value(env):
     assert tuple(_sql(A, "SELECT amount, method, note FROM payments")[0]) == (200, "other", "A cow in trade")
     with A.app.test_request_context():
         assert A.totals(1)["paid"] == 200
-    assert _history(A)[-1] == "Recorded balance $200.00, other: A cow in trade, at that value"
+    assert _history(A)[-1] == "Recorded a $200.00 payment, other: A cow in trade, at that value"
     page = _page(c)
     assert "A cow in trade" in page and 'value="other"' in page and "Other (say what)" in page
 

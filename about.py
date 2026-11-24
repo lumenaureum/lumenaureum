@@ -46,18 +46,104 @@ def whats_new(v=None):
 def _name(req):
     return re.split(r"[<>=!~;\[ ]", req.strip(), maxsplit=1)[0]
 
-NO_LICENSE_FIELD = {"sqlcipher3": "Zlib"}
+SPDX_IDS = {"0BSD", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "CC0-1.0", "GPL-2.0-only", "GPL-2.0-or-later",
+            "GPL-3.0-only", "GPL-3.0-or-later", "HPND", "ISC", "LGPL-2.0-only", "LGPL-2.0-or-later", "LGPL-2.1-only",
+            "LGPL-2.1-or-later", "LGPL-3.0-only", "LGPL-3.0-or-later", "MIT", "MIT-0", "MIT-CMU", "MPL-1.1", "MPL-2.0",
+            "OFL-1.1", "PSF-2.0", "Python-2.0", "Unlicense", "Zlib"}
+
+SPDX_OLD = {"GPL-2.0": "GPL-2.0-only", "GPL-2.0+": "GPL-2.0-or-later", "GPL-3.0": "GPL-3.0-only",
+            "GPL-3.0+": "GPL-3.0-or-later", "LGPL-2.0": "LGPL-2.0-only", "LGPL-2.0+": "LGPL-2.0-or-later",
+            "LGPL-2.1": "LGPL-2.1-only", "LGPL-2.1+": "LGPL-2.1-or-later", "LGPL-3.0": "LGPL-3.0-only",
+            "LGPL-3.0+": "LGPL-3.0-or-later", "Apache 2.0": "Apache-2.0", "Apache License 2.0": "Apache-2.0",
+            "Apache Software License": "Apache-2.0", "MIT License": "MIT", "Zlib License": "Zlib"}
+
+CLASSIFIER_SPDX = {"Apache Software License": "Apache-2.0", "MIT License": "MIT", "ISC License (ISCL)": "ISC",
+                   "Mozilla Public License 2.0 (MPL 2.0)": "MPL-2.0", "zlib/libpng License": "Zlib",
+                   "Python Software Foundation License": "PSF-2.0", "The Unlicense (Unlicense)": "Unlicense",
+                   "GNU Lesser General Public License v2 or later (LGPLv2+)": "LGPL-2.0-or-later",
+                   "GNU Lesser General Public License v3 (LGPLv3)": "LGPL-3.0-only",
+                   "GNU General Public License v2 or later (GPLv2+)": "GPL-2.0-or-later",
+                   "GNU General Public License v3 (GPLv3)": "GPL-3.0-only",
+                   "Historical Permission Notice and Disclaimer (HPND)": "HPND"}
+
+OVERRIDES = {
+    "pyrage": "MIT",
+    "sqlcipher3": "Zlib",
+    "pyphen": "GPL-2.0-or-later OR LGPL-2.1-or-later OR MPL-1.1",
+    "python-dateutil": "Apache-2.0 AND BSD-3-Clause",
+
+    "cssselect2": "BSD-3-Clause", "itsdangerous": "BSD-3-Clause", "jinja2": "BSD-3-Clause", "pydyf": "BSD-3-Clause",
+    "segno": "BSD-3-Clause", "tinycss2": "BSD-3-Clause", "weasyprint": "BSD-3-Clause", "webencodings": "BSD-3-Clause",
+
+    "paramiko": "LGPL-2.1-or-later",
+}
+
+WRONG_METADATA = {"paramiko"}
+NOT_NAMED = "license not stated"
+
+def _key(name):
+    return re.sub(r"[-_.]+", "-", (name or "").lower())
+
+def spdx(expr):
+
+    expr = (expr or "").strip()
+    if not expr or "\n" in expr or len(expr) > 120:
+        return ""
+    expr = SPDX_OLD.get(expr, expr)
+    out = []
+    for tok in re.findall(r"\(|\)|[^\s()]+", expr):
+        if tok in ("(", ")", "AND", "OR", "WITH"):
+            out.append(tok)
+            continue
+        tok = SPDX_OLD.get(tok, tok)
+        if tok not in SPDX_IDS:
+            return ""
+        out.append(tok)
+    if not out or out[0] in ("AND", "OR", "WITH") or out[-1] in ("AND", "OR", "WITH"):
+        return ""
+    return " ".join(out).replace("( ", "(").replace(" )", ")")
+
+def license_of(metadata):
+
+    m = metadata
+    if _key(m.get("Name")) in WRONG_METADATA:
+        return spdx(OVERRIDES[_key(m.get("Name"))])
+    for got in (spdx(m.get("License-Expression")), spdx(m.get("License"))):
+        if got:
+            return got
+    cls = [c.split(" :: ")[-1].strip() for c in (m.get_all("Classifier") or []) if c.startswith("License ::")]
+    ids = [CLASSIFIER_SPDX.get(c, "") for c in cls]
+    if ids and all(ids) and _key(m.get("Name")) not in OVERRIDES:
+        return " OR ".join(dict.fromkeys(ids))
+    return spdx(OVERRIDES.get(_key(m.get("Name")), ""))
 
 def _license(dist):
-    m = dist.metadata
-    lic = m.get("License-Expression") or ""
-    if not lic:
-        cls = [c.split(" :: ")[-1] for c in (m.get_all("Classifier") or []) if c.startswith("License ::")]
-        lic = " / ".join(c.replace(" License", "") for c in cls) or (m.get("License") or "")
-    lic = lic.replace("GNU Lesser General Public License v2 or later (LGPLv2+)", "LGPL-2.0+")
-    lic = {"Apache Software": "Apache-2.0", "MIT License": "MIT", "BSD License": "BSD", "BSD": "BSD"}.get(lic, lic)
-    lic = lic or NO_LICENSE_FIELD.get(m["Name"].lower(), "")
-    return lic if len(lic) <= 40 else lic.split("\n")[0][:40]
+    return license_of(dist.metadata) or NOT_NAMED
+
+def lock_names(path=None):
+
+    try:
+        text = Path(path or ROOT / "requirements.lock").read_text()
+    except OSError:
+        return []
+    return re.findall(r"(?m)^([A-Za-z0-9][A-Za-z0-9_.\-]*)==", text)
+
+def license_problems(names=None):
+
+    probs = []
+    for n in names if names is not None else lock_names():
+        try:
+            d = md.distribution(n)
+        except md.PackageNotFoundError:
+            probs.append(f"{n}: not installed here, so its license cannot be read")
+            continue
+        if not license_of(d.metadata):
+            m = d.metadata
+            seen = m.get("License-Expression") or (m.get("License") or "").split("\n")[0][:60] or ", ".join(
+                c.split(" :: ")[-1] for c in (m.get_all("Classifier") or []) if c.startswith("License ::")) or "nothing"
+            probs.append(f"{n} {d.version}: license not named cleanly (metadata says: {seen}); read its LICENSE file "
+                         "and add the SPDX id to OVERRIDES in about.py")
+    return probs
 
 def components():
 

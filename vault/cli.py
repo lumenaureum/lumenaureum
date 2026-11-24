@@ -37,6 +37,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import datakey
 import db as D
 
+UNCHECKED = ("Not checked: this machine has no record of this {what}, so it can't tell it from a file someone else "
+             "sealed to your master key (that takes only its public half). Use it only if it came from your own vault "
+             "folder, and check its date and contents before you rely on it.")
 DB = os.environ.get("CRM_DB", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "crm.db"))
 
 def _unlock():
@@ -88,7 +91,8 @@ def main(argv):
             print("No install here: copy or mount the vault folder and add --from <folder>."); return 2
         if backend is not None:
             expected = None
-            print("No record of this backup on this machine to compare with: check its date and contents before you use it.")
+        if not expected:
+            print(UNCHECKED.format(what="backup"))
         BK.restore(argv[1], secret, argv[2], backend=backend, settings_only=settings_only, expected_sha=expected)
         if settings_only:
             print("restored", os.path.join(argv[2], "settings.json"), "- import it in Settings (Import settings)")
@@ -114,6 +118,7 @@ def main(argv):
             print(f"{len(found)} archive(s) not in this database.")
             return 0
         if len(args) == 3:
+            print(UNCHECKED.format(what="archive"))
             m = S.open_orphan(args[1], secret, backend, args[2])
             print(f"opened {m['label']} into {args[2]}")
             return 0
@@ -202,7 +207,7 @@ def main(argv):
 
             base = Path(argv[1]).resolve()
             label = P.clean_name(str(m.get("label") or f"session {m.get('session')}"))
-            kind = m.get("kind") if m.get("kind") in P.KINDS else "other"
+            kind = m.get("kind") if m.get("kind") in P.KINDS or m.get("kind") in P.OTHER_KINDS else "other"
             out = (base / label / kind / P.clean_name(str(m.get("name") or kp.stem))).resolve()
             if base not in out.parents:
                 print(f"skipped {kp.name}: unsafe path")
@@ -239,12 +244,25 @@ def main(argv):
         con = D.connect(DB)
         try:
             n = K.replace_master(con, old, pub)
+
+            con.execute("INSERT INTO settings (key, value) VALUES ('rotate_due', date('now')) "
+                        "ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+
+            waiting = con.execute("DELETE FROM settings WHERE key='master_pending'").rowcount
+            con.commit()
         finally:
             con.close()
         datakey.replace_master(pub)
         print("\nYour NEW master key (shown once; save it in your password manager and print it):\n\n  " + secret + "\n")
+        if waiting:
+            print("A new master key that was waiting to take effect in the app is canceled.")
         print(f"{n} sealed session key(s) moved to it. Backups made BEFORE now still need the OLD key until they age")
         print("out of the vault (30 days); keep the old key until then, then destroy it.")
+        print("\nThe data key is the same one, and every earlier backup holds it wrapped to the OLD key. If the old key")
+        print("may have been seen, rotate the data key now, so it no longer opens your data today:")
+        print("  1. Stop Lumen Aureum.")
+        print("  2. python -m vault.cli rotate   (asks for your password)")
+        print("  3. Start Lumen Aureum and sign in.")
         return 0
     if cmd == "rewrap-password" and len(argv) in (1, 2):
         path = argv[1] if len(argv) == 2 else None

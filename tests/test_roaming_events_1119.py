@@ -108,7 +108,7 @@ def test_signing_date_comes_before_its_button(env):
     assert "0 of 2 families signed" in page and "0 of 1 signed" in page
     c.post("/event/1/releases", data={}, environ_base=E)
     page = _page(c, "/event/1")
-    assert "2 of 2 families signed" in page and ">Signed<" in page and "Mark every release signed" not in page
+    assert "2 of 2 families signed" in page and ">1 of 1 signed<" in page and "Mark every release signed" not in page
 
 def test_an_event_move_says_what_it_did_or_why_not(env):
     A, c = env

@@ -78,6 +78,7 @@
     } finally { busy--; flying.delete(tag); }
   }
   const notes = new Set();
+  const SMALL = 8 << 20;                 // one upload piece (photostore.PIECE): sent in one request
   const RAW_EXT = /\.(3fr|ari|arw|bay|braw|cr2|cr3|crw|dcr|dng|erf|fff|iiq|k25|kdc|mef|mos|mrw|nef|nrw|orf|ori|pef|raf|raw|rw2|rwl|sr2|srf|srw|x3f)$/i;
   async function take(zone, list) {
     let ok = 0;
@@ -85,9 +86,16 @@
     if (zone.dataset.kind === 'raw' && odd.length && !confirm((odd.length === list.length ? (list.length === 1 ? 'This doesn\'t' : 'These don\'t')
         : odd.length + ' of these don\'t') + ' look like RAW files (' + odd.slice(0, 3).map(f => f.name).join(', ') + (odd.length > 3 ? ', ...' : '')
         + '). Edited photos go in Edited exports, which the gallery is built from. Upload them as RAWs anyway?')) return;
-    if (list.length > 1) say('Uploading ' + list.length + ' files, one at a time');
-    for (const f of list) if (await send(zone, f)) ok++;
-    const added = ok + (ok === 1 ? ' file added' : ' files added');      // one file at a time: steady on a home network
+    if (list.length > 1) say('Uploading ' + list.length + ' files');
+    const pool = new Set();
+    const run = f => { const p = send(zone, f).then(r => { if (r) ok++; pool.delete(p); }); pool.add(p); return p; };
+    for (const f of list) {
+      if (f.size > SMALL) { await Promise.all([...pool]); await run(f); continue; }
+      if (pool.size >= 3) await Promise.race([...pool]);
+      run(f);
+    }
+    await Promise.all([...pool]);
+    const added = ok + (ok === 1 ? ' file added' : ' files added');
     if (ok) say(added);
     if (ok && !busy) {
       if (document.activeElement && zone.contains(document.activeElement)) document.activeElement.blur();
@@ -215,7 +223,26 @@
     if (n_) n_.textContent = left.length ? left.length + (left.length === 1 ? ' file, ' : ' files, ') + size(left.reduce((a, t) => a + (+t.dataset.size || 0), 0)) + ', sealed' : 'none now';
     note(j.message);
     scrollTo({ top: y, behavior: 'instant' });
+    document.dispatchEvent(new Event('photos-picked'));     // a ticked one deleted on its own: the count follows
   }, true);
+})();
+
+(() => {
+  const sync = () => document.querySelectorAll('[data-photo-picked]').forEach(row => {
+    const f = row.querySelector('form'); if (!f || !f.id) return;
+    const n = document.querySelectorAll('input[type=checkbox][name=pick][form="' + f.id + '"]:checked').length;
+    if (row.hidden !== !n) row.hidden = !n;
+    const b = f.querySelector('button'), nf = f.querySelector('input[name=n]');
+    const label = 'Delete the ' + (n === 1 ? 'selected file' : n + ' selected');
+    if (b && b.textContent !== label) b.textContent = label;     // only a real change: the observer below sees writes
+    if (nf && nf.value !== String(n)) nf.value = String(n);
+    f.dataset.confirm = 'Delete the ' + (n === 1 ? 'selected file' : n + ' selected files')
+      + '? They are removed from the app and its backup copy. This cannot be undone.';
+  });
+  document.addEventListener('change', e => { if (e.target.matches && e.target.matches('input[name=pick]')) sync(); });
+  document.addEventListener('photos-picked', sync);
+  new MutationObserver(() => sync()).observe(document.documentElement, { childList: true, subtree: true });
+  sync();
 })();
 
 document.addEventListener('error', e => {

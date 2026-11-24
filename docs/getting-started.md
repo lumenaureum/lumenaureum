@@ -14,7 +14,8 @@ they are marked **Decide carefully**.
 - **Somewhere for backups**: a second disk, a share on another machine, or an SFTP or S3 account. Setup checks it.
 - **For online galleries (optional)**: a web hosting plan. Lumen Aureum uploads only encrypted gallery files to it,
   over SFTP, to an S3-compatible bucket, or to a folder a web server on your network serves. Galleries stay online
-  when your computer is off. Give galleries a folder of their own on your web host, such as `/g/`; an address of
+  when your computer is off. Give galleries a folder of their own on your web host, such as `/g/` (Setup fills that in from
+  the host you type, and warns if galleries are set at the top of a website); an address of
   their own (`photos.example.com`, say) works too, but isn't needed (see [Security](security.md)). A folder on this machine must also be mounted into the container: see
   [Folders outside the container](where-it-runs.md#folders-outside-the-container). A host that runs PHP also lets galleries expire on time and send the client's picks back
   by themselves. With a folder on your own network, the web server must be able to write in it (run it as the app's
@@ -57,14 +58,22 @@ The key is checked in memory and forgotten; only the date of the check is kept. 
   is linked from your client galleries. On a web host that runs PHP, the client's
   picks come back to the app by themselves. On any other host, the client's picks arrive by email at this address: paste
   the email on the client page with "Paste their picks email" (on the Gallery block) and the app records them.
-- **Time zone**, and your home ZIP code (or latitude and longitude), used for sunset and golden hour times.
+- **Time zone**, and your home ZIP code (or latitude and longitude), used for sunset and golden hour times. A session whose
+  place names a US state and ZIP (Moab, UT 84532) gets that place's times, in its local time; any other shoot says
+  the times are for home.
 
 **Decide carefully: time zone.** Every due date, shoot time and deadline is stored in it.
 
 ### 3. Backups
-- **Backups**: a folder on this machine or a mounted share, an SFTP server, or an S3-compatible bucket. This is the
-  vault: sealed backups and photo archives go here, encrypted. Use a different disk from the app's data.
-- **Second copy, in another place** (optional): it receives a copy once a day.
+- **Backups**: a folder on this machine or a mounted share (the usual choice), a drive you plug in, your NAS, cloud
+  storage (Backblaze B2, Cloudflare R2, Wasabi, Amazon S3, or another S3-compatible service), or another server you
+  sign in to over SFTP. This is the vault: sealed backups and photo archives go here, encrypted. Use a different disk
+  from the app's data.
+- **Second copy, in another place** (optional): it receives a copy once a day. Plug in a drive, choose your NAS, or
+  pick cloud storage.
+- Choosing a provider by name fills in what is certain about it and says, in two lines, where its control panel shows
+  the rest. Port, sign-in key file, region, folder prefix and bucket addressing wait under **Advanced**; the app tries
+  both ways of addressing a bucket itself and keeps the one your storage answers.
 - **Daily backup time.**
 - **Test and continue** tests each location (write, read, delete) before it is accepted; nothing is saved unless it
   works. It is the one test: there is no separate test button.
@@ -97,12 +106,35 @@ Deposit to hold a date, deposit for events (a percent of the price), when the ba
 the session, on delivery, or after an invoice), payment methods, reschedule fee, how long a quote is good for, and
 travel and mileage. The payment terms name the business checks are made out to (your business name from step 2).
 These answers apply to every session type they cover, weddings included. A type's own deposit
-(Settings, What you shoot) is used only once you change it on that type's page.
+(Settings, What you shoot) is used only once you change it on that type's page. Once setup is done, this page
+also lets you call the deposit something else, such as retainer or booking fee: quotes, agreements, invoices and
+your pages then use your word.
+A type's page can also split the balance after the deposit into installments: equal payments, one a month on the
+booking's day of the month, the last on the day the balance is due (spread evenly when there are fewer months than payments).
+The dates are kept once the session is booked: moving the shoot date later does not move them unless you set them again
+on the plan. A reschedule fee, if you add one, goes on the last payment.
+A plan has at most 4 payments; a plan set before that limit keeps its schedule. The agreement, the quote and the invoice
+list the dated amounts under the balance. One session can have its own plan: **Pay in installments** on its Billing.
 Changes apply to new quotes; a quote already sent keeps the terms it was sent with.
+The app counts an amount as overdue only once its own due date under these terms has passed: the deposit's,
+each installment's, or the balance's. After the shoot and before the balance is due, the balance reads "due".
 
-### 6. Sales tax (optional)
-None, or one rate for every client. Tax is counted when payments are received. With print orders on (Settings,
-Plugins): whether to charge tax on prints and on shipping (your decision with your accountant).
+### 6. Taxes (optional)
+No taxes, or a list of them. Each tax has a name as your invoices show it (Sales tax, VAT, GST), a rate, and how it is
+charged: **Added on top of the price** (its own line on the quote and invoice) or **Included in the price** (no line;
+the quote and invoice say "Includes" with its name and amount). **Applies to every session** is ticked to start with;
+untick it for a tax that applies only to the sessions you switch it on for. Tax is counted when payments are received.
+With print orders on (Settings, Plugins) and at least one tax: whether to charge tax on prints and on shipping (your
+decision with your accountant). After setup this page is Settings, Taxes.
+
+- **Per fee.** The price list (Settings, Prices) has a tick for each fee, one column per tax when you have several:
+  untick a tax a fee does not carry.
+- **Per session.** On an open quote, **Discount, portfolio, tax** on Billing lists each tax with a switch, and
+  **Tax exempt, certificate on file** for that session only.
+- **Per client.** **Tax exempt** in the client's Details, with an optional exemption certificate number: their quotes
+  carry no tax on every session not yet booked.
+- Once the client says yes, the session keeps each tax as it was: its name, rate, and whether it applied. Changing a
+  rate, or a client's exemption, later changes open quotes only.
 
 ### 7. Documents (optional)
 Who owns the photos once paid, for each session type: **Client** (the copyright transfers once the balance is paid)
@@ -126,10 +158,14 @@ The agreement, release and other documents that come with Lumen Aureum are examp
 Signed documents keep the wording they were signed with.
 
 ### 8. Online galleries (optional)
-The web host (web hosting over SFTP, an S3 bucket with a public web address, or a folder a web server on this
-machine serves) and its public web address. **Test and continue** uploads a small test file to confirm it works;
+**Where are your galleries hosted?** DreamHost, SiteGround or Bluehost (what is certain about each is filled in,
+and two lines say where its control panel shows the rest), a web server at home (a folder a web server on this
+machine serves), or something else: another web host's login (SFTP), or cloud storage with a public web address.
+Then **Where your galleries live online**: the folder's public web address. The port and a mounted key file wait
+under **Advanced**. **Test and continue** uploads a small test file to confirm it works;
 for an SFTP host the app hasn't connected to before, it first shows the server's key fingerprint and a **Trust this
-server** box, as on the Backups step. Then how long a gallery stays up after
+server** box, as on the Backups step. An SFTP host signs in with the app's own key, or with a password if the host
+has no way to add a key (Online galleries then offers **Switch to the app's own key**). Then how long a gallery stays up after
 the client first opens it, and when a gallery nobody opens comes down. One extension can be given from the gallery's
 closing line on the client page. In its last week (or the last quarter of a shorter window), a gallery on a host that runs PHP opens with a notice, on every
 visit, that it is about to sunset: the date it closes and your email (and Download all, for a download gallery). Once a gallery comes down, its link says the gallery has gone dark
@@ -226,7 +262,10 @@ actions and History. A (?) beside a word opens a short explanation of it. A sess
 - **Quoted.** Sending the quote moves the session to Quoted. Five days later with no reply logged, Today offers
   **Follow up**. When they say yes, press **Book it**. **Do not book** closes the inquiry and asks why: They
   went elsewhere, Not a fit for me, No answer, or Other (with a few words). The reason is kept in History, and it can
-  be undone. On a booked session, **Cancel the booking** asks for a reason the same way.
+  be undone. On a booked session, **Cancel the booking** asks for a reason the same way, and, when a deposit was paid,
+  whether to keep it (the Terms) or hold it as a credit toward a future session. The credit shows on that client's
+  next session, with **Use $100.00 of the credit**: a payment there and money moved out of the canceled session, both
+  dated the day it is used. Until it is used it counts as the kept deposit.
 - **Booked.** The booked quote is read-only, its discount included. **Replace the quote** (under Details and history) cancels it,
   keeps it in History and starts a new one: a deposit already paid counts toward the new quote, a signed agreement
   stays on file and the new quote needs a fresh signature, and the session stays Booked with "New quote waiting for
@@ -234,6 +273,8 @@ actions and History. A (?) beside a word opens a short explanation of it. A sess
   until then the row is yours: **Send the agreement**, **Send the deposit invoice**. **Send the session sheet** gives
   the client the when, where and what to bring. A missing date, start time or place is its own row, with **Set date, time
   and place**; later, tap the date at the top to change it. The session's length comes from the quote.
+- **Rescheduled.** A booked date that moves counts as a reschedule. The type's free reschedule asks nothing. After
+  that, Billing asks once per reschedule: **Add the $50.00 fee** (a line on the balance, taxed like any other, never discounted) or **Waive it**.
 - **Business clients** (a company name, or a business session type) get a PO number for the invoice and license terms
   with the quote. **Business client** on Edit client details changes it either way.
 - **Shoot day.** Once the start time has passed, **Shoot done** moves the session to Shot. If something from before the
@@ -260,7 +301,9 @@ Doing a later step settles the earlier ones it covers, and a step whose fact is 
    preview, JPEG, PNG and GIF files as themselves, anything else as a file icon with its name); tap one to see it large,
    fitted to the window, with previous and next. **+ N more from this upload** opens the rest one at a time.
    **Find a file** shows only the files whose name matches what you type. The x on a thumbnail deletes that file in
-   place, after asking. Thumbnails stay inside the app; to browse the whole set the client's way, preview the gallery.
+   place, after asking. Tick the box on any thumbnails for **Delete the N selected**; **Delete this upload** deletes the
+   whole latest upload, and **Delete the N files that match** every file Find a file matched. Each asks first, and
+   History gets one line for the lot. Thumbnails stay inside the app; to browse the whole set the client's way, preview the gallery.
 4. Drop the finished JPEGs onto the **Upload edited photos** row (this also closes Cull and Upload edited photos), then **Build gallery** in the
    Gallery block. Nothing is left readable on the NAS.
 5. After delivery, the photos are sealed into the vault and deleted when their time is up (Photo storage shows when).
@@ -279,6 +322,9 @@ instead. A signed document keeps the wording it was signed with.
 invoice's number, total, what it is for, what is paid so far and how to pay; a receipt's number and total; a quote's
 total and the day it is good through. A mail link can't attach a file, and the draft never says anything is attached:
 download the PDF and attach it, if you like. **Text it** sends the same first line.
+
+Names written in Chinese, Japanese or Korean print on every PDF. The font that draws them (Droid Sans Fallback) has
+one weight, so where a document prints a name in bold, those characters print at regular weight.
 
 ## Galleries: proofing or delivery
 Client galleries are for session types with a Gallery step: portraits, seniors, families, weddings, sports,
@@ -345,7 +391,11 @@ for picks sent anyway (an earlier host that can't be reached is tried once a day
 
 Every earlier host is kept, each with what may still be online there, until its copies are down: changing hosts twice
 before moving keeps both. Turning galleries off in Online galleries moves nothing and takes nothing down; turning them on
-again with the same host carries on where things were. Deleting a session or client takes its gallery down from every
+again with the same host carries on where things were. A folder on this machine (or a mounted share) is the same host
+wherever it is mounted: the app keeps its own id in the folder's marker file, so after a mount path changes, or a backup
+of it is restored into another folder, type the new path in Online galleries and nothing needs moving. If that folder is a copy and the original is still
+there, Setup says so. Old gallery folders on the web host in use (any kind) that no gallery owns any more (left by an earlier
+move) are looked for once after the update and listed on Move galleries, to remove or keep; nothing is removed unless you ask. Deleting a session or client takes its gallery down from every
 host that holds a copy; one that can't be reached then is listed on Move galleries (and on Today) and comes down at a
 later check, or with Take the old copies down. If an earlier host is gone for good (the account closed), use **This
 host is gone for good: forget it** there: History names any gallery that may still be online on it. Changing your
@@ -354,8 +404,26 @@ time zone in Settings moves the closing instant of every gallery online at the n
 ## Print orders
 Print orders are off until you turn them on in **Settings, Plugins**. Then clients can order prints from their
 download gallery on a host that runs PHP: in Settings, Print prices, check the sample price list and your shipping,
-press Save, then turn prints on. Turning print orders off later keeps everything recorded (and print money stays in
-Finances). See [Print orders](print-orders.md).
+press Save, then turn prints on. To sell prints without giving the files away, a proofing gallery can offer prints
+from its proofs (**Offer prints from these proofs** in its Gallery block): the full-size files stay on your computer.
+Turning print orders off later keeps everything recorded (and print money stays in Finances). See
+[Print orders](print-orders.md).
+
+## Equipment and Crew (optional)
+Two more parts are off until you turn them on in **Settings, Plugins**. Turning one off again hides it and keeps
+everything recorded.
+
+- **Equipment and packing lists.** Equipment, in the top bar, lists what your studio owns (serial numbers, prices,
+  receipts). A session type's page gets a **Packing list**; booked sessions of that type show it in The shoot, to tick
+  off on the shoot day.
+- **Crew and call sheets.** A booked session shows a **Crew** fold in The shoot. **Add someone new to the crew** (a
+  name, and if you like a role, phone, email and call time) puts them on the session and on **Your crew list**; anyone
+  on the list is added with **Add to this session**. **Pay** with their first name adds what you paid them as an
+  ordinary expense on that session, and nothing more: there is no payroll. **Show the call sheet** opens one page for
+  the crew, to print or download as a PDF: the date and start, the places, each person's call time, role and contact,
+  a wedding's timeline, and your **Notes for the crew**. The client's phone and email are on it only when you tick
+  **Put the client's phone and email on the call sheet** for that session. The app never sends the call sheet: you
+  print it or share the PDF. The crew list is kept in the encrypted database and its backups, not in the settings file.
 
 ## Getting paid
 Every amount says what it is for and shows cents. Nothing is owed until you send the invoice: until then the row is
@@ -375,6 +443,20 @@ In Finances, **Year summary for your accountant** makes a one-page PDF: your bus
 (cash: money received), income by kind, refunds, sales tax collected, expenses, miles driven, and balances waived.
 **Details (CSV)** gives the CSV files.
 
+### Closing a year
+The money year is the calendar year. Last year stays open through January 31, so a check that arrived in late December
+can still be dated in December. In January, Finances says "2026 is open through January 31." with **Close 2026** beside
+it, for closing it sooner once everything is in (it asks first, and can't be undone). On February 1 the year closes on
+its own. From January 25, Today reminds you to enter last year's money first.
+
+Nothing more can be dated in a closed year, and its payments and expenses can't be voided, restored or removed, so its
+figures stay as they are. Instead:
+- **Correct**, on the payment's or expense's row, asks what the amount should have been and why, and records the
+  difference as a new entry in the open year, naming the one it corrects. Finances lists these under **Corrections to
+  closed years**, and the CSV files have a "correction of" column.
+- **Add a late expense**, on the closed year's Finances, is for an expense found after the year closed: it is recorded
+  today, in the open year, marked as from the closed one.
+
 ## Clients and the calendar
 Clients is a table for finding someone: **Name**, **Phone**, **Email**, **Where they stand** (such as "Booked · shoot
 Sun Apr 18"), **Owes** (invoiced and not paid yet, in red once overdue) and **To invoice** (a balance whose invoice
@@ -390,6 +472,21 @@ document, a gallery or an email.
 On the month calendar, tap a day to see its shoots and steps, under the month on a phone and beside it
 on a wider screen. A crowded day shows the first few and
 "+ 3 more".
+
+### Your sessions on your phone's calendar (optional)
+Settings, Calendar link, **Turn on the calendar link** makes a private link your phone's calendar app can subscribe
+to (on an iPhone, Add Subscribed Calendar, among the calendar accounts in the phone's Settings; on Android, an app
+that subscribes to calendar links, such as ICSx5). **Subscribe on this device** does it in one tap where the phone offers it. Each
+session shows as its type, day, start time and length, and nothing else: never a name, a place or a note. A
+penciled date shows as tentative. It is off until you turn it on.
+
+The phone reaches the link only where it can reach the studio itself: on your home network, or a private network you
+set up for it (Tailscale, for example). Away from both, the phone keeps what it last had and catches up when it is
+back. Calendar services that fetch links from their own servers, such as Google Calendar on the web, can't reach it.
+The phone must trust the studio's certificate (a certificate for a name you own, or the studio's own, installed on the
+phone). After a restart the link answers again once you sign in. **Make a new link** stops the old one at once (if it
+got out, or a phone was lost); **Turn off the calendar link** stops it altogether. See
+[security.md](security.md#the-calendar-link).
 
 ## Your studio page (optional)
 A small public website for your studio, posted to your web host in the folder above your galleries: a few photos

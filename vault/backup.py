@@ -51,7 +51,7 @@ def _sealed_backup(db_path, faces_dir, kind, keep):
             if faces_dir and os.path.isdir(faces_dir):
                 ft = os.path.join(tmpd, "faces.tar")
                 with tarfile.open(ft, "w") as tf:
-                    tf.add(faces_dir, arcname="faces")
+                    S.add_tree(tf, faces_dir, "faces", skip_bad=True)
                 names.append(S.seal_file(con, ft, bks, kind={"db": "faces", "manual": "manual-faces", "upgrade": "upgrade-faces"}.get(kind, kind), prefix="db"))
         finally:
             shutil.rmtree(tmpd, ignore_errors=True)

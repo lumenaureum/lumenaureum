@@ -166,5 +166,5 @@ def test_back_office_forms_name_every_field(tmp_path, monkeypatch):
     for n in ("business_name", "photographer_name", "business_email", "business_address", "timezone", "title",
               "shoot_date", "start_time", "duration_min", "stops", "notes", "event_id", "subject_age", "received",
               "referred_by", "contact_gender", "subject_gender", "gender", "channel", "kind", "method", "gallery_font",
-              "gallery_bg", "proof_mark", "bal_family", "rights_family", "tax_mode", "delivery_method"):
+              "gallery_bg", "proof_mark", "bal_family", "rights_family", "new_tax_rate", "delivery_method"):
         assert n in names, n

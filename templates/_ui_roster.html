@@ -1,5 +1,5 @@
 
-{% import "_ui.html" as ui with context %}{% from "_macros.html" import avatar with context %}
+{% import "_ui.html" as ui with context %}{% from "_macros.html" import avatar, ROW_FACE with context %}
 
 {% macro roster(id, cols, rows, sort, desc, term, url, placeholder='Filter this list', empty='Nothing matches.', add_url='', all_url='', add_name='') -%}
 <div class="ui-roster-wrap" data-ui-roster="{{ id }}">
@@ -17,7 +17,7 @@
       <tr data-ui-href="{{ url_for('client_stage', hid=r.hid) }}" data-r-find="{{ r.find }}"{% if r.text %} data-r-text="{{ r.text }}" data-r-why="{{ (r.why_src or [])|tojson|forceescape }}"{% endif %}{% for k_, v_ in r.sort.items() %} data-r-{{ k_ }}="{{ v_ }}"{% endfor %}>
         {%- for k_, h_ in cols %}
         <td class="ui-roster-{{ k_ }}">
-          {%- if k_ == 'name' %}<span class="ui-roster-who"><span aria-hidden="true">{{ avatar(r.hid, 28) }}</span><a class="ui-roster-name" href="{{ url_for('client_stage', hid=r.hid) }}">{{ r.name }}</a></span><div class="ui-mute ui-roster-why" data-r-whyline{% if not r.why %} hidden{% endif %} style="font-size:12px">{{ (r.why or [])|join(' · ') }}</div>
+          {%- if k_ == 'name' %}<span class="ui-roster-who"><span aria-hidden="true">{{ avatar(r.hid, ROW_FACE) }}</span><a class="ui-roster-name" href="{{ url_for('client_stage', hid=r.hid) }}">{{ r.name }}</a></span><div class="ui-mute ui-roster-why" data-r-whyline{% if not r.why %} hidden{% endif %} style="font-size:12px">{{ (r.why or [])|join(' · ') }}</div>
           {%- elif k_ == 'phone' %}{% if r.phone %}<a href="tel:{{ r.phone|replace(' ', '')|replace('-', '')|replace('(', '')|replace(')', '')|replace('.', '') }}">{{ r.phone }}</a>{% endif %}
           {%- elif k_ == 'email' %}{% if r.email %}<a href="mailto:{{ r.email }}">{{ r.email }}</a>{% endif %}
           {%- elif k_ == 'owed' %}{% if r.late and r.owes %}<span class="ui-late" data-tip="Overdue">{{ r.owes }}</span>{% else %}{{ r.owes }}{% endif %}

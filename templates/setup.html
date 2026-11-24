@@ -1,4 +1,4 @@
-{% extends "_bare.html" if embed else ("base.html" if complete else "auth_base.html") %}{% from "_macros.html" import help with context %}{% import "_settings_ui.html" as sui with context %}{% block title %}Setup - Lumen Aureum{% endblock %}{% block body %}
+{% extends "_bare.html" if embed else ("base.html" if complete else "auth_base.html") %}{% from "_macros.html" import help with context %}{% import "_settings_ui.html" as sui with context %}{% import "_ui.html" as ui with context %}{% block title %}Setup - Lumen Aureum{% endblock %}{% block body %}
 <style>.auth { max-width: 720px; } .steps { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 10px 0 4px; font-size: 12px; }
 .stepper { list-style: none; display: flex; padding: 6px 0 0; margin: 14px 0 18px; counter-reset: st; }
 .stepper li { flex: 1; position: relative; text-align: center; font-size: 11px; color: var(--mute); padding: 0 3px; min-width: 0; }
@@ -43,7 +43,7 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
 {%- set scard_ = complete and step == 'storage' and primary_saved and replace_ not in ('primary', 'secondary') -%}
 {%- set gcard_ = complete and step == 'galleries' and gallery_saved and replace_ != 'gallery' -%}
 {%- set here_url_ = embed.split('#')[0] if embed else url_for('setup_step', step=step) -%}
-{%- macro replace_url(which) %}{{ here_url_ }}{{ '&' if '?' in here_url_ else '?' }}replace={{ which }}#{{ 'where' if embed else 'f' }}{% endmacro -%}
+{%- macro replace_url(which, kind='') %}{{ here_url_ }}{{ '&' if '?' in here_url_ else '?' }}replace={{ which }}{{ '&kind=' ~ kind if kind }}#{{ 'where' if embed else 'f' }}{% endmacro -%}
 <form method="post" action="{{ url_for('setup_step', step=step, replace=replace_ or None) }}" class="{{ 'f' if embed else 'card f' }}" id="f" data-test-url="{{ url_for('setup_test', which='W') }}">
 {% if embed %}<input type="hidden" name="back" value="{{ embed }}">{% endif %}
 <button class="vh" tabindex="-1" aria-hidden="true" data-enter-default>Next</button>
@@ -58,14 +58,26 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
     <input type="hidden" name="{{ p }}host_key" value="{{ tr_.host_key if tr_ else '' }}">
     <label class="choice trustbox" data-trust="{{ p[:-1] }}"{% if not tr_ %} hidden{% endif %}><input type="checkbox" name="{{ p }}trust" value="1"{{ ' checked' if tr_ and tr_.ticked }}><span>Trust this server: its key fingerprint is <b class="fp">{{ tr_.fp if tr_ else '' }}</b></span></label>
     {% if cur.type == 'sftp' and cur.host_key and not tr_ %}<div class="hint">Server key trusted: {{ host_fp(cur.host_key) }}</div>{% endif %}{% endmacro %}
+
+{% macro where_lines(p, keys) %}{% for k_ in keys %}<div class="be hint" data-be="{{ p }}{{ k_ }}">{% for l_ in providers[k_].where %}{{ '<br>'|safe if not loop.first }}{{ l_ }}{% endfor %}</div>{% endfor %}{% endmacro %}
+{% macro opt(v, lab, t_) %}{% set pv_ = providers.get(v, {}) %}<option value="{{ v }}"{{ ' selected' if t_ == v }}{% if pv_.port %} data-port="{{ pv_.port }}"{% endif %}{% if pv_.root is defined %} data-root="{{ pv_.root }}"{% endif %}{% if pv_.root_ph %} data-root-ph="{{ pv_.root_ph }}"{% endif %}{% if pv_.keymode %} data-keymode="{{ pv_.keymode }}"{% endif %}{% if pv_.endpoint_ph %} data-endpoint-ph="{{ pv_.endpoint_ph }}"{% endif %}>{{ lab }}</option>{% endmacro %}
+{% macro cloud_opts(t_) %}<optgroup label="Cloud storage (Backblaze, Wasabi, AWS...)">{% for k_ in clouds %}{{ opt(k_, providers[k_].name, t_) }}{% endfor %}{{ opt('s3', 'Another cloud storage service', t_) }}</optgroup>{% endmacro %}
+
+{% macro advanced(id, what, open_) %}{% set body_ = caller() %}{% call ui.fold('Advanced', id=id, open=open_, always=true, note=what) %}{{ body_ }}{% endcall %}{% endmacro %}
 {% macro s3_fields(p, cur) %}
-  <div class="be" data-be="{{ p }}s3"><div class="two">{{ lf(p ~ 'bucket', 'Bucket name', fv(p ~ 'bucket', cur.bucket if cur.type == 's3')) }}{{ lf(p ~ 'endpoint', 'Endpoint (blank for AWS)', fv(p ~ 'endpoint', cur.endpoint if cur.type == 's3'), 'e.g. https://s3.example.com') }}</div>
+  <div class="be" data-be="{{ p }}s3"><div class="two">{{ lf(p ~ 'bucket', 'Bucket name', fv(p ~ 'bucket', cur.bucket if cur.type == 's3')) }}{{ lf(p ~ 'endpoint', 'Service address (blank for AWS)', fv(p ~ 'endpoint', cur.endpoint if cur.type == 's3'), 'e.g. s3.example.com') }}</div>
     <div class="two">{{ lf(p ~ 'access_key', 'Access key', fv(p ~ 'access_key', cur.access_key if cur.type == 's3')) }}{% set sk_tried_, sk_saved_ = pending and pending.get(p ~ 'secret_key'), cur.secret_key %}{{ lf(p ~ 'secret_key', 'Secret key · kept from your last try' if sk_tried_ else ('Secret key · saved' if sk_saved_ else 'Secret key'), '', 'Leave blank to keep the key from your last try' if sk_tried_ else ('Leave blank to keep the saved key' if sk_saved_ else ''), type='password', extra=' autocomplete="off"') }}</div>
-    <div class="two">{{ lf(p ~ 'region', 'Region (optional)', fv(p ~ 'region', cur.region if cur.type == 's3')) }}{{ lf(p ~ 's3prefix', 'Folder prefix (optional)', fv(p ~ 's3prefix', cur.prefix if cur.type == 's3')) }}</div>
+    {% set rg_, px_ = fv(p ~ 'region', cur.region if cur.type == 's3'), fv(p ~ 's3prefix', cur.prefix if cur.type == 's3') %}
     {% set ad_ = fv(p ~ 'addressing', cur.addressing if cur.type == 's3') or 'auto' %}
-    <label class="l" for="f-{{ p }}addressing">Bucket address{{ help("How the bucket's name goes into each request. Automatic works for AWS and almost every other service. Change it only if your storage's instructions ask for one or the other.") }}</label>
+    {% call advanced('adv-' ~ p ~ 's3', 'region, folder, bucket address', rg_ or px_ or ad_ != 'auto') %}
+    <div class="two">{{ lf(p ~ 'region', 'Region (optional)', rg_) }}{{ lf(p ~ 's3prefix', 'Folder prefix (optional)', px_) }}</div>
+    <label class="l" for="f-{{ p }}addressing">Bucket address{{ help("How the bucket's name goes into each request. On Automatic the app tries both ways itself and keeps the one your storage answers. Change it only if your storage's instructions ask for one or the other.") }}</label>
     <select id="f-{{ p }}addressing" name="{{ p }}addressing" style="width:auto">{% for v_, w_ in [('auto', 'Automatic'), ('path', 'After the address (path style)'), ('virtual', 'In the server name (virtual host)')] %}<option value="{{ v_ }}"{{ ' selected' if ad_ == v_ }}>{{ w_ }}</option>{% endfor %}</select>
+    {% endcall %}
     {% if ((fv(p ~ 'endpoint', cur.endpoint if cur.type == 's3') or '')|lower).startswith('http://') %}<div class="hint" style="color:var(--amber, #b07a12)">Plain http://: allowed only for storage on your own network.{{ help("Your backups are encrypted before they leave, but the requests cross your network unencrypted. Use https:// if your storage offers it.") }}</div>{% endif %}</div>{% endmacro %}
+
+{% macro app_key(p, where) %}<div data-show-if="{{ p }}keymode=app" class="hint">{{ where }}{{ help("On a server you manage yourself, it is one line in that user's ~/.ssh/authorized_keys file. The app's own key is kept encrypted with your data.") }}
+      <div class="mono" id="pub_{{ p }}" style="font-size:11px;margin:4px 0">{{ app_pub }}</div><button type="button" class="quiet tbtn" data-copy="#pub_{{ p }}">Copy</button></div>{% endmacro %}
 
 {% macro s3cert_panel(rows, msg) %}{% if rows %}<div id="s3cert" style="margin-top:10px">
     <label class="l">The S3 storage's certificate{{ help("The app connects to S3 storage over https://. A certificate from a public authority is trusted as it is. A self-signed certificate, or one from your own authority (a NAS on your home network, say), is trusted once you confirm it here, and from then on only that certificate's key is accepted at that address, in a certificate that names it.") }}</label>
@@ -106,9 +118,11 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
       <label class="l" for="f-business_phone">Business phone</label><input type="tel" id="f-business_phone" name="business_phone" maxlength="40" value="{{ fv('business_phone', get('business_phone')) }}"></div>
     <div><label class="l" for="f-business_address">Mailing address</label><textarea id="f-business_address" name="business_address" rows="2" maxlength="400">{{ fv('business_address', get('business_address')) }}</textarea></div></div>
   {% elif not embed %}<div class="hint">Your names, email, phone and address are on <a class="ui-go" href="{{ url_for('settings_view', tab='profile') }}">Profile</a>.</div>{% endif %}
-  <label class="l" for="f-timezone">Time zone <b class="hardtag">hard to change later</b>{{ help(("Filled in from this device's time zone: change it if your business keeps a different one. " if not tz_saved else "") ~ "Every date and deadline is stored in this time zone. Changing it later moves due dates and the sunset times already worked out.") }}</label>
+  
+  {% if embed and not tz_saved %}<p class="hint" id="f-timezone">Time zone: not set yet. <a class="ui-go" href="#tz">Set your time zone</a></p>
+  {% else %}  <label class="l" for="f-timezone">Time zone <b class="hardtag">hard to change later</b>{{ help(("Filled in from this device's time zone: change it if your business keeps a different one. " if not tz_saved else "") ~ "Every date and deadline is stored in this time zone. Changing it later moves due dates and the sunset times already worked out.") }}</label>
   {% set tz_ = fv('timezone', tz) %}<select name="timezone" id="f-timezone" required{% if tz_saved or request.method == 'POST' %} data-keep="1"{% endif %}><option value="">Pick one</option>{% for z in zones %}<option{{ ' selected' if z == tz_ }}>{{ z }}</option>{% endfor %}</select>
-  <input type="hidden" name="browser_tz" value="">
+  <input type="hidden" name="browser_tz" value="">{% endif %}
   <label class="l" for="f-home_zip">Home ZIP code{{ help("Where you work from. Sunset times are for this place, and the free travel distance in your terms is counted from here.") }}</label><input id="f-home_zip" name="home_zip" value="{{ fv('home_zip', get('home_zip')) }}" inputmode="numeric" maxlength="5" style="width:120px">
   <div class="hint">Or latitude and longitude:</div>
   <div class="two two-keep"><input name="home_lat" placeholder="Latitude, e.g. 39.83" value="{{ fv('home_lat', get('home_lat') if not get('home_zip')) }}"><input name="home_lon" placeholder="Longitude, e.g. -98.58" value="{{ fv('home_lon', get('home_lon') if not get('home_zip')) }}"></div>
@@ -116,21 +130,31 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
 {% elif step == 'storage' %}
   {% macro backend(p, cur, label, optional=False, hard='') %}
   <label class="l" for="f-{{ p }}type">{{ label }}{% if hard %} <b class="hardtag">hard to change later</b>{{ help(hard) }}{% endif %}</label>
-  {% set t_ = fv(p ~ 'type', cur.get('type', '' if optional else 'local')) %}
+  
+  {% set kind_ = request.args.get('kind', '') if not cur.get('type') and request.args.get('kind', '') in backup_places + clouds + ('local', 'sftp', 's3') else '' %}
+  {% set t_ = fv(p ~ 'type', (provider_of(cur) or cur.type) if cur.get('type') else (kind_ or ('' if optional else 'local'))) %}
   <select id="f-{{ p }}type" name="{{ p }}type" data-be-select="{{ p }}">{% if optional %}<option value="">None</option>{% endif %}
-    {% for v, lab in [('local', 'A folder on this machine or a mounted share'), ('sftp', 'SFTP server'), ('s3', 'S3-compatible storage')] %}<option value="{{ v }}"{{ ' selected' if t_ == v }}>{{ lab }}</option>{% endfor %}</select>
+    {% if not optional %}{{ opt('local', 'A folder on this machine or a mounted share', t_) }}{% endif %}
+    {% for k_ in backup_places %}{{ opt(k_, providers[k_].name, t_) }}{% endfor %}
+    {{ cloud_opts(t_) }}
+    {% if optional %}{{ opt('local', 'A folder on this machine or a mounted share', t_) }}{% endif %}
+    {{ opt('sftp', 'Another server you sign in to', t_) }}</select>
+  {{ where_lines(p, backup_places + clouds) }}
   <div class="be" data-be="{{ p }}local"><input name="{{ p }}path" placeholder="{{ 'e.g. /backup2' if optional else 'e.g. /vault' }}" value="{{ fv(p ~ 'path', cur.path if cur.type == 'local') }}" aria-label="Folder path, as the app sees it">
     {% if vault_mounted and not optional and request.method != 'POST' %}<div class="hint">Filled in: the app's container has a /vault folder mounted for backups.</div>{% endif %}
-    {% if optional %}<div class="hint">A folder outside the app's own folders must be mounted into its container first: see docs/where-it-runs.md, Folders outside the container.</div>{% endif %}
+    {% if optional %}<div class="hint">Type the folder as the app sees it.{{ help("A folder outside the app's own folders, on a drive or a share, must be mounted into the app's container first: see docs/where-it-runs.md, Folders outside the container.") }}</div>{% endif %}
     <label class="choice"><input type="checkbox" name="{{ p }}init" value="1"{{ ' checked' if fc(p ~ 'init', not marked.get(p)) }}><span>New empty folder: set it up</span></label></div>
   <div class="be" data-be="{{ p }}sftp"><div class="two">{{ lf(p ~ 'host', 'Host', fv(p ~ 'host', cur.host if cur.type == 'sftp'), 'e.g. sftp.example.com') }}{{ lf(p ~ 'user', 'User name on the server', fv(p ~ 'user', cur.user if cur.type == 'sftp')) }}</div>
-    <div class="two">{{ lf(p ~ 'root', 'Folder on the server', fv(p ~ 'root', cur.root if cur.type == 'sftp'), 'e.g. backups') }}{{ lf(p ~ 'port', 'Port (blank for 22)', fv(p ~ 'port', cur.port if cur.type == 'sftp' and cur.port), '', extra=' inputmode="numeric"') }}</div>
-    <label class="l" id="f-{{ p }}keymode">Sign-in key{{ help("Key sign-in only, no passwords. The app's own key is kept encrypted with your data; you only paste its public line on the server once.") }}</label>
+    {{ lf(p ~ 'root', 'Folder on the server', fv(p ~ 'root', cur.root if cur.type == 'sftp'), 'e.g. backups') }}
     {% set km_ = fv(p ~ 'keymode', 'file' if cur.type == 'sftp' and cur.key_file else 'app') %}
+    {{ app_key(p, "Add the app's key to that user on the server:") }}
+    {% set pt_ = fv(p ~ 'port', cur.port if cur.type == 'sftp' and cur.port) %}
+    {% call advanced('adv-' ~ p ~ 'sftp', 'port, sign-in key', pt_ or km_ == 'file') %}
+    {{ lf(p ~ 'port', 'Port (blank for 22)', pt_, '', extra=' inputmode="numeric"') }}
+    <label class="l" id="f-{{ p }}keymode">Sign-in key{{ help("Key sign-in only, no passwords. The app's own key is kept encrypted with your data; you only paste its public line on the server once.") }}</label>
     <span class="seg" role="radiogroup" aria-labelledby="f-{{ p }}keymode"><label><input type="radio" name="{{ p }}keymode" value="app"{{ ' checked' if km_ == 'app' }}><span>The app's own key</span></label><label><input type="radio" name="{{ p }}keymode" value="file"{{ ' checked' if km_ == 'file' }}><span>A key file I mounted</span></label></span>
-    <div data-show-if="{{ p }}keymode=app" class="hint">On the server, add this line to <b>~/.ssh/authorized_keys</b> of that user:
-      <div class="mono" id="pub_{{ p }}" style="font-size:11px;margin:4px 0">{{ app_pub }}</div><button type="button" class="quiet tbtn" data-copy="#pub_{{ p }}">Copy</button></div>
     <div data-show-if="{{ p }}keymode=file">{{ lf(p ~ 'key_file', 'Private key file inside the container', fv(p ~ 'key_file', cur.key_file if cur.type == 'sftp'), 'e.g. /keys/id_ed25519') }}</div>
+    {% endcall %}
     {{ trustbox(p, cur) }}</div>
   {{ s3_fields(p, cur) }}
   {% endmacro %}
@@ -139,7 +163,10 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
                          replace_href=replace_url('primary'), plain_http=conn_plain_http(primary_saved), in_form=true) }}
   {% if secondary_saved %}{{ sui.connection_card('Second copy', 'f-secondary_type', conn_rows(secondary_saved), conn_status().get('secondary'), test_url=url_for('setup_conn_test', which='secondary'),
                          replace_href=replace_url('secondary'), remove=dict(label='Remove', name='remove', value='secondary'), plain_http=conn_plain_http(secondary_saved), in_form=true) }}
-  {% else %}<p class="hint" id="f-secondary_type">No second copy yet. <a class="ui-go" href="{{ replace_url('secondary') }}">Add a second copy &rsaquo;</a></p>{% endif %}
+  {% else %}
+  <p class="hint" id="f-secondary_type">No second copy yet. <a class="ui-go" href="{{ replace_url('secondary', 'local.drive') }}">Plug in a drive &rsaquo;</a>
+    <a class="ui-go" href="{{ replace_url('secondary', 'sftp.nas') }}">Choose your NAS &rsaquo;</a>
+    <a class="ui-go" href="{{ replace_url('secondary') }}">Something else &rsaquo;</a></p>{% endif %}
   {% else %}
   {% if replace_ %}<input type="hidden" name="only" value="{{ replace_ }}">
   <div class="sui-replace-head"><b>{{ 'Replace where backups go' if replace_ == 'primary' else ('Replace the second copy' if secondary_saved else 'Add a second copy') }}</b><a class="ui-go" href="{{ embed or url_for('setup_step', step=step) }}">Cancel</a></div>
@@ -158,6 +185,7 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
   <table class="r rs"><tbody>
     <tr><td><label for="f-deposit">Deposit to hold a date</label>{{ help("Asked for when the client books. A session type can have its own deposit, on its page under What you shoot.") }}</td><td><span class="pre">$</span><input type="number" id="f-deposit" name="deposit" min="0" value="{{ fv('deposit', rules.DEPOSIT_AMOUNT) }}"></td></tr>
     <tr><td><label for="f-event_pct">Deposit for {{ (C.setup_pct_types() + ['events'])|join(' and ')|lower if C.setup_pct_types() else 'events' }}</label></td><td><span class="pre"></span><input type="number" id="f-event_pct" name="event_pct" min="0" max="100" value="{{ fv('event_pct', rules.EVENT_DEPOSIT_PCT) }}">% of the price</td></tr>
+    {% if complete %}<tr><td><label for="f-deposit_word">Call the deposit</label>{{ help("The word your quotes, agreements, invoices and pages use for the deposit, such as retainer or booking fee. Leave it empty for deposit.") }}</td><td><span class="pre"></span><input id="f-deposit_word" name="deposit_word" maxlength="30" value="{{ fv('deposit_word', get('deposit_word')) }}" placeholder="deposit"></td></tr>{% endif %}
   </tbody></table>
   <label class="l" id="bal-l">Balance due{{ help("Before the session: due a set number of days ahead. On delivery: photos are released on payment. After (invoice): due a set number of days after the invoice.") }}</label>
   <table class="r rs"><tbody>{% for t, lab in types.items() %}{% set b_ = fv('bal_' ~ t, 'before' if t in rules.BEFORE_TYPES else ('after' if t in rules.NET_TERMS_TYPES else 'delivery')) %}
@@ -188,17 +216,22 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
   </tbody></table>
 
 {% elif step == 'tax' %}
-  {% set mode = fv('tax_mode', get('tax_mode', 'none')) %}
-  <div role="radiogroup" aria-label="Sales tax" id="tax-mode">
-  <label class="choice"><input type="radio" name="tax_mode" value="none"{{ ' checked' if mode == 'none' }}><span>No sales tax</span></label>
-  <label class="choice"><input type="radio" name="tax_mode" value="flat"{{ ' checked' if mode == 'flat' }}><span>One rate for every client</span></label>
-  {% if region %}<label class="choice"><input type="radio" name="tax_mode" value="regional"{{ ' checked' if mode == 'regional' }}><span>{{ region }}</span></label>{% endif %}
-  </div>
   
-  <div class="two" data-show-if="tax_mode=flat|regional"><div><label class="l" for="f-sales_tax_pct">Rate %{{ help("You can change the rate later in Settings. Sessions already taxed keep the rate they were taxed at.") }}</label><input type="number" step="0.001" min="0" id="f-sales_tax_pct" name="sales_tax_pct" value="{{ fv('sales_tax_pct', get('sales_tax_pct')) }}"></div>
-    {% if region %}<div data-show-if="tax_mode=regional"><label class="l" for="f-local_tax_pct">Local rate %</label><input type="number" step="0.001" min="0" id="f-local_tax_pct" name="local_tax_pct" value="{{ fv('local_tax_pct', get('local_tax_pct')) }}"></div>{% endif %}</div>
-  {% if plugin_on('prints') %}<input type="hidden" name="prints_shown" value="1">
-  <div data-show-if="tax_mode=flat|regional"><label class="l">Prints ordered from galleries{{ help("Under a regional rate, a print order is taxed where it ships; one picked up, where the studio is.") }}</label>
+  <input type="hidden" name="taxes_posted" value="1">
+  <div id="taxes">{% for t_ in taxes %}{% set i_ = loop.index0 %}<div><input type="hidden" name="tax_key_{{ i_ }}" value="{{ t_.key }}">
+    <div class="two"><div><label class="l" for="f-tax_name_{{ i_ }}">Name</label><input id="f-tax_name_{{ i_ }}" name="tax_name_{{ i_ }}" maxlength="40" value="{{ fv('tax_name_' ~ i_, t_.name) }}"></div>
+      <div><label class="l" for="f-tax_rate_{{ i_ }}">Rate %{{ help("Sessions already booked or paid keep the rate they were taxed at.") }}</label><input type="number" step="0.001" min="0" max="25" id="f-tax_rate_{{ i_ }}" name="tax_rate_{{ i_ }}" value="{{ fv('tax_rate_' ~ i_, '%g' % t_.rate) }}"></div></div>
+    <label class="l" for="f-tax_how_{{ i_ }}">Charged</label><select id="f-tax_how_{{ i_ }}" name="tax_how_{{ i_ }}">{% set how_ = fv('tax_how_' ~ i_, 'in' if t_.included else 'top') %}<option value="top"{{ ' selected' if how_ != 'in' }}>Added on top of the price</option><option value="in"{{ ' selected' if how_ == 'in' }}>Included in the price</option></select>
+    <div class="checks"><label class="choice"><input type="checkbox" name="tax_default_{{ i_ }}" value="1"{{ ' checked' if fc('tax_default_' ~ i_, t_.default) }}><span>Applies to every session</span></label>{{ help("Off: it applies only to the sessions you switch it on for, on their quote (Discount, portfolio, tax).") }}
+      <label class="choice"><input type="checkbox" name="tax_del_{{ i_ }}" value="1"><span>Remove this tax</span></label></div></div>
+  {% else %}<p class="sub">No taxes: quotes and invoices carry none.</p>{% endfor %}</div>
+  <h2 class="ui-sec-title sui-step-sec" id="add-tax">{{ 'Add a tax' if taxes else 'Add your tax' }}</h2>
+  <div class="two"><div><label class="l" for="f-new_tax_name">Name (optional){{ help("As your invoices should show it: Sales tax, VAT, GST.") }}</label><input id="f-new_tax_name" name="new_tax_name" maxlength="40" placeholder="{{ 'Sales tax' if not taxes else '' }}" value="{{ fv('new_tax_name', '') }}"></div>
+    <div><label class="l" for="f-new_tax_rate">Rate %</label><input type="number" step="0.001" min="0" max="25" id="f-new_tax_rate" name="new_tax_rate" value="{{ fv('new_tax_rate', '') }}"></div></div>
+  <label class="l" for="f-new_tax_how">Charged</label><select id="f-new_tax_how" name="new_tax_how"><option value="top">Added on top of the price</option><option value="in"{{ ' selected' if fv('new_tax_how', '') == 'in' }}>Included in the price</option></select>
+  <div class="checks"><label class="choice"><input type="checkbox" name="new_tax_default" value="1"{{ ' checked' if fc('new_tax_default', true) }}><span>Applies to every session</span></label></div>
+  {% if plugin_on('prints') and taxes %}<input type="hidden" name="prints_shown" value="1">
+  <div><label class="l">Prints ordered from galleries{{ help("A print order is charged the taxes added on top that apply to every session.") }}</label>
   <div class="checks"><label class="choice"><input type="checkbox" name="tax_prints" value="1"{{ ' checked' if fc('tax_prints', get('tax_prints', '1') == '1') }}><span>Charge tax on prints</span></label>
     <label class="choice"><input type="checkbox" name="tax_print_shipping" value="1"{{ ' checked' if fc('tax_print_shipping', get('tax_print_shipping', '0') == '1') }}><span>Charge tax on shipping</span></label></div></div>{% endif %}
 
@@ -225,32 +258,56 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
 {% elif step == 'galleries' %}{% import "_ui.html" as ui with context %}
   
   {% if gcard_ %}<input type="hidden" name="keep_host" value="1">
-  {{ sui.connection_card('Web host', 'f-gallery_type', conn_rows(gallery_saved) + [('Web address', get('gallery_base_url'))], conn_status().get('gallery'),
-                         test_url=url_for('setup_conn_test', which='gallery'), replace_href=replace_url('gallery'), plain_http=conn_plain_http(gallery_saved), in_form=true) }}
+  {{ sui.connection_card('Web host', 'f-gallery_type', conn_rows(gallery_saved, true) + [('Where your galleries live online', get('gallery_base_url'))], conn_status().get('gallery'),
+                         test_url=url_for('setup_conn_test', which='gallery'), replace_href=replace_url('gallery'), plain_http=conn_plain_http(gallery_saved), in_form=true,
+                         warn=gallery_only_here(get('gallery_base_url'))) }}
+  
+  {% if gallery_saved.get('type') == 'sftp' and gallery_saved.get('auth') == 'password' %}<div id="app-key-offer" class="sui-cw">
+  <p class="sui-hint">Signs in with a password. The app's own key is safer.{{ help("The app's own key is kept encrypted with your data and never leaves this computer; only its public line goes on the web host. If your web host's panel has no page for keys, the public line goes as one line in .ssh/authorized_keys in your home folder on the server.") }}</p>
+  <ol class="sui-steps"><li>Copy the app's key: <span class="mono" id="pub_switch">{{ app_pub }}</span> <button type="button" class="ui-btn ui-btn-quiet" data-copy="#pub_switch">Copy</button></li>
+    <li>Add it in your web host's control panel, often under SSH Access or SSH Keys, and authorize it if asked.</li>
+    <li>Press Switch to the app's own key. The password stays in use until the key works.</li></ol>
+  <div class="ui-btnrow"><button type="submit" class="ui-btn ui-btn-quiet" formaction="{{ url_for('setup_gallery_app_key') }}" formnovalidate>Switch to the app's own key</button></div></div>{% endif %}
+  {% if no_cw_check and gallery_saved.get('type') == 's3' %}{{ sui.no_cw_check(no_cw_check, 'formaction="' ~ url_for('setup_codewords_off') ~ '" formnovalidate', cw_confirm, choose_href=replace_url('gallery')) }}{% endif %}
   {% else %}
   <p style="font-size:13px;margin:0 0 10px">Clients see, pick and download their photos in online galleries. Each gallery is built here, sealed so only someone
   with the client's link can open it, and copied to your web host. Enter the details your web host gave you{{ '.' if replace_ else ', or choose No online galleries for now.' }}</p>
   {% if replace_ %}<div class="sui-replace-head"><b>Replace the web host</b><a class="ui-go" href="{{ url_for('setup_step', step=step) }}">Cancel</a></div>
   <p class="hint">The web host in use now stays in use until the new one passes its test.</p>{% endif %}
-  {% set p = 'gallery_' %}{% set cur = {'type': gallery.get('type', '')} if replace_ and request.method != 'POST' else gallery %}{% set gt_ = fv('gallery_type', cur.get('type', '')) %}
-  <label class="l" for="f-gallery_type">Web host: where your galleries, client links and studio page are published</label>
+  {% set p = 'gallery_' %}{% set cur = {'type': gallery.get('type', '')} if replace_ and request.method != 'POST' else gallery %}
+  
+  {% set gt_ = fv('gallery_type', (provider_of(cur) or cur.type) if cur.get('type') else '') %}
+  <label class="l" for="f-gallery_type">Where are your galleries hosted?{{ help("Your web host is where your galleries, client links and studio page are published.") }}</label>
   <select id="f-gallery_type" name="gallery_type" data-be-select="gallery_">{% if not replace_ %}<option value="">No online galleries for now</option>{% endif %}
-    {% for v, lab in [('sftp', 'Web hosting over SFTP'), ('s3', 'S3-compatible storage with a public web address'), ('local', 'A folder a web server here serves')] %}<option value="{{ v }}"{{ ' selected' if gt_ == v }}>{{ lab }}</option>{% endfor %}</select>
-  <div class="be" data-be="gallery_local"><div class="hint">The web server must run as this app's user (or share its group with write permission): it records the client's first visit and saves their picks in each gallery's folder. Without that, galleries still open, but stay up a year instead of their window. The folder must also be mounted into the app's container (for example - /srv/www/galleries:/galleries in compose.yaml, then type /galleries here): see docs/where-it-runs.md, Folders outside the container.</div><input name="gallery_path" placeholder="e.g. /galleries" aria-label="Gallery folder path, as the app sees it" value="{{ fv('gallery_path', cur.path if cur.type == 'local') }}">
+    {% for k_ in gallery_hosts %}{{ opt(k_, providers[k_].name, gt_) }}{% endfor %}
+    {{ opt('local', 'A web server at home', gt_) }}
+    <optgroup label="Something else">{{ opt('sftp', "Another web host: your web host's login", gt_) }}{{ opt('s3', 'Cloud storage (Backblaze, Wasabi, AWS...)', gt_) }}</optgroup></select>
+  {{ where_lines('gallery_', gallery_hosts) }}
+  <div class="be" data-be="gallery_local"><div class="hint">Your galleries are served from this computer, so it must stay on for clients to open them.{{ help("The web server must serve a folder this app writes to, and run as this app's user (or share its group with write permission): it records the client's first visit and saves their picks in each gallery's folder. Without that, galleries still open, but stay up a year instead of their window. The folder must also be mounted into the app's container (for example - /srv/www/galleries:/galleries in compose.yaml, then type /galleries here): see docs/where-it-runs.md, Folders outside the container.") }}</div><input name="gallery_path" placeholder="e.g. /galleries" aria-label="Gallery folder path, as the app sees it" value="{{ fv('gallery_path', cur.path if cur.type == 'local') }}">
     <label class="choice"><input type="checkbox" name="gallery_init" value="1"{{ ' checked' if fc('gallery_init', not gallery_marked) }}><span>New empty folder: set it up</span></label></div>
   <div class="be" data-be="gallery_sftp"><div class="two">{{ lf('gallery_host', 'Host', fv('gallery_host', cur.host if cur.type == 'sftp'), 'e.g. example.com') }}{{ lf('gallery_user', 'User name on the server', fv('gallery_user', cur.user if cur.type == 'sftp')) }}</div>
-    <div class="two">{{ lf('gallery_root', 'Web folder on the server', fv('gallery_root', cur.root if cur.type == 'sftp'), 'e.g. example.com/g') }}{{ lf('gallery_port', 'Port (blank for 22)', fv('gallery_port', cur.port if cur.type == 'sftp' and cur.port), '', extra=' inputmode="numeric"') }}</div>
-    <label class="l" id="f-{{ p }}keymode">Sign-in key{{ help("Key sign-in only, no passwords. The app's own key is kept encrypted with your data; you only paste its public line on the server once.") }}</label>
-    {% set km_ = fv(p ~ 'keymode', 'file' if cur.type == 'sftp' and cur.key_file else 'app') %}
-    <span class="seg" role="radiogroup" aria-labelledby="f-{{ p }}keymode"><label><input type="radio" name="{{ p }}keymode" value="app"{{ ' checked' if km_ == 'app' }}><span>The app's own key</span></label><label><input type="radio" name="{{ p }}keymode" value="file"{{ ' checked' if km_ == 'file' }}><span>A key file I mounted</span></label></span>
-    <div data-show-if="{{ p }}keymode=app" class="hint">On the server, add this line to <b>~/.ssh/authorized_keys</b> of that user:
-      <div class="mono" id="pub_{{ p }}" style="font-size:11px;margin:4px 0">{{ app_pub }}</div><button type="button" class="quiet tbtn" data-copy="#pub_{{ p }}">Copy</button></div>
+    {{ lf('gallery_root', 'Web folder on the server', fv('gallery_root', cur.root if cur.type == 'sftp'), 'e.g. example.com/g') }}
+    <label class="l" id="f-{{ p }}keymode">Sign in with{{ help("A key is the safer choice: the app's own key is kept encrypted with your data, and you paste its public line on the server once. Choose a password only if your web host has no way to add a key. The password is kept encrypted with your data, never shown again, and sent only to the server whose key you trusted.") }}</label>
+    {% set km_ = fv(p ~ 'keymode', 'password' if cur.type == 'sftp' and cur.auth == 'password' else ('file' if cur.type == 'sftp' and cur.key_file else 'app')) %}
+    <span class="seg" role="radiogroup" aria-labelledby="f-{{ p }}keymode"><label><input type="radio" name="{{ p }}keymode" value="app"{{ ' checked' if km_ == 'app' }}><span>The app's own key</span></label><label><input type="radio" name="{{ p }}keymode" value="password"{{ ' checked' if km_ == 'password' }}><span>A password</span></label></span>
+    {{ app_key(p, "Add the app's key in your web host's control panel (often under SSH Access or SSH Keys):") }}
+    <div data-show-if="{{ p }}keymode=password">{% set pw_tried_, pw_saved_ = pending and pending.get(p ~ 'password'), cur.type == 'sftp' and cur.auth == 'password' and cur.password %}{{ lf(p ~ 'password', 'Password · kept from your last try' if pw_tried_ else ('Password · saved' if pw_saved_ else 'Password'), '', 'Leave blank to keep the password from your last try' if pw_tried_ else ('Leave blank to keep the saved password' if pw_saved_ else ''), type='password', extra=' autocomplete="off" maxlength="1000"') }}</div>
+    {% set pt_ = fv('gallery_port', cur.port if cur.type == 'sftp' and cur.port) %}
+    {% call advanced('adv-gallery_sftp', 'port, key file', pt_ or km_ == 'file') %}
+    {{ lf('gallery_port', 'Port (blank for 22)', pt_, '', extra=' inputmode="numeric"') }}
+    <span class="seg" role="radiogroup" aria-labelledby="f-{{ p }}keymode"><label><input type="radio" name="{{ p }}keymode" value="file"{{ ' checked' if km_ == 'file' }}><span>A key file I mounted</span></label></span>
     <div data-show-if="{{ p }}keymode=file">{{ lf(p ~ 'key_file', 'Private key file inside the container', fv(p ~ 'key_file', cur.key_file if cur.type == 'sftp'), 'e.g. /keys/id_ed25519') }}</div>
+    {% endcall %}
     {{ trustbox(p, cur) }}</div>
   {{ s3_fields(p, cur) }}
+  <div class="be" data-be="gallery_s3"><div class="hint">A static website: Lumen Aureum takes each gallery down on its last day, and clients send their picks by email. Galleries with a codeword, print orders and the inquiry form need a web host that runs PHP.{{ help("Every photo is sealed in this app before it goes up, so the bucket only ever holds files nobody can open without the client's link. What a static website can't do is run the small scripts that ask for the key before handing out a file, close a gallery on its own, or take picks, orders and inquiries back. A codeword is only safe behind those scripts: without them, someone holding the link could try codewords as fast as their computer allows, so a gallery with a codeword is refused here, with the reason on its client page.") }}</div>
+    {% if no_cw_check %}{{ sui.no_cw_check(no_cw_check, 'name="s3_codewords_off" value="1"', cw_confirm, choose_pick='gallery_type=sftp') }}{% endif %}</div>
   <div class="be" data-be="gallery_any">
-    <label class="l" for="f-gallery_base_url">Web address of that folder <b class="hardtag">hard to change later</b>{{ help("It must start with https://, so the web server needs a certificate. It is printed in every QR letter you mail. Letters already sent keep pointing at the old address.") }}</label><input id="f-gallery_base_url" name="gallery_base_url" placeholder="e.g. https://example.com/g/" value="{{ fv('gallery_base_url', '' if replace_ and request.method != 'POST' else get('gallery_base_url')) }}"></div>
+    <label class="l" for="f-gallery_base_url">Where your galleries live online <b class="hardtag">hard to change later</b>{{ help("The web address of that folder. It must start with https://, so the web server needs a certificate. It is printed in every QR letter you mail. Letters already sent keep pointing at the old address.") }}</label><input id="f-gallery_base_url" name="gallery_base_url" placeholder="e.g. https://example.com/g/" value="{{ fv('gallery_base_url', '' if replace_ and request.method != 'POST' else get('gallery_base_url')) }}">
+    
+    <div class="hint" id="site-top" style="color:var(--amber, #b07a12)" data-names="{{ site_top.names|join(' ') }}"{{ '' if site_top.typed else ' hidden' }}>{{ site_top.words }}{{ help(site_top.help) }}</div></div>
   {% endif %}
+  {% if gcard_ and site_top.saved %}<div class="hint" id="site-top-saved" style="color:var(--amber, #b07a12)">{{ site_top.words }}{{ help(site_top.help) }}</div>{% endif %}
   {{ s3cert_panel(s3_certs, s3cert_msg) }}
   {% if host_caps and not replace_ %}<div id="hostcaps" class="{{ '' if gcard_ else 'be' }}" data-be="gallery_any" style="margin-top:10px">
     
@@ -271,7 +328,7 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
       {% if host_caps.proxy %}It sits behind a proxy or CDN ({{ host_caps.proxy }}), so every visitor seems to come from the same few addresses: the inquiry form and print orders use limits for everyone instead of limits per visitor, and nobody is turned away because of someone else.{% endif %}
       Checked {{ host_caps.at }}.</div>
     {% endcall %}
-    <button type="submit" class="quiet tbtn" formaction="{{ url_for('setup_host_check') }}" formnovalidate>Check again</button>
+    <button type="submit" class="quiet tbtn" formaction="{{ url_for('setup_host_check') }}" formnovalidate data-ui-save-first="#f" data-ui-save-first-ask>Check again</button>
   </div>{% endif %}
   {% if go_on %}<div class="sbar" id="go-on"><span class="fill"></span><a class="btn primary" href="{{ go_on }}">Go on to the next step</a></div>{% endif %}
   {% if web_certs and not replace_ %}<div id="webcert" class="{{ '' if gcard_ else 'be' }}" data-be="gallery_any" style="margin-top:10px">
@@ -289,14 +346,14 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
         {% if s_.cert %}<div class="hint">The one it shows now:</div>{{ cert_lines(s_.cert) }}
           {% if s_.refused == s_.cert.sha256 %}<div class="hint">You refused this one. Checks stay stopped until the web host shows the certificate you confirmed.</div>{% endif %}
           <div class="hint">Compare the new fingerprint with the one your web server shows. Trust it only if you changed the certificate yourself.</div>
-          {% if s_.cert.name_ok is sameas false %}{{ wrong_name(s_.cert, r_.host) }}{% else %}<button type="submit" class="quiet tbtn" formaction="{{ url_for('setup_web_cert_trust') }}" formnovalidate name="cert" value="{{ r_.addr }} {{ s_.cert.sha256 }}">Trust the new certificate</button>{% endif %}
-          {% if s_.refused != s_.cert.sha256 %}<button type="submit" class="quiet tbtn" formaction="{{ url_for('setup_web_cert_refuse') }}" formnovalidate name="addr" value="{{ r_.addr }}">Keep the old one</button>{% endif %}
+          {% if s_.cert.name_ok is sameas false %}{{ wrong_name(s_.cert, r_.host) }}{% else %}<button type="submit" class="quiet tbtn" formaction="{{ url_for('setup_web_cert_trust') }}" formnovalidate data-ui-save-first="#f" data-ui-save-first-ask name="cert" value="{{ r_.addr }} {{ s_.cert.sha256 }}">Trust the new certificate</button>{% endif %}
+          {% if s_.refused != s_.cert.sha256 %}<button type="submit" class="quiet tbtn" formaction="{{ url_for('setup_web_cert_refuse') }}" formnovalidate data-ui-save-first="#f" data-ui-save-first-ask name="addr" value="{{ r_.addr }}">Keep the old one</button>{% endif %}
         {% else %}<div class="hint">Its certificate couldn't be read just now.</div>{% endif %}
       {% elif s_ %}
         <div style="color:var(--amber, #b07a12)">The web host's certificate isn't trusted: it isn't from a public authority (it may be self-signed, or from your own authority).</div>
         {% if s_.cert %}{{ cert_lines(s_.cert) }}
           <div class="hint">Check this fingerprint matches the one your web server shows.{{ help("Once you trust it, only this certificate's key is accepted at this address. A renewal with the same key keeps working; a new key stops gallery uploads and asks you here again.") }}</div>
-          {% if s_.cert.name_ok is sameas false %}{{ wrong_name(s_.cert, r_.host) }}{% else %}<button type="submit" class="quiet tbtn" formaction="{{ url_for('setup_web_cert_trust') }}" formnovalidate name="cert" value="{{ r_.addr }} {{ s_.cert.sha256 }}">Trust this certificate</button>{% endif %}
+          {% if s_.cert.name_ok is sameas false %}{{ wrong_name(s_.cert, r_.host) }}{% else %}<button type="submit" class="quiet tbtn" formaction="{{ url_for('setup_web_cert_trust') }}" formnovalidate data-ui-save-first="#f" data-ui-save-first-ask name="cert" value="{{ r_.addr }} {{ s_.cert.sha256 }}">Trust this certificate</button>{% endif %}
         {% else %}<div class="hint">Its certificate couldn't be read just now.</div>{% endif %}
       {% elif r_.pinned %}
         <div>The one you confirmed on {{ r_.pinned.at }}. Only its key is accepted at this address, in a certificate that names it.</div>{{ cert_lines(r_.pinned) }}
@@ -305,7 +362,7 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
       {% else %}
         <div class="hint">{% if host_caps and host_caps.cert == 'public' %}Publicly trusted: nothing to confirm.{% else %}Not checked yet.{% endif %}</div>
       {% endif %}
-      <button type="submit" class="quiet tbtn" formaction="{{ url_for('setup_web_cert_check') }}" formnovalidate name="addr" value="{{ r_.addr }}">Check the certificate</button>
+      <button type="submit" class="quiet tbtn" formaction="{{ url_for('setup_web_cert_check') }}" formnovalidate data-ui-save-first="#f" data-ui-save-first-ask name="addr" value="{{ r_.addr }}">Check the certificate</button>
     </div>{% endfor %}
   </div>{% endif %}
   {% if complete and has_endpoint('galleries_move') %}<p class="hint" id="move">Moved to a new web host? <a class="ui-go" href="{{ url_for('galleries_move') }}">Move galleries &rsaquo;</a></p>{% endif %}
@@ -325,10 +382,14 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
   {% endcall %}
 {% endif %}
 
-  {% if not (step == 'network' and complete) %}<div class="sbar">
+  {% if scard_ %}
+  <div class="ui-btnrow"><button class="ui-btn ui-btn-primary">Save the backup time</button></div>
+  {% elif not (step == 'network' and complete) %}<div class="sbar">
     {% if not required and not complete %}<button name="skip" value="1" class="quiet" formnovalidate>Use the defaults</button>{% endif %}
     <span class="fill"></span>
     {% if step in ('storage', 'galleries') and not (scard_ or gcard_) %}{{ help(("Each location" if step == 'storage' else "The web host") ~ " is tested first: a small file is written, read back and removed. Nothing is saved unless it works.") }}{% endif %}<button class="primary">{% if step in ('storage', 'galleries') and (scard_ or gcard_) %}Save{% elif step in ('storage', 'galleries') %}{{ 'Test and save' if complete else 'Test and continue' }}{% else %}{{ 'Save' if complete else ('Finish' if step == 'network' else 'Next') }}{% endif %}</button>
+    
+    {% if step == 'galleries' %}{{ sui.unsaved() }}{% endif %}
   </div>{% endif %}
 </form>
 {% if complete %}</div>{% endif %}

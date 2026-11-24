@@ -1,0 +1,59 @@
+{% extends "base.html" %}{% from "_macros.html" import sym, help with context %}{% import "_ui.html" as ui with context %}{% import "_ui_filter.html" as uf with context %}
+{% block title %}History - Lumen Aureum{% endblock %}
+
+{% block body %}
+<div class="ui-page" data-ui-layout="history">
+{%- set n_ = rows|length -%}
+{%- set facts_ = [] -%}
+{%- if hid == 0 %}{% set _ = facts_.append('Studio lines, no client') %}{% elif hid %}{% for c_ in clients if c_.id == hid %}{% set _ = facts_.append(c_.name) %}{% endfor %}{% endif -%}
+{%- if start or end %}{% set _ = facts_.append((nice(start) if start else 'The start') ~ ' to ' ~ (nice(end) if end else 'today')) %}{% endif -%}
+{%- if term %}{% set _ = facts_.append('"' ~ term ~ '"') %}{% endif -%}
+{%- if page > 1 %}{% set _ = facts_.append('Page ' ~ page) %}{% endif -%}
+{{ ui.page_head('History', status=facts_|join(' · '), kicker='Studio') }}
+
+
+<form method="get" action="{{ url_for('studio_history_view') }}" class="ui-form-grid" aria-label="Client and dates">
+  {%- if term %}<input type="hidden" name="q" value="{{ term }}">{% endif %}
+  <label><span>Client</span><select name="client">
+    <option value="">Every client</option><option value="none"{{ ' selected' if hid == 0 }}>Studio lines, no client</option>
+    {%- for c_ in clients %}<option value="{{ c_.id }}"{{ ' selected' if hid == c_.id }}>{{ c_.name }}</option>{% endfor %}</select></label>
+  <label><span>From</span><input type="date" name="from" value="{{ start }}" max="{{ today_iso }}" class="ui-input-date"></label>
+  <label><span>To</span><input type="date" name="to" value="{{ end }}" max="{{ today_iso }}" class="ui-input-date"></label>
+  <div class="ui-btnrow"><button class="ui-btn ui-btn-quiet">Show these entries</button>
+  {%- if keep %}{{ ui.go(url_for('studio_history_view'), 'All of the history') }}{% endif %}</div>
+</form>
+
+{%- set kinds_ = rows|map(attribute='what')|list %}{% set keep_bar_ = {} %}{% for k_, v_ in keep.items() if k_ != 'q' %}{% set _ = keep_bar_.update({k_: v_}) %}{% endfor %}
+{{ uf.filter_bar('history', today_iso, status=false, groups=[dict(key='kind', label='Kind', values=kinds_, order=kind_order)],
+                 q=term, placeholder='Find words in the history', noun='history', server=true, keep=keep_bar_) }}
+
+{% set count_ %}<span data-f-count data-one="entry" data-many="entries">{{ n_ }} entr{{ 'y' if n_ == 1 else 'ies' }}</span>{{ help("Every change the app recorded, across all clients, newest first. A client's own History is on their page. Sign-ins, password changes and exports are in Settings, Security, Account activity.") }}{% endset %}
+{% call ui.section(count_, id='studio-history') %}
+{% for m_ in months %}
+  {% call ui.fold(m_.label, id='m-' ~ m_.key, open=loop.first, count=m_.rows|length) %}
+  <div class="hlist">
+  {%- for r in m_.rows %}
+    <div class="hrow k-{{ r.kind|replace(' ', '-') }}" {{ uf.item(groups=dict(kind=r.what)) }}>
+      <span class="htime">{{ nice(r.day) }}{% if r.time %}<br>{{ r.time }}{% endif %}</span>
+      {{ sym(r.icon if r.kind == 'audit' else {'note':'edit_note','call':'call','text':'sms','email':'mail','in person':'groups'}.get(r.kind, 'edit_note'), 'next', 18) }}
+      <div class="htext"><span>{{ r.text }}</span>{% if r.note %}<em>{{ r.note }}</em>{% endif %}
+        {%- if r.link %}<small>{{ ui.go(r.link, r.client ~ (': ' ~ r.session if r.session else '')) }}</small>
+        {%- elif r.client %}<small>{{ r.client }}</small>{% endif %}
+        {%- if r.gone %}<small class="ui-mute">From a deleted session</small>{% endif %}
+        {%- if r.kind == 'audit' and r.who != 'Owner' %}<small>{{ r.who }}</small>{% endif %}</div>
+    </div>
+  {%- endfor %}
+  </div>
+  {% endcall %}
+{% else %}
+  <p class="ui-mute">{{ 'No entries match.' if keep else 'Nothing recorded yet.' }}</p>
+{% endfor %}
+{% if page > 1 or more %}<div class="ui-btnrow">
+  {%- if page > 1 %}{{ ui.go(url_for('studio_history_view', page=page - 1, **keep), 'Newer entries') }}{% endif %}
+  {%- if more %}{{ ui.go(url_for('studio_history_view', page=page + 1, **keep), 'Older entries') }}{% endif %}
+</div>{% endif %}
+{% endcall %}
+</div>
+<script src="{{ url_for('static', filename='filters.js', v=static_v('filters.js')) }}"></script>
+{% endblock %}
+

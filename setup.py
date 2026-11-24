@@ -11,6 +11,7 @@ from pathlib import Path
 from flask import abort, redirect, render_template, request, url_for
 
 import config as C
+import datakey
 from vault import backends as B, s3 as S3, web as VW
 
 ROOT = Path(__file__).resolve().parent
@@ -19,7 +20,7 @@ STEPS = [
     ("storage", "Backups", True),
     ("shoot", "What you shoot", False),
     ("money", "Payments and terms", False),
-    ("tax", "Sales tax", False),
+    ("tax", "Taxes", False),
     ("documents", "Documents", False),
     ("galleries", "Online galleries", False),
     ("network", "Who can reach this", False),
@@ -95,19 +96,89 @@ def backups_share_disk(cfg=None):
 def write_storage(cfg):
     VW.write_config(cfg)
 
+PROVIDERS = {
+    "sftp.dreamhost": dict(name="DreamHost", root="{d}/g", keymode="password", where=(
+        "In your DreamHost panel, the SFTP Users & Files page: Login info shows the user name and the server's name,"
+        " and resets the password.",
+        "Host can be your website's name once it points to DreamHost. Your website's folder has its name, so galleries"
+        " go in example.com/g.")),
+    "sftp.siteground": dict(name="SiteGround", port="18765", root="", keymode="app",
+                            root_ph="your website's public_html folder, then /g", where=(
+        "In Site Tools, Devs > SSH Keys Manager: import the app's key below, then the key's menu > SSH Credentials"
+        " shows the host name and user name.",
+        "SiteGround signs in with a key only, on port 18765 (filled in). Site > File Manager shows your website's"
+        " public_html folder.")),
+    "sftp.bluehost": dict(name="Bluehost", root="public_html/g", keymode="password", where=(
+        "Turn on SSH access in your Bluehost account first: it is off on shared plans.",
+        "The user name and password are your cPanel ones, and Host is your website's name.")),
+    "local.drive": dict(name="A drive you plug in", where=(
+        "Plug the drive into the computer this app runs on, and type the folder on it where backups go.",
+        "Leave it plugged in: backups go there every day.")),
+    "sftp.nas": dict(name="Your NAS", where=(
+        "Turn on your NAS's SFTP service in its control panel's file services settings, and make a user with a"
+        " shared folder for backups.",
+        "Host is the NAS's name or address on your network. Add the app's key below to that user.",
+        "Already mounted into the app? Choose A folder instead.")),
+    "s3.b2": dict(name="Backblaze B2", endpoint_ph="e.g. s3.us-west-004.backblazeb2.com", where=(
+        "On Backblaze, Buckets shows each bucket's Endpoint: copy it into Service address.",
+        "Application Keys makes a key: its keyID is the access key, its applicationKey the secret key.")),
+    "s3.r2": dict(name="Cloudflare R2", endpoint_ph="e.g. https://<account id>.r2.cloudflarestorage.com", where=(
+        "In Cloudflare, R2: your bucket's Settings show its S3 API address. Paste it into Service address.",
+        "Manage API tokens makes a token that shows its access key and secret key once.")),
+    "s3.wasabi": dict(name="Wasabi", endpoint_ph="e.g. s3.us-east-2.wasabisys.com", where=(
+        "In the Wasabi console, Buckets shows each bucket's region: the service address is s3.<region>.wasabisys.com.",
+        "Access Keys makes the access key and secret key.")),
+    "s3.aws": dict(name="Amazon S3 (AWS)", where=(
+        "In the AWS console, S3 lists your bucket's name. Leave Service address blank.",
+        "IAM > Users > Security credentials makes an access key and its secret key.")),
+}
+GALLERY_HOSTS = ("sftp.dreamhost", "sftp.siteground", "sftp.bluehost")
+BACKUP_PLACES = ("local.drive", "sftp.nas")
+CLOUDS = ("s3.b2", "s3.r2", "s3.wasabi", "s3.aws")
+
+def provider_of(c):
+
+    c = c or {}
+    if c.get("type") == "s3":
+        name = cloud_name(c)
+        return next((k for k in CLOUDS if PROVIDERS[k]["name"] == name), "")
+    if c.get("type") == "sftp" and str(c.get("host") or "").lower().rstrip(".").endswith(".dreamhost.com"):
+        return "sftp.dreamhost"
+    return ""
+
+def cloud_name(c):
+
+    ep = re.sub(r"^https?://", "", str((c or {}).get("endpoint") or "").strip().lower()).split("/")[0].split(":")[0]
+    if not ep or ep.endswith(".amazonaws.com"):
+        return PROVIDERS["s3.aws"]["name"]
+    for k, end in (("s3.b2", ".backblazeb2.com"), ("s3.r2", ".r2.cloudflarestorage.com"), ("s3.wasabi", ".wasabisys.com")):
+        if ep.endswith(end):
+            return PROVIDERS[k]["name"]
+    return ""
+
 def backend_from_form(f, prefix, old=None):
 
     old = old or {}
-    t = f.get(prefix + "type", "")
+    t, _, preset = f.get(prefix + "type", "").partition(".")
+    pv = PROVIDERS.get(f"{t}.{preset}", {}) if preset else {}
     if t == "local":
         return {"type": "local", "path": f.get(prefix + "path", "").strip()}
     if t == "sftp":
         c = {"type": "sftp", "host": f.get(prefix + "host", "").strip(), "user": f.get(prefix + "user", "").strip(),
              "key_file": f.get(prefix + "key_file", "").strip(), "root": f.get(prefix + "root", "").strip()}
-        port = f.get(prefix + "port", "").strip()
+        if not c["root"] and pv.get("root") and "{d}" not in pv["root"]:
+            c["root"] = pv["root"]
+        port = f.get(prefix + "port", "").strip() or pv.get("port", "")
         if port.isdigit() and port != "22":
             c["port"] = int(port)
-        if f.get(prefix + "keymode", "app") == "app":
+        mode = f.get(prefix + "keymode", "app")
+        if mode == "password" and prefix == "gallery_":
+            c["key_file"] = ""
+            c["auth"] = "password"
+            typed = f.get(prefix + "password", "")
+
+            c["password"] = typed if typed.strip() else (old.get("password", "") if B.same_account(old, c) else "")
+        elif mode == "app":
             c["key_file"] = ""
             c["private_key"] = app_ssh_key()[0]
         same_server = old.get("host") == c["host"] and int(old.get("port", 22)) == int(c.get("port", 22))
@@ -116,7 +187,12 @@ def backend_from_form(f, prefix, old=None):
             c["host_key"] = pin or old["host_key"]
         return c
     if t == "s3":
-        c = {"type": "s3", "bucket": f.get(prefix + "bucket", "").strip(), "endpoint": f.get(prefix + "endpoint", "").strip() or None,
+        bucket, ep = f.get(prefix + "bucket", "").strip(), f.get(prefix + "endpoint", "").strip()
+        if ep and "://" not in ep:
+            ep = "https://" + ep
+        if ep and bucket and ep.rstrip("/").endswith("/" + bucket):
+            ep = ep.rstrip("/")[:-len(bucket) - 1]
+        c = {"type": "s3", "bucket": bucket, "endpoint": ep or None,
              "region": f.get(prefix + "region", "").strip() or None, "access_key": f.get(prefix + "access_key", "").strip(),
              "secret_key": f.get(prefix + "secret_key", "").strip() or old.get("secret_key", ""),
              "prefix": f.get(prefix + "s3prefix", "").strip(),
@@ -124,24 +200,33 @@ def backend_from_form(f, prefix, old=None):
         return {k: v for k, v in c.items() if v is not None}
     return None
 
-def conn_rows(c):
+def conn_rows(c, gallery=False):
 
     c = c or {}
     t = c.get("type")
     if t == "local":
-        return [("Kind", "A folder on this machine or a mounted share"), ("Folder", c.get("path", ""))]
+        return [("Kind", "A web server at home" if gallery else "A folder on this machine or a mounted share"),
+                ("Folder", c.get("path", ""))]
     if t == "sftp":
         port = f":{c['port']}" if c.get("port") else ""
-        return [("Kind", "SFTP server"), ("Server", f"{c.get('user', '')}@{c.get('host', '')}{port}"),
+        kind = PROVIDERS.get(provider_of(c), {}).get("name") or ("Your web host's login" if gallery else "A server you sign in to")
+        return [("Kind", kind), ("Server", f"{c.get('user', '')}@{c.get('host', '')}{port}"),
                 ("Folder", c.get("root") or "its home folder"),
+                ("Sign-in", "A password, saved encrypted") if c.get("auth") == "password" else
                 ("Sign-in key", "A key file: " + c["key_file"] if c.get("key_file") else "The app's own key")]
     if t == "s3":
-        return [("Kind", "S3-compatible storage"), ("Bucket", c.get("bucket", "") + (f" / {c['prefix']}" if c.get("prefix") else "")),
-                ("Endpoint", c.get("endpoint") or "AWS"), ("Access key", c.get("access_key", ""))]
+        return [("Kind", cloud_name(c) or "Cloud storage"), ("Bucket", c.get("bucket", "") + (f" / {c['prefix']}" if c.get("prefix") else ""))] + (
+                [("Service address", c["endpoint"])] if c.get("endpoint") else []) + [("Access key", c.get("access_key", ""))]
     return []
 
 def conn_plain_http(c):
     return bool(c and c.get("type") == "s3" and (c.get("endpoint") or "").lower().startswith("http://"))
+
+def gallery_only_here(url):
+
+    import netsec
+    words = netsec.only_here_words(url)
+    return dict(text=words, help=netsec.ONLY_HERE_HELP) if words else None
 
 def app_ssh_key():
 
@@ -187,6 +272,10 @@ def _test_backend(cfg, init_local, made, seen=None):
 
     if not cfg:
         return "Nothing chosen."
+    if cfg.get("type") == "sftp" and cfg.get("auth") == "password" and not cfg.get("password"):
+        return "Type the password your web host gave you for this user."
+    if cfg.get("type") == "sftp" and len(cfg.get("password") or "") > 1000:
+        return "That password is longer than 1,000 characters."
     import settings_io
     for k in ("path", "key_file", "known_hosts"):
         if cfg.get(k) and settings_io._inside_private(cfg[k]):
@@ -215,23 +304,50 @@ def _test_backend(cfg, init_local, made, seen=None):
                             " - /mnt/usb-backup/lumenaureum:/backup2), restart the app, then type the path after the colon"
                             " (/backup2). See docs/where-it-runs.md, Folders outside the container.")
                 return "That folder doesn't exist. Create it (and mount the share, if it is one) and try again."
-        be = B.from_config(cfg)
-        name = f"setup-test/{secrets.token_hex(6)}.txt"
-        body = b"Lumen Aureum storage test\n"
-        import io
-        be.put_stream(name, io.BytesIO(body), "text/plain")
-        out = io.BytesIO()
-        be.get_stream(name, out)
-        be.delete(name)
-        try:
-            be.remove_dir("setup-test")
-        except Exception:
-            pass
-        return "" if out.getvalue() == body else "The file read back differently from what was written."
+        return _round_trip(cfg)
     except Exception as e:
+        if isinstance(e, S3.S3Error) and _other_addressing(cfg):
+            return ""
         if seen is not None:
             seen.append(e)
         return plain_error(e, cfg)
+
+def _round_trip(cfg):
+
+    import io
+    be = B.from_config(cfg)
+    name = f"setup-test/{secrets.token_hex(6)}.txt"
+    body = b"Lumen Aureum storage test\n"
+    be.put_stream(name, io.BytesIO(body), "text/plain")
+    out = io.BytesIO()
+    be.get_stream(name, out)
+    be.delete(name)
+    try:
+        be.remove_dir("setup-test")
+    except Exception:
+        pass
+    return "" if out.getvalue() == body else "The file read back differently from what was written."
+
+def _other_addressing(cfg):
+
+    if cfg.get("type") != "s3" or cfg.get("addressing"):
+        return False
+    try:
+        auto = S3.Client(cfg.get("bucket") or "-", "", "", endpoint=cfg.get("endpoint"), region=cfg.get("region")).addressing
+        import ipaddress
+        host = re.sub(r"^https?://", "", str(cfg.get("endpoint") or "")).split("/")[0].rsplit(":", 1)[0].strip("[]")
+        try:
+            ipaddress.ip_address(host)
+            return False
+        except ValueError:
+            pass
+        other = "path" if auto == "virtual" else "virtual"
+        if _round_trip(dict(cfg, addressing=other)) == "":
+            cfg["addressing"] = other
+            return True
+    except Exception:
+        pass
+    return False
 
 def plain_error(e, cfg):
 
@@ -261,11 +377,16 @@ def plain_error(e, cfg):
         if re.search(r"self[- ]signed", text):
             return "Its certificate isn't trusted (self-signed). Test again to see its fingerprint and trust it."
         return "Its certificate isn't trusted. Check the address, and that the certificate is current."
-    if type(e).__name__ == "AuthenticationException":
+    if type(e).__name__ in ("AuthenticationException", "BadAuthenticationType"):
+        if cfg.get("auth") == "password":
+            return "The server refused the user name or password."
         return "The server refused the key."
+    if isinstance(e, B.PasswordMissing):
+        return "Type the password your web host gave you for this user."
     if isinstance(e, (TimeoutError, ConnectionRefusedError)) or type(e).__name__ in ("NoValidConnectionsError", "gaierror"):
         return "Can't reach that server."
-    return f"{type(e).__name__}: {e}"
+    import errtext
+    return errtext.named(e)
 
 def unknown_host(c):
 
@@ -293,7 +414,9 @@ def first_contact_message(c):
     return (f"First connection to {c['host']}. Check that the key fingerprint shown below matches the one your host"
             " gives, tick Trust this server, and test again.")
 
-SECRET_FIELDS = ("primary_secret_key", "secondary_secret_key", "gallery_secret_key")
+SECRET_FIELDS = ("primary_secret_key", "secondary_secret_key", "gallery_secret_key", "gallery_password")
+CW_OFF_WORDS = ("Turned gallery codewords off for every session type and for sessions not online yet, as the web host"
+                " can't check them")
 STEP_PREFIXES = {"storage": ("primary_", "secondary_"), "galleries": ("gallery_",)}
 
 def offer_trust(locs):
@@ -347,6 +470,14 @@ def in_container():
 
 _PENDING, _PENDING_TTL, _PENDING_LOCK = {}, 900, threading.Lock()
 
+def _pending_forget():
+
+    with _PENDING_LOCK:
+        _PENDING.clear()
+
+datakey.ON_LOCK.append(_pending_forget)
+datakey.ON_LOCK.append(B.forget_passwords)
+
 def _pending_token(make=False):
     from flask import session as fs
     t = fs.get("setup_pending")
@@ -362,7 +493,8 @@ def pending_secrets():
         return {f_: v_ for (t_, f_), (_, v_) in _PENDING.items() if t and t_ == t}
 
 def keep_secrets(form):
-    typed = {f_: form.get(f_, "").strip() for f_ in SECRET_FIELDS if form.get(f_, "").strip()}
+    typed = {f_: form.get(f_, "") if f_.endswith("password") else form.get(f_, "").strip()
+             for f_ in SECRET_FIELDS if form.get(f_, "").strip()}
     if typed:
         t = _pending_token(make=True)
         with _PENDING_LOCK:
@@ -385,6 +517,66 @@ def with_pending(form):
         if not f.get(f_, "").strip():
             f[f_] = v_
     return f
+
+def _app():
+    import sys
+    return sys.modules["app"] if "app" in sys.modules else sys.modules["__main__"]
+
+def _rate(v):
+    v = (v or "").strip().rstrip("%").strip()
+    if not v:
+        return None
+    try:
+        r_ = float(v)
+    except ValueError:
+        return -1.0
+    return r_ if r_ == r_ else -1.0
+
+def save_taxes_form(f, get, put):
+
+    cur = _app().taxes_list()
+    if "tax_mode" in f and not f.get("taxes_posted"):
+        mode = f.get("tax_mode", "none")
+        if mode not in ("none", "flat"):
+            return "Pick how sales tax works for you."
+        r_ = _rate(f.get("sales_tax_pct"))
+        if mode == "flat" and not r_:
+            return "Enter your rate, or choose No sales tax for now."
+        if mode == "flat" and not 0 < r_ <= 25:
+            return "Tax rates are between 0 and 25 percent."
+        first = cur[0] if cur else dict(key="sales", name="Sales tax", included=False, default=True)
+        items = [dict(first, rate=r_)] + cur[1:] if mode == "flat" else []
+    else:
+        items, names = [], set()
+        rows = [(f.get(f"tax_key_{i}", ""), i) for i in range(len(cur))]
+        by_key = {t_["key"]: t_ for t_ in cur}
+        for key, i in rows:
+            if key not in by_key or f.get(f"tax_del_{i}"):
+                continue
+            items.append(dict(key=key, name=(f.get(f"tax_name_{i}") or "").strip()[:40], rate=_rate(f.get(f"tax_rate_{i}")),
+                              included=f.get(f"tax_how_{i}") == "in", default=bool(f.get(f"tax_default_{i}"))))
+        if (f.get("new_tax_name") or "").strip() or (f.get("new_tax_rate") or "").strip():
+            used = {t_["key"] for t_ in cur}
+            n_ = int(get("tax_next", "1") or 1)
+            while f"t{n_}" in used:
+                n_ += 1
+            items.append(dict(key=f"t{n_}", name=(f.get("new_tax_name") or "").strip()[:40] or ("Sales tax" if not items else ""),
+                              rate=_rate(f.get("new_tax_rate")), included=f.get("new_tax_how") == "in",
+                              default=bool(f.get("new_tax_default"))))
+        for t_ in items:
+            if not t_["name"]:
+                return "Give each tax a name, as your invoices should show it (Sales tax, VAT, GST)."
+            if t_["name"].lower() in names:
+                return f"Two taxes are called {t_['name']}. Give each its own name."
+            names.add(t_["name"].lower())
+            if t_["rate"] is None or not 0 < t_["rate"] <= 25:
+                return f"Enter the rate for {t_['name']}: a percentage above 0, up to 25, like 6 or 7.25."
+    new_ = [int(t_["key"][1:]) for t_ in items if t_["key"] not in {c_["key"] for c_ in cur} and t_["key"][1:].isdigit()]
+    if new_:
+        put(tax_next=max(new_) + 1)
+    on_top = round(sum(t_["rate"] for t_ in items if t_["default"] and not t_["included"]), 4)
+    put(taxes=json.dumps(items), tax_mode="flat" if items else "none", sales_tax_pct=f"{on_top:g}" if items else "")
+    return None
 
 def app_hooks():
     import sys
@@ -424,7 +616,10 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
 
     app.jinja_env.globals["conn_status"] = conn_status
     app.jinja_env.globals["conn_rows"] = conn_rows
+    app.jinja_env.globals.update(providers=PROVIDERS, provider_of=provider_of, gallery_hosts=GALLERY_HOSTS,
+                                 backup_places=BACKUP_PLACES, clouds=CLOUDS)
     app.jinja_env.globals["conn_plain_http"] = conn_plain_http
+    app.jinja_env.globals["gallery_only_here"] = gallery_only_here
     app.config["conn_mark"] = conn_mark
     app.config["conn_status"] = conn_status
 
@@ -449,6 +644,7 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
 
     def check_host():
 
+        import errtext
         import hostcheck
         from plugins.gallery import fingerprint_of, open_host
         gh = VW.config().get("gallery_host")
@@ -461,10 +657,68 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
         try:
             res = hostcheck.capabilities(open_host(gh), base, live())
         except Exception as e:
-            res = dict(at=time.strftime("%Y-%m-%d %H:%M"), kind="unreachable", version="", detail=str(e)[:200],
+            res = dict(at=time.strftime("%Y-%m-%d %H:%M"), kind="unreachable", version="", detail=errtext.words(e),
                        htaccess=None, features=[(k_, l_, False, "the host couldn't be checked") for k_, l_ in hostcheck.FEATURES])
         put(gallery_host_caps=json.dumps(dict(fp=fingerprint_of(gh), setup=res, now=res, checked=time.time())))
         return res
+
+    def codewords_off(log=True, con=None, save=None):
+
+        from plugins.gallery import codewords_kept, codewords_waiting
+        types = [dict(t, policy=dict(t.get("policy") or {}, gallery_codeword=False)) for t in C.TYPES]
+        (save or save_rules)(TYPES=types)
+        own = con is None
+        con = connect() if own else con
+        try:
+            ids = codewords_waiting(con)
+            con.executemany("UPDATE sessions SET gallery_codeword='' WHERE id=?", [(i,) for i in ids])
+            kept = codewords_kept(con)
+            if own:
+                con.commit()
+        finally:
+            if own:
+                con.close()
+        if log:
+            _app().audit_after(CW_OFF_WORDS)
+        n = len(ids)
+        from flask import session as fs_
+        fs_["notice"] = ((fs_.get("notice") or "Saved.") + " Codewords are off for galleries here."
+                         + (f" Cleared the codeword on {n} session{'' if n == 1 else 's'} not online yet." if n else "")
+                         + (f" {kept} galler{'y' if kept == 1 else 'ies'} already online keep{'s' if kept == 1 else ''}"
+                            f" {'its' if kept == 1 else 'their'} codeword." if kept else ""))
+
+    @app.post("/setup/galleries/codewords-off", endpoint="setup_codewords_off")
+    def setup_codewords_off():
+
+        if (VW.config().get("gallery_host") or {}).get("type") != "s3":
+            abort(400)
+        codewords_off(log=False)
+        return redirect(url_for("setup_step", step="galleries"))
+
+    app.config.setdefault("ep_words", {})["setup_codewords_off"] = CW_OFF_WORDS
+    app.config["codewords_off"] = codewords_off
+
+    @app.post("/setup/galleries/app-key", endpoint="setup_gallery_app_key")
+    def setup_gallery_app_key():
+
+        from flask import g as g_, session as fs_
+        cfg = VW.config()
+        gh = dict(cfg.get("gallery_host") or {})
+        if gh.get("type") != "sftp" or gh.get("auth") != "password":
+            abort(400)
+        new = {k: v for k, v in gh.items() if k not in ("auth", "password", "key_file")}
+        new["private_key"] = app_ssh_key()[0]
+        msg = test_backend(new)
+        if msg:
+            g_.refused = True
+            fs_["notice"] = "Still signing in with the password, as the app's own key didn't work: " + msg
+        else:
+            write_storage(dict(cfg, gallery_host=new))
+            conn_mark("gallery", True)
+            fs_["notice"] = "Switched to the app's own key. The password is no longer kept."
+        return redirect(url_for("setup_step", step="galleries"))
+
+    app.config.setdefault("ep_words", {})["setup_gallery_app_key"] = "Switched the web host to the app's own key"
 
     @app.post("/setup/host-check", endpoint="setup_host_check")
     def setup_host_check():
@@ -985,7 +1239,9 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             if names_ and (not f.get("business_name", "").strip() or not f.get("photographer_name", "").strip()):
                 return "Your business name and your own name, please."
             tz = f.get("timezone", "") or f.get("browser_tz", "")
-            if tz not in zoneinfo.available_timezones():
+
+            keep_unset_ = complete() and not get("timezone") and "timezone" not in f and "browser_tz" not in f
+            if not keep_unset_ and tz not in zoneinfo.available_timezones():
                 return "Pick your time zone."
             lat = lon = ""
             z = f.get("home_zip", "").strip()
@@ -1004,7 +1260,7 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
                 put(business_name=f["business_name"].strip(), photographer_name=f["photographer_name"].strip(),
                     studio_name=f.get("studio_name", "").strip(), business_email=f.get("business_email", "").strip(),
                     business_phone=f.get("business_phone", "").strip()[:40], business_address=f.get("business_address", "").strip())
-            put(timezone=tz, home_zip=z, home_lat=lat, home_lon=lon)
+            put(**({} if keep_unset_ else dict(timezone=tz)), home_zip=z, home_lat=lat, home_lon=lon)
             apply_settings()
             app.config["clock_rezone"](lambda k_, v_: put(**{k_: v_}))
             return None
@@ -1043,7 +1299,7 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
                 if (prim.get("type") == "local" and sec.get("type") == "local" and not cfg.get("same_disk_ok")
                         and same_disk(prim.get("path", ""), sec.get("path", ""))):
                     return ("SAME-DISK: The second copy is on the same disk as the first: one failed disk would take both. "
-                            "Pick a folder on another disk or an SFTP or S3 location, or press Keep it anyway.")
+                            "Pick a folder on another disk, a drive you plug in, your NAS or cloud storage, or press Keep it anyway.")
                 cfg["secondary"] = sec
             else:
                 cfg.pop("secondary", None)
@@ -1083,6 +1339,11 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             kv["PAYMENT_METHODS"] = methods
             kv["NET_TERMS_TYPES"] = [t for t in C.SESSION_TYPES if f.get("bal_" + t) == "after" or f.get("net_" + t)]
             kv["BEFORE_TYPES"] = [t for t in C.SESSION_TYPES if f.get("bal_" + t) == "before"]
+            if "deposit_word" in f:
+                w_ = f.get("deposit_word", "")
+                if " ".join(w_.split()) and not C.clean_deposit_word(w_) and " ".join(w_.split()).lower() != "deposit":
+                    return "Call the deposit: letters, spaces and hyphens only, up to 30."
+                put(deposit_word=C.clean_deposit_word(w_))
             save_rules(**kv)
             put(mileage_rate=rate, quote_term_days=term)
             for k_ in ("pay_details", "bank_details"):
@@ -1090,19 +1351,9 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
                     put(**{k_: f.get(k_, "")})
             return None
         if step == "tax":
-            mode = f.get("tax_mode", "none")
-            if mode not in ("none", "flat") + (("regional",) if app_hooks().tax_region else ()):
-                return "Pick how sales tax works for you."
-            try:
-                st = float(f.get("sales_tax_pct") or 0)
-                lo = float(f.get("local_tax_pct") or 0)
-            except ValueError:
-                return "Rates are percentages, like 6 or 7.25."
-            if mode != "none" and not st:
-                return "Enter your rate, or choose No sales tax for now."
-            if not (0 <= st <= 25 and 0 <= lo <= 10):
-                return "Sales tax rates are between 0 and 25 percent (local between 0 and 10)."
-            put(tax_mode=mode, sales_tax_pct=(st if mode != "none" else ""), local_tax_pct=(lo if mode == "regional" else ""))
+            err_ = save_taxes_form(f, get, put)
+            if err_:
+                return err_
             if f.get("prints_shown"):
                 put(tax_prints="1" if f.get("tax_prints") else "0", tax_print_shipping="1" if f.get("tax_print_shipping") else "0")
             return None
@@ -1151,6 +1402,11 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
                     cfg.get("gallery_host") or cfg.get("gallery_host_off"), get("gallery_base_url", "")))
                 if clash:
                     return clash
+                from plugins.gallery import NO_CODEWORD_CHECK, codewords_on
+                if (gh or {}).get("type") == "s3" and codewords_on() and not f.get("s3_codewords_off"):
+
+                    return NO_CODEWORD_CHECK + (" Codewords are on: turn codewords off for galleries here, or choose a"
+                                                " host that can check codewords.")
                 msg = offer_trust([("Web host: ", "gallery_", gh)])
                 if msg:
                     return msg
@@ -1164,9 +1420,20 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
                     return ("The web address of the gallery folder must start with https://. Clients' browsers open the"
                             " encrypted photos only over https, so the folder's web server needs a certificate.")
 
-                from plugins.gallery import setup_host
+                from plugins.gallery import copy_of, copy_words, name_local_host, setup_host
+                con_ = connect()
+                try:
+                    name_local_host(cfg, gh, con_)
+                finally:
+                    con_.close()
+                twin = copy_of(cfg, gh)
                 setup_host(cfg, gh)
                 put(gallery_base_url=base.rstrip("/") + "/")
+                import netsec
+                warn_ = " ".join(w_ for w_ in (netsec.only_here_words(base), copy_words(twin)) if w_)
+                if warn_:
+                    from flask import session as fs_
+                    fs_["notice"] = "Saved. " + warn_
             else:
                 from plugins.gallery import setup_off
                 setup_off(cfg)
@@ -1174,8 +1441,22 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             write_storage(cfg)
             save_rules(**kv)
             if f.get("gallery_type"):
+                from plugins.gallery import restamp_local
+                con_ = connect()
+                try:
+                    restamp_local(con_, cfg)
+                    con_.commit()
+                finally:
+                    con_.close()
                 conn_mark("gallery", True)
                 check_host()
+                from plugins.gallery import SITE_TOP_WORDS, at_site_top
+                if at_site_top(cfg.get("gallery_host"), get("gallery_base_url", "")):
+                    from flask import session as fs_
+                    fs_["notice"] = (fs_.get("notice") or "Saved.") + " " + SITE_TOP_WORDS
+                if f.get("s3_codewords_off") and (cfg.get("gallery_host") or {}).get("type") == "s3":
+                    codewords_off()
+
             return None
         if step == "network":
             return None
@@ -1196,8 +1477,7 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             return dict(get=get, rules=C.current_rules(), types=C.SESSION_TYPES, presets=C.PRESETS, chosen=chosen, fv=form_value, fc=form_ticked,
                         custom=[t for t in C.TYPES if t["key"] not in preset_keys])
         if step == "tax":
-            reg = app_hooks().tax_region
-            return dict(get=get, rules=C.current_rules(), types=C.SESSION_TYPES, region=reg["name"] if reg else None,
+            return dict(get=get, rules=C.current_rules(), types=C.SESSION_TYPES, taxes=_app().taxes_list(),
                         fv=form_value, fc=form_ticked)
         r = dict(C.current_rules())
         base = dict(get=get, rules=r, types=C.SESSION_TYPES, fv=form_value, fc=form_ticked, **extra_)
@@ -1235,9 +1515,22 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             if request.method == "POST" and request.form.get("gallery_type"):
                 gal = backend_from_form(request.form, "gallery_", gal) or gal
             base.update(s3_certs=s3_cert_rows(step), s3cert_msg=g_s3msg())
-            go_on = (url_for("setup_step", step=SLUGS[SLUGS.index("galleries") + 1])
+            from plugins.gallery import SITE_TOP_HELP, SITE_TOP_WORDS, WEB_TOP_NAMES, at_site_top
+            base.update(site_top=dict(
+                words=SITE_TOP_WORDS, help=SITE_TOP_HELP, names=sorted(WEB_TOP_NAMES),
+                saved=at_site_top(cfg.get("gallery_host"), get("gallery_base_url", "")),
+                typed=request.method == "POST" and bool(request.form.get("gallery_type")) and at_site_top(
+                    gal, request.form.get("gallery_base_url", ""))))
+            go_on =(url_for("setup_step", step=SLUGS[SLUGS.index("galleries") + 1])
                      if request.args.get("go") and not complete() and "galleries" in done() else "")
-            base.update(gallery=gal, host_caps=host_caps(), web_certs=cert_rows(), cert_msg=request.args.get("cert", ""),
+            from plugins.gallery import NO_CODEWORD_CHECK, codewords_off_confirm, codewords_on, codewords_waiting
+            if codewords_on():
+                con_ = connect()
+                try:
+                    base.update(cw_confirm=codewords_off_confirm(len(codewords_waiting(con_))))
+                finally:
+                    con_.close()
+            base.update(gallery=gal, host_caps=host_caps(), no_cw_check=NO_CODEWORD_CHECK if codewords_on() else "", web_certs=cert_rows(), cert_msg=request.args.get("cert", ""),
                         go_on=go_on,
                         gallery_marked=gal.get("type") == "local" and
                         os.path.isfile(os.path.join(gal.get("path", ""), B.LocalBackend.MARKER)))

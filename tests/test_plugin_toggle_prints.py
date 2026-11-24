@@ -165,6 +165,10 @@ def test_print_orders_are_off_on_a_new_install(tmp_path, monkeypatch):
     toggle(e, True)
     assert setting(e, "plugin_on_prints") == "1"
     assert e.c.get("/settings/prints", environ_base=E).status_code == 200
+    assert "Charge tax on prints" not in e.c.get("/setup/tax", environ_base=E).data.decode()
+    sql(e, "INSERT INTO settings (key, value) VALUES ('taxes', ?)",
+        (json.dumps([dict(key="sales", name="Sales tax", rate=6, included=False, default=True)]),))
+    e.A.apply_settings()
     assert "Charge tax on prints" in e.c.get("/setup/tax", environ_base=E).data.decode()
 
     r = e.c.post("/settings/prints/switch", data={"offer": "1"}, environ_base=E)

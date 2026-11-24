@@ -10,6 +10,7 @@ import secrets
 import shutil
 import threading
 import unicodedata
+import errtext
 import items
 from datetime import date, datetime
 from pathlib import Path
@@ -33,6 +34,7 @@ KEEP_MAX = 20 * 1024 * 1024
 TAGLINE_MAX, INTRO_MAX, DESC_MAX, ABOUT_MAX, ALT_MAX = 120, 200, 300, 8000, 200
 BACKGROUNDS = (("", "Same as your galleries"), ("#f6f3ed", "Ivory"), ("#ffffff", "White"), ("#262422", "Charcoal"),
                ("#0d0c0b", "Black"))
+GOLD = "#b8862f"
 INQ_CHECK_MIN = 15
 GUARD = "gallery_upload"
 
@@ -279,7 +281,7 @@ def _slug(t, n):
     return t or f"photo-{n}"
 
 CSS = """{font}:root {{ --bg: {bg}; --ink: {ink}; --mute: {mute}; --line: {line}; --cell: {cell}; --edge: {edge}; --ring: {ring};
-  --gold: #b8862f; --serif: {serif}; --title: {title}; color-scheme: {scheme}; }}
+  --gold: {accent}; --serif: {serif}; --title: {title}; color-scheme: {scheme}; }}
 * {{ box-sizing: border-box; }}
 html {{ background: #141210; }}           /* below a short page: the footer's color, so no empty band shows */
 html, body {{ margin: 0; color: var(--ink);
@@ -365,6 +367,9 @@ footer {{ background: #141210; color: #b9ad9a; padding: 26px 20px 30px; text-ali
 h1, h2, .tagline {{ text-wrap: balance; }}
 p {{ text-wrap: pretty; }}
 .lost p {{ margin: .8em 0 0; color: var(--mute); }}
+html.frame, html.frame body {{ background: var(--bg); }}  /* the form in another website's frame (backlog 260) */
+.frame main {{ padding: 4px 12px 16px; }} .frame .inq {{ margin: 0; }}
+.frame .alone {{ display: none; }} .frame .alone:target {{ display: block; margin: 20px 0 18px; }}  /* opened by the button */
 .lost a {{ display: inline-block; margin-top: 2em; text-decoration: none; border-bottom: 1px solid var(--gold);
   letter-spacing: .16em; font-size: 13px; text-transform: uppercase; }}
 """
@@ -409,6 +414,148 @@ SCRIPT = """(function () {
   restart();
 })();
 """
+
+INQ_FORM = """{% if form_off %}<p class="note">Preview: sending is off. The form works once the site is on your web host.</p>
+{% endif %}<form id="inq" class="inq" hidden novalidate data-key="{{ form.key }}" data-work="{{ form.work }}" data-post="{{ root }}inquiry.php"{% if form_off %} data-off="1"{% endif %}
+  data-thanks="Thanks. Your inquiry is on its way to {{ owner }}." data-fail="It couldn't be sent just now.{% if email %} Please write to {{ email }} instead.{% endif %}">
+  <div class="two"><p><label for="inq-name">Your name</label><input id="inq-name" name="name" maxlength="200" autocomplete="name" required></p>
+  <p><label for="inq-email">Email</label><input id="inq-email" name="email" type="email" maxlength="254" autocomplete="email"></p></div>
+  <div class="two"><p><label for="inq-phone">Phone <span>(optional)</span></label><input id="inq-phone" name="phone" type="tel" maxlength="40" autocomplete="tel"></p>
+  <p><label for="inq-date">Preferred date <span>(optional)</span></label><input id="inq-date" name="date" type="date" min="{{ year }}-01-01" max="2100-12-31"></p></div>
+  <p><label for="inq-type">What kind of session</label><select id="inq-type" name="type"><option value="">Not sure yet</option>{% for k, l in form.types %}<option value="{{ k }}">{{ l }}</option>{% endfor %}<option value="other">Other (explain below)</option></select></p>
+  <p><label for="inq-message">Message</label><textarea id="inq-message" name="message" rows="6" maxlength="3000"></textarea></p>
+  <p class="hp" aria-hidden="true"><label for="inq-website">Leave this empty</label><input id="inq-website" name="website" tabindex="-1" autocomplete="off"></p>
+  <p class="send"><button type="submit">Send</button> <span class="sub">Name, and an email or a phone number, please.</span></p>
+  <p class="sub">What you send is used only to answer your inquiry. It is not sold or added to a mailing list.</p>
+</form>
+<p id="inq-msg" role="status" hidden></p>
+"""
+
+INQ_ALT = """<p id="inq-alt">{% if email %}Write to <a href="mailto:{{ email }}">{{ email }}</a>{% if phone %}, or call <a href="tel:{{ phone_link }}">{{ phone }}</a>{% endif %}.{% elif phone %}Call <a href="tel:{{ phone_link }}">{{ phone }}</a>.{% endif %}</p>
+"""
+
+WIDGET_PAGE = "inquiry-form.php"
+WIDGET_MAX_SITES = 5
+WIDGET_HEIGHT = 900
+WIDGET_ORIGIN = re.compile(r"https://[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+(?::[0-9]{1,5})?")
+SITE_CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; "
+            "connect-src 'self'; base-uri 'none'; form-action 'none'")
+
+def widget_origin(text):
+
+    from urllib.parse import urlsplit
+    t = typed = (text or "").strip()
+    if not t:
+        raise ValueError("empty")
+    if re.match(r"(?i)^http://", t):
+        raise ValueError(f"{typed[:80]}: only https:// websites can show the form")
+    if not re.match(r"(?i)^https://", t):
+        t = "https://" + t
+    try:
+        u = urlsplit(t)
+        host = (u.hostname or "").rstrip(".")
+        host = host.encode("idna").decode("ascii").lower() if host else ""
+        port = u.port
+    except (ValueError, UnicodeError):
+        raise ValueError(f"{typed[:80]}: not a website address") from None
+    if u.username or u.password or not host or "." not in host or re.fullmatch(r"[0-9.]+", host):
+        raise ValueError(f"{typed[:80]}: not a website address")
+    out = f"https://{host}" + (f":{port}" if port and port != 443 else "")
+    if not WIDGET_ORIGIN.fullmatch(out):
+        raise ValueError(f"{typed[:80]}: not a website address")
+    return out
+
+def widget_sites(text):
+
+    out, bad = [], []
+    for part in re.split(r"[\s,]+", text or ""):
+        if not part.strip():
+            continue
+        try:
+            o = widget_origin(part)
+        except ValueError as e:
+            bad.append(str(e))
+            continue
+        if o not in out:
+            out.append(o)
+    if len(out) > WIDGET_MAX_SITES:
+        bad.append(f"At most {WIDGET_MAX_SITES} websites.")
+        out = out[:WIDGET_MAX_SITES]
+    return out, bad
+
+def widget_ancestors(origins):
+
+    out = []
+    for o in origins or ():
+        if not WIDGET_ORIGIN.fullmatch(o or ""):
+            raise ValueError("bad website address")
+        host_port = o[len("https://"):]
+        twin = host_port[4:] if host_port.startswith("www.") else "www." + host_port
+        for x in (o, "https://" + twin):
+            if WIDGET_ORIGIN.fullmatch(x) and x not in out:
+                out.append(x)
+    return out
+
+def widget_php(html_, origins):
+
+    anc = widget_ancestors(origins)
+    if "<?" in html_:
+        raise ValueError("the page holds a PHP tag")
+    csp = SITE_CSP + "; frame-ancestors " + (" ".join(anc) if anc else "'none'")
+    return ("<?php\n"
+            "// The studio page's inquiry form, for the websites listed in Lumen Aureum (Settings, Studio page, Use the\n"
+            "// inquiry form on another website). Only those may show it in a frame. Written by the app at each upload.\n"
+            f"header(\"Content-Security-Policy: {csp}\");\n"
+            "header('X-Content-Type-Options: nosniff');\n"
+            "header('Referrer-Policy: no-referrer');\n"
+            "header('Cache-Control: no-cache');\n"
+            "$m = $_SERVER['REQUEST_METHOD'] ?? 'GET';\n"
+            "if ($m !== 'GET' && $m !== 'HEAD') { http_response_code(405); exit; }\n"
+            "?>\n" + html_)
+
+WIDGET_BUTTON = "Book a session"
+INK, PAPER = "#1f1b16", "#ffffff"
+
+def clean_accent(v):
+
+    v = (v or "").strip().lower()
+    return v if re.fullmatch(r"#[0-9a-f]{6}", v) else ""
+
+def on_color(bg):
+
+    import settings_io
+    c = settings_io._rgb(bg)
+    return next((t for t in (PAPER, INK) if settings_io._contrast(c, settings_io._rgb(t)) >= 4.5), "#000000")
+
+def widget_snippet(page_url, owner, button=False, accent=""):
+
+    if button:
+        bg = clean_accent(accent) or GOLD
+        return (f'<a href="{_html.escape(page_url)}#book" target="_blank" rel="noopener noreferrer" '
+                f'style="display:inline-block;padding:12px 26px;background:{bg};color:{on_color(bg)};text-decoration:none;'
+                f'letter-spacing:.08em;font:inherit">{WIDGET_BUTTON}</a>')
+    return (f'<iframe src="{_html.escape(page_url)}" title="{_html.escape("Send an inquiry to " + (owner or "the studio"))}" '
+            f'style="width:100%;max-width:640px;height:{WIDGET_HEIGHT}px;border:0" loading="lazy" '
+            'referrerpolicy="no-referrer"></iframe>')
+
+WIDGET = """<!doctype html>
+<html lang="en" class="frame">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<title>Send an inquiry · {{ name }}</title>
+<link rel="stylesheet" href="assets/site.css">
+<script src="assets/inquiry.js?v={{ form.js_v }}" defer></script>
+</head>
+<body>
+<main id="main" class="text">
+<h1 id="book" class="alone">Send an inquiry to {{ owner }}</h1>
+%%INQ_FORM%%%%INQ_ALT%%</main>
+</body>
+</html>
+""".replace("%%INQ_FORM%%", INQ_FORM).replace("%%INQ_ALT%%", INQ_ALT)
 
 PAGE = """<!doctype html>
 <html lang="en">
@@ -469,21 +616,7 @@ PAGE = """<!doctype html>
 {% elif page == 'contact' %}<div class="text">
 <h2>Send an inquiry</h2>
 {% if form %}<p id="inq-intro">Ask about a session, a date, or anything else. {{ owner }} will write back or call.</p>
-{% if form_off %}<p class="note">Preview: sending is off. The form works once the site is on your web host.</p>
-{% endif %}<form id="inq" class="inq" hidden novalidate data-key="{{ form.key }}" data-work="{{ form.work }}" data-post="{{ root }}inquiry.php"{% if form_off %} data-off="1"{% endif %}
-  data-thanks="Thanks. Your inquiry is on its way to {{ owner }}." data-fail="It couldn't be sent just now.{% if email %} Please write to {{ email }} instead.{% endif %}">
-  <div class="two"><p><label for="inq-name">Your name</label><input id="inq-name" name="name" maxlength="200" autocomplete="name" required></p>
-  <p><label for="inq-email">Email</label><input id="inq-email" name="email" type="email" maxlength="254" autocomplete="email"></p></div>
-  <div class="two"><p><label for="inq-phone">Phone <span>(optional)</span></label><input id="inq-phone" name="phone" type="tel" maxlength="40" autocomplete="tel"></p>
-  <p><label for="inq-date">Preferred date <span>(optional)</span></label><input id="inq-date" name="date" type="date" min="{{ year }}-01-01" max="2100-12-31"></p></div>
-  <p><label for="inq-type">What kind of session</label><select id="inq-type" name="type"><option value="">Not sure yet</option>{% for k, l in form.types %}<option value="{{ k }}">{{ l }}</option>{% endfor %}<option value="other">Other (explain below)</option></select></p>
-  <p><label for="inq-message">Message</label><textarea id="inq-message" name="message" rows="6" maxlength="3000"></textarea></p>
-  <p class="hp" aria-hidden="true"><label for="inq-website">Leave this empty</label><input id="inq-website" name="website" tabindex="-1" autocomplete="off"></p>
-  <p class="send"><button type="submit">Send</button> <span class="sub">Name, and an email or a phone number, please.</span></p>
-</form>
-<p id="inq-msg" role="status" hidden></p>
-{% endif %}<p id="inq-alt">{% if email %}Write to <a href="mailto:{{ email }}">{{ email }}</a>{% if phone %}, or call <a href="tel:{{ phone_link }}">{{ phone }}</a>{% endif %}.{% elif phone %}Call <a href="tel:{{ phone_link }}">{{ phone }}</a>.{% endif %}</p>
-<p class="already">Already a client? Your gallery opens from the private link in your letter or email.{% if email %} Lost it? Write to <a href="mailto:{{ email }}">{{ email }}</a>.{% endif %}</p>
+%%INQ_FORM%%{% endif %}%%INQ_ALT%%<p class="already">Already a client? Your gallery opens from the private link in your letter or email.{% if email %} Lost it? Write to <a href="mailto:{{ email }}">{{ email }}</a>.{% endif %}</p>
 <p class="back"><a href="{{ home }}">&larr; {{ 'Photographs' if has_photos else 'Home' }}</a></p>
 </div>
 {% endif %}</main>
@@ -496,6 +629,8 @@ PAGE = """<!doctype html>
 {% endif %}</body>
 </html>
 """
+
+PAGE = PAGE.replace("%%INQ_FORM%%", INQ_FORM).replace("%%INQ_ALT%%", INQ_ALT)
 
 class Built(NamedTuple):
     out_dir: Path
@@ -567,7 +702,7 @@ def build_site(out_dir, conf, photos):
             ratio = f"{round(r_ * 1000)} / 1000"
         else:
             ratio = "3 / 2"
-        put("assets/site.css", CSS.format(font=face, serif=body_f, title=title_f, ratio=ratio,
+        put("assets/site.css", CSS.format(font=face, serif=body_f, title=title_f, ratio=ratio, accent=conf.get("accent") or GOLD,
                                           scheme="dark" if conf.get("dark") else "light", **pal) + own_css)
         put("assets/site.js", SCRIPT)
         logo = None
@@ -646,6 +781,9 @@ def build_site(out_dir, conf, photos):
                                                       inq.get("kid") or kid_hex(inq["key"]), bool(inq.get("shared"))))
                 put(f"{INQ_DIR}/.htaccess", (ASSETS / "inquiries.htaccess").read_text())
                 put(f"{INQ_DIR}/index.html", "")
+                if conf.get("widget"):
+                    put(WIDGET_PAGE, widget_php(_env().from_string(WIDGET).render(root="", **common),
+                                                conf["widget"].get("sites") or []))
 
         lost_root = "" if draft else (conf.get("preview_base") or "") if conf.get("preview") else site_path
         put("404.html", tpl.render(page="404", root=lost_root, home=lost_root or "./", photos=[], about=[], script=False,
@@ -846,7 +984,7 @@ INQ_DIR = "inquiries"
 
 SITE_TOP_NAMES = frozenset({"photos", "assets", "about", "contact", INQ_DIR, "index.html", "404.html", "sealed.php",
                             "inquiry.php", "robots.txt", "sitemap.xml", ".htaccess", "favicon.ico",
-                            "apple-touch-icon.png", "llms.txt"})
+                            "apple-touch-icon.png", "llms.txt", WIDGET_PAGE})
 
 def reserved_folder(name):
 
@@ -901,6 +1039,10 @@ def site_target(gallery_cfg, gallery_base):
     elif t == "local":
         p = os.path.normpath(cfg.get("path") or "")
         last, cfg["path"] = os.path.basename(p), os.path.dirname(p)
+        cfg.pop("was_paths", None)
+        hid = cfg.pop("host_id", None)
+        if hid:
+            cfg["parent_of"] = hid
     elif t == "s3":
         pre = (cfg.get("prefix") or "").strip("/")
         parent, _, last = pre.rpartition("/")
@@ -1067,20 +1209,24 @@ def take_down(host, owned, folder, on_forget=lambda name: None, on_left=None):
             host.remove_dir(d + "/")
     return removed, left
 
-SETTINGS_PAGE = """{% extends "base.html" %}{% import "_ui.html" as ui with context %}{% from "_macros.html" import help with context %}
+SETTINGS_PAGE = """{% extends "base.html" %}{% import "_ui.html" as ui with context %}{% import "_settings_ui.html" as sui with context %}{% from "_macros.html" import help, seg with context %}
 {% block title %}Studio page - Lumen Aureum{% endblock %}
 {% block body %}
 {#- The studio page editor, built from the shared components (1.5.0). The inquiries block below is left as it is: it
     moves to Today. -#}
 {{ ui.page_head('Studio page') }}
 {% if request.args.get('saved') %}<p class="ok-msg" style="color:var(--gold)">Saved.</p>{% endif %}
-<form method="post" action="{{ url_for('studio_page_switch') }}" class="ui-sec f" style="max-width:720px">
+{#- design rule 15 (backlog 282): the switches and ticks save on their own, with Undo; the typed words save on Save the
+    words; Upload, while there are unsaved words or descriptions, says Save and put online and saves them first, so what
+    goes online is what is on the screen. Every other action here saves them first too, so none is lost. -#}
+<div data-ui-save-first="#words, #photos form[data-sp-desc], #sp-widget-sites">
+<form method="post" action="{{ url_for('studio_page_switch') }}" class="ui-sec f" style="max-width:720px" data-ui-autosave data-ui-autosave-reload>
   <p style="font-size:13px;margin:0">A small public website in the look of your galleries: photos you pick, an About page and an inquiry form. It goes up only when you press Upload.{{ help("It goes to your web host, in the folder above your galleries, which stay as they are. No tracking, and nothing loaded from anywhere else.") }}</p>
-  <label class="row" style="gap:6px"><input type="checkbox" name="use" value="1" data-autosubmit {{ 'checked' if on }}>Use the studio page</label>
+  <label class="row" style="gap:6px"><input type="checkbox" id="sp-use" name="use" value="1" data-no-keep {{ 'checked' if on }}>Use the studio page</label>
   <noscript><div><button class="ui-btn ui-btn-quiet">Save</button></div></noscript>
 </form>
 {% if on %}
-<form method="post" action="{{ url_for('studio_page_save') }}" class="ui-sec f" style="max-width:720px" id="words">
+<form method="post" action="{{ url_for('studio_page_save') }}" class="ui-sec f" style="max-width:720px" id="words"><input type="hidden" name="shows_apart" value="1">
   <h2 class="ui-sec-title">Words</h2>
   <div class="f2"><div><label class="l" for="sp-name">Name at the top</label><input id="sp-name" name="site_name" maxlength="120" value="{{ v.site_name }}" placeholder="{{ d.name }}"></div>
     <div><label class="l" for="sp-tag">Line under the name</label><input id="sp-tag" name="site_tagline" maxlength="{{ L.tag }}" value="{{ v.site_tagline }}" placeholder="Photographer · Your town"></div></div>
@@ -1089,19 +1235,26 @@ SETTINGS_PAGE = """{% extends "base.html" %}{% import "_ui.html" as ui with cont
   <div><label class="l" for="sp-about">About</label><textarea id="sp-about" name="site_about" rows="12" maxlength="{{ L.about }}">{{ v.site_about }}</textarea>
     <div class="sub" style="font-size:12.5px;margin-top:4px">A blank line starts a new paragraph; the first one is shown larger. A line starting with ## is a small heading. A link: [words](https://example.com). Leave it empty for no About page.</div></div>
   <div class="sub" style="font-size:13px">Contact: {% if contact %}{{ contact | join(' · ') }}{% else %}<span class="mute">none yet</span>{% endif %}. These come from {{ ui.go(url_for('settings_view', tab='profile'), 'Settings, Profile') }}</div>
+  {#- ticks: each saves on its own (the sp-show form below), never with the words -#}
   <div class="row" style="gap:18px;flex-wrap:wrap">
-    <label class="row" style="gap:6px"><input type="checkbox" name="site_show_phone" value="1" {{ 'checked' if v.site_show_phone != '0' }}>Show the phone number</label>
-    <label class="row" style="gap:6px"><input type="checkbox" name="site_show_address" value="1" {{ 'checked' if v.site_show_address != '0' }}>Show the mailing address</label>
-    <label class="row" style="gap:6px"><input type="checkbox" name="site_inquiries" value="1" {{ 'checked' if v.site_inquiries != '0' }}>An inquiry form</label>
-    <label class="row" style="gap:6px" id="sp-llms"><input type="checkbox" name="site_llms" value="1" {{ 'checked' if v.site_llms != '0' }}>A summary for modern search tools (llms.txt){{ help("A short text file that modern search tools read: your studio name, the line under it, the start of About, where you work, and the site's pages with how to send an inquiry. Only what the site already shows; never a gallery.") }}</label></div>
+    <label class="row" style="gap:6px"><input type="checkbox" id="sp-phone" form="sp-show" data-no-keep name="site_show_phone" value="1" {{ 'checked' if v.site_show_phone != '0' }}>Show the phone number</label>
+    <label class="row" style="gap:6px"><input type="checkbox" id="sp-address" form="sp-show" data-no-keep name="site_show_address" value="1" {{ 'checked' if v.site_show_address != '0' }}>Show the mailing address</label>
+    <label class="row" style="gap:6px"><input type="checkbox" id="sp-inq" form="sp-show" data-no-keep name="site_inquiries" value="1" {{ 'checked' if v.site_inquiries != '0' }}>An inquiry form</label>
+    <label class="row" style="gap:6px" id="sp-llms"><input type="checkbox" id="sp-llms-on" form="sp-show" data-no-keep name="site_llms" value="1" {{ 'checked' if v.site_llms != '0' }}>A summary for modern search tools (llms.txt){{ help("A short text file that modern search tools read: your studio name, the line under it, the start of About, where you work, and the site's pages with how to send an inquiry. Only what the site already shows; never a gallery.") }}</label></div>
   <div class="sub" style="font-size:12.5px">The inquiry form is sealed in the visitor's browser so only this app can read it; your web host keeps it until the app collects it and adds it as a new inquiry. It needs a host that runs PHP (SFTP web hosting); elsewhere the Contact page shows your email instead.</div>
   <div><label class="l" for="sp-bg">Background</label><select id="sp-bg" name="site_bg">{% for c_, l_ in backgrounds %}<option value="{{ c_ }}"{{ ' selected' if v.site_bg == c_ }}>{{ l_ }}</option>{% endfor %}</select>
     <div class="sub" style="font-size:12.5px;margin-top:4px">The font and colors follow your {{ ui.go(url_for('settings_view', tab='branding') ~ '#gallery-look', "client galleries' look") }}</div></div>
-  <div class="row" style="gap:10px;flex-wrap:wrap"><label class="row" style="gap:6px"><input type="checkbox" name="site_mark" value="1" {{ 'checked' if v.site_mark != '0' }}>Copyright mark on each photo</label>
+  {%- set own_accent_ = v.site_accent|length == 7 %}
+  <div><span class="l" id="sp-accent-l">Accent color{{ help("The thin lines and underlines on your studio page, and the Book a session button you can paste on another website. The button's words are white or dark, whichever reads clearly on it.") }}</span>
+    {{ seg('site_accent_own', [('0', 'Gold'), ('1', 'Your own')], '1' if own_accent_ else '0', by='sp-accent-l') }}
+    <input type="color" name="site_accent" value="{{ v.site_accent if own_accent_ else '#b8862f' }}" aria-label="Your own accent color" data-show-if="site_accent_own=1"></div>
+  <div class="row" style="gap:10px;flex-wrap:wrap"><label class="row" style="gap:6px"><input type="checkbox" id="sp-mark" form="sp-show" data-no-keep name="site_mark" value="1" {{ 'checked' if v.site_mark != '0' }}>Copyright mark on each photo</label>
     <label class="l" for="sp-markname" style="margin:0">Name in the mark</label><input id="sp-markname" name="site_mark_name" maxlength="80" value="{{ v.site_mark_name }}" placeholder="{{ d.owner }}" style="width:220px"></div>
   <div class="sub" style="font-size:12.5px">Small, in the bottom-left corner: &copy; {{ d.year }} {{ v.site_mark_name or d.owner }}, the year each photo first goes online.</div>
-  <div><button class="ui-btn ui-btn-primary">Save the words</button></div>
+  <noscript><div><button class="ui-btn ui-btn-quiet" form="sp-show">Save the ticks</button></div></noscript>
+  <div class="ui-btnrow"><button class="ui-btn ui-btn-primary">Save the words</button>{{ sui.unsaved() }}</div>
 </form>
+<form method="post" action="{{ url_for('studio_page_show') }}" id="sp-show" data-ui-autosave hidden></form>
 
 <div class="ui-sec f" style="max-width:720px" id="photos" data-save-together>
   <h2 class="ui-sec-title">Photos <span class="ui-mute" style="text-transform:none;letter-spacing:0;font-weight:400">{{ photos|length }} of up to {{ max_photos }}, shown in this order</span></h2>
@@ -1110,7 +1263,7 @@ SETTINGS_PAGE = """{% extends "base.html" %}{% import "_ui.html" as ui with cont
   {% if photos %}<ul class="ui-photos">{% for p in photos %}<li class="ui-photo">
     <img src="{{ url_for('studio_page_thumb', pid=p.id) }}" alt="">
     <div class="ui-photo-body">
-      <form method="post" action="{{ url_for('studio_page_photo', pid=p.id) }}" class="ui-form-row">
+      <form method="post" action="{{ url_for('studio_page_photo', pid=p.id) }}" class="ui-form-row" data-sp-desc>
         <input name="alt" maxlength="{{ L.alt }}" value="{{ p.alt }}" aria-label="What the photo shows (for people who can't see it)" placeholder="What it shows" class="ui-grow">
         <button class="ui-btn ui-btn-quiet" name="do" value="alt">Save the description</button></form>
       <div class="ui-mute" style="font-size:12.5px">{% if p.source == 'session' %}{{ p.who }}: {{ p.name }}{% if p.problem %} <span class="ui-late">{{ p.problem }}</span>{% endif %}{% else %}Your upload: {{ p.name }}{% endif %}{% if not p.alt %} {{ ui.chip("No description yet: people who can't see the photo get nothing", 'attention') }}{% endif %}</div>
@@ -1145,6 +1298,34 @@ SETTINGS_PAGE = """{% extends "base.html" %}{% import "_ui.html" as ui with cont
     <input type="file" name="icon" accept="image/png,image/jpeg,image/gif,image/x-icon,image/vnd.microsoft.icon,.ico" required aria-label="Icon for the browser tab" style="width:auto"><button class="ui-btn ui-btn-quiet">Upload the icon</button></form>
   {% if favicon %}<form method="post" action="{{ url_for('studio_page_favicon') }}"><button class="ui-btn ui-btn-quiet" name="remove" value="1">Remove the icon</button></form>{% endif %}
 </div>
+
+{#- backlog 260: the inquiry form in a frame on a website made elsewhere. Off to start with. -#}
+<div style="max-width:720px">{% call sui.section('Use the inquiry form on another website', id='widget', help_text="For a website you made elsewhere (Squarespace, WordPress, Showit and the like). Paste the code into a page there and it shows this inquiry form. The form itself comes from your web host, and what a visitor types is sealed in their browser before it leaves, so the other website can't read it. Inquiries arrive here just as they do from the Contact page.") %}
+  <form method="post" action="{{ url_for('studio_page_widget') }}" id="sp-widget-on" data-ui-autosave data-ui-autosave-reload><input type="hidden" name="what" value="switch">
+    {{ sui.switch('site_widget', 'Show the inquiry form on another website', widget.on, 'Gives you a short piece of code to paste into a page of that website.', id='sp-widget', autosave=true) }}
+    <noscript>{{ sui.save_bar('sp-widget-on', 'Save', sticky=false) }}</noscript>
+  </form>
+  {% if widget.on %}
+  <form method="post" action="{{ url_for('studio_page_widget') }}" id="sp-widget-how" data-ui-autosave data-ui-autosave-reload><input type="hidden" name="what" value="button">
+    <label class="row" style="gap:6px"><input type="checkbox" id="sp-widget-button" name="site_widget_button" value="1" data-no-keep {{ 'checked' if widget.button }}>Show a {{ widget.words }} button instead of the whole form</label>
+    <p class="sui-hint">{% if widget.button %}The button opens the form in a tab of its own, on your web host.{% else %}The whole form shows inside the page of your other website.{% endif %}</p>
+    <noscript>{{ sui.save_bar('sp-widget-how', 'Save', sticky=false) }}</noscript>
+  </form>
+  {% if not widget.button %}
+  <form method="post" action="{{ url_for('studio_page_widget') }}" id="sp-widget-sites"><input type="hidden" name="what" value="sites">
+    {{ sui.field('site_widget_sites', 'Your other website', widget.sites, type='textarea', rows=2, placeholder='example.com',
+                 help="Only the websites listed here can show the form; anywhere else, browsers refuse it. The www. version of each is allowed too. https:// only.",
+                 hint='One address per line, up to ' ~ widget.max ~ '.') }}
+    {{ sui.save_bar('sp-widget-sites', 'Save the addresses', sticky=false, unsaved=true) }}
+  </form>
+  {% endif %}
+  {% if widget.need %}<p class="sui-hint">{{ widget.need }}</p>
+  {% else %}<div class="sui-field"><label class="l" for="sp-snippet">Code to paste{{ help("In Squarespace, an Embed or Code block; in WordPress, a Custom HTML block; elsewhere, whatever adds HTML code to a page. It holds only the address of the form on your web host: nothing secret.") }}</label>
+    <div class="sui-input"><textarea id="sp-snippet" rows="4" readonly class="mono" style="font-size:12px">{{ widget.snippet }}</textarea></div></div>
+  <div class="ui-btnrow"><button type="button" class="ui-btn ui-btn-quiet" data-copy="#sp-snippet">Copy the code</button></div>
+  <p class="sui-hint" role="status">{% if widget.live %}On your web host now. A change here goes online with the next Upload.{% else %}Not on your web host yet: it goes online with the next Upload.{% endif %}</p>{% endif %}
+  {% endif %}
+{% endcall %}</div>
 {% endif %}
 
 {% if review %}<div class="card f" style="max-width:720px" id="inquiries-on-today">
@@ -1157,16 +1338,16 @@ SETTINGS_PAGE = """{% extends "base.html" %}{% import "_ui.html" as ui with cont
   {% if problem %}<p style="font-size:13px;margin:0;color:var(--amber, #b07a12)">{{ problem }}</p>
   {% else %}<p style="font-size:13px;margin:0">Your site: <b>{{ site_url }}</b>, with your galleries at {{ site_url }}{{ folder }}/.</p>{% endif %}
   <div class="ui-btnrow">
-    <form method="post" action="{{ url_for('studio_page_preview_build') }}" target="_blank" class="ui-action"><button class="ui-btn ui-btn-quiet">Preview the site</button></form>
-    {% if not problem %}<form method="post" action="{{ url_for('studio_page_upload') }}" class="ui-action" data-confirm="Put the studio page online at {{ site_url }}? It is built fresh first. Your galleries aren't touched."><button class="ui-btn ui-btn-primary"{{ ' disabled' if busy }}>Upload</button></form>{% endif %}
+    <form method="post" action="{{ url_for('studio_page_preview_build') }}" target="_blank" class="ui-action" data-ui-save-first="#words, #photos form[data-sp-desc], #sp-widget-sites" data-ui-save-first-ask><button class="ui-btn ui-btn-quiet">Preview the site</button></form>
+    {% if not problem %}<form method="post" action="{{ url_for('studio_page_upload') }}" class="ui-action" data-confirm="Put the studio page online at {{ site_url }}? It is built fresh first. Your galleries aren't touched."><button class="ui-btn ui-btn-primary"{{ ' disabled' if busy }} data-ui-dirty-label="Save and put online">Upload</button></form>{% endif %}
   </div>
   {% else %}<h2 class="ui-sec-title">Your site is still online</h2>
   <p style="font-size:13px;margin:0">The studio page is switched off, but the files it put on your web host{% if site_url %} ({{ site_url }}){% endif %} are still there{% if inq_live %}, and so is its inquiry form: what visitors send is still collected{% endif %}. {{ 'Take them down below.' if problem else 'Take the site down to remove them.' }}</p>
   {% if problem %}<p style="font-size:13px;margin:0;color:var(--amber, #b07a12)">{{ problem }} Until then, each web host the studio page put files on is listed here.</p>{% endif %}
   {% endif %}
   <div class="sub" style="font-size:13px" role="status">{% if busy %}{{ job.label or 'Working' }}{% if job.total %}: {{ job.done }} of {{ job.total }}{% endif %}
-    {% elif state == 'awaiting' %}Waiting for approval. Press {{ 'Upload' if on else 'Take the site down' }} again to ask again.
-    {% elif state == 'awaiting_back' %}Waiting for approval. Press Put the old files back again to ask again.
+    {% elif state == 'awaiting' %}On hold. Press {{ 'Upload' if on else 'Take the site down' }} again to try again.
+    {% elif state == 'awaiting_back' %}On hold. Press Put the old files back again to try again.
     {% elif state == 'error' %}<span style="color:var(--red)">{{ error }}</span>
     {% elif state == 'up' %}Online since {{ nice(up_at) }}{% if n_files %} ({{ n_files }} files){% endif %}.
     {% elif state == 'down' %}Taken down {{ nice(up_at) }}.
@@ -1186,6 +1367,7 @@ SETTINGS_PAGE = """{% extends "base.html" %}{% import "_ui.html" as ui with cont
   {% if n_files and not busy %}<form method="post" action="{{ url_for('studio_page_take_down') }}" data-confirm="Remove the studio page from your web host? Only the files Lumen Aureum put there are removed; your galleries and anything else stay."><button class="ui-btn ui-btn-quiet">Take the site down</button></form>{% endif %}
 </div>
 {% endif %}
+</div>
 {% endblock %}
 """
 
@@ -1442,6 +1624,7 @@ def register(ctx):
                     inquiry=dict(key=inquiry_public(inquiry_key()), kid=kid_hex(inquiry_public(inquiry_key())),
                                  types=form_types(), salt=inquiry_salt(), work=INQ_WORK, shared=host_shared())
                     if setting("site_inquiries") != "0" else None,
+                    widget=widget_conf(), accent=clean_accent(setting("site_accent")),
                     llms=setting("site_llms") != "0")
 
     def build(out_name, preview=False):
@@ -1461,10 +1644,56 @@ def register(ctx):
     def has_manifest_rows(fp):
         return q("SELECT COUNT(*) n FROM studio_files WHERE host_fp=?", (fp,), one=True)["n"]
 
+    def widget_conf():
+
+        if setting("site_widget") != "1":
+            return None
+        if setting("site_widget_button") == "1":
+            return dict(sites=[])
+        sites = widget_sites(setting("site_widget_sites"))[0]
+        return dict(sites=sites) if sites else None
+
+    def widget_state(site_cfg, site_url, problem, fp):
+
+        sites, _ = widget_sites(setting("site_widget_sites"))
+        button = setting("site_widget_button") == "1"
+        need = ""
+        if setting("site_inquiries") == "0":
+            need = "It shows the studio page's inquiry form, which is off: tick An inquiry form under Words."
+        elif problem:
+            need = "It goes online with the studio page, which can't go to your web host yet (see Preview and upload)."
+        elif not site_cfg or site_cfg.get("type") not in ("sftp", "local"):
+            need = "It needs a web host that runs PHP, as the inquiry form does."
+        elif not sites and not button:
+            need = "Add the address of your other website: only the websites listed here can show the form."
+        owner = (setting("studio_name") or setting("business_name") or setting("photographer_name") or "").strip()
+        live = bool(fp) and bool(q("SELECT 1 FROM studio_files WHERE host_fp=? AND name=?", (fp, WIDGET_PAGE), one=True))
+        return dict(on=setting("site_widget") == "1", button=button, sites="\n".join(sites), need=need, live=live,
+                    max=WIDGET_MAX_SITES, words=WIDGET_BUTTON,
+                    snippet=widget_snippet(site_url + WIDGET_PAGE, owner, button, setting("site_accent")) if not need else "")
+
+    @app.post("/settings/studio-page/widget", endpoint="studio_page_widget")
+    def studio_page_widget():
+
+        f = request.form
+        if f.get("what") == "sites":
+            sites, bad = widget_sites(clip(f.get("site_widget_sites", ""), 2000))
+            put_setting("site_widget_sites", "\n".join(sites))
+            if bad:
+                _fs.setdefault("field_errors", {})["site_widget_sites"] = "Not added: " + " ".join(
+                    b_ if b_.endswith(".") else b_ + "." for b_ in bad[:4])
+                _fs.modified = True
+            return redirect(url_for("studio_page", saved="sp-widget-sites") + "#widget")
+        if f.get("what") == "button":
+            put_setting("site_widget_button", "1" if f.get("site_widget_button") else "0")
+            return redirect(back("#widget"))
+        put_setting("site_widget", "1" if f.get("site_widget") else "0")
+        return redirect(back("#widget"))
+
     @app.get("/settings/studio-page", endpoint="studio_page")
     def studio_page():
         v = {k: setting(k) for k in ("site_name", "site_tagline", "site_intro", "site_description", "site_about", "site_bg",
-                                      "site_mark", "site_mark_name", "site_show_phone", "site_show_address",
+                                      "site_accent", "site_mark", "site_mark_name", "site_show_phone", "site_show_address",
                                       "site_inquiries", "site_llms")}
         rows = photo_rows()
         ok_ids = {r["id"] for r in allowed_now(rows)[0]}
@@ -1503,7 +1732,7 @@ def register(ctx):
             problem = ""
             fp = host_fingerprint(site_cfg)
         except SiteProblem as e:
-            site_url, folder, problem, fp = "", "", str(e), ""
+            site_cfg, site_url, folder, problem, fp = None, "", "", str(e), ""
         n_files = has_manifest_rows(fp) if fp else 0
         all_stale = stale_photos()
         stale = [r_ for r_ in all_stale if r_["host_fp"] == fp]
@@ -1513,7 +1742,8 @@ def register(ctx):
         contact = [t for t in (setting("business_email").strip(), setting("business_phone").strip(),
                                ", ".join(l_.strip() for l_ in setting("business_address").splitlines() if l_.strip())) if t]
         owner = (setting("studio_name") or setting("business_name") or setting("photographer_name") or "").strip()
-        return render_template_string(SETTINGS_PAGE, on=on(), v=v, photos=photos, pick=pick, sessions=sessions,
+        widget = widget_state(site_cfg, site_url, problem, fp)
+        return render_template_string(SETTINGS_PAGE, widget=widget, on=on(), v=v, photos=photos, pick=pick, sessions=sessions,
                                       max_photos=MAX_PHOTOS, backgrounds=BACKGROUNDS, contact=contact,
                                       d=dict(name=studio_name() or "Your name", owner=owner or "Your name", year=date.today().year),
                                       L=dict(tag=TAGLINE_MAX, intro=INTRO_MAX, desc=DESC_MAX, about=ABOUT_MAX, alt=ALT_MAX),
@@ -1549,10 +1779,24 @@ def register(ctx):
         put_setting("site_description", one("site_description", DESC_MAX))
         put_setting("site_about", clip(f.get("site_about", "").replace("\r\n", "\n"), ABOUT_MAX).strip())
         put_setting("site_bg", f.get("site_bg", "") if f.get("site_bg", "") in [b for b, _ in BACKGROUNDS] else "")
+        if "site_accent_own" in f:
+            put_setting("site_accent", clean_accent(f.get("site_accent")) if f.get("site_accent_own") == "1" else "")
         put_setting("site_mark_name", one("site_mark_name", 80))
-        for k in ("site_mark", "site_show_phone", "site_show_address", "site_inquiries", "site_llms"):
-            put_setting(k, "1" if f.get(k) else "0")
+        if not f.get("shows_apart"):
+            save_shows(f)
         return redirect(url_for("studio_page", saved=1) + "#words")
+
+    SHOWS = ("site_mark", "site_show_phone", "site_show_address", "site_inquiries", "site_llms")
+
+    def save_shows(f):
+        for k in SHOWS:
+            put_setting(k, "1" if f.get(k) else "0")
+
+    @app.post("/settings/studio-page/show", endpoint="studio_page_show")
+    def studio_page_show():
+
+        save_shows(request.form)
+        return redirect(url_for("studio_page") + "#words")
 
     def next_sort():
         r_ = q("SELECT COALESCE(MAX(sort), 0) m FROM studio_photos", one=True)
@@ -1807,6 +2051,9 @@ def register(ctx):
             names = list(owned(ofp))
             if not rec or not names:
                 continue
+            if site_cfg.get("parent_of") and (rec.get("site") or {}).get("parent_of") == site_cfg["parent_of"]:
+                adopt(ofp, fp)
+                continue
             try:
                 with host.session():
                     seen = any(host.stat(n_) is not None for n_ in names if NAME_OK.match(n_) and ".." not in n_.split("/"))
@@ -1878,14 +2125,14 @@ def register(ctx):
                     import upgrade_140
                     upgrade_140.ensure(ctx, G._G() if hasattr(G, "_G") else G, r_["sid"])
                     gid = q("SELECT gallery_id FROM sessions WHERE id=?", (r_["sid"],), one=True)["gallery_id"]
-                blob = G.picks_blob(gid)
+                files_ = G.sent_picks(gid, r_["ekey"] or r_["key"])
             except Exception as e:
                 raise SiteProblem("The client's latest picks couldn't be read from your web host, so nothing was "
-                                  f"uploaded ({str(e)[:200]}). Try again in a moment.")
-            if not blob:
+                                  f"uploaded ({errtext.words(e)}). Try again in a moment.")
+            if not files_:
                 continue
             try:
-                pk = G.open_picks(blob, r_["ekey"] or r_["key"], gid)
+                pk = G.merged_picks(files_, r_["ekey"] or r_["key"], gid)[0]
             except Exception:
                 pk = None
             if pk is None:
@@ -1931,7 +2178,7 @@ def register(ctx):
             collect_inquiries(limit=200, force=True)
         except Exception as e:
             logging.getLogger(__name__).exception("studio page inquiries before take-down")
-            failed = str(e)[:200]
+            failed = errtext.words(e)
         ih = open_inq_host(gcfg, site_cfg)
         entries = top_files(ih)
         names = [n for n, _, plain in entries if plain]
@@ -2164,10 +2411,11 @@ def register(ctx):
             JOB.update(state="done")
         except Exception as e:
             log.exception("studio page upload")
-            JOB.update(state="error", error=str(e))
+            said = str(e)[:1500] if isinstance(e, SiteProblem) else "Upload stopped: " + errtext.words(e)
+            JOB.update(state="error", error=said)
             with app.app_context():
                 put_setting("site_state", "error")
-                put_setting("site_error", ("Upload stopped: " if not isinstance(e, SiteProblem) else "") + str(e)[:1500])
+                put_setting("site_error", said)
                 remember_theirs(e)
         finally:
             if ran:
@@ -2229,7 +2477,7 @@ def register(ctx):
             remember_theirs(None)
             app.logger.exception("studio page upload")
             put_setting("site_state", "error")
-            put_setting("site_error", f"The site couldn't be built or the host couldn't be reached: {e}"[:600])
+            put_setting("site_error", "The site couldn't be built or the host couldn't be reached: " + errtext.words(e, 540))
             return redirect(back("#publish"))
         stamp = secrets.token_hex(8)
         READY.clear()
@@ -2280,10 +2528,10 @@ def register(ctx):
             JOB.update(state="done")
         except Exception as e:
             logging.getLogger(__name__).exception("studio page take down")
-            JOB.update(state="error", error=str(e))
+            JOB.update(state="error", error=errtext.words(e, 600))
             with app.app_context():
                 put_setting("site_state", "error")
-                put_setting("site_error", f"Taking the site down stopped: {e}"[:600])
+                put_setting("site_error", "Taking the site down stopped: " + errtext.words(e, 570))
 
     @app.post("/settings/studio-page/take-down", endpoint="studio_page_take_down")
     def studio_page_take_down():
@@ -2362,12 +2610,12 @@ def register(ctx):
             JOB.update(state="done")
         except Exception as e:
             logging.getLogger(__name__).exception("studio page put back")
-            JOB.update(state="error", error=str(e))
+            said = str(e)[:600] if isinstance(e, SiteProblem) else "Putting the old files back stopped: " + errtext.words(e, 560)
+            JOB.update(state="error", error=said)
             with app.app_context():
                 put_setting("site_state", "error")
                 put_setting("site_theirs", "")
-                put_setting("site_error", ("Putting the old files back stopped: " if not isinstance(e, SiteProblem) else "")
-                            + str(e)[:600])
+                put_setting("site_error", said)
 
     @app.post("/settings/studio-page/put-back", endpoint="studio_page_put_back")
     def studio_page_put_back():
@@ -2459,9 +2707,9 @@ def register(ctx):
             JOB.update(state="done", done=1)
         except Exception as e:
             logging.getLogger(__name__).exception("studio page remove a photo")
-            JOB.update(state="error", error=str(e))
+            JOB.update(state="error", error=errtext.words(e, 600))
             with app.app_context():
-                put_setting("site_note", f"The photo couldn't be removed: {e}"[:600])
+                put_setting("site_note", "The photo couldn't be removed: " + errtext.words(e, 570))
 
     def asked_host():
 
@@ -2485,7 +2733,7 @@ def register(ctx):
         ctx.audit(f"Asked to remove {name} from the studio page's host" + (f" {host_name(at)}" if at else ""))
         if ctx.hooks.guard(GUARD, lambda: do_remove_file(name, at), sid=None, gallery_id=None, n_files=1, site=True,
                            remove=True):
-            put_setting("site_note", f"Removing {name} is waiting for approval.")
+            put_setting("site_note", f"Removing {name} is on hold.")
             return redirect(back("#publish"))
         threading.Thread(target=do_remove_file, args=(name, at), name="studio-page-remove", daemon=True).start()
         return redirect(back("#publish"))
@@ -2563,10 +2811,11 @@ def register(ctx):
             JOB.update(state="done")
         except Exception as e:
             logging.getLogger(__name__).exception("studio page take down from an earlier host")
-            JOB.update(state="error", error=str(e))
+            said = str(e)[:600] if isinstance(e, SiteProblem) else ("Taking the site down from the earlier host stopped: "
+                                                                     + errtext.words(e, 545))
+            JOB.update(state="error", error=said)
             with app.app_context():
-                put_setting("site_note", ("" if isinstance(e, SiteProblem) else "Taking the site down from the earlier "
-                                          "host stopped: ") + str(e)[:600])
+                put_setting("site_note", said)
 
     @app.post("/settings/studio-page/take-down-earlier", endpoint="studio_page_take_down_earlier")
     def studio_page_take_down_earlier():
@@ -2588,7 +2837,7 @@ def register(ctx):
             return redirect(back("#publish"))
         if ctx.hooks.guard(GUARD, lambda: do_take_down_earlier(at), sid=None, gallery_id=None, n_files=len(owned(at)),
                            site=True, remove=True):
-            put_setting("site_note", f"Taking the studio page down from {host_name(at)} is waiting for approval.")
+            put_setting("site_note", f"Taking the studio page down from {host_name(at)} is on hold.")
             return redirect(back("#publish"))
         threading.Thread(target=do_take_down_earlier, args=(at,), name="studio-page-down-earlier", daemon=True).start()
         return redirect(back("#publish"))
@@ -2755,6 +3004,25 @@ def register(ctx):
         return res
 
     app.config["studio_page_collect"] = collect_inquiries
+
+    def client_check(sids):
+
+        r_ = q(f"SELECT DISTINCT household_id FROM sessions WHERE id IN ({','.join('?' * len(sids))})", tuple(sids)) if sids else []
+        hids = {x_["household_id"] for x_ in r_}
+        if not hids:
+            return {}
+        had = {x_["id"] for x_ in q("SELECT id FROM studio_inquiry_review")}
+        try:
+            res = collect_inquiries()
+        except Exception:
+            app.logger.exception("Check now: website inquiries")
+            return dict(failed=True)
+        if not res or not res["added"]:
+            return {}
+        n = sum(1 for x_ in review_rows() if x_["id"] not in had and any(m_["hid"] in hids for m_ in x_["matches"]))
+        return dict(got=[f"{'a new website inquiry' if n == 1 else f'{n} new website inquiries'} from them, on Today"] if n else [])
+
+    ctx.hooks.client_checks.append(client_check)
 
     def save_inquiry(sha, fields, why, item=None):
 

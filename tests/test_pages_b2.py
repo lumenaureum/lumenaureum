@@ -122,7 +122,7 @@ def test_settings_search_finds_the_setting_itself_by_label_help_and_common_words
         assert first("mileage") == "/setup/money#f-mileage_rate"
         assert first("checks").startswith("/settings?tab=profile#f-business_address") or any(
             r_["link"] == "/setup/money#pay-methods" for r_ in A.settings_find("checks"))
-        assert any(r_["link"].endswith("#f-sales_tax_pct") for r_ in A.settings_find("tax"))
+        assert any(r_["link"].endswith("#taxes") for r_ in A.settings_find("tax"))
         assert any(r_["link"].endswith("#f-backup_time") for r_ in A.settings_find("backup"))
         assert any(r_["link"].endswith("#f-gallery_codeword") and "/types/" in r_["link"] or "#f-gallery_codeword" in r_["link"]
                    for r_ in A.settings_find("codeword"))

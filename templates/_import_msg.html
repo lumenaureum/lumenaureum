@@ -7,6 +7,7 @@
   <input type="hidden" name="back" value="{{ request.path }}">
   {% if ir.storage %}<div>This file sets where your backups go: <b>{{ ir.storage_words }}</b>. Check it is a place you own before you use it.</div>{% endif %}
   {% if ir.gallery %}<div>This file sets your online galleries: <b>{{ ir.gallery_words }}</b>. Client galleries will be uploaded there.</div>{% endif %}
+  {% if 'SFTP' in (ir.storage_words or '') ~ ' ' ~ (ir.gallery_words or '') %}<div>A server's key is never taken from a file. Setup shows the server's fingerprint for you to check and trust before anything is sent there.</div>{% endif %}
   <div class="row" style="gap:8px"><button class="primary" name="use" value="1">Use it</button><button name="use" value="0" class="quiet">No</button></div>
 </form>{% endif %}
 {% endif %}{% endif %}

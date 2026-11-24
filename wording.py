@@ -74,7 +74,7 @@ If I cannot photograph your session because of illness, injury, emergency or equ
 If photos are lost, damaged or not taken, for any reason, or I do not do something this agreement says, I will, at your choice, refund the part of the price that covers what was lost or not done, or reshoot it at no charge if that is possible. In no case will I owe you more than you have paid me under this agreement. This is your only remedy against me. I am not responsible for indirect or consequential losses, such as the cost of re-staging an event, or for emotional distress. This section does not limit my responsibility for harm I cause through gross negligence or on purpose.
 
 # 6. What I provide, and what you receive
-[WHAT I PROVIDE] You receive the edited photos [HOW YOU DELIVER], within [DELIVERY DAYS] days of the session. [THE LINK] I keep the unedited files and my copies of the edited photos for [HOW LONG] after delivery, then delete them. Copies in my backups are removed as those backups are replaced. If you ask me in writing, I will delete your photos sooner. Please keep your own copies of the photos you receive.
+[WHAT I PROVIDE] Before delivery I may show you proofs in a private gallery so you can choose favorites. Proofs are for choosing only and are not the delivered photos. You receive the edited photos [HOW YOU DELIVER], within [DELIVERY DAYS] days of the session. [THE LINK] I keep the unedited files and my copies of the edited photos for [HOW LONG] after delivery, then delete them. Copies in my backups are removed as those backups are replaced. If you ask me in writing, I will delete your photos sooner. Please keep your own copies of the photos you receive.
 
 # 7. The photos
 [THE PHOTOS]
@@ -92,13 +92,13 @@ If photos are lost, damaged or not taken, for any reason, or I do not do somethi
 You are responsible for your own safety and belongings at each location. Some locations may refuse photography on the day, and we will move to another spot.
 
 # 12. Your information
-I keep your contact details, session notes and photos to run your session and my business records. I keep them secure, and the copies in my own systems are encrypted where my software allows. I share them only with the services I use to run my business (such as my web host, email, payment and print lab), and only as much as each needs. At a group event, group photos go to the families in them. I never sell your information. I keep business records for up to [RECORDS YEARS] years after our last session, then delete them. If you ask, I will tell you what I hold about you, or delete it, except records I must keep for taxes. Your gallery link works for anyone who has it: keep the letter safe and do not post the link.
+I keep your contact details, session notes and photos to run your session and my business records. I take care to keep them secure, and the copies in my own systems are encrypted where my software allows. I share them only with the services I use to run my business (such as my web host, email, payment and print lab), and only as much as each needs. At a group event, group photos go to the families in them. I never sell your information. I keep business records for up to [RECORDS YEARS] years after our last session and then delete them, except what I must keep longer for taxes or legal reasons. If you ask, I will tell you what I hold about you, or delete it, except records I need to keep for taxes, legal reasons, or to show what we agreed. Your gallery link works for anyone who has it: keep the letter safe and do not post the link.
 
 # 13. The whole agreement
 This agreement and the quote are our whole agreement. Changes are made in writing. The law of [LAW] applies.
 """,
     "transfer": """# The photos are yours
-[PHOTOGRAPHER] transfers to you all copyright in the photos delivered from this session, effective when the session is paid in full. You may print, share, publish, sell or change them however you like, with no permission needed.
+[PHOTOGRAPHER] transfers to you all copyright in the final edited photos delivered from this session, effective when the session is paid in full. Proofs, unedited files and photos that are not delivered are not included. You may print, share, publish, sell or change them however you like, with no permission needed.
 
 # Portfolio
 [FAVORITES]
@@ -107,7 +107,7 @@ This agreement and the quote are our whole agreement. Changes are made in writin
 If a print lab asks whether you may print these photos, show them this page: they belong to you.
 """,
     "license": """# Your license
-[PHOTOGRAPHER] keeps the copyright. Your license to the photos delivered from this session covers [WHAT THE LICENSE COVERS].[LICENSE SCOPE]
+[PHOTOGRAPHER] keeps the copyright. Your license to the final edited photos delivered from this session covers [WHAT THE LICENSE COVERS].[LICENSE SCOPE] Proofs, unedited files and photos that are not delivered are not included.
 
 # Other uses
 [OTHER USES]
@@ -130,9 +130,28 @@ I give [PHOTOGRAPHER] permission to photograph [PERSON] at [OCCASION].
 [GUARDIAN]
 
 # My information
-The photographer keeps my details only to run the session and its records, and never sells them. I may ask for them to be deleted.
+The photographer keeps my details only to run the session and its records, and never sells them. I may ask for them to be deleted; the photographer keeps this release and the records the law requires.
 """,
 }
+
+FREE_SWAPS = [
+    ("A deposit, if required, holds your date and is applied to the price. The balance is [BALANCE DUE]. [PAYMENT]",
+     "There is nothing to pay for this session: no deposit and no balance."),
+    (" If we cannot agree on a date in that time, I refund what you have paid, less costs I have already paid out for your"
+     " session, such as permits or a second photographer, which I will list for you.", ""),
+    ("If photos are lost, damaged or not taken, for any reason, or I do not do something this agreement says, I will, at"
+     " your choice, refund the part of the price that covers what was lost or not done, or reshoot it at no charge if that"
+     " is possible. In no case will I owe you more than you have paid me under this agreement. This is your only remedy"
+     " against me.",
+     "If photos are lost, damaged or not taken, I will reshoot at no charge if that is possible. This is your only remedy"
+     " against me."),
+]
+
+def free_text(text):
+
+    for old, new in FREE_SWAPS:
+        text = text.replace(old, new)
+    return text
 
 def render(text, values):
 
@@ -192,5 +211,45 @@ FIELDS["transfer"] = TRANSFER_FIELDS
 FIELDS["license"] = LICENSE_FIELDS
 LABELS = {"agreement": "Agreement", "release": "Release", "transfer": "Copyright transfer", "license": "Photo license"}
 
-AGREEMENT_1_3 = STANDARD["agreement"].replace("(such as my web host, email,", "(such as my gallery host, email,")
+AGREEMENT_1_3 = """# 1. Who this is between
+This agreement is between [CLIENT] ("you") and [PHOTOGRAPHER] ("I" or "me").
+
+# 2. Booking and payment
+A deposit, if required, holds your date and is applied to the price. The balance is [BALANCE DUE]. [PAYMENT] Location permits, parking and venue fees are charged at what they cost me and are never discounted.
+
+# 3. Canceling and rescheduling
+[CANCELLATION]
+
+If something outside both our control (such as a venue closure, a government order, a natural disaster, a public health emergency, or weather severe enough to make the session unsafe) prevents the session, we move it to a new date within 12 months at no charge. If we cannot agree on a date in that time, I refund what you have paid, less costs I have already paid out for your session, such as permits or a second photographer, which I will list for you. Rain or ordinary bad weather is handled under the weather plan above.
+
+# 4. If I cannot do the session
+If I cannot photograph your session because of illness, injury, emergency or equipment failure, [IF I CANNOT]
+
+# 5. Limits of my responsibility
+If photos are lost, damaged or not taken, for any reason, or I do not do something this agreement says, I will, at your choice, refund the part of the price that covers what was lost or not done, or reshoot it at no charge if that is possible. In no case will I owe you more than you have paid me under this agreement. This is your only remedy against me. I am not responsible for indirect or consequential losses, such as the cost of re-staging an event, or for emotional distress. This section does not limit my responsibility for harm I cause through gross negligence or on purpose.
+
+# 6. What I provide, and what you receive
+[WHAT I PROVIDE] You receive the edited photos [HOW YOU DELIVER], within [DELIVERY DAYS] days of the session. [THE LINK] I keep the unedited files and my copies of the edited photos for [HOW LONG] after delivery, then delete them. Copies in my backups are removed as those backups are replaced. If you ask me in writing, I will delete your photos sooner. Please keep your own copies of the photos you receive.
+
+# 7. The photos
+[THE PHOTOS]
+
+# 8. How I may use the photos
+[HOW I MAY USE THEM]
+
+# 9. Minors
+[MINORS]
+
+# 10. Products in my care
+[PRODUCTS]
+
+# 11. Safety and locations
+You are responsible for your own safety and belongings at each location. Some locations may refuse photography on the day, and we will move to another spot.
+
+# 12. Your information
+I keep your contact details, session notes and photos to run your session and my business records. I keep them secure, and the copies in my own systems are encrypted where my software allows. I share them only with the services I use to run my business (such as my gallery host, email, payment and print lab), and only as much as each needs. At a group event, group photos go to the families in them. I never sell your information. I keep business records for up to [RECORDS YEARS] years after our last session, then delete them. If you ask, I will tell you what I hold about you, or delete it, except records I must keep for taxes. Your gallery link works for anyone who has it: keep the letter safe and do not post the link.
+
+# 13. The whole agreement
+This agreement and the quote are our whole agreement. Changes are made in writing. The law of [LAW] applies.
+"""
 assert AGREEMENT_1_3 != STANDARD["agreement"]

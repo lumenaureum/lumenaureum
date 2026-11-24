@@ -6,7 +6,7 @@ which can lead to harm including, but not limited to, exposure or loss of data, 
 
 A plugin is one Python file with a `register(ctx)` function. It can add pages, steps to a session's workflow,
 sections to the client screen, items on Today, search results, and more, without changing Lumen Aureum's own code.
-The plugins in this folder (galleries, letters, retention, the studio page) are built the same way and are good examples.
+The plugins in this folder (galleries, letters, retention, the studio page, equipment, crew) are built the same way and are good examples.
 
 ## Where your plugins live
 Keep your own plugins **outside** this code, in a folder of your own, so updates never touch them:
@@ -42,7 +42,7 @@ Print orders (`prints`) are switchable and **off by default**: on a new install 
 
 If a plugin needs a Python package the image doesn't have, build your own image on top of this one:
 ```dockerfile
-FROM ghcr.io/lumenaureum/lumenaureum:1.5.4     # the version you run
+FROM ghcr.io/lumenaureum/lumenaureum:1.6.0     # the version you run
 USER root
 RUN pip install some-package
 USER lumenaureum
@@ -126,27 +126,51 @@ Append functions to these (`ctx.hooks.<name>.append(fn)`):
 - `session_actions` - `fn(session_row) -> [dict(what=, verb=, post= or href=, fields=, theirs=, since=)]`: things to do
   (or to wait for, with `theirs=True`) that belong to the session as a whole, whatever its stage. Each shows once, on
   Today and the session page.
+- `client_checks` - `fn(session_ids) -> dict(got=[phrase, ...], failed=bool)`: Check now, on the client page's From the
+  client line at the top of its needs-you block (rows on Today waiting on the client post to `client_check_now` too). Read, for just those sessions, what the
+  client can send through the web host, record it as the regular check does (with its own History lines), and say each
+  thing that came in as a short phrase ("1 new print order"); `failed=True` when some of it could not be read now. The
+  app joins every plugin's phrases into the one note shown in place. Anything new a client can send (a session link,
+  say) plugs in here, so the page keeps one Check now.
+- `client_online` - `fn(session_ids) -> dict(n=, at=)`: how many things of the client's are online to check, and when
+  the app last read them (epoch seconds or None). The From the client line shows whenever any plugin says n > 0.
+  A row a plugin marks `client_check=True` keeps its Check now on Today; on the client page it gives way to the line.
 - `step_labels` (a dict) - `{step label: short label}` for tiles.
 - `step_icons` - `(words, Material Symbol name)`: an icon for steps whose title contains one of the words.
 - `session_tabs` - `fn(session_row) -> (title, count or None, html)` or None: a section on the session record.
 - `session_panels` - `fn(session_row) -> html or None`: shown in the shoot section.
 - `stage_blocks` - `fn(session_row) -> [(title, html)]`: sections in the right column of the client screen.
-- `detail_locations` - `fn(session) -> [dict(time=, name=, town=, what=, light=)]` or None: the locations on the
-  session sheet sent to the client (the first plugin that answers wins; otherwise the session's own list).
+- `detail_locations` - `fn(session) -> [dict(time=, name=, note=)]` or None: the places on the session sheet sent to
+  the client, each with a time and a note (one or more lines) under its name (the first plugin that answers wins;
+  otherwise the session's own Where list).
 - `search` - `fn(term) -> [dict(title=, rows=[dict(text=, sub=, link=)])]`: extra sections in search results.
 - `guards` (a dict) - `ctx.hooks.guards.setdefault("gallery_upload", []).append(fn)` where
-  `fn(proceed, **details) -> bool`: return True to hold the action (for an approval, say) and call `proceed()` when it
-  may go ahead. `details` for a gallery upload: `sid`, `gallery_id`, `n_files`, and `update=True` when a rebuilt
+  `fn(proceed, **details) -> bool or str`: return True to hold the action and call `proceed()` when it may go ahead.
+  Return a short sentence instead of True to hold it with your own words for the wait (shown on the gallery and on
+  Today; otherwise "Upload on hold"). A held gallery upload also gets `give_up(words)`: call it when the upload will
+  not go ahead, and the gallery is ready to upload again with your words beside its Upload button. `details` for a gallery upload: `sid`, `gallery_id`, `n_files`, and `update=True` when a rebuilt
   gallery goes over the one already online (the copy online stays up meanwhile). Moving every gallery to a new host
   asks once: `move=True`, `n_galleries`, `n_files`, with `sid` and `gallery_id` None. The studio page's upload asks the
   same guard: `site=True`, `n_files`, `site_url`, with `sid` and `gallery_id` None (taking the site down adds
-  `remove=True`), so a plugin that holds gallery uploads holds the website too. Taking the old copies down from an
+  `remove=True`). Taking the old copies down from an
   earlier web host asks it too: `remove=True`, `earlier_host=True`, with `sid` and `gallery_id` None.
+- `type_panels` - `fn(type_dict) -> html or None`: a section of a session type's page (Settings, Session types), below
+  the type's own form. Give it its own form posting to your own route (the packing list in `equipment.py` does).
+- `settings_parts` (a dict, set a key) - `{name: dict(export=fn(con), check=fn(raw), apply=fn(cleaned))}`: your part of
+  the settings file (Settings, Export and Import, and the copy in each backup), under `"plugins": {name: ...}`.
+  `export` returns a JSON value, or None to leave it out; `check` cleans what a file brings (raise ValueError with the
+  words to show: nothing in the file is applied); `apply` writes it, after the file's rules (session types included),
+  and returns notice lines. Settings only: never client records or secrets. Packing lists in `equipment.py` use it.
 - `settings_tabs` - `(label, endpoint, sub)`: a page of your plugin's own settings, listed under Plugins in Settings.
   Add the endpoint to `ctx.app.jinja_env.globals["SETTINGS_ENDPOINTS"]` so it opens beside the Settings list.
-- `tax_region` (set it, don't append) - `dict(name=, areas=[(key, label)], area_of=fn(client_address) -> (area, warning),
-  extra_pct=fn(area, local_pct) -> percent added to the base rate)`: sales tax that depends on where the client is.
-  When it is set, Settings and setup offer a "regional" sales-tax choice.
+- `tax_rules` - `fn(sale, taxes) -> {tax key: dict(on=, rate=, note=)}`: when a tax applies, and at what rate, for a
+  sale (each part optional; `True` or `False` alone means on or off). `sale` is `dict(session_id=, address=, type=)`
+  (`session_id` None for a print order, whose address is where it ships); `taxes` is the list in Settings, Taxes
+  (`key, name, rate, included, default`). Rules run in order, a later one over an earlier one; `note` shows beside the
+  tax's switch on the session. They apply to open quotes only: once the client says yes, each tax is kept as it was,
+  and a switch set on the session by hand always wins. `plugins/examples/city_tax.py` is a complete one: a city that
+  adds its own tax for clients inside it. Files in `plugins/examples/` are never loaded from there; copy one into your
+  plugins folder to use it.
 - `on["session_created"]` - `fn(session_id)`; `on["stage_changed"]` - `fn(session_id, old_stage, new_stage)`;
   `on["gallery_window_changed"]` - `fn(session_id)`.
 

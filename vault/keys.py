@@ -13,8 +13,11 @@ CREATE TABLE IF NOT EXISTS vault_objects (id INTEGER PRIMARY KEY, session_id INT
 
 def init(con):
     con.executescript(SCHEMA)
-    if "orphaned" not in [r[1] for r in con.execute("PRAGMA table_info(vault_keys)")]:
+    cols = [r[1] for r in con.execute("PRAGMA table_info(vault_keys)")]
+    if "orphaned" not in cols:
         con.execute("ALTER TABLE vault_keys ADD COLUMN orphaned TEXT")
+    if "lost_wrapped" not in cols:
+        con.execute("ALTER TABLE vault_keys ADD COLUMN lost_wrapped TEXT")
     con.commit()
 
 def generate_master():
@@ -81,3 +84,29 @@ def replace_master(con, old_secret, new_pub):
                 (new_pub,))
     con.commit()
     return len(out)
+
+LOST_KINDS = {"session": "session-lost", "session-key": "session-key-lost", "photo-key": "photo-key-lost"}
+LOST_TEXT = "Sealed with a master key that was replaced; it can't be opened."
+
+def replace_lost_master(con, new_pub):
+
+    init(con)
+    recipient(new_pub)
+    now = datetime.now().isoformat(timespec="seconds")
+    lost = {r[0] for r in con.execute("""SELECT DISTINCT session_id FROM vault_objects WHERE kind IN ('session', 'photo-key')
+                                         AND deleted IS NULL""")}
+    try:
+        for sid, wrapped, old_lost in con.execute("SELECT session_id, wrapped, lost_wrapped FROM vault_keys").fetchall():
+            ident = x25519.Identity.generate()
+            con.execute("UPDATE vault_keys SET pub=?, wrapped=?, lost_wrapped=?, created=? WHERE session_id=?",
+                        (str(ident.to_public()), base64.b64encode(pyrage.encrypt(str(ident).encode(), [recipient(new_pub)])).decode(),
+                         "\n".join(w for w in (old_lost, wrapped) if w), now, sid))
+        for kind, gone in LOST_KINDS.items():
+            con.execute("UPDATE vault_objects SET kind=? WHERE kind=?", (gone, kind))
+        con.execute("INSERT INTO settings (key, value) VALUES ('vault_master_pub', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (new_pub,))
+        con.commit()
+    except BaseException:
+        con.rollback()
+        raise
+    return len(lost)

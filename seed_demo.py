@@ -71,7 +71,7 @@ with A.app.app_context():
     x("INSERT INTO lines (session_id, label, amount) VALUES (?,?,?)", (s2, "Family session", 375))
     x("INSERT INTO lines (session_id, label, amount) VALUES (?,?,?)", (s2, "Park permit", 50))
     x("INSERT INTO log (household_id, session_id, at, channel, summary) VALUES (?,?,?,?,?)", (h2, s2, D(-3), "email", "Sent quote, Harlows referred them"))
-    x("UPDATE tasks SET done=? WHERE session_id=? AND stage IN ('inquiry','quoted') AND title != 'Plan stops, check permits'", (D(-3), s2))
+    x("UPDATE tasks SET done=? WHERE session_id=? AND stage IN ('inquiry','quoted')", (D(-3), s2))
 
     h3 = household("Mara Brennan", "saw a print")
     m = person(h3, "Mara Brennan", email="mara@example.com")
@@ -106,6 +106,25 @@ with A.app.app_context():
     pr = person(h6, "J. Pryor")
     s6 = A.create_session(h6, pick("realestate", "product", kind="property") if "property" in C_.TYPE_KIND.values() else pick("portrait"), "lost", "Listing photos", subject_ids=[pr])
     x("INSERT INTO log (household_id, session_id, at, channel, summary) VALUES (?,?,?,?,?)", (h6, s6, D(-20), "email", "Went with their usual photographer"))
+
+    h7 = household("Wynn and Sato", "wedding fair")
+    robin = person(h7, "Robin Wynn", email="robin@example.com", phone="555-0161")
+    alex = person(h7, "Alex Sato", email="alex@example.com")
+    ivy, theo = person(h7, "Ivy Wynn", "child", 1), person(h7, "Theo Sato", "child", 1)
+    s7 = A.create_session(h7, pick("wedding"), "booked", "Wynn and Sato wedding", D(60), subject_ids=[robin, alex, ivy, theo])
+    s8 = A.create_session(h7, pick("engagement"), "shot", "Wynn and Sato engagement", D(-10), subject_ids=[robin, alex])
+    x("UPDATE sessions SET plan_of=? WHERE id=?", (s7, s8))
+    x("DELETE FROM documents WHERE session_id=? AND kind='agreement'", (s8,))
+    x("UPDATE sessions SET delivery_method='link' WHERE id=?", (s7,))
+    x("INSERT INTO lines (session_id, label, amount) VALUES (?,?,?)", (s7, "Wedding day (8 hr)", 2800))
+    x("INSERT INTO lines (session_id, label, amount) VALUES (?,?,?)", (s7, "Engagement session (1.5 hr)", 350))
+    x("INSERT INTO payments (session_id, kind, amount, received, method) VALUES (?,?,?,?,?)", (s7, "deposit", 945, D(-40), "check"))
+    x("UPDATE documents SET status='signed', sent=?, signed=? WHERE session_id=? AND kind='agreement'", (D(-42), D(-40), s7))
+    x("UPDATE documents SET status='sent', sent=? WHERE session_id=? AND kind='release'", (D(-20), s7))
+    x("UPDATE documents SET status='signed', signed=? WHERE session_id=? AND kind='release' AND about_person=?", (D(-12), s7, ivy))
+    for s_ in (s7, s8):
+        finish_tasks_before(s_, D(0))
+    x("INSERT INTO log (household_id, session_id, at, channel, summary) VALUES (?,?,?,?,?)", (h7, s7, D(-45), "email", "Met at the wedding fair; want the engagement session in the park"))
 
     e = x("INSERT INTO events (id, name, date, venue, demo) VALUES (?,?,?,?,1)", (A.next_id("events"), "Spring team photo day", D(12), "Maple Grove Club"))
     for fam, kids_, parent, signed in [("The Duffys", ["Owen"], "Kate Duffy", True), ("The Ruiz family", ["Sofia", "Mateo"], "Ana Ruiz", True),

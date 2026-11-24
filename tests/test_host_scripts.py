@@ -14,7 +14,8 @@ SCRIPTS = [ROOT / "plugins" / "gallery_assets" / n for n in ("gate.php", "picks.
 SEALED = ROOT / "plugins" / "sealed_assets" / "sealed.php"
 
 PINNED = {"1.4.0": "47418e23c3ed3b83b83655caa7e850ebaedd3d0ed8569397d6c288af07ef7a9d",
-          "1.5.0": "341d40ad949622e658f925078fdc52325703dd5df303c717518bc57ecdea7cca"}
+          "1.5.0": "341d40ad949622e658f925078fdc52325703dd5df303c717518bc57ecdea7cca",
+          "1.6.0": "db26e5a8debf2050797e96be37506350bf4f447ab63020d3f340f18875b17f06"}
 
 def _set_version():
     src = (ROOT / "plugins" / "gallery.py").read_text()

@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% import "_ui.html" as ui with context %}{% import "_ui_filter.html" as uf with context %}
+{% extends "base.html" %}{% import "_ui.html" as ui with context %}{% import "_ui_filter.html" as uf with context %}{% from "_macros.html" import help with context %}
 {% block title %}Galleries - Lumen Aureum{% endblock %}
 
 {% macro menu_off(label, why) -%}<button type="button" class="ui-menu-item" disabled>{{ label }}<small class="ui-menu-why">{{ why }}</small></button>{%- endmacro %}
@@ -7,6 +7,13 @@
 {%- set n_ = cards|length -%}
 {%- set facts_ = [n_ ~ ' galler' ~ ('y' if n_ == 1 else 'ies')] + ([here|size ~ ' here'] if here else []) + ([host|size ~ ' on the web host'] if n_host else []) -%}
 {{ ui.page_head('Galleries', status=facts_|join(' · ')) }}
+
+
+{% if n_rebuild and not rebuilding %}{% call ui.needs('Studio details changed', id='gal-rebuild') %}
+  <p>{{ n_rebuild }} galler{{ 'y was' if n_rebuild == 1 else 'ies were' }} built before the studio details in Settings changed.{{ help("A gallery's header and footer show the studio name, logo, photographer, email, phone and website it was built with, in the font and colors it was built with. Rebuilding keeps its link and codeword; one online is updated once its new build is complete, one not online yet waits for its Upload.") }}</p>
+  <div class="ui-btnrow">{{ ui.action(url_for('galleries_rebuild_details'), 'Rebuild all with the new details', {}, None, 'primary', inplace=false,
+       confirm='Rebuild ' ~ n_rebuild ~ ' galler' ~ ('y' if n_rebuild == 1 else 'ies') ~ ' with the studio details in Settings now? Each keeps its link. They are built one at a time; the ones online are updated as each finishes.') }}</div>
+{% endcall %}{% endif %}
 
 {%- set phases_ = [] %}{% set kinds_ = [] %}{% set looks_ = [] %}
 {%- for c in cards %}{% set _ = phases_.append(c.phase) %}{% set _ = kinds_.append(c.kind) %}{% if c.needs %}{% set _ = looks_.append('Needs you') %}{% endif %}{% endfor %}

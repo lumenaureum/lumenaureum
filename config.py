@@ -69,6 +69,30 @@ EVENT_RIGHTS_ORGANIZER = {"organizer": ("When the balance is paid in full, I tra
                                         " post them but not to sell them, and authorizes me to deliver the photos to the families with"
                                         " that license. The organizer also gives me permission, which continues after the transfer,"
                                         " to keep copies to fulfill families' orders and to show photos as the portfolio section says.")}
+
+EVENT_RIGHTS_PEOPLE = {"families": ("I keep the copyright in the event photos. Each person photographed receives a permanent"
+                                    " personal license to their own photos: to print, share, and post them, not to sell them."
+                                    " The organizer receives a license to use each person's photos, with their name and role,"
+                                    " in its directory, on its website, and in its press and marketing. It does not cover"
+                                    " selling the photos or passing them to others."),
+                       "organizer": ("The organizer owns the copyright in the event photos under its agreement with me. Each"
+                                     " person photographed receives, from the organizer through me, a permanent personal"
+                                     " license to their own photos: to print, share, and post them, not to sell them.")}
+
+EVENT_RIGHTS_RELEASE_PEOPLE = {"families": ("{photographer} keeps the copyright in the event photos. {receiver} a permanent"
+                                            " personal license to {own} photos: to print, share and post them, not to sell them."
+                                            " I agree that the organizer may use {whose} photos, with {whose} name and role, in its"
+                                            " directory, on its website, and in its press and marketing."),
+                               "organizer": ("The organizer owns the copyright in the event photos under its agreement with"
+                                             " {photographer}. {receiver} a permanent personal license to {own} photos: to"
+                                             " print, share, and post them, not to sell them.")}
+EVENT_RIGHTS_ORGANIZER_PEOPLE = {"organizer": ("When the balance is paid in full, I transfer to the organizer all copyright in"
+                                               " the event photos I deliver. The organizer grants each person photographed a"
+                                               " permanent personal license to their own photos, to print, share and post them"
+                                               " but not to sell them, and authorizes me to deliver the photos to them with that"
+                                               " license. The organizer also gives me permission, which continues after the"
+                                               " transfer, to keep copies to fulfill orders and to show photos as the portfolio"
+                                               " section says.")}
 REALESTATE_FLOW = {
     "inquiry": [("auto", "logged"), ("auto", "intake_done")],
     "quoted": [("auto", "quote_built"), ("do", "Send quote", None), ("do", "Client said yes", None)],
@@ -187,8 +211,40 @@ def wear_text(stype=None):
     return w
 
 DELIVERY_METHODS = {"sd": ("SD card", "on an SD card"), "usb": ("USB drive", "on a USB drive"),
-                    "disc": ("CD or DVD", "on a CD or DVD"), "link": ("Download link", "through a download link I send you")}
+                    "disc": ("CD or DVD", "on a CD or DVD"),
+                    "card": ("Sealed card (SD or USB)", "on a sealed SD card or USB drive you open on a computer"),
+                    "link": ("Download link", "through a download link I send you")}
 DELIVERY_CHOICES = [(k_, v_[0]) for k_, v_ in DELIVERY_METHODS.items()]
+
+DEPOSIT_WORD_MAX = 30
+deposit_word = lambda: "deposit"
+
+def clean_deposit_word(w):
+
+    w = " ".join((w or "").split()).lower()
+    return w if re.fullmatch(r"[a-z][a-z -]{0,%d}" % (DEPOSIT_WORD_MAX - 1), w) and w != "deposit" else ""
+
+def dw(text):
+
+    w = clean_deposit_word(deposit_word() or "")
+    if not w or not text or "eposit" not in str(text):
+        return text
+    def cap(s_, like):
+        return s_[0].upper() + s_[1:] if like[0].isupper() else s_
+    def art(m):
+        a_ = "an" if w[0] in "aeiou" else "a"
+        return cap(a_, m.group(1)) + " " + cap(w, m.group(2))
+    out = re.sub(r"\b([Aa]n?) ([Dd])eposit\b(?!s)", art, str(text))
+    out = re.sub(r"\b([Dd])eposits\b", lambda m: cap(w, m.group(1)) + ("es" if w.endswith(("s", "x", "ch", "sh")) else "s"), out)
+    out = re.sub(r"\b([Dd])eposit\b", lambda m: cap(w, m.group(1)), out)
+    try:
+        from markupsafe import Markup
+        return Markup(out) if isinstance(text, Markup) else out
+    except ImportError:
+        return out
+
+MLS_SENTENCE = ("This includes giving the listing service (MLS) and the sites it feeds the rights their rules require for"
+                " the listing.")
 
 def is_place(stype):
 
@@ -253,7 +309,7 @@ PRESETS = {
                      fees=[{"key": "family", "label": "Family session (1 hr)", "amount": 300, "unit": "flat", "minutes": 60, "type": "family"},
                            {"key": "mini", "label": "Mini session (30 min)", "amount": 150, "unit": "flat", "minutes": 30, "type": "family"}]),
     "weddings": dict(label="Weddings", types=[dict(key="wedding", label="Weddings", kind="portrait", minutes=480,
-                                                   deposit_pct=30, all_sign=True,
+                                                   deposit_pct=30, all_sign=True, couple=True,
                                                    questions=[["venue", "Venue"], ["timeline", "Day timeline"], ["second", "Second shooter"],
                                                               ["guests", "Guest count"], ["who", "Family groups for the formal photos"],
                                                               ["must", "Must-have shots"], ["avoid", "Anything to avoid"]],
@@ -273,7 +329,7 @@ PRESETS = {
                     fees=[{"key": "newborn", "label": "Newborn session (up to 3 hr)", "amount": 400, "unit": "flat", "minutes": 180, "type": "newborn"},
                           {"key": "milestone", "label": "Baby milestone session (45 min)", "amount": 225, "unit": "flat", "minutes": 45, "type": "newborn"}]),
     "engagements": dict(label="Engagements", types=[dict(key="engagement", label="Engagements", kind="portrait", minutes=90,
-                                                         all_sign=True,
+                                                         all_sign=True, couple=True,
                                                          questions=[["story", "How you met, places that matter"], ["wdate", "Wedding date"],
                                                                     ["looks", "Looks wanted"], ["outfits", "Number of outfits"],
                                                                     ["must", "Must-have shots"], ["avoid", "Anything to avoid"]])],
@@ -500,14 +556,23 @@ def type_questions(t):
 
 def with_family_money(flow):
 
-    out = {k: list(v) for k, v in flow.items()}
-    booked = out.setdefault("booked", [])
-    if ("auto", "deposit_paid") not in booked:
-        booked.insert(0, ("auto", "deposit_paid"))
+    out = {k: [st for st in v if st not in (("auto", "deposit_paid"), ("auto", "balance_paid"))] for k, v in flow.items()}
+    out.setdefault("booked", []).insert(0, ("auto", "balance_paid"))
     shot = out.setdefault("shot", [])
-    if ("auto", "balance_paid") not in shot:
-        shot += [("do", "Send invoice", 10), ("auto", "balance_paid")]
+    if not any(st[:2] == ("do", "Send invoice") for st in shot):
+        shot.append(("do", "Send invoice", 10))
     return out
+
+MONEY_STEPS = {("auto", "quote_built"), ("do", "Send quote"), ("do", "Client said yes"), ("auto", "deposit_paid"),
+               ("do", "Send invoice"), ("auto", "balance_paid")}
+
+def without_money(flow):
+
+    return {k: [st for st in v if (st[0], st[1]) not in MONEY_STEPS] for k, v in flow.items()}
+
+def couple_type(t):
+
+    return bool(t.get("couple")) or bool(re.search(r"wedding|engage|elope", f'{t.get("key", "")} {t.get("label", "")}', re.I))
 
 def build_types():
 
@@ -526,7 +591,10 @@ def build_types():
     g["SUBJECT_TYPES"] = {t["key"] for t in types if KINDS[t["kind"]]["subjects"]}
     g["GRAD_TYPES"] = {t["key"] for t in types if t.get("grad")}
     g["ALL_SIGN"] = {t["key"]: bool(t.get("all_sign")) for t in types}
+    g["COUPLE_TYPES"] = {t["key"] for t in types if couple_type(t)}
     g["DEPOSIT_RULE"] = {t["key"]: deposit_rule(t) for t in types}
+
+    g["INSTALLMENTS"] = {t["key"]: max(0, min(int(t.get("installments") or 0), INSTALLMENTS_KEPT_MAX)) for t in types}
     g["PORTFOLIO_DISCOUNT"] = {t["key"]: (("pct", t["portfolio_pct"]) if t.get("portfolio_pct") else
                                          ("amt", t["portfolio_amount"]) if t.get("portfolio_amount") else None) for t in types}
     g["PRODUCT_TYPES"] = {t["key"] for t in types if t.get("products")}
@@ -536,6 +604,9 @@ def build_types():
     g["EVENT_TYPE"] = next((t["key"] for t in types if t["kind"] == "event"), "event")
     g["NEW_SESSION_TYPES"] = [t["key"] for t in types if t["kind"] != "event"]
 
+INSTALLMENTS_MAX = 4
+
+INSTALLMENTS_KEPT_MAX = 12
 DEPOSIT_AMOUNT = 100
 EVENT_DEPOSIT_PCT = 50
 build_types()
@@ -543,6 +614,7 @@ GALLERY_DAYS = 30
 CLOSED_CLIENT_YEARS = 7
 GALLERY_UNOPENED_DAYS = 365
 LEAD_QUIET_DAYS = 5
+PENCIL_DAYS = 7
 
 DEFAULT_FEES = preset_fees(BASIC_PRESETS)
 
@@ -657,27 +729,36 @@ def rights_text(stype):
     return ("I keep the copyright; you receive a license to use the photos, as the agreement describes."
             if stype in LICENSE_TYPES else "The photos are yours: the copyright transfers to you once the balance is paid.")
 
-def balance_text(stype):
+def balance_text(stype, installments=None, doc="agreement"):
+
     if stype in BEFORE_TYPES:
-        return f"due {BALANCE_BEFORE_DAYS} days before the session"
-    if stype in NET_TERMS_TYPES:
-        return f"due within {BALANCE_NET_DAYS} days of the invoice, which follows the session"
-    return "due on delivery; your photos are released on payment"
+        base = f"due {BALANCE_BEFORE_DAYS} days before the session"
+    elif stype in NET_TERMS_TYPES:
+        base = f"due within {BALANCE_NET_DAYS} days of the invoice, which follows the session"
+    else:
+        base = "due on delivery; your photos are released on payment"
+    n_ = INSTALLMENTS.get(stype, 0) if installments is None else installments
+    return (f"paid in {n_} equal payments on the dates in the payment schedule that comes with this {doc}; a reschedule "
+            f"fee, if any, is added to the last, {base}"
+            if n_ and n_ >= 2 else base)
 
 def _notice(h):
     return f"{h // 24} days'" if h >= 72 and h % 24 == 0 else f"{h} hours'"
 
-def cancel_text(stype):
+def cancel_text(stype, free=False):
+
     p = POLICY[stype]
     no_dep = has_no_deposit(stype)
-    txt = "If you cancel before the session, nothing is owed." if no_dep else "If you cancel, the deposit is not refunded."
+    txt = ("" if free else "If you cancel before the session, nothing is owed." if no_dep else
+           "The deposit reserves your date: I turn away other work to hold it. If you cancel, I keep the deposit for that reason.")
     if p["free_reschedule"]:
-        txt += (f" One free reschedule{' with ' + _notice(p['notice_hours']) + ' notice' if p['notice_hours'] else ''}; "
-                f"after that, {_money(RESCHEDULE_FEE)} per reschedule, which I may waive. Illness on either side "
+        once = f"One free reschedule{' with ' + _notice(p['notice_hours']) + ' notice' if p['notice_hours'] else ''}"
+        txt += (f" {once}. Illness on either side is always a free reschedule." if free else
+                f" {once}; after that, {_money(RESCHEDULE_FEE)} per reschedule, which I may waive. Illness on either side "
                 "is always a free reschedule.")
     else:
-        txt += " A new date depends on my availability" + ("." if no_dep else "; the deposit carries over once.")
-    return txt + f" If the weather turns, {fill(stype, 'weather')}."
+        txt += " A new date depends on my availability" + ("." if no_dep or free else "; the deposit carries over once.")
+    return dw((txt + f" If the weather turns, {fill(stype, 'weather')}.").strip())
 
 def has_no_deposit(stype):
 
@@ -688,11 +769,16 @@ def has_no_deposit(stype):
         return not EVENT_DEPOSIT_PCT
     return (TYPE_KIND.get(stype) == "property" and not has_deposit_step(stype)) or not DEPOSIT_AMOUNT
 
-def late_text(stype):
+def late_text(stype, free=False):
+
     m = POLICY[stype]["late_minutes"]
     if not m:
         return ""
-    keep = ("I may bill half of the price" if has_no_deposit(stype) else "I keep the deposit")
+    if free:
+        return (f"The session starts and ends at the booked times. If you arrive {m} or more minutes late, or do not come,"
+                " it counts as a missed session, and a new date needs a new booking.")
+    keep = ("I may bill for the time I held and any costs I paid, up to half of the price" if has_no_deposit(stype)
+            else "I keep the deposit")
     return (f"The session starts and ends at the booked times. If you arrive {m} or more minutes late, or do not come, it"
             f" counts as a missed session: {keep}, and a new date needs a new booking"
             + ("." if has_no_deposit(stype) else " and a new deposit."))
@@ -767,7 +853,7 @@ def build_terms(stype=None, business=""):
     out.append(("Travel and permits", f"Travel is free within {TRAVEL_FREE_MILES} miles, then "
                                       + (f"${rate_:.2f} a mile" if rate_ > 0 else "the mileage rate on your quote") + ", "
                                       "each way. Location permits, parking and venue fees are charged at cost."))
-    return out
+    return [(dw(h_), dw(t_)) for h_, t_ in out]
 
 TERMS = build_terms()
 

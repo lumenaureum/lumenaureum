@@ -120,10 +120,10 @@ def test_the_refund_history_line_says_the_choice(env):
     refund(c, 40)
     refund(c, 10, after="hold")
     h = history(A)
-    assert f"Recorded refund $40.00 by cash. After this refund, the gallery {RELEASE}" in h
-    assert f"Recorded refund $10.00 by cash. After this refund, the gallery {HOLD}" in h
+    assert f"Recorded a $40.00 cash refund. After this refund, the gallery {RELEASE}" in h
+    assert f"Recorded a $10.00 cash refund. After this refund, the gallery {HOLD}" in h
     pay(c, 1, "balance", 10, "2026-07-12")
-    assert not any("After this refund" in a for a in history(A) if a.startswith("Recorded balance"))
+    assert not any("After this refund" in a for a in history(A) if a.startswith("Recorded a $10.00 cash payment"))
 
 def test_the_panel_shows_held_after_refund_and_releases_in_one_click(env):
     A, c, freeze = env

@@ -1,21 +1,24 @@
 <?php
 // Saves the client's picks, sealed in their browser, as one file beside the gallery (picks.las, kept under the name
 // made from the key proof, see gate.php hname; the latest submission wins). With ?kind=draft it saves the picks still
-// being made instead (draft.las, the same checks), so the client can
-// carry on from another device and the app can show they are still picking. Lumen Aureum fetches it on its regular
+// being made instead (draft.las, the same checks), so the app can show they are still picking. With ?dev=<16 hex> (a
+// page from 1.6: the device's own random ID) each device keeps its own (picks-<dev>.las, draft-<dev>.las, under their
+// hname too), so two people picking on two devices never overwrite each other; the app reads them all. Lumen Aureum fetches it on its regular
 // gallery check and opens it there; this host holds no key that opens it.
 // It accepts only a sealed envelope in the shared sealed format (LAS1, see sealed.php and docs/sealed-format.md): the
 // purpose picks or draft, bound to this gallery's ID (this folder's name), 256 KB at most, and not readable text. Only a
 // visitor holding the key can write it: the X-Proof header is sha256 of the key (32 hex), checked against its SHA-256 in
 // seen-key.php, the same proof seen.php checks.
-header('X-Host-Scripts: 1.5.0');
+header('X-Host-Scripts: 1.6.0');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); exit; }
 $kind = (string)($_GET['kind'] ?? '');
 if ($kind !== '' && $kind !== 'draft') { http_response_code(400); exit; }
 $purpose = $kind === 'draft' ? 'draft' : 'picks';
-$name = $purpose . '.las';
+$dev = (string)($_GET['dev'] ?? '');
+if ($dev !== '' && !preg_match('/^[0-9a-f]{16}$/', $dev)) { http_response_code(400); exit; }
+$name = $purpose . ($dev !== '' ? '-' . $dev : '') . '.las';
 // A state file: its PHP form, after the exit line, or (a folder from before this layout) its plain one
 function st($n) {
     $m = ['limits.txt' => 'limits.php', 'seen.txt' => 'seen-at.php', 'once.txt' => 'once.php', 'done.txt' => 'done.php'];
@@ -23,7 +26,8 @@ function st($n) {
     if ($raw !== false) { return strncmp($raw, "<?php exit; ?>\n", 15) === 0 ? (string)substr($raw, 15) : $raw; }
     return @file_get_contents(__DIR__ . '/' . $n);
 }
-// The web host's name of a file sealed under the gallery key (manifest.bin, offer.bin, picks.las, draft.las): the
+// The web host's name of a file sealed under the gallery key (manifest.bin, offer.bin, picks.las, draft.las, and each
+// device's picks-<dev>.las and draft-<dev>.las): the
 // first 24 hex of SHA-256("lumen-aureum file name" 0 name 0 proof), with its extension. Only a visitor who sent the
 // right proof learns it; the app and the page work it out the same way.
 function hname($plain, $proof) {
@@ -131,11 +135,19 @@ if ($err === '') { $err = sealed_host_check($body, $purpose, basename(__DIR__), 
 if ($err !== '') { http_response_code(sealed_status($err)); exit; }
 $len = strlen($body);
 $name = hname($name, $proof);                    // its web host name (gate.php hname): only the key finds it
+// At most 64 picks and draft files in a gallery (from 1.6 each device keeps its own): whoever holds the link could
+// otherwise make a new 256 KB file with every request, under a new device ID each time. A file already here is
+// still replaced, so a device that has saved before keeps saving.
+if (!is_file(__DIR__ . '/' . $name)) {
+    $n = 0;
+    foreach ((array)glob(__DIR__ . '/*.las') as $f) { if (preg_match('/^[0-9a-f]{24}\.las$/', basename($f))) { $n++; } }
+    if ($n >= 64) { http_response_code(507); exit; }
+}
 $tmp = __DIR__ . '/' . $name . '.' . bin2hex(random_bytes(6)) . '.tmp';
 if (@file_put_contents($tmp, $body, LOCK_EX) !== $len || !@rename($tmp, __DIR__ . '/' . $name)) {
     @unlink($tmp);
     http_response_code(500);
     exit;
 }
-@unlink(__DIR__ . '/' . $purpose . '.las');    // the copy under its plain name, from before this layout: replaced
+if ($dev === '') { @unlink(__DIR__ . '/' . $purpose . '.las'); }   // the copy under its plain name, from before this layout: replaced
 http_response_code(204);

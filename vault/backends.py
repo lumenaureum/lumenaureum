@@ -3,8 +3,10 @@ import hashlib
 import base64
 import os
 import posixpath
+import re
 import secrets
 import shutil
+import weakref
 
 CHUNK = 1024 * 1024
 
@@ -78,6 +80,36 @@ class LocalBackend(Backend):
         open(os.path.join(root, cls.MARKER), "a").close()
         return cls(root)
 
+    HOST_ID = re.compile(r"[0-9a-f]{16}(?:[0-9a-f]{16})?")
+
+    @classmethod
+    def host_id(cls, root, make=False, new=None):
+
+        mark = os.path.join(os.path.abspath(root), cls.MARKER)
+        try:
+            with open(mark, "rb") as f:
+                got = f.read(200).decode("ascii", "replace").strip()
+        except OSError:
+            return None
+        if cls.HOST_ID.fullmatch(got):
+            return got
+        if not make or got:
+            return None
+        new = new if new and cls.HOST_ID.fullmatch(new) else secrets.token_hex(16)
+        tmp = os.path.join(os.path.dirname(mark), f".{secrets.token_hex(6)}.part")
+        try:
+            with open(tmp, "w") as f:
+                f.write(new + "\n")
+                f.flush(); os.fsync(f.fileno())
+            os.replace(tmp, mark)
+        except OSError:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+            return None
+        return new
+
     def _p(self, name):
         return contained(self.root, os.path.join(self.root, *_check(name).split("/")))
 
@@ -147,12 +179,30 @@ class SFTPBackend(Backend):
 
     kind = "sftp"
 
-    def __init__(self, host, user, key_file, root, port=22, known_hosts="~/.ssh/known_hosts", private_key=None, host_key=None):
+    def __init__(self, host, user, key_file, root, port=22, known_hosts="~/.ssh/known_hosts", private_key=None, host_key=None,
+                 password=None):
         self.host, self.user, self.key_file, self.root, self.port = host, user, os.path.expanduser(key_file or ""), root.rstrip("/"), port
         self.known_hosts = os.path.expanduser(known_hosts)
         self.private_key, self.host_key = private_key, host_key
+        self.by_password = password is not None
+        self._password = password or ""
         self._held = None
         self._depth = 0
+        if self.by_password:
+            _LIVE.add(self)
+
+    def __repr__(self):
+        return f"<SFTPBackend {self.user}@{self.host}:{self.port}>"
+
+    def forget_password(self):
+
+        self._password = ""
+        held, self._held = self._held, None
+        if held:
+            try:
+                held[1].close()
+            finally:
+                held[0].close()
 
     @contextlib.contextmanager
     def session(self):
@@ -221,6 +271,13 @@ class SFTPBackend(Backend):
         else:
             cli.load_host_keys(self.known_hosts)
         cli.set_missing_host_key_policy(paramiko.RejectPolicy())
+        if self.by_password:
+            if not self._password:
+                raise PasswordMissing("no password for this SFTP server (or the studio locked)")
+
+            cli.connect(self.host, port=self.port, username=self.user, password=self._password, pkey=None,
+                        key_filename=None, look_for_keys=False, allow_agent=False, timeout=20)
+            return cli, cli.open_sftp()
         pkey = load_private_key(self.private_key) if self.private_key else None
         cli.connect(self.host, port=self.port, username=self.user, pkey=pkey, key_filename=None if pkey else self.key_file,
                     look_for_keys=False, allow_agent=False, timeout=20)
@@ -336,6 +393,46 @@ class SFTPBackend(Backend):
                 pass
         return self._run(rmd)
 
+class PasswordMissing(PermissionError):
+    pass
+
+_LIVE = weakref.WeakSet()
+
+def forget_passwords():
+
+    for b in list(_LIVE):
+        try:
+            b.forget_password()
+        except Exception:
+            pass
+
+def same_account(old, new):
+
+    old, new = old or {}, new or {}
+    def port(c):
+        try:
+            return int(c.get("port") or 22)
+        except (TypeError, ValueError):
+            return 22
+    return (old.get("type") == new.get("type") == "sftp"
+            and str(old.get("host") or "").strip().lower() == str(new.get("host") or "").strip().lower() != ""
+            and port(old) == port(new) and str(old.get("user") or "") == str(new.get("user") or ""))
+
+def same_pin(old, new):
+
+    old, new = old or {}, new or {}
+    return all(str(old.get(k) or "").strip() == str(new.get(k) or "").strip() for k in ("host_key", "known_hosts"))
+
+def carry_secrets(old, new, fields=("secret_key", "password", "private_key")):
+
+    old, out = old or {}, dict(new)
+    if old.get("type") != out.get("type"):
+        return out
+    for k in fields:
+        if k in old and (k != "password" or (same_account(old, out) and same_pin(old, out))):
+            out[k] = old[k]
+    return out
+
 class S3Backend(Backend):
 
     kind = "s3"
@@ -410,8 +507,10 @@ def from_config(cfg):
     if t == "local":
         return LocalBackend(cfg["path"], public=bool(cfg.get("public")))
     if t == "sftp":
-        return SFTPBackend(cfg["host"], cfg["user"], cfg.get("key_file", ""), cfg["root"], cfg.get("port", 22),
-                           cfg.get("known_hosts", "~/.ssh/known_hosts"), cfg.get("private_key"), cfg.get("host_key"))
+        by_pw = cfg.get("auth") == "password"
+        return SFTPBackend(cfg["host"], cfg["user"], "" if by_pw else cfg.get("key_file", ""), cfg["root"], cfg.get("port", 22),
+                           cfg.get("known_hosts", "~/.ssh/known_hosts"), None if by_pw else cfg.get("private_key"),
+                           cfg.get("host_key"), password=(cfg.get("password") or "") if by_pw else None)
     if t == "s3":
         return S3Backend(cfg["bucket"], cfg["access_key"], cfg["secret_key"], cfg.get("endpoint"), cfg.get("region"),
                          cfg.get("prefix", ""), cfg.get("addressing") or "auto")

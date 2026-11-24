@@ -11,6 +11,10 @@
 {{ ur.roster('clients', cols, rows, sort, desc, term, url_for('clients'), placeholder='Filter by name, phone, email or label',
              empty=('No one matches.' if term or rows else 'No one yet.'), add_url=url_for('contact_new'), add_name=add_name) }}
 {% endcall %}
+
+{% call ui.section('Clients in a file', id='client-file') %}
+  <div class="ui-btnrow">{{ ui.button_link(url_for('clients_import'), 'Import clients from a file') }}</div>
+{% endcall %}
 </div>
 <script src="{{ url_for('static', filename='roster.js', v=static_v('roster.js')) }}"></script>
 {% endblock %}

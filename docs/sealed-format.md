@@ -186,7 +186,8 @@ purpose doesn't belong to (E_KIND), an empty or oversized plaintext, and a key o
   when divided by 4, and a string that isn't the exact re-encoding of its bytes. The host checks the string's length
   before decoding.
 - **Kept** (on the host, and the copies the app keeps of the client's picks) as the raw bytes, in a file whose name ends
-  `.las`: `<link ID>/picks.las`, `<link ID>/draft.las`, `inquiries/<sender>-<content>.las`,
+  `.las`: `<link ID>/picks.las`, `<link ID>/draft.las` (and from 1.6 each device's own `picks-<device>.las` and
+  `draft-<device>.las`, `<device>` being 16 random hex also sealed in the payload as `d`), `inquiries/<sender>-<content>.las`,
   `<link ID>/orders/<content>.las`.
 
 ### Test vectors

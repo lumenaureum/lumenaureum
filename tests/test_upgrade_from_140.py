@@ -131,7 +131,12 @@ def _table(A, name, order):
         con.close()
     fix = lambda v: (hashlib.sha256(v if isinstance(v, bytes) else v.encode()).hexdigest()
                      if isinstance(v, bytes) or (isinstance(v, str) and len(v) > 400) else v)
-    return [{c_: fix(v) for c_, v in zip(cols, r)} for r in got]
+    return [{c_: fix(v) for c_, v in zip(cols, r) if not ((name, c_) in YEAR_CLOSE_16 and v == YEAR_CLOSE_16[(name, c_)])}
+            for r in got]
+
+YEAR_CLOSE_16 = {("expenses", "corrects"): None, ("expenses", "late_from"): None, ("expenses", "note"): "",
+                 ("payments", "corrects"): None, ("print_payments", "corrects"): None, ("print_payments", "note"): "",
+                 ("print_galleries", "proofs"): 0}
 
 PRINT_TABLES = (("print_orders", "id"), ("print_order_lines", "id"), ("print_payments", "id"), ("print_lab_costs", "id"),
                 ("print_galleries", "session_id"), ("print_order_oids", "oid"), ("price_list_items", "sort, id"),
@@ -188,7 +193,7 @@ def test_the_schema_stays_at_8_and_no_backup_is_needed(upgraded):
     A, c, taken, _ = upgraded
     assert A.SCHEMA_VERSION >= V140_SCHEMA
     assert _q(A, "PRAGMA user_version")[0][0] == A.SCHEMA_VERSION
-    assert taken == (["upgrade"] if A.SCHEMA_VERSION > V140_SCHEMA else [])
+    assert taken == ["upgrade"]
 
 def test_today_says_once_that_it_was_updated(tmp_path, monkeypatch):
     import about
@@ -201,7 +206,7 @@ def test_today_says_once_that_it_was_updated(tmp_path, monkeypatch):
     first, second = _page(c, "/"), _page(c, "/")
     assert f"Updated to Lumen Aureum {now}." in first
     if A.SCHEMA_VERSION == V140_SCHEMA:
-        assert taken == [] and "Your data didn't need changes, so no backup was made." in first
+        assert taken == ["upgrade"]
     assert "Updated to Lumen Aureum" in second
     c.post("/today/update-notice-hide", data={"back": "/"}, environ_base=E)
     assert "Updated to Lumen Aureum" not in _page(c, "/")
@@ -253,11 +258,20 @@ def test_finances_and_the_export_match_1_4_0(upgraded):
                tax_rows=[dict(kind=r["kind"], day=r["day"], amount=r2(r["amount"]), tax=r2(r["tax"]),
                               taxable=r2(r["taxable"])) for r in ym["tax_rows"]])
     assert got == EXPECTED["year_money"]
-    assert _in_request(A, lambda: A.app.config["prints_year"](YEAR)) == EXPECTED["prints_year"]
+    py_ = _in_request(A, lambda: A.app.config["prints_year"](YEAR))
+    for r_ in py_.get("rows", []):
+        if r_.get("fix") == "":
+            del r_["fix"]
+    assert py_ == EXPECTED["prints_year"]
     r = c.get(f"/money/accounts.zip?year={YEAR}", environ_base=E)
     assert r.status_code == 200
     z = zipfile.ZipFile(io.BytesIO(r.data))
     export = {n: list(csv.reader(io.StringIO(z.read(n).decode("utf-8-sig")))) for n in sorted(z.namelist())}
+    for n, rows in export.items():
+        if rows and "correction of" in rows[0]:
+            i = rows[0].index("correction of")
+            assert all(len(r_) <= i or r_[i] == "" for r_ in rows[1:]), n
+            export[n] = [r_[:i] + r_[i + 1:] for r_ in rows]
     assert export == EXPECTED["export"]
     assert {"prints.csv", "print-lab-costs.csv"} <= set(export)
 

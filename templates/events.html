@@ -1,9 +1,9 @@
 {% extends "base.html" %}{% import "_ui.html" as ui with context %}
 {% block title %}Events - Lumen Aureum{% endblock %}{% block body %}
 <div class="ui-page">
-{{ ui.page_head('Group events', kicker='Events', status=(contact.name ~ ' is kept as the organizer contact of the event you add below.') if contact else '') }}
+{{ ui.page_head('Group events', kicker='Events', status=((contact.name ~ (' is the organizer of the event you add below, and pays for it (change it under Who pays).' if (contact.company or '').strip() else ' is kept as the organizer contact of the event you add below.'))) if contact else '') }}
 {% call ui.section('', id='events') %}
-  {% for e in rows %}{{ ui.list_row(url_for('event_view', eid=e.id), e.name, [nice(e.date) or 'No date', e.venue]|select|join(', '), ui.chip(e.n ~ (' family' if e.n == 1 else ' families'))) }}
+  {% for e in rows %}{{ ui.list_row(url_for('event_view', eid=e.id), e.name, [nice(e.date) or 'No date', e.venue]|select|join(', '), ui.chip(e.n ~ ' ' ~ event_nouns(e)[0 if e.n == 1 else 1])) }}
   {% else %}<p class="ui-mute">None yet.</p>{% endfor %}
 {% endcall %}
 {% call ui.section('New event', id='new-event') %}

@@ -1,6 +1,7 @@
 # Print orders
 
-Clients can order prints from their download gallery: the gallery made with the finished, full-size photos. You set
+Clients can order prints from their download gallery: the gallery made with the finished, full-size photos. A
+proofing gallery can offer prints too, from its proofs, without giving the files away (step 2 below). You set
 the prices, review every order, invoice whoever ordered, and once the invoice is paid you order the prints at any lab
 you like with the files and order sheet Lumen Aureum prepares. The app never talks to a lab and never sends mail by
 itself.
@@ -14,7 +15,7 @@ Turning print orders **off** again (Settings, Plugins, Turn off):
 
 - If any order is still open, it asks first: "N print orders are still open. Finish them first, or turn off anyway
   (they're kept and come back when print orders are on again)."
-- The print pages, the review list, the print lines on Today and on each session, and Sales tax's print choices are
+- The print pages, the review list, the print lines on Today and on each session, and the print choices on Settings, Taxes are
   hidden. Nothing is deleted: every order, line, payment, invoice and lab cost stays exactly as it was, and comes back
   when you turn print orders on again (after a fresh check of your galleries, each gallery offers prints again as
   before).
@@ -50,9 +51,16 @@ Turning print orders **off** again (Settings, Plugins, Turn off):
    - **How prints arrive**: one line on the page and the invoice (by default "Prints come straight from our lab.").
 2. **Offer prints on download galleries**, and which kinds of session offer them. Each gallery also has its own
    switch in its Gallery block on the client page (**Offer prints from this gallery**).
-3. **Sales tax** (Settings, Sales tax): charge tax on prints (yes by default when you charge sales tax) and on
-   shipping (no by default). Under a regional rate a print order is taxed where it ships (pick up: where the studio
-   is). Whether to charge tax on prints and shipping, and at what rate, is your decision with your accountant;
+   - **Selling prints without giving the files away** (fine art, a print store): on a proofing gallery, tick **Offer
+     prints from these proofs** and build the gallery again. Visitors see only the proofs (with your proof mark if it
+     is on) and can order prints; nothing to download. The full-size files are sealed and kept on this computer, never
+     put on your web host, and opened only when you prepare an order for the lab. Off until you turn it on, per gallery.
+     While it sells prints the gallery has no Retouch or Suggest for portfolio buttons; turn the switch off and build
+     the gallery again to bring them back.
+3. **Taxes** (Settings, Taxes; the choices show once you have at least one tax): charge tax on prints (yes by
+   default) and on shipping (no by default). A print order is charged the taxes that are added on top of the price
+   and apply to every session; a tax included in the price adds nothing to a print order. A plugin's tax rule can
+   change that by where the order ships (pick up: where the studio is). Whether to charge tax on prints and shipping, and at what rate, is your decision with your accountant;
    Lumen Aureum applies what you choose. The lab's own sales tax is your cost, not tax you collected.
 
 Print ordering needs a web host that runs PHP 7.4 or later (Setup checks it). On a plain bucket the gallery says
@@ -60,7 +68,7 @@ Print ordering needs a web host that runs PHP 7.4 or later (Setup checks it). On
 
 ## What the client sees
 
-On a download gallery, each photo has **Order prints**. Sizes that fit the whole photo come first; for any other
+On a download gallery, or a proofing gallery that offers prints from its proofs, each photo has **Order prints**. Sizes that fit the whole photo come first; for any other
 shape, the client drags a frame over the photo to choose what prints, and can turn it. They choose how many, then
 **Your print order** collects them (on that device only: no name, address or price is stored there). Then **Ship
 to**: their name, email, phone (optional), where the prints go (to me, to someone else, or pick up), a note, and one

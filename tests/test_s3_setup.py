@@ -171,7 +171,8 @@ def test_the_backup_list_has_one_check_column_per_destination(env, tmp_path):
         assert 'id="f-primary_type"' in fold and 'id="f-secondary_type"' in fold and "test-bucket" in fold
         assert 'name="secondary_bucket"' not in fold and 'type="password"' not in fold and SECRET not in fold
         assert ">Test now<" in fold and 'href="/vault?replace=secondary#where"' in fold
-        fold = c.get("/vault?replace=secondary", environ_base=E).get_data(as_text=True).split('id="where"', 1)[1].split("</details>", 1)[0]
+
+        fold = c.get("/vault?replace=secondary", environ_base=E).get_data(as_text=True).split('id="where"', 1)[1].split("</form>", 1)[0]
         assert 'action="/setup/storage?replace=secondary"' in fold and 'name="back" value="/vault#where"' in fold
         assert 'name="secondary_bucket" ' in fold and 'name="primary_type"' not in fold and "Test and save" in fold
         r = c.post("/setup/storage", data=dict(primary_type="local", primary_path=str(vault), secondary_type="s3",
@@ -199,8 +200,8 @@ def test_backups_is_one_settings_entry_and_explains_the_master_key(env, tmp_path
     page = c.get("/vault", environ_base=E).get_data(as_text=True)
     nav = page.split('class="settabs', 1)[1] if 'class="settabs' in page else page
     assert 'href="/setup/storage"' not in nav and ">Backups<" in nav
-    assert "Master key set" in page
-    pill = page.split("Master key set", 1)[1][:900]
+    assert "Master key: set up" in page
+    pill = page.split("Master key: set up", 1)[1][:900]
     assert 'class="qh"' in pill and "shown once when you set up Lumen Aureum" in pill and "print" in pill
     import settings_index
     with A.app.test_request_context():

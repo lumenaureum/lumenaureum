@@ -147,4 +147,6 @@ def test_app_key_and_pinned_host_key():
     assert B.host_key_fingerprint(host_line).startswith("SHA256:")
     out = settings_io.export(lambda k: None, [], {"primary": {"type": "sftp", "host": "h", "user": "u", "root": "/r",
                                                              "private_key": priv, "host_key": host_line}})
-    assert "private_key" not in out["storage"]["primary"] and out["storage"]["primary"]["host_key"] == host_line
+    assert "private_key" not in out["storage"]["primary"]
+    assert "host_key" not in out["storage"]["primary"]
+

@@ -118,7 +118,8 @@ def test_families_at_a_paid_event_sign_nothing(tmp_path, monkeypatch):
     import config as C
     flow = C.with_family_money(C.WORKFLOW[C.EVENT_TYPE])
     keys = {st[1] for steps in flow.values() for st in steps if st[0] == "auto"}
-    assert "agreement_signed" not in keys and "deposit_paid" in keys and "balance_paid" in keys
+
+    assert "agreement_signed" not in keys and "deposit_paid" not in keys and "balance_paid" in keys
 
 def test_one_number_per_type_for_keeping_and_the_gallery(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch, presets=("families", "realestate"))

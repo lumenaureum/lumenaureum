@@ -1,0 +1,72 @@
+{% extends "base.html" %}{% from "_macros.html" import help with context %}{% import "_ui.html" as ui with context %}
+{% block title %}Import clients - Lumen Aureum{% endblock %}
+
+{% block body %}
+<div class="ui-page" data-ui-layout="clients-import">
+{% if not d %}
+{{ ui.page_head('Import clients from a file', kicker='Clients') }}
+{% call ui.section('Pick the file', id='pick') %}
+  <form method="post" action="{{ url_for('clients_import_upload') }}" enctype="multipart/form-data">
+    <div class="ui-form-grid">
+      <div class="ui-span-all"><span class="ui-label">Your client list (a spreadsheet file){{ help("A spreadsheet saved as CSV (Save as, or Download, in the spreadsheet app): any list with a name and, if you have them, email, phone, address and notes. Up to " ~ max_mb ~ " MB and " ~ max_rows ~ " rows. Nothing is added until you check the preview and press Import.") }}</span>
+        {{ ui.file_pick('file', 'your client list', accept='.csv,.txt,text/csv', required=true) }}</div>
+    </div>
+    <div class="ui-btnrow"><button class="ui-btn ui-btn-primary">Read the file</button></div>
+  </form>
+{% endcall %}
+{% if batches %}{% call ui.fold('Earlier imports', id='imports', count=batches|length) %}
+  {% for b in batches %}
+  <div class="ui-factrow"><span class="ui-factrow-text"><b>{{ b.file }}</b> &middot; {{ nice(b.at[:10]) }} &middot; {{ b.added|length }} added{% if b.updated %}, {{ b.updated }} updated{% endif %}
+    {%- if b.removed %} &middot; removed {{ nice(b.removed[:10]) }}{% if b.kept %} ({{ b.kept }} kept){% endif %}{% endif %}</span>
+    {%- if not b.removed and b.left %}{{ ui.action(url_for('clients_import_remove', bid=b.id), 'Remove this import', inplace=false,
+        confirm='Remove the ' ~ b.left ~ ' client' ~ ('' if b.left == 1 else 's') ~ ' this import added? Any you have worked with since stay.') }}{% endif %}</div>
+  {% endfor %}
+{% endcall %}{% endif %}
+{% else %}
+{%- set n_add = plan.add|length -%}
+{{ ui.page_head('Import ' ~ d.file, kicker='Clients', status=(d.rows|length) ~ ' row' ~ ('' if d.rows|length == 1 else 's') ~ ', read as ' ~ d.enc) }}
+{% call ui.needs('Ready to import') %}
+  <p>{% if n_add %}Adds {{ n_add }} client{{ '' if n_add == 1 else 's' }}.{% else %}No new clients in this file.{% endif %}
+    {%- if plan.match %} {{ plan.match|length }} {{ 'is' if plan.match|length == 1 else 'are' }} already here: Skip or Update each below.{% endif %}
+    {%- if plan.problems %} {{ plan.problems|length }} row{{ ' has a problem' if plan.problems|length == 1 else 's have problems' }} and {{ 'is' if plan.problems|length == 1 else 'are' }} left out.{% endif %}</p>
+  <form method="post" action="{{ url_for('clients_import_confirm', token=token) }}" id="confirm-import">
+    <input type="hidden" name="sig" value="{{ sig }}">
+  </form>
+  <div class="ui-btnrow">
+    <button class="ui-btn ui-btn-primary" form="confirm-import">Import{% if n_add %} {{ n_add }} client{{ '' if n_add == 1 else 's' }}{% endif %}</button>
+    {{ ui.action(url_for('clients_import_cancel', token=token), 'Cancel the import', inplace=false) }}
+  </div>
+{% endcall %}
+{% call ui.fold('Columns', id='columns', open=true, count=d.header|length) %}
+  <form method="post" action="{{ url_for('clients_import_columns', token=token) }}">
+    <div class="ui-form-grid">
+    {% for h_ in d.header %}{% set i = loop.index0 %}
+      <label><span>{{ h_ or 'Column ' ~ loop.index }}{% if samples[i] %} <small class="ui-mute">({{ samples[i] }})</small>{% endif %}</span>
+        <select name="col{{ i }}"><option value="">Leave out</option>{% for k, lab in fields %}<option value="{{ k }}"{{ ' selected' if d.mapping[i] == k }}>{{ lab }}</option>{% endfor %}</select></label>
+    {% endfor %}
+    </div>
+    <div class="ui-btnrow"><button class="ui-btn ui-btn-quiet">Update the preview</button></div>
+  </form>
+{% endcall %}
+{% call ui.section(id='preview') %}
+{% call ui.fold('Will be added', id='to-add', count=n_add) %}
+  {% for gr in plan.add %}{{ ui.fact(gr.client.name, (gr.people|map(attribute='name')|join(', ')) ~ ((' · ' ~ ([gr.people[0].email, gr.people[0].phone]|select|join(', '))) if gr.people and (gr.people[0].email or gr.people[0].phone) else '')) }}{% endfor %}
+{% endcall %}
+{% call ui.fold('Already here', id='matches', count=plan.match|length) %}
+  {% for gr in plan.match %}
+  <div class="ui-factrow"><span class="ui-factrow-text"><b>{{ gr.client.name }}</b> matches {{ gr.here }} by {{ gr.by }}.
+    {% if gr.ops %}Update would change: {{ gr.ops|map(attribute=2)|join('; ') }}.{% else %}Nothing to update: it says the same.{% endif %}</span>
+    {%- if gr.ops %}<label class="ui-check">{{ 'For ' ~ gr.client.name }} <select name="pick_{{ gr.id }}" form="confirm-import"><option value="skip">Skip</option><option value="update">Update</option></select></label>{% endif %}</div>
+  {% endfor %}
+{% endcall %}
+{% call ui.fold('Rows with problems', id='problems', count=plan.problems|length) %}
+  {% for row, words in plan.problems %}{{ ui.fact('Row ' ~ row, words) }}{% endfor %}
+{% endcall %}
+{% call ui.fold('Left blank in some rows', id='notes', count=plan.notes|length) %}
+  {% for row, words in plan.notes %}{{ ui.fact('Row ' ~ row, words) }}{% endfor %}
+{% endcall %}
+{% endcall %}
+{% endif %}
+</div>
+{% endblock %}
+

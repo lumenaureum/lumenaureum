@@ -5,6 +5,7 @@
 .tag { color: var(--mute); margin: 0 0 16px; } .auth > .brand { display: none; }</style>
 <div class="landing"><img src="{{ url_for('static', filename='brand/logo-horizontal-dark-bg.svg') }}" alt="Lumen Aureum"></div>
 <p class="tag">Set up the owner account.</p>
+<p id="restore-instead">Moving a studio, or bringing one back? <a class="ui-go" href="{{ url_for('setup_restore') }}">Restore from a backup &rsaquo;</a></p>
 <h1>Step 1 of 3: you</h1>
 <form method="post" class="card f">
   {% if err == 'slow' %}<div class="err">Too many tries. Wait 15 minutes.</div>{% endif %}

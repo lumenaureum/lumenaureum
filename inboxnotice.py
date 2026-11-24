@@ -55,15 +55,11 @@ def arrived(con, kind, n=1):
     except Exception:
         log.warning("studio inbox notice: a new %s was not counted", kind, exc_info=True)
 
+INBOX_TEXT = "Something new came in. Sign in to your studio to see it."
+
 def text(pending):
 
-    parts = [(k, int(pending.get(k) or 0)) for k in KINDS if int(pending.get(k) or 0) > 0]
-    if not parts:
-        return ""
-    words = [f"{n} {KINDS[k][0] if n == 1 else KINDS[k][1]}" for k, n in parts]
-    if len(parts) == 1:
-        return f"{parts[0][1]} new {words[0].split(' ', 1)[1]}"
-    return f"{sum(n for _, n in parts)} new: " + ", ".join(words)
+    return INBOX_TEXT if any(int(pending.get(k) or 0) > 0 for k in KINDS) else ""
 
 def _at(st, key):
     try:
@@ -112,22 +108,38 @@ def tick(connect, cfg, now=None):
                     RETRY.seconds // 60, why)
     return "sent" if why is None else "failed"
 
-def step(is_unlocked, connect, settings, now=None, backup_problem=None):
+def step(is_unlocked, connect, settings, now=None, backup_problem=None, problems=None):
 
     if not is_unlocked():
         return None
     cfg = settings()
     told = tick(connect, cfg, now)
+    asks = dict(problems or {})
+    asks.setdefault("cred", lambda: credential_fact(connect))
+    asks.setdefault("newmaster", lambda: newmaster_fact(connect))
     if backup_problem:
-        backup_tick(connect, cfg, backup_problem(), now)
+        asks["backup"] = backup_problem
+    for kind, ask in asks.items():
+        if kind not in STATUS:
+            continue
+        try:
+            con = connect()
+            try:
+                on = status_on(con, kind)
+            finally:
+                con.close()
+            if on and cfg:
+                status_tick(connect, cfg, kind, ask(), now)
+        except Exception:
+            log.warning("the %s notice check failed", kind, exc_info=True)
     return told
 
-def start_loop(is_unlocked, connect, settings, applog, backup_problem=None):
+def start_loop(is_unlocked, connect, settings, applog, backup_problem=None, problems=None):
 
     def loop():
         while True:
             try:
-                step(is_unlocked, connect, settings, backup_problem=backup_problem)
+                step(is_unlocked, connect, settings, backup_problem=backup_problem, problems=problems)
             except Exception:
                 applog.exception("studio inbox notice")
             time.sleep(TICK)
@@ -142,34 +154,162 @@ BACKUP_TEXT = {"failed": "The last backup failed. Sign in to your studio to see 
 
 def backup_tick(connect, cfg, problem, now=None):
 
+    return status_tick(connect, cfg, "backup", problem, now)
+
+STORAGE_LOW_PCT = 10
+
+def _backup(fact, now):
+    return (fact, BACKUP_TEXT[fact]) if fact in BACKUP_TEXT else None
+
+def _storage(fact, now):
+    return ("low", f"Your studio's disk has less than {STORAGE_LOW_PCT}% free. Sign in to your studio to make room "
+                   "before uploads or backups stop.") if fact else None
+
+CLOSING_HOURS = (9, 21)
+
+def _closing(fact, now):
+    n = int(fact or 0)
+    if n <= 0:
+        return None
+    if not CLOSING_HOURS[0] <= now.hour < CLOSING_HOURS[1]:
+        return False
+    return ((now.date() + timedelta(days=1)).isoformat(),
+            "One or more galleries close tomorrow. Sign in to your studio to see which, or to keep one open longer.")
+
+def _update(fact, now):
+    return (str(fact), "Your studio was updated to a new version. Today says what changed.") if fact else None
+
+def _served(fact, now):
+    ids = sorted(str(v) for v in (fact or ()))
+    if not ids:
+        return None
+    return (",".join(ids), "One or more gallery pages on your web host are not the ones your studio put there. Sign in "
+                           "to your studio to check them.")
+
+STATUS = {
+    "backup": (KEY_BACKUP_ON, KEY_BACKUP_STATE, BACKUP_TITLE, _backup, BACKUP_AGAIN),
+    "storage": ("storage_notice", "storage_notice_state", "Studio storage", _storage, timedelta(days=1)),
+    "closing": ("closing_notice", "closing_notice_state", "Gallery closing", _closing, None),
+    "update": ("updated_notice", "updated_notice_state", "Studio updated", _update, None),
+    "served": ("served_notice", "served_notice_state", "Gallery page changed", _served, timedelta(days=1)),
+}
+TITLES = tuple(v[2] for v in STATUS.values())
+
+COVERED = {"served": lambda was, now: set(now.split(",")) <= set(str(was or "").split(","))}
+
+DEFAULT_ON = {"cred"}
+
+def status_on(con, kind):
+
+    key = STATUS[kind][0]
+    if key is None:
+        return True
+    v = _get(con, key)
+    return v == "1" or (v is None and kind in DEFAULT_ON)
+
+def status_tick(connect, cfg, kind, fact, now=None):
+
+    key_on, key_state, title, words, again = STATUS[kind]
     now = now or _now()
     with LOCK:
         con = connect()
         try:
-            if _get(con, KEY_BACKUP_ON) != "1" or not cfg:
+            if not status_on(con, kind) or not cfg:
                 return None
             try:
-                st = json.loads(_get(con, KEY_BACKUP_STATE) or "{}")
+                st = json.loads(_get(con, key_state) or "{}")
                 st = st if isinstance(st, dict) else {}
             except ValueError:
                 st = {}
-            if problem not in BACKUP_TEXT:
-                if st:
-                    _put(con, KEY_BACKUP_STATE, "{}")
+            said = words(fact, now)
+            if said is False:
                 return None
+            if not said:
+                if st:
+                    _put(con, key_state, "{}")
+                    con.commit()
+                return None
+            what, body = said
             sent, tried = _at(st, "sent_at"), _at(st, "tried_at")
-            if sent and now - sent < BACKUP_AGAIN and st.get("what") == problem:
+            same = st.get("what") == what or (kind in COVERED and COVERED[kind](st.get("what"), what))
+            if sent and same and (again is None or now - sent < again):
                 return None
             if tried and now - tried < RETRY:
                 return None
-            why = locknotice.send(cfg, BACKUP_TEXT[problem], title=BACKUP_TITLE)
+            why = locknotice.send(cfg, body, title=title)
             if why is None:
-                st = dict(sent_at=now.isoformat(timespec="seconds"), what=problem)
+                st = dict(sent_at=now.isoformat(timespec="seconds"), what=what)
             else:
                 st["tried_at"] = now.isoformat(timespec="seconds")
-            _put(con, KEY_BACKUP_STATE, json.dumps(st, sort_keys=True))
+            _put(con, key_state, json.dumps(st, sort_keys=True))
+            con.commit()
         finally:
             con.close()
     if why is not None:
-        log.warning("The backup notice could not be sent (tried again in %d minutes): %s", RETRY.seconds // 60, why)
+        log.warning("The %s notice could not be sent (tried again in %d minutes): %s", title.lower(),
+                    RETRY.seconds // 60, why)
     return "sent" if why is None else "failed"
+
+def seeded(kind, fact, now=None):
+
+    now = now or _now()
+    said = STATUS[kind][3](fact, now)
+    return json.dumps(dict(sent_at=now.isoformat(timespec="seconds"), what=said[0]), sort_keys=True) if said else None
+
+KEY_CRED_ON = "credential_notice"
+KEY_CRED_STATE = "credential_notice_state"
+KEY_CRED_AT = "credential_changed_at"
+CRED_TITLE = "Studio sign-in changed"
+CRED_TEXT = "A way into your studio was changed. If it wasn't you, sign in and look at Account activity."
+
+def _cred(fact, now):
+    return (str(fact), CRED_TEXT) if fact else None
+
+STATUS["cred"] = (KEY_CRED_ON, KEY_CRED_STATE, CRED_TITLE, _cred, None)
+TITLES = tuple(v[2] for v in STATUS.values())
+
+def credential_changed(con):
+
+    try:
+        if not status_on(con, "cred") or not (_get(con, "ntfy_server") and _get(con, "ntfy_topic")):
+            return
+        _put(con, KEY_CRED_AT, _now().isoformat(timespec="microseconds"))
+    except Exception:
+        log.warning("sign-in change notice: a change was not noted", exc_info=True)
+
+KEY_NEWMASTER_STATE = "newmaster_notice_state"
+NEWMASTER_TITLE = "Studio master key"
+NEWMASTER_TEXT = ("A new master key was asked for. It takes effect in 48 hours. If it wasn't you, sign in and cancel "
+                  "it in Settings, Security.")
+KEY_MASTER_PENDING = "master_pending"
+
+def _newmaster(fact, now):
+    return (str(fact), NEWMASTER_TEXT) if fact else None
+
+STATUS["newmaster"] = (None, KEY_NEWMASTER_STATE, NEWMASTER_TITLE, _newmaster, None)
+TITLES = tuple(v[2] for v in STATUS.values())
+
+def newmaster_fact(connect):
+
+    con = connect()
+    try:
+        raw = _get(con, KEY_MASTER_PENDING)
+    finally:
+        con.close()
+    try:
+        v = json.loads(raw) if raw else None
+    except ValueError:
+        return None
+    return v.get("asked") if isinstance(v, dict) else None
+
+def credential_fact(connect):
+
+    con = connect()
+    try:
+        return _get(con, KEY_CRED_AT)
+    finally:
+        con.close()
+
+def cred_tick(connect, cfg, now=None):
+
+    return status_tick(connect, cfg, "cred", credential_fact(connect), now)

@@ -20,8 +20,10 @@
     {% if a.scope %}<tr><td>Quoted</td><td>{{ a.scope|join('<br>'|safe) }}</td></tr>{% endif %}
     
     <tr><td>Price</td><td>{{ money(a.total) if a.total > 0.005 or a.plan else 'No charge' }}{% if a.plan %} for every session{% endif %}{% if a.quote_id %} (quote {{ quote_no(a.quote_id) }}){% endif %}</td></tr>
-    {% if a.deposit %}<tr><td>Deposit</td><td>{{ money(a.deposit) }}, due when you sign</td></tr>{% endif %}
+    {% if a.free %}<tr><td>Payment</td><td>No payment due</td></tr>{% endif %}
+    {% if a.deposit %}<tr><td>{{ 'Deposit'|dep }}</td><td>{{ money(a.deposit) }}, due when you sign</td></tr>{% endif %}
     {% if a.total > 0.005 or a.plan %}<tr><td>Balance</td><td>{{ money(a.total - a.deposit) }}, {{ a.balance_rule }}</td></tr>{% endif %}
+    {% if a.schedule %}<tr><td>Payment schedule</td><td>{% for r_ in a.schedule %}Payment {{ r_.n }} of {{ r_.of }}: {{ money(r_.amount) }}, due {{ r_.due }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td></tr>{% endif %}
   </table>
 
 {{ a.custom }}

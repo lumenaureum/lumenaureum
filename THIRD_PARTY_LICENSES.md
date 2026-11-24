@@ -22,13 +22,14 @@ AGPL. Versions are those in the published container image; each package's full l
 | zopfli | Apache-2.0 |
 | segno (QR codes) | BSD-3-Clause |
 | gunicorn (web server) | MIT |
-| paramiko (SFTP) | LGPL-2.1 |
+| paramiko (SFTP) | LGPL-2.1-or-later |
 | bcrypt, PyNaCl | Apache-2.0 |
 | invoke | BSD-2-Clause |
 
 ## System packages in the container (Debian)
 Python 3.13 (PSF-2.0), Pango and HarfBuzz (LGPL-2.0+ / MIT), Liberation fonts (OFL-1.1), DejaVu fonts (Bitstream
-Vera / public domain), tzdata (public domain).
+Vera / public domain), Droid Sans Fallback for Chinese, Japanese and Korean names in PDFs (fonts-droid-fallback,
+Google / Android Open Source Project, Apache-2.0), tzdata (public domain).
 
 ## Bundled data and fonts
 | Item | Source | License |

@@ -2,10 +2,13 @@ from markupsafe import Markup
 import json
 import os
 import secrets
+import threading
 import time
 from pathlib import Path
 
 from flask import abort, redirect, render_template, request, url_for
+
+import errtext
 
 from . import backends as B, keys as K, seal as S
 
@@ -94,7 +97,7 @@ def run_if_due(connect, db_path, faces_dir, now=None):
     try:
         BK.sealed_backup(str(db_path), str(faces_dir) if faces_dir.exists() else None)
     except Exception as e:
-        _record_error(connect, f"{type(e).__name__}: {e}"[:200])
+        _record_error(connect, errtext.named(e))
         raise
     _record_run(connect, now)
     return True
@@ -125,15 +128,23 @@ def backups(connect, limit=30):
                               GROUP BY name ORDER BY MAX(id) DESC LIMIT ?""", (limit,)).fetchall()
         second = {r[0] for r in con.execute("SELECT name FROM vault_secondary")} if con.execute(
             "SELECT 1 FROM sqlite_master WHERE name='vault_secondary'").fetchone() else set()
+        was = {}
+        try:
+            r_ = con.execute("SELECT value FROM settings WHERE key='upgrade_from'").fetchone()
+            was = json.loads(r_[0]) if r_ and r_[0] else {}
+        except Exception:
+            was = {}
     finally:
         con.close()
     return [dict(name=r[0], created=r[1], size=r[2] or 0, at=r[3] or "", second=r[0] in second, kind=r[4] or "db",
-                 what=KIND_WORDS.get(r[4] or "db", "")) for r in rows]
+                 what=KIND_WORDS.get(r[4] or "db", ""), was=(was.get(r[0], "") if isinstance(was, dict) else ""))
+            for r in rows]
 
 KIND_WORDS = {"db": "Daily", "manual": "Back up now", "upgrade": "Before the update"}
 OBJ_WORDS = {"db": "Daily backups", "faces": "Daily backups, faces", "manual": "Back up now", "manual-faces": "Back up now, faces",
              "upgrade": "Before an update", "upgrade-faces": "Before an update, faces", "reset": "Before a reset",
-             "found": "Found in the backup folder", "session": "Sealed sessions"}
+             "found": "Found in the backup folder", "session": "Sessions in the safe copy",
+             "session-lost": "Sessions locked to a lost master key"}
 
 def check_backup(connect, master_secret):
 
@@ -176,6 +187,103 @@ def check_backup(connect, master_secret):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
     return out
+
+def replace_lost(connect, pub):
+
+    import datakey
+    con = connect()
+    try:
+        n = K.replace_lost_master(con, pub)
+    finally:
+        con.close()
+    datakey.replace_master(pub)
+    return n
+
+def replace_with_old(connect, old, pub):
+
+    import datakey
+    con = connect()
+    try:
+        K.init(con)
+        n = K.replace_master(con, old, pub)
+    finally:
+        con.close()
+    datakey.replace_master(pub)
+    return n
+
+def after_new_master(app, connect, old=None):
+
+    import jobs
+
+    def work(job):
+        with _NEW_MASTER_TURN:
+            return _work(job)
+
+    def _work(job):
+        import photostore
+        from datetime import datetime
+        from . import backup as BK, seal as S, sync as SY
+        said = []
+        con = connect()
+        try:
+            new_pub = K.master_pub(con)
+            has_photos = con.execute("SELECT 1 FROM sqlite_master WHERE name='photo_files'").fetchone()
+            failed = []
+            for _ in range(5):
+                failed = []
+                n = photostore.reseal_keys(con, new_pub, failed) if has_photos else 0
+                now_pub = K.master_pub(con)
+                if now_pub == new_pub:
+                    break
+                new_pub = now_pub
+            said.append(f"{n} photo key{'s' if n != 1 else ''} sealed to the new master key")
+            if failed:
+                app.logger.warning("photo keys not sealed to the new master key: %s", failed)
+                said.append(f"{len(failed)} could not be ({', '.join(failed[:3])}{' and more' if len(failed) > 3 else ''}"
+                            "; each is sealed to the new key when its session is sealed)")
+            if has_photos and PATHS:
+                try:
+                    target = SY.second_backend() or store_backends()[0]
+                    up, left = photostore.upload_mirror_keys(con, target)
+                    if up or left:
+                        said.append(f"{up} copied to the backup location" +
+                                    (f" ({left} to copy again with the next photo copy)" if left else ""))
+                except Exception:
+                    app.logger.warning("photo keys to the backup location", exc_info=True)
+                    said.append("the copies on the backup location wait for the next photo copy")
+            if old and con.execute("SELECT 1 FROM vault_objects WHERE kind IN ('photo-key', 'session-key') LIMIT 1").fetchone():
+                try:
+                    moved, left = S.rewrap_key_files(con, old, new_pub, store_backends())
+                except Exception:
+                    app.logger.warning("vault key files to the new master key", exc_info=True)
+                    moved, left = 0, con.execute("""SELECT COUNT(*) FROM vault_objects WHERE deleted IS NULL
+                                                    AND kind IN ('photo-key', 'session-key')""").fetchone()[0]
+                if moved or left:
+                    said.append(f"{moved} key file{'s' if moved != 1 else ''} in the vault moved to the new key" +
+                                (f", {left} not (the old key still opens {'it' if left == 1 else 'them'})" if left else ""))
+        finally:
+            con.close()
+        if not PATHS:
+            return "; ".join(said) + "."
+        try:
+            BK.sealed_backup(str(PATHS["db"]), str(PATHS["faces"]) if PATHS["faces"].exists() else None, kind="manual")
+        except Exception as e:
+            _record_error(connect, errtext.named(e))
+            raise RuntimeError("; ".join(said) + f". The backup with the new master key failed: {type(e).__name__}. "
+                               "Check the backup location.") from e
+        _record_run(connect, datetime.now())
+        return "; ".join(said) + "; backed up with the new master key."
+    key = "new-master"
+    if jobs.running(key):
+        key = f"new-master:{time.time_ns()}"
+    jobs.start(app, key, "Sealing to the new master key", work)
+
+_NEW_MASTER_TURN = threading.Lock()
+
+def new_master_running():
+
+    import jobs
+    return any(jobs.running(k) for k in list(jobs.JOBS) if k == "new-master" or k.startswith("new-master:"))
 
 def register(app, connect, audit):
     @app.get("/vault", endpoint="vault_view")
@@ -226,7 +334,7 @@ def register(app, connect, audit):
             try:
                 BK.sealed_backup(str(PATHS["db"]), str(PATHS["faces"]) if PATHS["faces"].exists() else None, kind="manual")
             except Exception as e:
-                _record_error(connect, f"{type(e).__name__}: {e}"[:200])
+                _record_error(connect, errtext.named(e))
                 raise RuntimeError(f"Backup failed: {type(e).__name__}. Check the backup location.") from e
             _record_run(connect, datetime.now())
             audit("Backed up now")

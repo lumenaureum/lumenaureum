@@ -15,6 +15,8 @@ PIECE = 8 * REC
 MAX_FILE = 4 << 30
 KINDS = {"raw": "RAWs", "export": "Edited exports", "final": "Retouched finals"}
 
+OTHER_KINDS = {"receipt": "Receipts"}
+
 SCHEMA = """CREATE TABLE IF NOT EXISTS photo_files (
   id TEXT PRIMARY KEY, session_id INTEGER REFERENCES sessions(id) ON DELETE CASCADE, kind TEXT NOT NULL,
   name TEXT NOT NULL, size INTEGER NOT NULL, received INTEGER DEFAULT 0, ct_len INTEGER DEFAULT 0, records INTEGER DEFAULT 0,
@@ -121,6 +123,30 @@ def write_key(row, master_pub, label="", path=None):
     tmp.write_bytes(pyrage.encrypt(body, [VK.recipient(master_pub)]))
     os.replace(tmp, p)
 
+def label_of(con, row):
+
+    if row["session_id"] is None:
+        return OTHER_KINDS.get(row["kind"], "")
+    try:
+        lab = con.execute("""SELECT h.name, s.type, s.shoot_date FROM sessions s JOIN households h ON h.id=s.household_id
+                             WHERE s.id=?""", (row["session_id"],)).fetchone()
+    except Exception:
+        lab = None
+    return " - ".join(str(v) for v in lab if v) if lab else ""
+
+def reseal_keys(con, master_pub, errors=None):
+
+    n = 0
+    for r in con.execute("SELECT * FROM photo_files WHERE state='done' AND fkey != ''").fetchall():
+        try:
+            write_key(r, master_pub, label_of(con, r))
+        except Exception:
+            if errors is not None:
+                errors.append(r["name"])
+            continue
+        n += 1
+    return n
+
 def read_file_plain(path, fid, fkey, out, size=None):
 
     aes = AESGCM(bytes.fromhex(fkey))
@@ -165,6 +191,22 @@ def start(con, sid, kind, name, size, create=True, master_pub=None, label=""):
     if r["size"] != size:
         raise UploadError(f"A different {name} is already here. Delete it first to replace it.")
     return r
+
+def keep(con, kind, name, data, master_pub=None, label=""):
+
+    import io
+    if kind not in OTHER_KINDS:
+        raise UploadError("Unknown kind of file.")
+    if not data or len(data) > MAX_FILE:
+        raise UploadError("Files from 1 byte to 4 GB.")
+    fid = secrets.token_hex(16)
+    con.execute("INSERT INTO photo_files (id, session_id, kind, name, size, fkey) VALUES (?,NULL,?,?,?,?)",
+                (fid, kind, clean_name(name), len(data), secrets.token_bytes(32).hex()))
+    con.commit()
+    row = con.execute("SELECT * FROM photo_files WHERE id=?", (fid,)).fetchone()
+    write_key(row, master_pub, label)
+    append(con, row, 0, io.BytesIO(data), len(data), master_pub=master_pub, label=label)
+    return con.execute("SELECT * FROM photo_files WHERE id=?", (fid,)).fetchone()
 
 class Gone(UploadError):
     pass
@@ -425,6 +467,14 @@ def _remote_sha(backend, name):
     backend.get_stream(name, _W())
     return h_.hexdigest()
 
+def _master_now(con, given):
+
+    from vault import keys as VK
+    try:
+        return VK.master_pub(con) or given
+    except Exception:
+        return given
+
 def seal_to_vault(con, rows, backends, master_pub, label=""):
 
     import io
@@ -433,8 +483,12 @@ def seal_to_vault(con, rows, backends, master_pub, label=""):
     for r in rows:
         if r["state"] != "done":
             continue
-        if not key_path(r["id"]).exists():
-            write_key(r, master_pub, label)
+
+        pub = _master_now(con, master_pub)
+        if r["fkey"] and pub:
+            write_key(r, pub, label)
+        elif not key_path(r["id"]).exists():
+            raise IOError(f"{r['name']} has no key to seal")
         name = vault_name(r)
         with open(path_of(r["id"]), "rb") as f:
             lap = f.read() if r["ct_len"] < (64 << 20) else None
@@ -455,6 +509,8 @@ def seal_to_vault(con, rows, backends, master_pub, label=""):
             if (bk.stat(name) != r["ct_len"] or bk.stat(name[:-4] + ".key") != len(kb)
                     or _remote_sha(bk, name) != sha or _remote_sha(bk, name[:-4] + ".key") != kb_sha):
                 raise IOError(f"the vault copy of {r['name']} did not verify")
+        if _master_now(con, master_pub) != pub:
+            raise IOError(f"the master key changed while {r['name']} was being sealed")
         VS.record(con, r["session_id"], "photo", name, [(b_, r["ct_len"], sha) for b_ in copies])
         VS.record(con, r["session_id"], "photo-key", name[:-4] + ".key",
                   [(b_, len(kb), hashlib.sha256(kb).hexdigest()) for b_ in copies])
@@ -467,7 +523,12 @@ def seal_to_vault(con, rows, backends, master_pub, label=""):
         n += 1
     return n
 
-def open_sealed(con, sid, master_secret, backend, dest_dir, only=()):
+def lost_key(con, key_name):
+
+    kinds = {r[0] for r in con.execute("SELECT kind FROM vault_objects WHERE name=? AND deleted IS NULL", (key_name,))}
+    return "photo-key-lost" in kinds and "photo-key" not in kinds
+
+def open_sealed(con, sid, master_secret, backend, dest_dir, only=(), lost=None):
 
     import io
     import json
@@ -480,6 +541,10 @@ def open_sealed(con, sid, master_secret, backend, dest_dir, only=()):
         if only and not any(o.lower() in r["name"].lower() for o in only):
             continue
         name = vault_name(r)
+        if lost_key(con, name[:-4] + ".key"):
+            if lost is not None:
+                lost.append(r["name"])
+            continue
         kb = io.BytesIO()
         backend.get_stream(name[:-4] + ".key", kb)
         m = json.loads(pyrage.decrypt(kb.getvalue(), [ident]))
@@ -596,6 +661,26 @@ def mirror_pass(con, backend, audit=False):
             removed += 1
         forget_orphans(con, old)
     return copied, fetched, removed
+
+def upload_mirror_keys(con, backend):
+
+    copied = left = 0
+    for r in con.execute("SELECT id FROM photo_files WHERE state='done' AND mirrored IS NOT NULL").fetchall():
+        kp = key_path(r["id"])
+        if not kp.exists():
+            continue
+        try:
+            kb = kp.read_bytes()
+            with open(kp, "rb") as f:
+                backend.put_stream(MIRROR + f"{r['id']}.key", f)
+            if backend.stat(MIRROR + f"{r['id']}.key") != len(kb):
+                raise IOError("the key copy did not verify")
+            copied += 1
+        except Exception:
+            con.execute("UPDATE photo_files SET mirrored=NULL WHERE id=?", (r["id"],))
+            con.commit()
+            left += 1
+    return copied, left
 
 def fingerprint(row):
     h = hashlib.sha256()

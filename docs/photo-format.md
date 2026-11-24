@@ -62,6 +62,10 @@ key. Writing then continues at the recorded end, so a partial file is always a v
   paper, opens it. This is what lets photos be recovered even from a database restored to a point before they were
   uploaded, or with no database at all.
 
+Equipment receipts (the Equipment and packing lists plugin) are stored the same way: kind `receipt`, `session`
+null, `label` "Receipts". They are mirrored, given fresh keys on a rotation, sealed again to a new master key and
+recovered by `recover-photos` (into a `Receipts` folder) exactly like photos; they are never sealed into the vault.
+
 A data-key rotation gives every photo a fresh key (a finished photo whose file is missing here is fetched back from
 its mirror copy first), rewrites its file and its `.key` record, so an old copy of the
 database opens none of them.

@@ -21,6 +21,10 @@
   <div class="ui-btnrow">{{ uim.mail_action(url_for('dev_components_post'), 'mailto:alex@example.com?subject=Re%3A%20your%20inquiry', 'Reply (opens a draft, records it)', url_for('dev_components'), 'quiet') }}</div>
 {% endcall %}
 
+{% call ui.section('File picker (a file field in a form)') %}
+  {{ ui.file_pick('demo_file', 'your client list', accept='.csv') }}
+{% endcall %}
+
 {% call ui.section('Pager (year and month)') %}
   {{ pg.pager('#', 2025, 2026, '#', 2027, 'Year') }}
 {% endcall %}

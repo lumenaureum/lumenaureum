@@ -9,7 +9,7 @@ import urllib.request
 
 PHP_FLOOR = (7, 4)
 DOOR_LIMIT = 300
-SCRIPT_SET = "1.5.0"
+SCRIPT_SET = "1.6.0"
 PROBE_PHP = """<?php
 header('Cache-Control: no-store');
 header('Content-Type: application/json');

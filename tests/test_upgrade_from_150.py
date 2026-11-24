@@ -146,7 +146,12 @@ def _table(A, name, order):
         con.close()
     fix = lambda v: (hashlib.sha256(v if isinstance(v, bytes) else v.encode()).hexdigest()
                      if isinstance(v, bytes) or (isinstance(v, str) and len(v) > 400) else v)
-    return [{c_: fix(v) for c_, v in zip(cols, r)} for r in got]
+    return [{c_: fix(v) for c_, v in zip(cols, r) if not ((name, c_) in YEAR_CLOSE_16 and v == YEAR_CLOSE_16[(name, c_)])}
+            for r in got]
+
+YEAR_CLOSE_16 = {("expenses", "corrects"): None, ("expenses", "late_from"): None, ("expenses", "note"): "",
+                 ("payments", "corrects"): None, ("print_payments", "corrects"): None, ("print_payments", "note"): "",
+                 ("print_galleries", "proofs"): 0}
 
 PRINT_TABLES = (("print_orders", "id"), ("print_order_lines", "id"), ("print_payments", "id"), ("print_lab_costs", "id"),
                 ("print_galleries", "session_id"), ("print_order_oids", "oid"), ("price_list_items", "sort, id"),
@@ -199,12 +204,17 @@ def test_this_sqlcipher_opens_it_with_the_same_settings(upgraded):
     con.close()
     assert (tmp_path / "crm.db").read_bytes()[:16] != b"SQLite format 3\x00"
 
-def test_the_schema_stays_9_with_no_upgrade_backup(upgraded):
+def test_the_schema_stays_9_with_one_upgrade_backup(tmp_path, monkeypatch):
 
-    A, c, taken, _ = upgraded
+    import about
+    now = about.version()
+    if now == EXPECTED["app_version"]:
+        now = "1.5.1"
+    _place(tmp_path)
+    A, c, taken = _open(tmp_path, monkeypatch, version=now)
     assert A.SCHEMA_VERSION == V150_SCHEMA
     assert _q(A, "PRAGMA user_version")[0][0] == V150_SCHEMA
-    assert taken == [] and SCHEMA_AT_BACKUP == []
+    assert taken == ["upgrade"] and SCHEMA_AT_BACKUP == [V150_SCHEMA]
 
 def test_today_says_once_that_it_was_updated(tmp_path, monkeypatch):
 
@@ -218,7 +228,7 @@ def test_today_says_once_that_it_was_updated(tmp_path, monkeypatch):
     first, second = _page(c, "/"), _page(c, "/")
     assert f"Updated to Lumen Aureum {now}." in first
     note = first.split('id="update-note"', 1)[1].split("</section>", 1)[0]
-    assert taken == [] and "from before the update" not in note
+    assert taken == ["upgrade"] and "from before the update" in note
     assert "Moved on under the new stage rules" not in note
     assert "Updated to Lumen Aureum" in second
     c.post("/today/update-notice-hide", data={"back": "/"}, environ_base=E)
@@ -271,11 +281,20 @@ def test_finances_and_the_export_match_1_5_0(upgraded):
                tax_rows=[dict(kind=r["kind"], day=r["day"], amount=r2(r["amount"]), tax=r2(r["tax"]),
                               taxable=r2(r["taxable"])) for r in ym["tax_rows"]])
     assert got == EXPECTED["year_money"]
-    assert _in_request(A, lambda: A.app.config["prints_year"](YEAR)) == EXPECTED["prints_year"]
+    py_ = _in_request(A, lambda: A.app.config["prints_year"](YEAR))
+    for r_ in py_.get("rows", []):
+        if r_.get("fix") == "":
+            del r_["fix"]
+    assert py_ == EXPECTED["prints_year"]
     r = c.get(f"/money/accounts.zip?year={YEAR}", environ_base=E)
     assert r.status_code == 200
     z = zipfile.ZipFile(io.BytesIO(r.data))
     export = {n: list(csv.reader(io.StringIO(z.read(n).decode("utf-8-sig")))) for n in sorted(z.namelist())}
+    for n, rows in export.items():
+        if rows and "correction of" in rows[0]:
+            i = rows[0].index("correction of")
+            assert all(len(r_) <= i or r_[i] == "" for r_ in rows[1:]), n
+            export[n] = [r_[:i] + r_[i + 1:] for r_ in rows]
     assert export == EXPECTED["export"]
     assert {"prints.csv", "print-lab-costs.csv"} <= set(export)
 

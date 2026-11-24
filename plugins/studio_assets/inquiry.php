@@ -20,7 +20,7 @@
 // holds an empty index.html, so a web server that lists folders shows nothing there either.
 // Each file is named <sender>-<content>.las: the sender as a keyed hash (never the address itself). Files of any other
 // name in the folder are never counted, listed, replaced or removed here.
-header('X-Host-Scripts: 1.5.0');
+header('X-Host-Scripts: 1.6.0');
 $SALT = 'unbuilt';   // random for each install, written in when the site is built (PHP source is never served)
 $WORK = 17;          // leading zero bits the proof of work needs (the form carries the same number)
 $KID = '';           // the studio key's ID (16 hex), written in when the site is built

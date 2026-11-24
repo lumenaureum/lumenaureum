@@ -50,6 +50,13 @@ def steps_for(t):
              ("amt", t["deposit_amount"]) if t.get("deposit_amount") is not None else ("", ""),
              put=lambda f: _put_deposit(t, f),
              preview=lambda: dict(C.build_terms(key)).get("Booking", "")),
+        dict(id="installments", title="Payments after the deposit",
+             why=("1 is one payment, when your terms say the balance is due. More splits it into equal payments, one a"
+                  " month on the booking's day of the month, the last on that day. At most " + str(C.INSTALLMENTS_MAX)
+                  + " payments. A session can still have its own plan."),
+             field=("number", "installments", "payments"), get=lambda: int(t.get("installments") or 1),
+             put=lambda f: _put_installments(t, f),
+             preview=lambda: "The balance is " + C.balance_text(key, int(t.get("installments") or 0)) + "."),
         dict(id="reschedule", title="Rescheduling and running late",
              why=("Most portrait clients expect one free reschedule if they give notice. For a date that can't move, such as"
                   " a wedding, turn the free reschedule off."),
@@ -253,6 +260,13 @@ def _names(labels):
     if len(labels) > 3:
         labels = labels[:3] + [f"{len(labels) - 3} more"]
     return " and ".join(labels) if len(labels) < 3 else ", ".join(labels[:-1]) + ", and " + labels[-1]
+
+def _put_installments(t, f):
+
+    had = int(t.pop("installments", None) or 0)
+    n = _num(f.get("installments"), 1, C.INSTALLMENTS_KEPT_MAX)
+    if n and n >= 2:
+        t["installments"] = n if n == had else min(n, C.INSTALLMENTS_MAX)
 
 def _put_deposit(t, f):
 

@@ -36,8 +36,9 @@
     <tr class="total"><td>Received, less refunds</td><td class="n">{{ money(v.net) }}</td></tr>
   </table>
 
-  <h2>Sales tax collected</h2>
-  <table><tr><td>Sales tax in the money received</td><td class="n">{{ money(v.tax) }}</td></tr></table>
+  <h2>{{ v.tax_word }} collected</h2>
+  <table>{% for n_, a_ in v.tax_names %}<tr><td>{{ n_ }}</td><td class="n">{{ money(a_) }}</td></tr>{% endfor %}
+    <tr{% if v.tax_names %} class="total"{% endif %}><td>{{ v.tax_word }} in the money received</td><td class="n">{{ money(v.tax) }}</td></tr></table>
 
   <h2>Expenses</h2>
   <table>{% for k, a in v.expenses %}<tr><td>{{ k }}</td><td class="n">{{ money(a) }}</td></tr>{% else %}<tr><td>None recorded</td><td class="n">{{ money(0) }}</td></tr>{% endfor %}

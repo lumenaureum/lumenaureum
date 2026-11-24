@@ -24,7 +24,9 @@
     </span>{% endif %}
     {%- for g_ in groups %}{% set counts_ = {} %}{% for v_ in g_['values'] if v_ %}{% set _ = counts_.update({v_: counts_.get(v_, 0) + 1}) %}{% endfor %}
     {%- if counts_ %}<span class="ui-fgroup" role="group" aria-label="{{ g_.label }}" data-f-js hidden>
-      {%- for v_, n_ in counts_|dictsort(by='value', reverse=true) %}<button type="button" class="ui-btn ui-fchip" data-f-key="{{ g_.key }}" data-f-val="{{ v_ }}" aria-pressed="false">{{ v_ }} <span class="ui-fchip-n" data-f-n>{{ n_ }}</span></button>{% endfor -%}
+      {%- set order_ = g_.get('order') or [] %}{% set chips_ = [] %}{% for v_ in order_ if v_ in counts_ %}{% set _ = chips_.append((v_, counts_[v_])) %}{% endfor %}
+      {%- for v_, n_ in counts_|dictsort(by='value', reverse=true) if v_ not in order_ %}{% set _ = chips_.append((v_, n_)) %}{% endfor %}
+      {%- for v_, n_ in chips_ %}<button type="button" class="ui-btn ui-fchip" data-f-key="{{ g_.key }}" data-f-val="{{ v_ }}" aria-pressed="false">{{ v_ }} <span class="ui-fchip-n" data-f-n>{{ n_ }}</span></button>{% endfor -%}
     </span>{% endif %}{% endfor %}
     {%- if views %}<a class="ui-btn ui-btn-quiet ui-fclear" href="{{ clear_url }}" data-f-clear{% if view == 'all' and not q %} hidden{% endif %}>Clear filters</a>
     {%- else %}<button type="button" class="ui-btn ui-btn-quiet ui-fclear" data-f-clear hidden>Clear filters</button>{% endif %}

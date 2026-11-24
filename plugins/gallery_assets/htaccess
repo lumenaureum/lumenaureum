@@ -1,5 +1,5 @@
 Options -Indexes
-<FilesMatch "^(seen\.(txt|key)|seen-key\.php|seen-at\.php|sealed\.php|offer-kid\.php|tries\.php|limits\.(txt|php)|once\.(txt|php)|done\.(txt|php)|(picks|draft)\.(las|bin).*|[0-9a-f]{24}\.las.*)$">
+<FilesMatch "^(seen\.(txt|key)|seen-key\.php|seen-at\.php|sealed\.php|offer-kid\.php|tries\.php|limits\.(txt|php)|once\.(txt|php)|done\.(txt|php)|(picks|draft)(-[0-9a-f]{16})?\.(las|bin).*|[0-9a-f]{24}\.las.*)$">
   Require all denied
 </FilesMatch>
 RewriteEngine On

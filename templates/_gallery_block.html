@@ -1,6 +1,7 @@
 
 {% import "_ui.html" as ui with context %}{% import "_ui_photos.html" as ph with context %}{% from "_macros.html" import help with context %}
-<div id="gallery" class="ui-gal" data-ui-part>
+
+<div id="gallery" class="ui-gal" data-ui-part data-ui-save-first="#f-codeword-{{ s.id }} form">
 {% set us = (g.upload_state or '') if g else '' %}
 
 {% if proof_how is defined and proof_how %}<p class="ui-mute" id="gal-how">{{ proof_how }}</p>{% endif %}
@@ -15,13 +16,13 @@
   
   {% if use_fin %}
     {% call ph.fact_row(((n_fin ~ ' retouched final' ~ ('' if n_fin == 1 else 's') ~ ' uploaded' ~ ((' · ' ~ n_dl ~ ' photo' ~ ('' if n_dl == 1 else 's') ~ ' in the download gallery, the retouched ones in place of their originals') if n_dl > n_fin else '')) if n_fin else 'Upload the retouched finals on the Retouch row')) %}
-      {% if n_fin %}{{ ui.action(url_for('build_gallery', sid=s.id), 'Build download gallery', {'from': 'finals'}, None, 'primary', inplace=false) }}{% endif %}
+      {% if n_fin %}{{ ui.action(url_for('build_gallery', sid=s.id), 'Build download gallery', {'from': 'finals'}, None, 'primary', inplace=false, dirty='Save and build the gallery') }}{% endif %}
       {% if not n_fin and n_up %}{{ ui.action(url_for('build_gallery', sid=s.id), 'Use the proofs', {'from': 'uploads', 'proofs_ok': '1'}, None, 'quiet', inplace=false,
            confirm='Build the download gallery from the ' ~ n_up ~ ' proofs? They are not retouched.') }}{% endif %}
     {% endcall %}
   {% else %}
-    {% call ph.fact_row(((n_up ~ ' edited photo' ~ ('' if n_up == 1 else 's') ~ ' uploaded') if n_up else 'Upload the edited photos on the Edit row first')) %}
-      {% if n_up %}{{ ui.action(url_for('build_gallery', sid=s.id), 'Build download gallery' if dl_next else 'Build gallery', {'from': 'uploads'}, None, 'primary', inplace=false) }}{% endif %}
+    {% call ph.fact_row(((n_up ~ ' edited photo' ~ ('' if n_up == 1 else 's') ~ ' uploaded') if n_up else 'Upload the edited photos first, on the Upload edited photos step')) %}
+      {% if n_up %}{{ ui.action(url_for('build_gallery', sid=s.id), 'Build download gallery' if dl_next else 'Build gallery', {'from': 'uploads'}, None, 'primary', inplace=false, dirty='Save and build the gallery') }}{% endif %}
     {% endcall %}
   {% endif %}
 {% endif %}
@@ -29,13 +30,13 @@
   {% if folders and not adopted_old %}<form method="post" action="{{ url_for('build_gallery', sid=s.id) }}" class="ui-form-row">
     <input name="source_dir" list="gal-dirs" value="{{ src }}" placeholder="Folder" class="ui-grow" aria-label="Folder to build from" required>
     <datalist id="gal-dirs">{% for d_ in dirs %}<option value="{{ d_ }}">{% endfor %}</datalist>
-    <button class="ui-btn ui-btn-quiet">{{ 'Build download gallery from folder' if dl_next else 'Build from folder' }}</button></form>
+    <button class="ui-btn ui-btn-quiet" data-ui-dirty-label="Save and build from the folder">{{ 'Build download gallery from folder' if dl_next else 'Build from folder' }}</button></form>
   <p class="ui-mute">{% if src_n is none %}Folder not found{% elif src_n == 0 %}No JPEGs in folder{% else %}{{ src_n }} JPEG{{ '' if src_n == 1 else 's' }} in folder{% endif %}</p>{% endif %}
   {% if job and job.state == 'error' %}<p>{{ ui.chip(job.error, 'late') }}</p>{% endif %}
 {% endif %}
 {% if skip_picks %}<div class="ui-btnrow">{{ ui.action(url_for('gallery_no_picks', sid=s.id), 'Deliver without picks', {}, None, 'quiet', inplace=false,
      confirm="Make the next build the download gallery, without the client's picks?") }}</div>{% endif %}
-{% if cw_on and not s.gallery_codeword and not (g and g.cw_fixed == 'none') %}{% call ph.fact_row('This gallery asks for a codeword the client chooses. None yet.') %}{{ ui.opener('f-codeword-' ~ s.id, 'Add the codeword') }}{% endcall %}
+{% if cw_on and not s.gallery_codeword and not (g and g.cw_fixed == 'none') %}{% call ph.fact_row('The gallery asks for a codeword. Choose it with the client, or have the app make one.') %}{{ ui.opener('f-codeword-' ~ s.id, 'Add the codeword') }}{% endcall %}
   
   {% call ui.inline_form('f-codeword-' ~ s.id, 'Add the codeword') %}<form method="post" action="{{ url_for('session_codeword', sid=s.id) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ url_for('client_stage', hid=s.household_id, s=s.id) }}">
     <input name="gallery_codeword" maxlength="60" required autocomplete="off" class="ui-grow" placeholder="three words, e.g. heron maple tide" aria-label="Gallery codeword"><button class="ui-btn ui-btn-primary">Save the codeword</button><button class="ui-btn ui-btn-quiet" name="cw_make" value="1" formnovalidate>Make one for me</button>{{ help("Three words the client chose with you, in person or on the phone. The gallery asks for them. They are never printed on the letter or written into any email the app drafts.") }}</form>{% endcall %}{% endif %}
@@ -43,6 +44,11 @@
 {% if cw_on and s.gallery_codeword and not (g and g.cw_fixed) %}{% call ph.fact_row('Codeword: ' ~ s.gallery_codeword) %}{{ ui.action(url_for('session_codeword', sid=s.id), 'Make another', {'cw_make': '1'}, url_for('client_stage', hid=s.household_id, s=s.id), 'quiet') }}{% endcall %}{% endif %}
 {% if stale_cw %}{% call ph.fact_row('The codeword changed after this build: rebuild so the gallery asks for the new one.', tone='attention') %}
   {{ ui.action(url_for('build_gallery', sid=s.id), 'Rebuild with the new codeword', {'from': 'finals' if use_fin else 'uploads'}, None, 'primary', inplace=false) }}{% endcall %}{% endif %}
+
+{% if brand_rebuild and not (job and job.state == 'running') %}{% set details_ %}Studio details changed since this build{{ help("The gallery's header and footer show your studio name, logo, photographer, email, phone and website, in the gallery font and colors, as they were in Settings when it was built. A rebuild puts in the ones Settings has now.") }}{% endset %}
+{% call ph.fact_row(details_, tone='attention', id='gal-details') %}
+  {{ ui.action(url_for('build_gallery', sid=s.id), 'Rebuild with the new details', brand_rebuild, None, 'primary', inplace=false,
+       confirm=('Rebuild this gallery with the studio details, font and colors in Settings now? The link stays the same, and the copy online is updated once the new build is complete.' if us == 'up' else 'Rebuild this gallery with the studio details, font and colors in Settings now? The link stays the same; Upload puts it online.')) }}{% endcall %}{% endif %}
 {% if stale_mark %}{% call ph.fact_row('Built before the proof mark was turned on: these proofs carry no mark.', tone='attention') %}
   {{ ui.action(url_for('build_gallery', sid=s.id), 'Rebuild with the proof mark', {'source_dir': src} if (g.source_dir and src) else {'from': 'uploads'}, None, 'quiet', inplace=false) }}{% endcall %}{% endif %}
 {% if word_no %}<p>{{ ui.chip(word_no, 'attention') }}</p>{% endif %}
@@ -81,24 +87,25 @@
       {% if not adopted_old %}{{ ui.action(url_for('gallery_replace_link', sid=s.id), 'Replace this link', {}, None, 'quiet', inplace=false,
            confirm="Replace this gallery's link? The old link stops working for good (what the client sent is collected first). The gallery is built again at a new link; you put it online and send the client a new QR letter.") }}{% endif %}
     {% endcall %}
-  {% elif us == 'awaiting' %}{% call ph.fact_row('Waiting for your approval to upload') %}{% endcall %}
+  {% elif us == 'awaiting' %}{% call ph.fact_row(g.upload_error or 'Upload on hold') %}{% endcall %}
   {% elif us == 'uploading' %}{% set up_t %}<span id="gal-up-count" role="status">Uploading</span>{% endset %}{% call ph.fact_row(up_t) %}{% endcall %}<span hidden data-poll-up="{{ url_for('gallery_status', sid=s.id) }}" data-label="gal-up-count"></span>
   {% elif us == 'removed' %}
   {% elif not has_host %}{% call ph.fact_row('Previews work here; putting it online needs a web host.') %}{{ ui.button_link(url_for('setup_step', step='galleries'), 'Set up galleries') }}{% endcall %}
-  {% elif owed and proof %}{% call ph.fact_row('Collect the ' ~ money(owed) ~ ' deposit first: the proofs go online once it is in.') %}
-      {{ ui.action(url_for('upload_gallery_req', sid=s.id), 'Put the proofs online now', dict(early='1'), None, 'quiet', inplace=false,
-           confirm='Put the proof gallery online now, before the deposit is paid? The client can open it and pick from the proofs.') }}{% endcall %}
+  {% elif owed and proof %}{% call ph.fact_row('Collect the ' ~ money(owed) ~ (' deposit first: the proofs go online once it is in.'|dep)) %}
+      {{ ui.action(url_for('upload_gallery_req', sid=s.id), 'Put the proofs online now', dict(early='1'), None, 'quiet', inplace=false, dirty='Save and put the proofs online',
+           confirm='Put the proof gallery online now, before the deposit is paid? The client can open it and pick from the proofs.'|dep) }}{% endcall %}
   {% elif owed and not proof %}{% call ph.fact_row(money(owed) ~ ' still due. Your terms release the gallery on payment.') %}
-      {{ ui.action(url_for('upload_gallery_req', sid=s.id), 'Upload before payment', dict(early='1'), None, 'quiet', inplace=false,
+      {{ ui.action(url_for('upload_gallery_req', sid=s.id), 'Upload before payment', dict(early='1'), None, 'quiet', inplace=false, dirty='Save and put online before payment',
            confirm=('Put the download gallery online before the balance is paid? The client can download the full-size photos right away.' if dl else 'Put the gallery online before the balance is paid? Use this for a proofing gallery the client picks from.')) }}{% endcall %}
-  {% else %}{% set up_words %}{% if us == 'declined' %}Upload declined{% elif us == 'expired' %}Approval expired{% elif us == 'error' and not (g.upload_error or '').startswith(('balance', 'deposit')) %}Upload failed: {{ g.upload_error }}{% elif owed and proof %}These proofs carry your mark, so they can go online before payment{% else %}Ready to upload{% endif %}{% endset %}
-    {% call ph.fact_row(up_words, tone='late' if us == 'error' else '') %}{{ ui.action(url_for('upload_gallery_req', sid=s.id), 'Upload', {}, None, 'primary', inplace=false) }}{% endcall %}
+  {% else %}{% set up_words %}{% if us == 'error' and not (g.upload_error or '').startswith(('balance', 'deposit')) %}Upload failed: {{ g.upload_error }}{% elif owed and proof %}These proofs carry your mark, so they can go online before payment{% elif not us and g.upload_error %}{{ g.upload_error }}{% else %}Ready to upload{% endif %}{% endset %}
+    {% call ph.fact_row(up_words, tone='late' if us == 'error' else '') %}{{ ui.action(url_for('upload_gallery_req', sid=s.id), 'Upload', {}, None, 'primary', inplace=false, dirty='Save and put online') }}{% endcall %}
   {% endif %}
 
   
   {% if us == 'up' %}
     {% set act_ %}{% if opened %}Opened {{ nice(opened) }}{% else %}Not opened yet{% endif %}{% if checked is not none %} &middot; last checked {% if checked < 1 %}just now{% elif checked == 1 %}1 min ago{% elif checked < 120 %}{{ checked }} min ago{% else %}{{ checked // 60 }} hours ago{% endif %}{% endif %}{% endset %}
-    {% call ph.fact_row(act_, id='gal-activity') %}{{ ui.action(url_for('gallery_sync_now'), 'Look for client activity now', {}, back, 'quiet') }}{% endcall %}
+    
+    {% call ph.fact_row(act_, id='gal-activity') %}{% endcall %}
   {% endif %}
   
   {% if picks_mail %}
@@ -148,20 +155,21 @@
     <span hidden data-poll="{{ url_for('gallery_status', sid=s.id) }}" data-label="gal-up-what"></span>{% endif %}
   {% elif us == 'up' and stale and dl != dl_online %}
     {% if owed and not proof %}{% call ph.fact_row(money(owed) ~ ' still due. Your terms release the download gallery on payment.') %}
-      {{ ui.action(url_for('upload_gallery_req', sid=s.id), 'Upload before payment', dict(early='1'), None, 'quiet', inplace=false,
+      {{ ui.action(url_for('upload_gallery_req', sid=s.id), 'Upload before payment', dict(early='1'), None, 'quiet', inplace=false, dirty='Save and put online before payment',
            confirm='Put the download gallery online before the balance is paid? The client can download the full-size photos right away.') }}{% endcall %}
     {% else %}{% call ph.fact_row('The proofing gallery is online. Upload puts the download gallery in its place.' if dl else 'The download gallery is online. Upload puts this build in its place.') %}
-      {{ ui.action(url_for('upload_gallery_req', sid=s.id), 'Upload', {}, None, 'primary', inplace=false) }}{% endcall %}{% endif %}
+      {{ ui.action(url_for('upload_gallery_req', sid=s.id), 'Upload', {}, None, 'primary', inplace=false, dirty='Save and put online') }}{% endcall %}{% endif %}
   {% elif us == 'up' and stale %}{% call ph.fact_row('The copy online is older than this build' ~ ('. The upload did not finish: ' ~ g.upload_error if g.upload_error else ''), tone='attention') %}
-      {{ ui.action(url_for('upload_gallery_req', sid=s.id), 'Upload the new build', {}, None, 'primary', inplace=false) }}{% endcall %}{% endif %}
+      {{ ui.action(url_for('upload_gallery_req', sid=s.id), 'Upload the new build', {}, None, 'primary', inplace=false, dirty='Save and put online') }}{% endcall %}{% endif %}
   {% if refit_wait and us == 'up' %}{% call ph.fact_row('Waiting to update this gallery while the client is picking') %}
       {{ ui.action(url_for('gallery_refit_now', sid=s.id), 'Update it now', {}, None, 'quiet', inplace=false,
            confirm="Update this gallery's page now? If the client is picking right now, their next Send may fail once; a reload fixes it, and their choices stay on their device.") }}{% endcall %}{% endif %}
 {% endif %}
 
 
-{% if prints and prints.can_switch %}<form method="post" action="{{ url_for('prints_gallery_switch', sid=s.id) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ back }}">
-  <label class="ui-check"><input type="checkbox" name="offer" value="1" data-autosubmit {{ 'checked' if prints.switch }}>Offer prints from this gallery</label>
-  <noscript><button class="ui-btn ui-btn-quiet">Save</button></noscript>{% if prints.note %}<span class="ui-mute">{{ prints.note }}</span>{% endif %}</form>{% endif %}
+
+{% if prints and prints.can_switch %}<form method="post" action="{{ url_for('prints_gallery_switch', sid=s.id) }}" class="ui-form-row" data-ui-autosave><input type="hidden" name="back" value="{{ back }}">
+  <label class="ui-check"><input type="checkbox" id="gal-prints-{{ s.id }}" name="offer" value="1" data-no-keep {{ 'checked' if prints.switch }}>{{ 'Offer prints from these proofs' if prints.proofs else 'Offer prints from this gallery' }}</label>{% if prints.proofs %}{{ help("Visitors see only the proofs, as this gallery shows them now, with your proof mark if it is on. The full-size files are kept on this computer, never put online, and used only when you prepare an order for the lab. A gallery built before you turn this on needs building again.") }}{% endif %}
+  <noscript><button class="ui-btn ui-btn-quiet">Save the prints choice</button></noscript>{% if prints.note %}<span class="ui-mute">{{ prints.note }}</span>{% endif %}</form>{% endif %}
 </div>
 

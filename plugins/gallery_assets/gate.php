@@ -6,7 +6,7 @@
 // hname), so on any web server, whether or not it reads .htaccess, nobody without the key can fetch them by name.
 // The gallery's state (limits.php, seen-at.php, once.php, done.php) begins with a PHP exit line, so fetching it shows
 // nothing. Nothing under orders/ is ever served.
-header('X-Host-Scripts: 1.5.0');
+header('X-Host-Scripts: 1.6.0');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 // A state file: its PHP form, after the exit line, or (a folder from before this layout) its plain one
@@ -23,7 +23,7 @@ function hname($plain, $proof) {
     return substr(hash('sha256', "lumen-aureum file name\0" . $plain . "\0" . $proof), 0, 24) . substr($plain, -4);
 }
 $name = basename((string)($_GET['f'] ?? ''));
-if (!preg_match('/^([0-9a-f]{24}|manifest|offer)\.bin$|^(draft|picks)\.las$/', $name)) { http_response_code(404); exit; }
+if (!preg_match('/^([0-9a-f]{24}|manifest|offer)\.bin$|^(draft|picks)(-[0-9a-f]{16})?\.las$|^[0-9a-f]{24}\.las$/', $name)) { http_response_code(404); exit; }
 $t = st('limits.txt');
 $lim = $t === false ? false : @parse_ini_string($t);
 // limits.php is uploaded with the gallery and rewritten on every check: missing or unreadable means closed, never open
@@ -119,7 +119,7 @@ function proof_ok($want, $proof, $lim) {
 }
 $proved = false;
 $proof = '';
-if (!empty($lim['proof']) || $name === 'draft.las' || $name === 'picks.las') {
+if (!empty($lim['proof']) || preg_match('/\.las$/', $name)) {     // the client's picks and drafts: always with the proof
     $proof = trim((string)($_SERVER['HTTP_X_PROOF'] ?? ''));
     if (!preg_match('/^[0-9a-f]{32}$/', $proof)) { http_response_code(403); exit; }
     $raw = @file_get_contents(__DIR__ . '/seen-key.php');
@@ -129,7 +129,7 @@ if (!empty($lim['proof']) || $name === 'draft.las' || $name === 'picks.las') {
 }
 // The file asked for: a sealed file by its web host name (with the proof), else by the plain name it had before
 $p = __DIR__ . '/' . $name;
-if (!preg_match('/^[0-9a-f]{24}\.bin$/', $name)) {
+if (!preg_match('/^[0-9a-f]{24}\.(bin|las)$/', $name)) {     // a .las by its web host name: as listed in X-Picks
     $p = $proved && is_file(__DIR__ . '/' . hname($name, $proof)) ? __DIR__ . '/' . hname($name, $proof) : __DIR__ . '/' . $name;
 }
 if (!is_file($p)) { http_response_code(404); exit; }
@@ -140,6 +140,11 @@ if ($name === 'manifest.bin' && $proved) {
     $have = array_values(array_filter(['draft', 'picks'], function ($n) use ($proof) {
         return is_file(__DIR__ . '/' . hname($n . '.las', $proof)) || is_file(__DIR__ . '/' . $n . '.las'); }));
     header('X-Saved: ' . ($have ? implode(',', $have) : 'none'));
+    // and the web host names of every device's picks and draft (1.6), so a device new to the gallery starts from what
+    // everyone picked so far: names made from the key proof, which say nothing about who or which device
+    $las = array_values(array_filter(array_map('basename', (array)glob(__DIR__ . '/*.las')), function ($n) {
+        return (bool)preg_match('/^[0-9a-f]{24}\.las$/', $n); }));
+    header('X-Picks: ' . ($las ? implode(',', array_slice($las, 0, 64)) : 'none'));
 }
 $once = isset($lim['once']) ? array_filter(explode(',', (string)$lim['once']), function ($n) { return preg_match('/^[0-9a-f]{24}\.bin$/', $n); }) : [];
 if ($once) {

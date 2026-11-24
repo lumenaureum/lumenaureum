@@ -1,1 +1,1 @@
-paramiko>=3.5         # LGPL-2.1 (AGPL-compatible); pulls bcrypt, PyNaCl (Apache-2.0)
+paramiko>=3.5         # LGPL-2.1-or-later (AGPL-compatible); pulls bcrypt, PyNaCl (Apache-2.0)

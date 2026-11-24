@@ -83,10 +83,10 @@ def test_money_types_documents_tax_feed_the_app(env):
     post(c, "/setup/documents", rights_family="transfer", rights_realestate="license")
     assert C.LICENSE_TYPES == ("realestate",)
     with A.app.test_request_context():
-        assert A.sales_tax_pct() == 0.0
+        assert A.tax_pct_at() == 0.0
     post(c, "/setup/tax", tax_mode="flat", sales_tax_pct="7.25")
     with A.app.test_request_context():
-        assert A.sales_tax_pct("any") == 7.25
+        assert A.tax_pct_at("any") == 7.25
     r = post(c, "/setup/tax", tax_mode="flat", sales_tax_pct="")
     assert b"Enter your rate" in r.data
 
@@ -187,14 +187,15 @@ def test_custom_types_regional_tax_and_demo(env, tmp_path, monkeypatch):
     assert {"senior", "boats", "gala", "portfolio"} == set(C.SESSION_TYPES)
     assert C.WORKFLOW["no-such-type"] is C.PORTRAIT_FLOW
 
-    A.hooks.tax_region = dict(name="Testland", areas=[("in", "Inside"), ("out", "Outside")],
-                              area_of=lambda addr: ("in", "") if "Inside" in addr else ("out", ""),
-                              extra_pct=lambda area, local: local if area == "in" else 0)
-    assert b"Testland" in c.get("/setup/tax", environ_base=E).data
-    post(c, "/setup/tax", tax_mode="regional", sales_tax_pct="5", local_tax_pct="2")
+    rule = lambda sale, taxes: {"t1": dict(on="Inside" in (sale.get("address") or ""))}
+    A.hooks.tax_rules.append(rule)
+    post(c, "/setup/tax", tax_mode="flat", sales_tax_pct="5")
+    post(c, "/setup/tax", taxes_posted="1", tax_key_0="sales", tax_name_0="Sales tax", tax_rate_0="5", tax_how_0="top",
+         tax_default_0="1", new_tax_name="Local tax", new_tax_rate="2", new_tax_how="top")
     with A.app.test_request_context():
-        assert A.sales_tax_pct("in") == 7 and A.sales_tax_pct("out") == 5
-    A.hooks.tax_region = None
+        assert [(t_["name"], t_["rate"], t_["default"]) for t_ in A.taxes_list()] == [("Sales tax", 5, True), ("Local tax", 2, False)]
+        assert A.tax_pct_at("1 Inside Way") == 7 and A.tax_pct_at("2 Outside Rd") == 5
+    A.hooks.tax_rules.remove(rule)
     with A.app.test_request_context():
         import seed_demo
         try:

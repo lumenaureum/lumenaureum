@@ -88,9 +88,11 @@ Galleries live on a web host either way, encrypted, so the one part that must be
 
 ### S3 storage
 Backups, and galleries, can go to any S3-compatible storage: AWS, another online service, or the S3 service of a
-NAS at home. Give the bucket, its endpoint (blank for AWS), an access key and its secret key. Use a key that can
-reach only that bucket, and turn bucket versioning off. **Bucket address** stays on Automatic unless your storage's
-instructions ask for path style or virtual host style.
+NAS at home. Give the bucket's name, its service address (the endpoint; blank for AWS), an access key and its secret
+key. Choosing Backblaze B2, Cloudflare R2, Wasabi or Amazon S3 by name says where that provider shows each one. Use a
+key that can reach only that bucket, and turn bucket versioning off. Region, folder prefix and **Bucket address** are
+under **Advanced**; Bucket address stays on Automatic unless your storage's instructions ask for path style or virtual
+host style.
 
 - **A self-signed certificate** (a NAS at home, say) is trusted once, the same way as the web host's certificate
   below: Setup shows its fingerprint when you test the location, you check it against the one your NAS shows, and
@@ -118,7 +120,8 @@ no version for other script platforms. What each kind of host gives you:
 | Galleries close on their last day, even with Lumen Aureum off | yes | no: the app removes them when it next checks |
 | Clients' picks come back by themselves (sealed) | yes | no: the client sends them by email, with a fingerprint the app checks; you paste it on the client page (Paste their picks email) |
 | The studio page's inquiry form | yes | no: the Contact page shows your email |
-| Print ordering from download galleries ([Print orders](print-orders.md)) | yes | no: galleries say "For prints, email" with your address |
+| Print ordering from galleries ([Print orders](print-orders.md)) | yes | no: galleries say "For prints, email" with your address |
+| Galleries with a codeword | yes, when the host check finds the gate holds | no: refused, with the reason on the client page |
 
 Setup's Online galleries step checks the host you connect (that PHP runs there, its version, that it keeps a real
 gallery's files behind the gallery's gate, and whether a proxy or CDN sits in front of it) and shows which of these
@@ -129,6 +132,23 @@ print orders then use limits for everyone instead of limits per visitor, so nobo
 else. The check runs again once a day; if something changes for the worse
 (PHP turned off, say), Today says so. On a host below PHP 7.4, galleries keep the scripts they have and Today names the
 host and its version.
+
+An S3-compatible bucket is always a static host, and a static host can't check codewords: galleries there stay sealed,
+and anyone with the link can open them. While codewords are on, choosing S3 in Setup (or Online galleries) offers two
+ways on: **Turn codewords off for galleries here**, or **Choose a host that can check codewords**. Nothing changes until
+you choose. A gallery with a codeword is never put on an S3 host by any path (Upload, an update, Move galleries): it is
+refused with the reason, and Move galleries leaves it on the earlier host, where its codeword is still checked.
+
+### Signing in to an SFTP web host
+Setup signs in with the app's own key by default: you paste its public line into the host's SSH keys once. If your
+web host's control panel has no way to add a key, choose **A password** under Sign in with, and type the SFTP
+password the host gave you. Choosing DreamHost or Bluehost by name starts on A password, since that is the sign-in
+their panels hand out; SiteGround starts on the key, with its port filled in. The port and **A key file I mounted**
+are under **Advanced**. It is kept encrypted with your data and never shown again; the server's key fingerprint
+is still checked and trusted the same way, and the password is sent only to that server. A key stays the safer
+choice: see [Reaching the web host](security.md#reaching-the-web-host). Once a web host is connected with a password,
+Online galleries offers **Switch to the app's own key**: add the key on the host, then press it. The key is tested
+first, and the password is forgotten only once the key works.
 
 ### The web host's certificate
 The app checks your web host the way a client's browser does: over its `https://` address. A host with a
@@ -232,7 +252,9 @@ fingerprint against the container log. Keep it on your local network; do not exp
   that address. Allowing the gateway address
   with `CRM_ALLOW` (a line under `environment:` in `compose.yaml`) lets in anyone who reaches the published port, so do
   it only when nothing outside this machine can.
-- **Your proxy must append to `X-Forwarded-For`**, not pass on what the visitor sent.
+- **Behind your own reverse proxy**, the proxy must replace `X-Forwarded-For` and `X-Forwarded-Proto`, never add to
+  what the visitor sent: see [Behind a reverse proxy](operations.md#behind-a-reverse-proxy), with examples for nginx,
+  Caddy and Traefik.
 
 ## Settings in compose.yaml
 Set these under `environment:` in `compose.yaml`; leave out any you don't need.
@@ -244,6 +266,8 @@ Set these under `environment:` in `compose.yaml`; leave out any you don't need.
 | `CRM_HOSTNAMES` | Names you reach the app by, besides its address, for example `nas.local` |
 | `CRM_TLS_SAN` | Addresses and names to put in the app's certificate, so the browser asks only once per device |
 | `CRM_TLS_CERT`, `CRM_TLS_KEY` | Your own certificate and its key, instead of the one the app makes |
+| `CRM_TLS` | `off` only behind your own HTTPS reverse proxy (see [Behind a reverse proxy](operations.md#behind-a-reverse-proxy)) |
+| `CRM_TRUSTED_PROXIES` | Your reverse proxy's own address; forwarded headers from anyone else are refused |
 | `CRM_HSTS` | `1` tells browsers to always use HTTPS for this address |
 | `CRM_PORT` | The port inside the container (default 8780) |
 | `TZ` | The time zone to start with, for example `America/Chicago`, until you choose one in setup |

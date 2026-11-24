@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 
 import pytest
 
+NEW = "Something new came in. Sign in to your studio to see it."
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 SERVER, TOPIC = "https://ntfy.example.net", "studio-k3j9x2q7"
@@ -42,13 +44,10 @@ def _arrive(connect, kind, n=1, at=T0, monkeypatch=None):
     inboxnotice.arrived(con, kind, n)
     con.close()
 
-def test_the_words_are_counts_by_kind_only():
+def test_the_words_say_something_new_never_how_many_or_what():
     import inboxnotice as N
-    assert N.text({"print": 1}) == "1 new print order"
-    assert N.text({"inquiry": 3}) == "3 new inquiries"
-    assert N.text({"picks": 1}) == "1 new set of picks"
-    assert N.text({"inquiry": 2, "picks": 1}) == "3 new: 2 inquiries, 1 set of picks"
-    assert N.text({"inquiry": 1, "picks": 2, "print": 1}) == "4 new: 1 inquiry, 2 sets of picks, 1 print order"
+    for p in ({"print": 1}, {"inquiry": 3}, {"picks": 1}, {"inquiry": 2, "picks": 1}, {"inquiry": 1, "picks": 2, "print": 1}):
+        assert N.text(p) == NEW
     assert N.text({}) == "" and N.text({"inquiry": 0}) == ""
 
 def test_arrivals_are_gathered_into_one_notice_then_a_quiet_period(db, sent, monkeypatch):
@@ -59,7 +58,7 @@ def test_arrivals_are_gathered_into_one_notice_then_a_quiet_period(db, sent, mon
     assert N.tick(db, CFG, T0 + timedelta(minutes=1)) is None and not sent
     assert N.tick(db, CFG, T0 + timedelta(minutes=2)) == "sent"
     (url, body, headers), = sent
-    assert url == f"{SERVER}/{TOPIC}" and body == "3 new: 2 inquiries, 1 set of picks"
+    assert url == f"{SERVER}/{TOPIC}" and body == NEW
     assert headers["Title"] == "Studio inbox"
     assert not {"Click", "Actions", "Attach"} & set(headers)
 
@@ -67,7 +66,7 @@ def test_arrivals_are_gathered_into_one_notice_then_a_quiet_period(db, sent, mon
     _arrive(db, "print", at=T0 + timedelta(minutes=20), monkeypatch=monkeypatch)
     assert N.tick(db, CFG, T0 + timedelta(minutes=25)) is None and len(sent) == 1
     assert N.tick(db, CFG, T0 + timedelta(minutes=32)) == "sent"
-    assert sent[-1][1] == "2 new print orders"
+    assert sent[-1][1] == NEW
     assert N.tick(db, CFG, T0 + timedelta(hours=3)) is None and len(sent) == 2
 
 def test_a_failed_send_keeps_the_counts_and_tries_again_later(db, monkeypatch):
@@ -84,7 +83,7 @@ def test_a_failed_send_keeps_the_counts_and_tries_again_later(db, monkeypatch):
     assert N.tick(db, CFG, T0 + timedelta(minutes=8)) is None and len(calls) == 1
     out = []
     monkeypatch.setattr(locknotice, "_post", lambda url, body, headers: out.append(body.decode()))
-    assert N.tick(db, CFG, T0 + timedelta(minutes=14)) == "sent" and out == ["1 new inquiry"]
+    assert N.tick(db, CFG, T0 + timedelta(minutes=14)) == "sent" and out == [NEW]
 
 def test_what_comes_in_while_a_notice_is_sending_waits_for_the_next(db, monkeypatch):
     import inboxnotice as N
@@ -96,11 +95,11 @@ def test_what_comes_in_while_a_notice_is_sending_waits_for_the_next(db, monkeypa
         out.append(body.decode())
         _arrive(db, "print")
     monkeypatch.setattr(locknotice, "_post", post_and_arrive)
-    assert N.tick(db, CFG, T0 + timedelta(minutes=3)) == "sent" and out == ["1 new inquiry"]
+    assert N.tick(db, CFG, T0 + timedelta(minutes=3)) == "sent" and out == [NEW]
     con = db()
     assert N.load(con)["pending"] == {"print": 1}
     con.close()
-    assert N.tick(db, CFG, T0 + timedelta(minutes=34)) == "sent" and out[-1] == "1 new print order"
+    assert N.tick(db, CFG, T0 + timedelta(minutes=34)) == "sent" and out[-1] == NEW
 
 def test_off_nothing_is_counted_or_sent(db, sent):
     import inboxnotice as N
@@ -188,7 +187,7 @@ def test_a_print_order_taken_in_is_counted_and_told_without_who_or_what(tmp_path
     assert _state(e.A)[0]["pending"] == {"print": 1}
     assert _tick_later(e.A) == "sent"
     (url, body, headers), = [s for s in sent if s[2].get("Title") == "Studio inbox"]
-    assert body == "1 new print order"
+    assert body == NEW
     told = body + json.dumps(headers)
     for secret in ("Avery", "avery@example.com", "a" * 32, PE.GID, "Sample", "$", "http://", "https://", "2026"):
         assert secret not in told, secret
@@ -210,5 +209,5 @@ def test_an_inquiry_is_counted_and_spam_is_not(tmp_path, monkeypatch):
     assert _state(A)[0]["pending"] == {"inquiry": 1}
     assert _tick_later(A) == "sent"
     body = [s[1] for s in sent if s[2].get("Title") == "Studio inbox"]
-    assert body == ["1 new inquiry"]
+    assert body == [NEW]
     assert "Ada" not in body[0] and "example.org" not in body[0]

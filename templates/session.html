@@ -39,7 +39,7 @@
     <div class="ui-form-grid"><label><span>PO or reference{{ help("Printed on the invoice.") }}</span><input name="po_number" maxlength="80" value="{{ s.po_number or '' }}"></label></div>{% endif %}
     <h3 class="ui-sub-title" id="subjects-l">Subjects</h3><input type="hidden" name="subjects_present" value="1">
     {% set subj_ids = subjects|map(attribute='id')|list %}
-    <div class="ui-form-row" role="group" aria-labelledby="subjects-l">{% for m in members %}<label class="ui-check"><input type="checkbox" name="subjects" value="{{ m.id }}"{{ ' checked' if m.id in subj_ids }}>{{ m.name }}{% if m.is_minor %} (minor){% endif %}</label>{% else %}<small class="ui-mute">No one on this client yet.</small>{% endfor %}</div>
+    <div class="ui-form-row" role="group" aria-labelledby="subjects-l">{% for m in members %}<label class="ui-check"><input type="checkbox" name="subjects" value="{{ m.id }}"{{ ' checked' if m.id in subj_ids }}>{{ m.name }}{% if minor_on(m, s.shoot_date) %} (minor){% endif %}</label>{% else %}<small class="ui-mute">No one on this client yet.</small>{% endfor %}</div>
     <div class="ui-form-grid">
       <label><span>Where{{ help("One place per line, the meeting place first.") }}</span><textarea name="stops" rows="3">{{ s.stops }}</textarea></label>
       <label><span>Notes</span><textarea name="notes" rows="3">{{ s.notes }}</textarea></label>
@@ -98,11 +98,14 @@
 
 {% call ui.section('Billing', id='money', part=true) %}
   {% call ui.money_table('Summary') %}
-    {{ ui.money_total('Quote', money(t.quoted)) }}
-    {% call ui.money_row(money(t.paid)) %}Paid{% if t.tips > 0.005 %} <small class="ui-mute">and a {{ money(t.tips) }} tip</small>{% endif %}{% endcall %}
+    
+    {% set free_ = nothing_to_pay(s.id, t) %}
+    {{ ui.money_total('Quote', 'No charge' if free_ else money(t.quoted)) }}
+    {% if not free_ or t.tips > 0.005 %}{% call ui.money_row(money(t.paid)) %}Paid{% if t.tips > 0.005 %} <small class="ui-mute">and a {{ money(t.tips) }} tip</small>{% endif %}{% endcall %}{% endif %}
     {% if t.refund_due > 0.005 %}{{ ui.money_total('Refund due', money(t.refund_due)) }}
-      {% call ui.money_row('', 'ui-money-sub') %}{{ s.lost_reason or 'Lost' }}: {% if t.kept > 0.005 %}the deposit ({{ money(t.kept) }}) is kept, the rest goes back{% else %}no deposit to keep, all of it goes back{% endif %}{% endcall %}
-    {% elif s.stage == 'lost' and t.kept > 0.005 %}{{ ui.money_total('Deposit kept', money(t.kept)) }}
+      {% call ui.money_row('', 'ui-money-sub') %}{{ s.lost_reason or 'Lost' }}: {% if t.kept > 0.005 %}{{ 'the deposit'|dep }} ({{ money(t.kept) }}) is kept, the rest goes back{% else %}{{ 'no deposit to keep'|dep }}, all of it goes back{% endif %}{% endcall %}
+    {% elif s.stage == 'lost' and t.kept > 0.005 %}{{ ui.money_total('Deposit kept'|dep, money(t.kept)) }}
+    {% elif free_ %}
     {% else %}{{ ui.money_total('Credit' if t.due < -0.005 else 'Balance', money(-t.due if t.due < -0.005 else t.due)) }}
       {% if t.due < -0.005 and not t.quoted %}{% call ui.money_row('', 'ui-money-sub') %}Paid before a quote{% endcall %}
       {% elif t.due < -0.005 %}{% call ui.money_row('', 'ui-money-sub') %}Paid beyond the quote: to give back{% endcall %}
@@ -121,30 +124,38 @@
 
   <h3 class="ui-sub-title">Payments</h3>
   {% call ui.money_table('Payments') %}{% for p in payments %}
-    {% call ui.money_row(money(p.amount)) %}{% if p.voided %}<s>{% endif %}{{ nice(p.received) }} {{ 'tip back' if p.kind == 'tip' and p.amount < 0 else p.kind }}, {{ p.note if p.method == 'other' and p.note else p.method }}{% if p.ref %} #{{ p.ref }}{% endif %}{% if p.voided %}</s> (void){% endif %}
-      <form method="post" action="{{ url_for('money_delete', what='payment', rid=p.id) }}" class="ui-action" data-ui-inplace><input type="hidden" name="set" value="{{ 'restore' if p.voided else 'void' }}"><input type="hidden" name="back" value="{{ here }}#money"><button class="ui-btn ui-btn-quiet ui-btn-small" title="{{ 'Restore this payment' if p.voided else 'Void this payment' }}" aria-label="{{ 'Restore' if p.voided else 'Void' }} {{ p.kind }} payment of {{ money(p.amount|abs) }}"{% if not p.voided %} data-confirm="Void this {{ money(p.amount|abs) }} {{ p.kind }}? It stays listed, struck through, and out of the totals; undo brings it back.{% if receipt_no %} Receipt {{ receipt_no }} was already issued for this session and stays as issued.{% endif %}"{% endif %}>{{ 'Undo void' if p.voided else 'Void' }}</button></form>{% endcall %}
+    {% set shut_ = p.received and year_closed(p.received[:4]) %}
+    {% call ui.money_row(money(p.amount)) %}{% if p.voided %}<s>{% endif %}{{ nice(p.received) }} {% if p.corrects %}{{ correction_words('payments', p) }}{% else %}{{ 'tip back' if p.kind == 'tip' and p.amount < 0 else p.kind|dep }}, {{ p.note if p.method == 'other' and p.note else p.method }}{% if p.ref %} #{{ p.ref }}{% endif %}{% endif %}{% if p.voided %}</s> (void){% endif %}
+      {% if shut_ %}{% if not p.voided %}{{ ui.opener('fix-p' ~ p.id, 'Correct') }}{% endif %}{% else %}<form method="post" action="{{ url_for('money_delete', what='payment', rid=p.id) }}" class="ui-action" data-ui-inplace><input type="hidden" name="set" value="{{ 'restore' if p.voided else 'void' }}"><input type="hidden" name="back" value="{{ here }}#money"><button class="ui-btn ui-btn-quiet ui-btn-small" title="{{ 'Restore this payment' if p.voided else 'Void this payment' }}" aria-label="{{ 'Restore' if p.voided else 'Void' }} {{ p.kind }} payment of {{ money(p.amount|abs) }}"{% if not p.voided %} data-confirm="Void this {{ money(p.amount|abs) }} {{ p.kind }}? It stays listed, struck through, and out of the totals; undo brings it back.{% if receipt_no %} Receipt {{ receipt_no }} was already issued for this session and stays as issued.{% endif %}"{% endif %}>{{ 'Undo void' if p.voided else 'Void' }}</button></form>{% endif %}{% endcall %}
   {% else %}{% call ui.money_row('') %}<span class="ui-mute">None</span>{% endcall %}{% endfor %}{% endcall %}
+  {% for p in payments if p.received and not p.voided and year_closed(p.received[:4]) %}{{ ui.correct_form('fix-p' ~ p.id, url_for('money_correct', what='payment', rid=p.id), here ~ '#money', p.received[:4] ~ ' ' ~ p.kind, money(p.amount|abs)) }}{% endfor %}
   <form method="post" action="{{ url_for('money_add', sid=s.id) }}" class="ui-form-row" data-ui-inplace{% if t.quoted > 0.005 %} data-balance="{{ '%.2f'|format(t.due) }}"{% endif %}><input type="hidden" name="what" value="payment"><input type="hidden" name="once" value="{{ form_once() }}"><input type="hidden" name="back" value="{{ here }}#money">
     {% set dep_now = s.stage in ('inquiry', 'quoted', 'booked') and t.deposit_short > 0.005 %}
     <input type="number" step="0.01" name="amount" placeholder="$" aria-label="Amount in dollars" required value="{{ '%.2f'|format(t.deposit_short if dep_now else t.due) if t.due > 0 }}" class="ui-input-money">
-    {{ seg('kind', ['deposit','balance','tip','refund','other'] + ([('tip_back', 'tip back')] if t.tips > 0.005 else []), 'deposit' if dep_now else 'balance', label='Payment kind') }}
+    {{ seg('kind', [('deposit', 'deposit'|dep),'balance','tip','refund','other'] + ([('tip_back', 'tip back')] if t.tips > 0.005 else []), 'deposit' if dep_now else 'balance', label='Payment kind') }}
     {% set amt_ = t.deposit_short if dep_now else (t.due if t.due > 0 else 0) %}
     <span class="ui-form-row" data-after-refund data-paid="{{ '%.2f'|format(t.paid) }}" hidden><span class="ui-label" id="after-refund-l">After this refund, the gallery:</span>{{ seg('after_refund', [('release', 'releases once nothing is owed'), ('hold', 'stays held until paid again')], 'release' if t.paid - amt_ > 0.005 else 'hold', by='after-refund-l') }}</span>
     {{ seg('method', C.PAYMENT_METHODS + [('other', 'Other (say what)')], C.PAYMENT_METHODS[0] if C.PAYMENT_METHODS else '', label='Paid by') }}<input name="ref" maxlength="40" placeholder="Check #" aria-label="Check number" class="ui-input-short" data-show-if="method=check"><input name="note" maxlength="80" placeholder="What it was, such as a trade" aria-label="What it was" class="ui-grow" data-show-if="method=other"><input type="date" name="received" value="{{ today.isoformat() }}" aria-label="Payment received on" class="ui-input-date"><button class="ui-btn ui-btn-primary">Record payment</button></form>
 
   <h3 class="ui-sub-title">Expenses and miles</h3>
   {% call ui.money_table('Expenses and miles') %}{% for e in expenses %}
-    {% call ui.money_row(money(e.amount) if e.amount else '') %}<span class="ui-money-name">{{ nice(e.date) }} {{ e.label }}{% if e.miles %}, {{ e.miles|round(1) }} mi{% endif %}</span><form method="post" action="{{ url_for('money_delete', what='expense', rid=e.id) }}" class="ui-action" data-ui-inplace><input type="hidden" name="back" value="{{ here }}#money"><button class="ui-x" aria-label="Remove expense {{ e.label }}" title="Remove this expense">&times;</button></form>{% endcall %}
+    {% call ui.money_row(money(e.amount) if e.amount else '') %}<span class="ui-money-name">{{ nice(e.date) }} {{ e.label }}{% if e.miles %}, {{ e.miles|round(1) }} mi{% endif %}{% set cw_ = correction_words('expenses', e) %}{% if cw_ %} <small class="ui-mute">{{ cw_ }}</small>{% endif %}</span>{% if year_closed(e.date[:4]) %}{{ ui.opener('fix-e' ~ e.id, 'Correct') }}{% else %}<form method="post" action="{{ url_for('money_delete', what='expense', rid=e.id) }}" class="ui-action" data-ui-inplace><input type="hidden" name="back" value="{{ here }}#money"><button class="ui-x" aria-label="Remove expense {{ e.label }}" title="Remove this expense">&times;</button></form>{% endif %}{% endcall %}
   {% else %}{% call ui.money_row('') %}<span class="ui-mute">None</span>{% endcall %}{% endfor %}{% endcall %}
+  {% for e in expenses if year_closed(e.date[:4]) %}{{ ui.correct_form('fix-e' ~ e.id, url_for('money_correct', what='expense', rid=e.id), here ~ '#money', e.date[:4] ~ ' expense ' ~ e.label, money(e.amount or 0), e.miles if e.miles else none) }}{% endfor %}
   <form method="post" action="{{ url_for('money_add', sid=s.id) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="what" value="expense"><input type="hidden" name="once" value="{{ form_once() }}"><input type="hidden" name="back" value="{{ here }}#money">
     <input name="label" maxlength="200" placeholder="What" aria-label="Expense" required class="ui-grow"><input type="number" step="0.1" name="miles" placeholder="Miles" aria-label="Miles" class="ui-input-short"><input type="number" step="0.01" name="amount" placeholder="$" aria-label="Amount" class="ui-input-money">
-    <input type="hidden" name="date" value="{{ s.shoot_date or today.isoformat() }}"><button class="ui-btn ui-btn-quiet">Add expense</button></form>
+    <input type="hidden" name="date" value="{{ s.shoot_date or today.isoformat() }}"><input type="hidden" name="from_shoot" value="1"><button class="ui-btn ui-btn-quiet">Add expense</button></form>
 {% endcall %}
 
 
 {% if s.stage in ('shot','delivered','closed') or s.gallery_built %}{% call ui.section('Delivery', id='delivery') %}
   {% if s.address %}{{ ui.fact('Mail to', s.household ~ ', ' ~ s.address|replace('\n', ', ')) }}{% else %}<p>{{ ui.chip('No mailing address: the QR letter and SD card need one', 'attention') }}</p>{% endif %}
   <p>{{ ui.go(url_for('client_view', hid=s.household_id) ~ '#details', ('Edit' if s.address else 'Add') ~ ' the mailing address') }}</p>
+  
+  {% if gal_block %}{% import "_ui_photos.html" as ph with context %}
+  {% call ph.fact_row(gal_next.what if gal_next else ('Gallery built ' ~ nice(s.gallery_built) if s.gallery_built else 'Gallery: built from the edited photos you upload'), id='gallery-next') %}
+    {% if gal_next %}{{ ui.step_action(gal_next, client_page ~ '#gallery', 'primary', menu=false) }}{% endif %}
+    {{ ui.go(client_page ~ '#gallery', 'Gallery block on the client page') }}{% endcall %}{% endif %}
   {% with clash_form='delivery' %}{% include "_edit_clash.html" %}{% endwith %}
   <form method="post" action="{{ url_for('session_delivery', sid=s.id) }}"><input type="hidden" name="seen" value="{{ edit_stamp('delivery', s.id) }}">
   {% set gal_ = C.galleries_on() or s.gallery_built or s.letter_mailed or s.first_visit %}
@@ -173,7 +184,7 @@
   <div class="ui-form-row"><label class="ui-check" for="f-gallery_codeword">Gallery codeword</label><input name="gallery_codeword" id="f-gallery_codeword" maxlength="60" class="ui-grow" value="{{ cwr_.word if cwr_ else (s.gallery_codeword or '') }}" autocomplete="off" placeholder="three words, e.g. heron maple tide"{% if cwr_ %} aria-invalid="true" aria-describedby="cw-refused"{% endif %}>{{ help("Three words the client chose. The gallery asks for them; with only the link, someone would have to guess them, so the app asks you to confirm a short or common word before saving it. Make one for me fills in five random words. It's never printed on the letter or written into any email the app drafts: the client chooses it with you in person or on the phone. Once the gallery is online, the word stays as it is so the link you sent keeps working.") }}<button class="ui-btn ui-btn-quiet" name="cw_make" value="1">Make one for me</button></div>
   {%- if cwr_ %}<p id="cw-refused" class="ui-late">Not saved: this codeword is too easy to guess. Use three or more words, or 14 letters or more, then save.{% if s.gallery_codeword %} The saved codeword is still "{{ s.gallery_codeword }}".{% endif %}</p>{% endif %}{% endif %}
   <div class="ui-form-grid"><label><span>Retouch picks{{ help("The photos the client picked for retouching, with their notes.") }}</span><textarea name="retouch_picks" rows="3">{{ s.retouch_picks or '' }}</textarea></label></div>
-  <div class="ui-btnrow"><button class="ui-btn ui-btn-primary">Save delivery</button>{% if s.gallery_id %}<small class="ui-mute">Gallery {{ s.gallery_id }}</small>{% endif %}</div>
+  <div class="ui-btnrow"><button class="ui-btn ui-btn-primary">Save delivery</button></div>
   </form>
   {% if s.gallery_id %}{% call ui.fold('Check a picks email', id='picks-email') %}
     <form method="post" action="{{ url_for('picks_paste', sid=s.id) }}"><input type="hidden" name="back" value="{{ here }}#delivery">

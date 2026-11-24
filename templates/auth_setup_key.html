@@ -1,17 +1,21 @@
 {% extends "auth_base.html" %}{% block title %}Master key - Lumen Aureum{% endblock %}{% block body %}
 <style>.auth { max-width: 600px; } .mkey { font: 600 16px/1.5 ui-monospace, Menlo, monospace; word-break: break-all; padding: 14px; margin: 12px 0; border: 1px dashed var(--ring); border-radius: 8px; background: var(--surface-2); }
 @media print { form, button { display: none !important; } body, .card { background: #fff !important; color: #000 !important; } .mkey { color: #000; border-color: #000; } }</style>
-<h1>Step 3 of 3: master key</h1>
-<p class="mute">Opens everything if you forget your password. Lumen Aureum never stores it.</p>
+{% if replacing %}<h1>Your new master key</h1>
+<p class="mute">Replaces the lost one once you finish. Without the old key it takes effect 48 hours later, and then every device is signed out, this one too. Opens everything if you forget your password. Lumen Aureum never stores it.</p>
+{% else %}<h1>Step 3 of 3: master key</h1>
+<p class="mute">Opens everything if you forget your password. Lumen Aureum never stores it.</p>{% endif %}
 <div class="card f">
   {% if secret %}<div class="mkey">{{ secret }}</div>
   <div class="row"><button type="button" class="quiet" data-copy=".mkey">Copy</button>
     <button type="button" class="quiet" data-print>Print</button></div>
   <p class="mute" style="margin:6px 0 0">Save it in a password manager and print a copy.</p>
+  {% elif replacing %}<p class="mute">Already shown.</p>
   {% else %}<p class="mute">Already shown. Lost it? <a href="{{ url_for('setup_owner') }}">Start over</a>.</p>{% endif %}
   <form method="post" class="row" style="margin-top:10px;align-items:end">
     <div><label class="l" for="sk-tail">Type its last 6 characters</label><input id="sk-tail" name="tail" autocomplete="off" required style="width:200px;margin:0"></div>
-    <button class="primary">Finish</button></form>
+    <button class="primary">{{ 'Use this master key' if replacing else 'Finish' }}</button></form>
+  {% if replacing %}<p class="mute" style="margin:8px 0 0"><a href="{{ url_for('security') }}#master-key">Keep the old key</a>: nothing has changed yet.</p>{% endif %}
   {% if err %}<div class="err">That doesn't match the end of the key.</div>{% endif %}
 </div>{% endblock %}
 

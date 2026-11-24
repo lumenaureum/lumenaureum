@@ -1,12 +1,12 @@
 
 {% set word = 'Receipt' if v.receipt else 'Invoice' %}{% set wo_ = v.written_off or 0 %}{% set rc_ = v.refund_credit or 0 %}{% set lword = word|lower %}  <div class="billhead" style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
-    <div style="flex:1;min-width:0"><h1>{{ 'Deposit invoice' if v.deposit_due else word }}{% if not v.number %} (draft){% endif %}</h1>
+    <div style="flex:1;min-width:0"><h1>{{ ('Deposit invoice'|dep) if v.deposit_due else word }}{% if not v.number %} (draft){% endif %}</h1>
       <p class="sub">{{ v.photographer }}{% if v.business %}{% if v.photographer %}, {% endif %}{{ v.business }}{% endif %}</p>{% include "_doc_contact.html" %}</div>
     <table class="facts headfacts" style="width:auto;flex:none"><tr><td>{{ word }}</td><td>{{ v.number or ('Draft, not issued' if pdf else 'Assigned when issued') }}</td></tr>
       <tr><td>Date</td><td>{{ v.date_long }}</td></tr>
       {% if v.replaces %}<tr><td>Replaces</td><td>{{ v.replaces }}</td></tr>{% endif %}
       {% if v.po %}<tr><td>PO / reference</td><td>{{ v.po }}</td></tr>{% endif %}{% if v.tax_id %}<tr><td>Tax ID</td><td>{{ v.tax_id }}</td></tr>{% endif %}
-      {% if not v.receipt %}{% if v.deposit_due %}<tr><td>Terms</td><td>Deposit due now</td></tr>{% elif v.balance > 0.005 %}<tr><td>Terms</td><td>{{ 'Due on delivery' if v.due_rule == 'On delivery' else 'Due by ' ~ v.due_rule }}</td></tr>{% elif wo_ > 0.005 %}<tr><td>Balance</td><td>Settled, the rest written off</td></tr>{% else %}<tr><td>Balance</td><td>Paid in full</td></tr>{% endif %}{% endif %}</table>
+      {% if not v.receipt %}{% if v.deposit_due %}<tr><td>Terms</td><td>{{ 'Deposit due now'|dep }}</td></tr>{% elif v.balance > 0.005 %}<tr><td>Terms</td><td>{{ 'Due on delivery' if v.due_rule == 'On delivery' else 'Due by ' ~ v.due_rule }}</td></tr>{% elif wo_ > 0.005 %}<tr><td>Balance</td><td>Settled, the rest written off</td></tr>{% elif v.no_charge %}{% else %}<tr><td>Balance</td><td>Paid in full</td></tr>{% endif %}{% endif %}</table>
   </div>
   <table class="facts" style="margin-top:14px">
     <tr><td>{{ 'Received from' if v.receipt else 'Bill to' }}</td><td>{{ v.bill_to }}{% if v.attn %}<br>Attn: {{ v.attn }}{% endif %}{% if v.client_address %}<br>{{ v.client_address|replace('\n', '<br>'|safe) }}{% endif %}</td></tr>
@@ -15,15 +15,21 @@
   </table>
   <h2>Services</h2>
   <table>{% for l in v.lines %}<tr><td>{{ l.label }}</td><td class="n">{{ money(l.amount) }}</td></tr>{% endfor %}
-    <tr><td><b>Total</b></td><td class="n"><b>{{ money(v.total) }}</b></td></tr></table>
+    <tr><td><b>Total</b></td><td class="n"><b>{{ 'No charge' if v.no_charge and not v.number else money(v.total) }}</b></td></tr>{% for it_ in v.included or [] %}
+    <tr><td>Includes {{ it_.name }} ({{ '%g' % it_.rate }}%)</td><td class="n">{{ money(it_.amount) }}</td></tr>{% endfor %}</table>
+  
+  {% if v.no_charge %}
+  <div class="promise"><b>There is nothing to pay for this session.</b></div>
+  {% else %}
   <h2>Payments</h2>
-  <table>{% for p in v.payments %}<tr><td>{{ p.date }} - {{ p.kind }}{% if p.method %}, {{ p.method }}{% endif %}{% if p.ref %} #{{ p.ref }}{% endif %}</td><td class="n">{{ money(p.amount) }}</td></tr>{% else %}<tr><td>None yet</td><td></td></tr>{% endfor %}
+  <table>{% for p in v.payments %}<tr><td>{{ p.date }} - {{ p.kind|dep }}{% if p.method %}, {{ p.method }}{% endif %}{% if p.ref %} #{{ p.ref }}{% endif %}</td><td class="n">{{ money(p.amount) }}</td></tr>{% else %}<tr><td>None yet</td><td></td></tr>{% endfor %}
     {% if rc_ > 0.005 %}<tr><td>Refunded, not owed again</td><td class="n">{{ money(rc_) }}</td></tr>{% endif %}
     {% if wo_ > 0.005 %}<tr><td>Written off (waived, not owed)</td><td class="n">{{ money(wo_) }}</td></tr>{% endif %}
     {% if v.receipt %}<tr><td><b>Total paid</b></td><td class="n"><b>{{ money(v.paid) }}</b></td></tr>
-    {% elif v.deposit_due %}{% if v.after_deposit > 0.005 %}<tr><td>Balance after the deposit, due {{ v.after_deposit_when }}</td><td class="n">{{ money(v.after_deposit) }}</td></tr>{% endif %}
-    <tr><td><b>Deposit due now</b></td><td class="n"><b>{{ money(v.deposit_due) }}</b></td></tr>
+    {% elif v.deposit_due %}{% if v.after_deposit > 0.005 %}<tr><td>{{ 'Balance after the deposit'|dep }}, due {{ v.after_deposit_when }}</td><td class="n">{{ money(v.after_deposit) }}</td></tr>{% endif %}
+    <tr><td><b>{{ 'Deposit due now'|dep }}</b></td><td class="n"><b>{{ money(v.deposit_due) }}</b></td></tr>
     {% else %}<tr><td><b>Balance due</b></td><td class="n"><b>{{ money(v.balance) }}</b></td></tr>{% endif %}
+    {% if not v.receipt %}{% for r_ in v.schedule or [] %}<tr><td>Payment {{ r_.n }} of {{ r_.of }}, due {{ r_.due }}{% if r_.paid %} (paid){% endif %}</td><td class="n">{{ money(r_.amount) }}</td></tr>{% endfor %}{% endif %}
     {% if v.credit %}<tr><td>Credit due to you (paid beyond the total)</td><td class="n">{{ money(v.credit) }}</td></tr>{% endif %}</table>
   {% if v.receipt %}
   <div class="promise"><b>Thank you.</b> {% if v.event_family %}Your photos are yours to print, share, and post for personal use.{% elif v.license %}{% if v.get('agreement_signed', True) %}Your license to use the photos is set out in your agreement.{% endif %}{% else %}With this payment, the copyright in your delivered photos is yours.{% endif %}</div>
@@ -33,7 +39,7 @@
   {% if v.bank %}<p>Bank transfer: {{ v.bank|replace('\n', '<br>'|safe) }}</p>{% endif %}
   {% else %}
   <div class="promise"><b>{% if wo_ > 0.005 %}Nothing more is owed: the rest of the balance was written off. Thank you.{% else %}Paid in full. Thank you.{% endif %}</b></div>
-  {% endif %}
+  {% endif %}{% endif %}
   <p class="foot">{% if v.number %}{{ v.number }}{% if v.quote_id %} - quote {{ quote_no(v.quote_id) }}{% endif %}. {% endif %}Questions about this {{ lword }}? Just reply or call.</p>
 {% include "_credit.html" %}
 

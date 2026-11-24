@@ -22,7 +22,7 @@ def photo(path, size, color):
 class Env:
     pass
 
-def make(tmp_path, monkeypatch, caps="ok", saved=True, on=True, plugin=True):
+def make(tmp_path, monkeypatch, caps="ok", saved=True, on=True, plugin=True, proofs=False):
 
     for k, v in (("CRM_DB", "crm.db"), ("CRM_STORAGE_CFG", "storage.json"), ("CRM_PHOTOS_ROOT", "photos"),
                  ("CRM_GALLERY_ROOT", "galleries")):
@@ -44,7 +44,9 @@ def make(tmp_path, monkeypatch, caps="ok", saved=True, on=True, plugin=True):
     photo(src / "Lane-035.jpg", (2000, 3000), "blue")
     photo(src / "Lane-036.jpg", (600, 400), "green")
     key = G.new_key()
-    G.build(GID, src, key, picks=dict(post=True), download=True, brand=dict(client="The Sample Family", studio="Sample Studio"))
+    G.build(GID, src, key, picks=dict(post=True), download=not proofs, keep_full=proofs,
+            mark=dict(style="tiled", text="PROOF", strength=40, logo=None) if proofs else None,
+            brand=dict(client="The Sample Family", studio="Sample Studio"))
     con = A.connect()
     con.execute("INSERT INTO settings (key, value) VALUES ('gallery_base_url', 'https://gallery.test/g/')")
     con.execute("INSERT INTO settings (key, value) VALUES ('business_email', 'studio@example.com')")
@@ -56,8 +58,9 @@ def make(tmp_path, monkeypatch, caps="ok", saved=True, on=True, plugin=True):
     con.execute("INSERT INTO people (household_id, name, role, email) VALUES (1, 'Avery Sample', 'adult', 'Avery@Example.com')")
     con.execute("INSERT INTO sessions (id, household_id, type, stage, shoot_date, gallery_id) VALUES (1, 1, 'family', 'delivered', ?, ?)",
                 ((date.today() - timedelta(days=20)).isoformat(), GID))
-    con.execute("""INSERT INTO galleries (session_id, key, upload_state, uploaded_at, sealed_gen, host_fp) VALUES (1, ?, 'up', ?, 1, ?)""",
-                (key, date.today().isoformat(), G.host_fingerprint()))
+    con.execute("""INSERT INTO galleries (session_id, key, upload_state, uploaded_at, sealed_gen, host_fp, built_at)
+                   VALUES (1, ?, 'up', ?, 1, ?, ?)""", (key, date.today().isoformat(), G.host_fingerprint(),
+                                                       date.today().isoformat() if proofs else None))
     con.commit()
     con.close()
     G.upload_gallery(GID, 30, "2099-01-01")
@@ -68,6 +71,8 @@ def make(tmp_path, monkeypatch, caps="ok", saved=True, on=True, plugin=True):
         save_prices(e)
     if on:
         assert c.post("/settings/prints/switch", data={"offer": "1"}, environ_base=E).status_code == 302
+        if proofs:
+            assert c.post("/session/1/prints/switch", data={"offer": "1"}, environ_base=E).status_code == 302
         refresh(e)
     return e
 

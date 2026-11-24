@@ -148,7 +148,8 @@ def _b64(b):
 
 def _mac(ring, key):
 
-    body = json.dumps({k: ring.get(k) for k in ("v", "password", "master", "master_pub", "auto", "auto_pub")}, sort_keys=True)
+    names = ("v", "password", "master", "master_pub", "auto", "auto_pub") + (("owner_email",) if "owner_email" in ring else ())
+    body = json.dumps({k: ring.get(k) for k in names}, sort_keys=True)
     return hmac.new(subkey("keyring-mac", key), body.encode(), hashlib.sha256).hexdigest()
 
 def _read(path=None):
@@ -261,6 +262,36 @@ def master_pub():
     except (OSError, ValueError):
         return None
 
+def _norm_email(email):
+    return (email or "").strip().lower()
+
+def owner_email_tag(email, key=None):
+    return hmac.new(subkey("owner-email", key), _norm_email(email).encode(), hashlib.sha256).hexdigest()
+
+def owner_email_matches(email, key, path=None):
+
+    ring = _read(path)
+    tag = ring.get("owner_email")
+    if not isinstance(tag, str) or not tag:
+        return None
+    _check(ring, key)
+    return hmac.compare_digest(tag, owner_email_tag(email, key))
+
+def set_owner_email(email, key=None, path=None, only_if_missing=False):
+
+    key = key or dk()
+    tag = owner_email_tag(email, key)
+    with _RING_LOCK:
+        ring = _read(path)
+        if only_if_missing and ring.get("owner_email"):
+            return False
+        if ring.get("owner_email") == tag:
+            return False
+        _check(ring, key)
+        ring["owner_email"] = tag
+        _write(ring, key, path)
+    return True
+
 LEGACY_AUTO_ENV = "CRM_UNLOCK_KEY_FILE"
 
 def legacy_auto_notice():
@@ -287,17 +318,19 @@ def forget_legacy_auto(key=None):
         _write(ring, key)
     return True
 
-def new_ring_for(new_key, password, master_pub_, path=None):
+def new_ring_for(new_key, password, master_pub_, path=None, owner_email=None):
 
     ring = {"v": 1, "password": _b64(passphrase.encrypt(new_key, password)),
             "master": _b64(pyrage.encrypt(new_key, [x25519.Recipient.from_str(master_pub_)])), "master_pub": master_pub_}
+    if owner_email:
+        ring["owner_email"] = owner_email_tag(owner_email, new_key)
     _write(ring, new_key, path)
 
 def password_wrap(key, password):
 
     return _b64(passphrase.encrypt(key, password))
 
-def create_from(key, pw_wrap, master_pub_):
+def create_from(key, pw_wrap, master_pub_, owner_email=None):
 
     KEYRING.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -306,6 +339,8 @@ def create_from(key, pw_wrap, master_pub_):
         raise FileExistsError("a keyring already exists")
     ring = {"v": 1, "password": pw_wrap,
             "master": _b64(pyrage.encrypt(key, [x25519.Recipient.from_str(master_pub_)])), "master_pub": master_pub_}
+    if owner_email:
+        ring["owner_email"] = owner_email_tag(owner_email, key)
     _write(ring, key)
 
 def replace_master(new_pub, key=None):

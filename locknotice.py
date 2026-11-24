@@ -70,6 +70,17 @@ def own_network(server, resolve=True):
 def plain_http(server):
     return (server or "").strip().lower().startswith("http://")
 
+PUBLIC_HOSTS = ("ntfy.sh",)
+
+def public_server(server):
+
+    from urllib.parse import urlsplit
+    try:
+        host = (urlsplit((server or "").strip()).hostname or "").lower().rstrip(".")
+    except ValueError:
+        return False
+    return any(host == h or host.endswith("." + h) for h in PUBLIC_HOSTS)
+
 def check(server, topic, resolve=True):
 
     server, topic = (server or "").strip(), (topic or "").strip()
@@ -77,7 +88,7 @@ def check(server, topic, resolve=True):
         return "The server address must start with https:// (or http:// for a server on your own network)."
     if plain_http(server) and not own_network(server, resolve=resolve):
         return ("Plain http:// is accepted only for a server on your own network. Use https:// for a server on the "
-                "internet, such as https://ntfy.sh.")
+                "internet.")
     if "?" in server or "#" in server:
         return "The server address is just the server, without a topic or anything after it."
     if not TOPIC_RE.match(topic):

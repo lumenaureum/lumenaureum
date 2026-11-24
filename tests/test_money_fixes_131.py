@@ -71,7 +71,9 @@ def test_payment_and_expense_dates_before_2000_are_refused(env):
     assert "before 2000" in page
     pay(c, 1, "deposit", 100, "2000-01-01")
     post(c, "/session/1/money", what="expense", label="Lens", amount="80", date="2000-01-01")
-    assert (_count(A, "payments"), _count(A, "expenses")) == (1, 1)
+    assert (_count(A, "payments"), _count(A, "expenses")) == (0, 0)
+    pay(c, 1, "deposit", 100, "2026-01-01")
+    assert _count(A, "payments") == 1
     pay(c, 1, "tip", 50, "2026-05-02")
     post(c, "/session/1/money", what="payment", kind="tip_back", amount="10", received="1900-01-01", method="cash")
     assert _count(A, "payments") == 2

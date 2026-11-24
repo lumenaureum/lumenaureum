@@ -281,7 +281,7 @@ def test_a_type_with_no_picking_round_builds_a_download_gallery(env):
     sid = session(A, "realestate")
     page = c.get(f"/c/1?s={sid}", environ_base=E).get_data(as_text=True)
 
-    assert "Upload the edited photos on the Edit row first" in page
+    assert "Upload the edited photos first, on the Upload edited photos step" in page
     build(c, sid, src)
     gid = row(A, "SELECT gallery_id FROM sessions WHERE id=?", (sid,))[0]
     g = row(A, "SELECT key, ekey, proof FROM galleries WHERE session_id=?", (sid,))

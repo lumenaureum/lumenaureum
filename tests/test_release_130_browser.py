@@ -129,10 +129,15 @@ def test_each_photo_upload_announcement_is_heard(browser, app_, tmp_path):
         p.locator('.dropzone[data-kind="raw"] input[type=file]').set_input_files(files)
         p.wait_for_function("() => window.__heard.some(h => h.startsWith('photos-status: 2 files added'))", timeout=20000)
         heard = p.evaluate("window.__heard")
-        want = ["Uploading 2 files, one at a time", "A_1.NEF: uploading", "A_1.NEF: sealed", "B_2.NEF: uploading",
+
+        want = ["Uploading 2 files", "A_1.NEF: uploading", "A_1.NEF: sealed", "B_2.NEF: uploading",
                 "B_2.NEF: sealed", "2 files added"]
         said = [h.split(": ", 1)[1] for h in heard]
-        assert [w for w in said if w in want] == want, heard
+        got = [w for w in said if w in want]
+        assert sorted(got) == sorted(want), heard
+        assert got[0] == "Uploading 2 files" and got[-1] == "2 files added", heard
+        for n in ("A_1.NEF", "B_2.NEF"):
+            assert got.index(n + ": uploading") < got.index(n + ": sealed"), heard
     finally:
         ctx.close()
 

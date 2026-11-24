@@ -23,14 +23,22 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1   # v7.1.0 (the gallery page and inquiry script tests)
         with: { node-version: "20" }
       - name: System libraries for PDFs, and PHP for the host scripts
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-liberation poppler-utils php-cli
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-liberation fonts-dejavu-core fonts-droid-fallback poppler-utils php-cli
+          && printf '<?xml version="1.0"?>\n<fontconfig><dir>/usr/share/fonts-droid-fallback/truetype</dir></fontconfig>\n' | sudo tee /etc/fonts/conf.d/66-droid-sans-fallback-korean.conf
       - name: Install (locked, hash-checked)
         run: pip install --require-hashes --no-deps -r requirements.lock && pip install --require-hashes -r requirements-ci.lock
       - name: PHP and Node are here (their tests fail, never skip, without them)
         run: php --version && node --version
       - name: Tests (${{ matrix.arch }})
         env: { LA_REQUIRE_TOOLS: "1" }     # a test that needs php or node fails when it is missing (tests/helpers_tools.py)
-        run: python -m pytest -q -rsR -n auto --dist loadfile --reruns 1 tests/   # one worker per core; a file keeps its order; a test that fails once is retried once and listed as a rerun (-rR); failing twice fails the run
+        run: |
+          fail=0
+          for g in 0 1 2 3; do
+            files=$(ls tests/test_*.py | awk -v g=$g 'NR % 4 == g')
+            echo "== test group $((g + 1)) of 4: $(echo $files | wc -w) files"
+            python -m pytest -q -rsR -n auto --dist loadfile --reruns 1 $files || fail=1
+          done
+          exit $fail
       - name: Host scripts on the PHP floor (7.4) and the newest PHP (8.5)
         if: matrix.arch == 'amd64'
         run: |
@@ -62,7 +70,7 @@ jobs:
           docker build --build-arg LUMENAUREUM_BUILD=${GITHUB_SHA::7} -t lumenaureum:ci .
           test "$(docker image inspect --format '{{.Architecture}}' lumenaureum:ci)" = "${{ matrix.arch }}"
       - name: Scan the image (${{ matrix.arch }})
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8   # v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25   # v0.36.0 (the commit; a9c7b0f was the tag object)
         with: { image-ref: "lumenaureum:ci", severity: "CRITICAL,HIGH", exit-code: "1", ignore-unfixed: true }
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -89,7 +97,7 @@ jobs:
           docker build --build-arg LUMENAUREUM_BUILD=${GITHUB_SHA::7} -t lumenaureum:release .
           test "$(docker image inspect --format '{{.Architecture}}' lumenaureum:release)" = "${{ matrix.arch }}"
       - name: Scan the exact image that will be published (${{ matrix.arch }})
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8   # v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25   # v0.36.0 (the commit; a9c7b0f was the tag object)
         with: { image-ref: "lumenaureum:release", severity: "CRITICAL,HIGH", exit-code: "1", ignore-unfixed: true }
       - name: Push that image under its platform tag
         id: push
@@ -119,6 +127,14 @@ jobs:
           subject-name: ghcr.io/lumenaureum/lumenaureum
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
+      - name: Check the SBOM's system libraries for known vulnerabilities (report only, ${{ matrix.arch }})
+        continue-on-error: true
+        timeout-minutes: 10
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439   # v7.4.2
+        with: { sbom: sbom.spdx.json, grype-version: v0.118.0, fail-build: false, output-format: json, output-file: native-vulns.json }
+      - name: Add that report to this run's summary (${{ matrix.arch }})
+        continue-on-error: true
+        run: python3 tools/native_vuln_report.py native-vulns.json "${{ matrix.arch }}" >> "$GITHUB_STEP_SUMMARY"
   publish-index:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: publish

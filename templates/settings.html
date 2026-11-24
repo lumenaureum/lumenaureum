@@ -64,7 +64,8 @@
 #gl-prev .cells i { aspect-ratio: 1; background: var(--cell); border-radius: 2px; }
 </style>
 {% call sui.section('Logo', id='logo-sec') %}
-  {% call sui.upload_slot('Logo on your documents', 'logo', url_for('logo_upload'), 'logo', setting('logo_png'), 'image/png,image/jpeg', 'Upload the logo', 'Remove the logo', none_words='No logo yet.', help_text="Printed at the top of quotes, invoices, receipts, agreements, releases, session sheets, statements and the price list. PNG or JPEG; it is resized to fit.") %}
+  {% call sui.upload_slot('Logo on your documents', 'logo', url_for('logo_upload'), 'logo', setting('logo_png'), 'image/png,image/jpeg', 'Upload the logo', 'Remove the logo', none_words='No logo yet.', help_text="Printed at the top of quotes, invoices, receipts, agreements, releases, session sheets, statements and the price list. PNG or JPEG; it is resized to fit.",
+                      save_first='#gallery-look', dirty='Save the look and upload the logo') %}
     <img src="{{ logo_src() }}" alt="Your logo" class="sui-logo">{% endcall %}
 {% endcall %}
 <form method="post" class="ui-sec sui-sec f" id="gallery-look"><input type="hidden" name="look_posted" value="1"><input type="hidden" name="form_id" value="gallery-look">
@@ -72,17 +73,18 @@
   <div><label class="l" id="gl-font-l">Font{{ help("Script is used for the client's name only." ~ ((" " ~ own_font.name ~ " is your own font: used for all the text, in your galleries and on your studio page.") if own_font else "")) }}</label>
     <span class="seg gl-fonts" role="radiogroup" aria-labelledby="gl-font-l">{% for k_, l_ in (('classic', 'Classic'), ('elegant', 'Elegant'), ('script', 'Script')) + ((('own', own_font.name),) if own_font else ()) %}<label><input type="radio" name="gallery_font" value="{{ k_ }}"{{ ' checked' if look.gallery_font == k_ }}><span class="f-{{ k_ }}">{{ l_ }}</span></label>{% endfor %}</span></div>
   
-  <div class="sui-upload" id="own-font"><div class="l">{{ 'Your own font' }}{{ help("A font file (WOFF2, WOFF, TTF or OTF) whose license lets you put it on a website. It goes up with each gallery and your studio page, so visitors' browsers never fetch it from anywhere else.") }}</div>
+  <div class="sui-upload" id="own-font" data-ui-save-first="#gallery-look"><div class="l">{{ 'Your own font' }}{{ help("A font file (WOFF2, WOFF, TTF or OTF) whose license lets you put it on a website. It goes up with each gallery and your studio page, so visitors' browsers never fetch it from anywhere else.") }}</div>
     <div class="sui-upload-now">{% if own_font %}<span id="own-font-have">Uploaded: {{ own_font.name }}, regular{% if own_font.light %} and light{% else %}. No light weight: light text uses the regular one{% endif %}.</span>{% else %}<span class="ui-mute">None uploaded.</span>{% endif %}</div>
     <div class="ui-form-row"><label><span>Regular</span><input type="file" name="regular" form="gl-font" accept=".woff2,.woff,.ttf,.otf" style="width:auto"></label>
       <label><span>Light (optional)</span><input type="file" name="light" form="gl-font" accept=".woff2,.woff,.ttf,.otf" style="width:auto"></label></div>
-    <div class="ui-form-row"><button class="ui-btn ui-btn-quiet" form="gl-font">{{ 'Replace the font' if own_font else 'Upload the font' }}</button>{% if own_font %}<button class="ui-btn ui-btn-quiet" form="gl-font" name="remove" value="1">Remove the font</button>{% endif %}</div></div>
+    <div class="ui-form-row"><button class="ui-btn ui-btn-quiet" form="gl-font" data-ui-dirty-label="{{ 'Save the look and replace the font' if own_font else 'Save the look and upload the font' }}">{{ 'Replace the font' if own_font else 'Upload the font' }}</button>{% if own_font %}<button class="ui-btn ui-btn-quiet" form="gl-font" name="remove" value="1" data-ui-dirty-label="Save the look and remove the font">Remove the font</button>{% endif %}</div></div>
   <div><label class="l" id="gl-bg-l">Background</label>
     {% set sw_ = (('#f6f3ed', 'Ivory'), ('#ffffff', 'White'), ('#262422', 'Charcoal'), ('#0d0c0b', 'Black')) %}
     {% set custom_ = look.gallery_bg not in sw_|map('first')|list %}
     <div class="gl-sw" role="radiogroup" aria-labelledby="gl-bg-l">{% for c_, l_ in sw_ %}<label><input type="radio" name="gallery_bg" value="{{ c_ }}"{{ ' checked' if look.gallery_bg == c_ }}><i style="background:{{ c_ }}"></i>{{ l_ }}</label>{% endfor %}
       <label><input type="radio" name="gallery_bg" value="custom"{{ ' checked' if custom_ }}>Your own<input type="color" name="gallery_bg_custom" value="{{ look.gallery_bg if custom_ else '#c8b89a' }}" aria-label="Your own background color"></label></div></div>
-  {% call sui.upload_slot('Logo for dark backgrounds', 'gl-dark', url_for('logo_upload'), 'logo', setting('logo_dark_png'), 'image/png,image/jpeg', 'Upload the dark logo', 'Remove the dark logo', none_words='None uploaded: your logo is shown in white.', help_text="Used on Charcoal, Black, or other dark backgrounds. A PNG with a see-through background works best.", form='gl-logo') %}
+  {% call sui.upload_slot('Logo for dark backgrounds', 'gl-dark', url_for('logo_upload'), 'logo', setting('logo_dark_png'), 'image/png,image/jpeg', 'Upload the dark logo', 'Remove the dark logo', none_words='None uploaded: your logo is shown in white.', help_text="Used on Charcoal, Black, or other dark backgrounds. A PNG with a see-through background works best.", form='gl-logo',
+                    save_first='#gallery-look', dirty='Save the look and upload the logo') %}
     <span>Uploaded.</span>{% endcall %}
   <div id="gl-prev" class="{{ look.gallery_font }}" role="img" aria-label="Preview of the gallery heading" data-palettes="{{ palettes|tojson|forceescape }}" style="{% for k_, v_ in look_pal.items() %}--{{ k_ }}:{{ v_ }};{% endfor %}">
     {% if look_logos.light or look_logos.dark %}<img id="gl-logo-img" alt="" data-light="{{ 'data:image/png;base64,' ~ look_logos.light if look_logos.light }}" data-dark="{{ 'data:image/png;base64,' ~ look_logos.dark if look_logos.dark }}">{% endif %}
@@ -97,15 +99,17 @@
       <div><label class="l" for="gl-word">Word</label><input id="gl-word" name="proof_mark_text" maxlength="20" value="{{ look.proof_mark_text }}" style="width:160px"></div>
       <div><label class="l" for="gl-str">Strength <output id="gl-str-out" for="gl-str">{{ look.proof_mark_strength }}</output>%</label>
         <input id="gl-str" type="range" name="proof_mark_strength" min="5" max="100" step="5" value="{{ look.proof_mark_strength }}" style="width:180px"></div></div></div>
-  {{ sui.save_bar('gallery-look', 'Save the gallery look') }}
+  {{ sui.save_bar('gallery-look', 'Save the gallery look', unsaved=true,
+                  help_text="Galleries you build or rebuild from now on take this look. Galleries already built, online or not, keep theirs until you rebuild them: each one's Gallery block then offers Rebuild with the new details. The studio page takes it the next time you upload it.") }}
 </form>
 <form id="gl-logo" method="post" action="{{ url_for('logo_upload') }}" enctype="multipart/form-data" hidden><input type="hidden" name="which" value="dark"></form>
 <form id="gl-font" method="post" action="{{ url_for('brand_font_upload') }}" enctype="multipart/form-data" hidden></form>
-<form method="post" class="sui-form f" id="credit"><input type="hidden" name="credit_posted" value="1"><input type="hidden" name="form_id" value="credit">
+
+<form method="post" class="sui-form f" id="credit" data-ui-autosave><input type="hidden" name="credit_posted" value="1"><input type="hidden" name="form_id" value="credit">
   {% call sui.section('Credit line') %}
-  {{ sui.switch('credit', 'Credit Lumen Aureum on quotes, invoices and galleries', setting('credit_off') != '1', 'One small line at the bottom: ' ~ C.CREDIT ~ '. Never on agreements or releases.') }}
+  {{ sui.switch('credit', 'Credit Lumen Aureum on quotes, invoices and galleries', setting('credit_off') != '1', 'One small line at the bottom: ' ~ C.CREDIT ~ '. Never on agreements or releases.', autosave=true) }}
   {% endcall %}
-  {{ sui.save_bar('credit', sticky=false) }}
+  <noscript>{{ sui.save_bar('credit', 'Save the credit line', sticky=false) }}</noscript>
 </form>
 <script src="{{ url_for('static', filename='gallery_look.js', v=static_v('gallery_look.js')) }}"></script>
 
@@ -143,19 +147,20 @@
   <h2 class="ui-sec-title" id="fees">Price list<span class="sui-nocaps">{{ help("Saving a change makes a new version of your price list. Quotes already made keep the prices they were built from. Travel at $0.00 uses the mileage rate.") }}</span></h2>
   <div class="ui-btnrow">{{ ui.button_link(url_for('fee_sheet'), 'Price list for clients', blank=true) }}{{ ui.button_link(url_for('fee_sheet_pdf'), 'Download the price list (PDF)') }}</div>
   
-  <table class="data fees"><thead><tr><th>Fee</th><th>Price ($)</th><th>Charged</th><th>Sales tax</th><th>Remove</th></tr></thead><tbody>
+  <table class="data fees"><thead><tr><th>Fee</th><th>Price ($)</th><th>Charged</th>{% for t_ in taxes_ or [none] %}<th>{{ t_.name if t_ else 'Sales tax' }}</th>{% endfor %}<th>Remove</th></tr></thead><tbody>
   {% for it in fees['items'] %}<tr><td><input name="fee_label_{{ loop.index0 }}" value="{{ it.label }}" aria-label="Fee name"></td>
     <td style="width:110px"><input type="number" step="0.01" name="fee_amt_{{ loop.index0 }}" value="{{ '%g' % it.amount }}" aria-label="Price of {{ it.label }}"></td>
     <td class="mute" style="width:80px">{{ {'flat':'flat fee','hour':'per hour','mile':'per mile','each':'each'}[it.unit] }}</td>
-    <td style="width:90px"><label class="ui-check"><input type="checkbox" name="fee_tax_{{ loop.index0 }}" value="1" {{ 'checked' if it.get('taxable', True) }}><span class="vh">Sales tax</span></label></td>
+    {% set i_ = loop.index0 %}{% if taxes_|length > 1 %}{% for t_ in taxes_ %}<td style="width:90px"><label class="ui-check"><input type="checkbox" name="fee_tax_{{ i_ }}_{{ t_.key }}" value="1" {{ 'checked' if it.get('taxable', True) and t_.key not in (it.get('untaxed') or []) }}><span class="vh">{{ t_.name }} on {{ it.label }}</span></label></td>{% endfor %}
+    {% else %}<td style="width:90px"><label class="ui-check"><input type="checkbox" name="fee_tax_{{ i_ }}" value="1" {{ 'checked' if it.get('taxable', True) }}><span class="vh">{{ taxes_[0].name if taxes_ else 'Sales tax' }} on {{ it.label }}</span></label></td>{% endif %}
     <td style="width:80px"><label class="ui-check"><input type="checkbox" name="fee_del_{{ loop.index0 }}" value="1"><span class="vh">Remove</span></label></td></tr>{% endfor %}
   <tr><td><input name="new_label" placeholder="New fee" aria-label="New fee"></td><td><input type="number" step="0.01" name="new_amount" placeholder="$" aria-label="New fee's price"></td>
-    <td colspan="2">{{ seg('new_unit', [('flat','flat'),('hour','per hr'),('each','each'),('mile','per mi')], 'flat', label='New fee charged') }}</td>
-    <td style="white-space:nowrap"><label class="ui-check"><input type="checkbox" name="new_taxable" value="1" checked>Sales tax</label></td></tr>
+    <td colspan="{{ 1 + ((taxes_|length) if taxes_|length > 1 else 1) }}">{{ seg('new_unit', [('flat','flat'),('hour','per hr'),('each','each'),('mile','per mi')], 'flat', label='New fee charged') }}</td>
+    <td style="white-space:nowrap">{% if taxes_|length > 1 %}{% for t_ in taxes_ %}<label class="ui-check"><input type="checkbox" name="new_tax_{{ t_.key }}" value="1" checked>{{ t_.name }}</label>{% endfor %}{% else %}<label class="ui-check"><input type="checkbox" name="new_taxable" value="1" checked>{{ taxes_[0].name if taxes_ else 'Sales tax' }}</label>{% endif %}</td></tr>
   </tbody></table>
   
   <p class="sub">Quotes are good for {{ term }} days: {{ ui.go(url_for('setup_step', step='money') ~ '#f-quote_term_days', 'Payments and terms') }}
-    Sales tax: {{ (tax_pct ~ '%') if tax_pct else 'none' }}{% if local_pct %} + {{ local_pct }}% local{% endif %}: {{ ui.go(url_for('setup_step', step='tax'), 'Sales tax') }}</p>
+    Taxes: {% for t_ in taxes_ %}{{ t_.name }} {{ '%g' % t_.rate }}%{{ ', ' if not loop.last }}{% else %}none{% endfor %}: {{ ui.go(url_for('setup_step', step='tax'), 'Taxes') }}</p>
   <div class="sub">Older versions: {% for v in versions %}<a href="{{ url_for('fees_view', sched_id=v.id) }}">{{ sched_code(v.id) or (sched_name(v.id) ~ (', ' ~ nice(v.created[:10]) if v.created else '')) }}</a>{{ ', ' if not loop.last }}{% endfor %}</div>
   {% if not prices_approved(fees.id) %}<p class="sub"><b>Sample prices:</b> the starter prices, not yet approved by you. {{ ui.go(url_for('fees_view', sched_id=fees.id), 'Review and approve them') }}</p>{% endif %}
   {% if 'prints_settings' in SETTINGS_ENDPOINTS %}<p class="sub">Prints that clients order from their galleries have their own price list: {{ ui.go(url_for('plugin_page', name='prints'), 'Print orders') }}</p>{% endif %}
@@ -192,47 +197,83 @@
 
 {% elif tab == 'notifications' %}
 {% set nt_ = ntfy if ntfy and ntfy.ntfy_server and ntfy.ntfy_topic else none %}
-{% call sui.section('Locked-studio notice', id='notice', help_text="While the studio is locked it can't read its encrypted settings, so the server address, topic and access token are also kept in a small plain file, ntfy.json in the data folder. Anyone who can read the data folder can read them: use a topic nobody could guess, and a token if your server takes one. The locked notice says only that the studio is locked and since when. The studio inbox notice, if you turn it on, says only how many new things came in, by kind. Neither ever carries a client's name, an email address, an amount, a date or a link.",
-                tip="Optional. A message to your phone through ntfy when the studio restarts and stays locked, then once a day until you sign in.") %}
+
+{% call sui.section('Phone notices', id='notice', help_text="Optional messages to your phone, through ntfy: a free notice service with a phone app. You give the app the ntfy server's address, a topic (the channel name) and, if the server takes one, an access token (its password); the ntfy app on your phone listens to the same topic. Use a private ntfy server: one you run yourself (ntfy is also in the TrueNAS app catalog) or one you trust. On the public server, ntfy.sh, anyone who learns or guesses the topic can read the notices. While the studio is locked it can't read its encrypted settings, so the address, topic and token are also kept in a small plain file, ntfy.json in the data folder. Anyone who can read the data folder can read them: use a topic nobody could guess, and a token if your server takes one. The locked notice says only that the studio is locked and since when. The other notices you can tick say only what kind of thing happened, never how many. None ever carries a client's name, an email address, an amount, a date or a link.") %}
   
   {% set rep_ = nt_ and request.args.get('replace') == 'ntfy' %}
   {% if nt_ and not rep_ %}
-  {{ sui.connection_card('ntfy server', 'conn-ntfy', [('Server', nt_.ntfy_server), ('Topic', nt_.ntfy_topic[:3] ~ '...'), ('Access token', 'Saved' if nt_.ntfy_token else 'None')],
+  {{ sui.connection_card('Notice service', 'conn-ntfy', [('Address', nt_.ntfy_server), ('Channel name', nt_.ntfy_topic[:3] ~ '...'), ('Password', 'Saved' if nt_.ntfy_token else 'None')],
                          conn_status().get('ntfy'), test_url=url_for('security_notice'), test_fields={'act': 'test'}, test_label='Send a test notice',
                          replace_href=url_for('settings_view', tab='notifications', replace='ntfy') ~ '#notice',
                          remove=dict(label='Stop the notices', url=url_for('security_notice'), fields={'act': 'remove'}),
-                         plain_http=(nt_.ntfy_server or '').lower().startswith('http://')) }}
-  <div id="notice-kinds"><label class="ui-check"><input type="checkbox" checked disabled>Studio locked after a restart</label>
-    
-    <form method="post" action="{{ url_for('security_notice') }}" class="ui-action"><input type="hidden" name="act" value="inbox">
-      <label class="ui-check"><input type="checkbox" name="inbox_on" value="1" data-autosubmit{{ ' checked' if inbox_notice_on() }}>Something new in the studio inbox{{ help("A new website inquiry, a client's picks or a print order. The notice says only how many came in, by kind, such as \"3 new: 2 inquiries, 1 set of picks\". Several that come in together are one notice, and there is at most one every 30 minutes. It never says who, and never carries a link.") }}</label>
-      <noscript><button class="ui-btn ui-btn-quiet">Save the notice choice</button></noscript></form>
-    
-    <form method="post" action="{{ url_for('security_notice') }}" class="ui-action"><input type="hidden" name="act" value="backup">
-      <label class="ui-check"><input type="checkbox" name="backup_on" value="1" data-autosubmit{{ ' checked' if backup_notice_on() }}>A backup failed or is late{{ help("A notice when the last backup failed, or none has worked for over a day. It says only that, never the error itself, a folder or a server. While it lasts, at most one a day; once a backup works again, the next problem is told at once.") }}</label>
-      <noscript><button class="ui-btn ui-btn-quiet">Save the notice choice</button></noscript></form></div>
+                         plain_http=(nt_.ntfy_server or '').lower().startswith('http://'),
+                         warn=dict(text="This is the public ntfy server: anyone who learns the topic can read these notices.",
+                                   help="The notices say very little (never a name, an amount, a count, a date or a link), but a private ntfy server is safer: one you run yourself, or one you trust, with a topic nobody could guess and an access token. Replace switches to it once a test notice gets through.") if ntfy_public(nt_.ntfy_server) else none) }}
   {% else %}
-  {% if rep_ %}<div class="sui-replace-head"><b>Replace the ntfy server</b><a class="ui-go" href="{{ url_for('settings_view', tab='notifications') }}#notice">Cancel</a></div>
+  {% if rep_ %}<div class="sui-replace-head"><b>Replace the notice service</b><a class="ui-go" href="{{ url_for('settings_view', tab='notifications') }}#notice">Cancel</a></div>
   <p class="sui-hint">The one in use now stays in use until a test notice to the new one goes through.</p>{% endif %}
   <form method="post" action="{{ url_for('security_notice') }}" class="f" autocomplete="off">{% if rep_ %}<input type="hidden" name="replace" value="1">{% endif %}
     {% set ty_ = session.pop('ntfy_typed', {}) %}
-    {{ sui.field('server', 'ntfy server', ty_.get('server', ''), type='url', placeholder='https://ntfy.sh', id='ntfy-server', attrs='maxlength="300" required') }}
-    {{ sui.field('topic', 'Topic', ty_.get('topic', ''), id='ntfy-topic', attrs='maxlength="64" pattern="[A-Za-z0-9_\\-]{1,64}" required') }}
-    {{ sui.field('token', 'Access token (optional)', '', type='password', id='ntfy-token', attrs='maxlength="300" autocomplete="off"') }}
-    <div class="ui-btnrow"><button class="ui-btn ui-btn-primary" name="act" value="save">{{ 'Test and switch' if rep_ else 'Save the notice settings' }}</button>{% if not rep_ %}<button class="ui-btn ui-btn-quiet" name="act" value="test">Send a test notice</button>{% endif %}</div></form>
+    {{ sui.field('server', 'Notice service address', ty_.get('server', ''), type='url', placeholder='https://ntfy.example.com', id='ntfy-server', attrs='maxlength="300" required',
+                 help="The address of your ntfy server, starting with https:// (http:// only for one on your own network). A private server of your own is safest; the public one is https://ntfy.sh.") }}
+    {{ sui.field('topic', 'Your private channel name', ty_.get('topic', ''), id='ntfy-topic', attrs='maxlength="64" pattern="[A-Za-z0-9_\\-]{1,64}" required',
+                 help="The ntfy topic: a name you make up, with letters, digits, - and _ only. Subscribe to the same name in the ntfy app on your phone. Pick one nobody could guess: anyone who knows it can read the notices.") }}
+    {{ sui.field('token', 'Password for the service (optional)', '', type='password', id='ntfy-token', attrs='maxlength="300" autocomplete="off"',
+                 help="An ntfy access token, if your server asks for one. Leave it blank if it doesn't.") }}
+    <div class="ui-btnrow"><button class="ui-btn ui-btn-primary" name="act" value="save">{{ 'Test and switch' if rep_ else 'Save the notice settings' }}</button>{% if not rep_ %}<button class="ui-btn ui-btn-quiet" name="act" value="test">Send a test notice</button>{% endif %}{{ sui.unsaved() }}</div></form>
+  {% endif %}
+  
+  {% set live_ = nt_ %}
+  <div id="notice-kinds">{% if not live_ %}<p class="sui-hint">These can be ticked once the notice service above is saved.</p>{% endif %}
+    <label class="ui-check"><input type="checkbox"{{ ' checked' if live_ }} disabled>Studio locked after a restart{% if not live_ %}{{ help("On whenever the notice service is set up: a message when the studio restarts and stays locked, then once a day until you sign in.") }}{% endif %}</label>
+    
+    <label class="ui-check"><input type="checkbox"{{ ' checked' if live_ }} disabled>A new master key was asked for without the old one{{ help("Always on while notices are set up, with no way to turn it off: someone with your password and one code could otherwise untick it first. It says only that a new master key was asked for and takes effect in 48 hours, so you can sign in and cancel it if it wasn't you.") }}</label>
+    {% for kind_, name_, on_, label_, help_ in [
+         ('inbox', 'inbox_on', inbox_notice_on(), 'Something new in the studio inbox', "A new website inquiry, a client's picks or a print order. The notice says only that something new came in, never what or how many. Several that come in together are one notice, and there is at most one every 30 minutes. It never says who, and never carries a link."),
+         ('backup', 'backup_on', backup_notice_on(), 'A backup failed or is late', "A notice when the last backup failed, or none has worked for over a day. It says only that, never the error itself, a folder or a server. While it lasts, at most one a day; once a backup works again, the next problem is told at once."),
+         ('storage', 'storage_on', status_notice_on('storage'), 'Storage running low', "A notice when the disk that holds your studio's data or photos has less than " ~ storage_low_pct ~ "% of its space free. It says only that, never a folder or a disk name. While it lasts, at most one a day."),
+         ('closing', 'closing_on', status_notice_on('closing'), 'A gallery closes tomorrow', "A notice in the morning when one or more galleries online close the next day. It says only that, never how many, which or whose."),
+         ('update', 'update_on', status_notice_on('update'), 'An update was installed', "A notice when your studio is updated to a new version. Today says what changed."),
+         ('served', 'served_on', status_notice_on('served'), 'A gallery page on your web host changed', "A notice when the regular check finds a gallery page or its scripts on your web host are not the ones your studio put there. It says only that, never how many or which. While it lasts, at most one a day."),
+         ('cred', 'cred_on', status_notice_on('cred'), 'Your password, master key or recovery codes changed', "A notice when a way into the studio changes: the password, the master key or the recovery codes. It says only that something changed, never which one, so a stranger reading your lock screen learns nothing. If it wasn't you, sign in and look at Account activity. This one is on unless you untick it.")] %}
+    {% if live_ %}<form method="post" action="{{ url_for('security_notice') }}" class="ui-action"><input type="hidden" name="act" value="{{ kind_ }}">
+      <label class="ui-check"><input type="checkbox" name="{{ name_ }}" value="1" data-autosubmit{{ ' checked' if on_ }}>{{ label_ }}{{ help(help_) }}</label>
+      <noscript><button class="ui-btn ui-btn-quiet">Save the notice choice</button></noscript></form>
+    {% else %}<label class="ui-check"><input type="checkbox"{{ ' checked' if on_ }} disabled>{{ label_ }}{{ help(help_) }}</label>{% endif %}
+    {% endfor %}</div>
+{% endcall %}
+
+{% elif tab == 'calendar' %}
+
+{% set feed_ = calendar_feed_url() %}
+{% call sui.section('Calendar link', id='calendar-link', help_text="A private address your phone's calendar app subscribes to (Add calendar, then From URL or Subscribe). Each session shows as its type, day, start time and length, and nothing else: never a client's name, a place, a note or an amount. A penciled date shows as tentative. Entries show the session type name, so keep type names free of client names. The link reaches your studio only where the studio itself can be reached: on your home network, or a private network you set up for it (Tailscale, for example). Calendar services that fetch from their own servers, like Google Calendar on the web, can't reach it. After a restart the studio is locked until you sign in: the phone keeps what it had and fills in again after. The phone must trust the studio's certificate, as your browser does. Anyone who has the link sees when your sessions are, so keep it to yourself; if it got out, make a new one.") %}
+  {% if feed_ %}
+  {{ ui.fact('Calendar link', 'On') }}
+  {{ ui.fact('Each session shows', 'Its type, day, start time and length') }}
+  <p class="sui-hint" id="cal-feed-url">{{ feed_ }}</p>
+  <div class="ui-btnrow"><button type="button" class="ui-btn ui-btn-quiet" data-copy="#cal-feed-url">Copy the link</button>
+    {{- ui.button_link(calendar_feed_url('webcal'), 'Subscribe on this device') }}
+    {{- ui.action(url_for('calendar_link_settings'), 'Make a new link', fields={'act': 'new'}, inplace=false, confirm="The link in use now stops working at once. Each phone subscribed to it must subscribe to the new one.") }}
+    {{- ui.action(url_for('calendar_link_settings'), 'Turn off the calendar link', fields={'act': 'off'}, inplace=false, confirm="Turn off the calendar link? Phones subscribed to it get nothing new.") }}</div>
+  {% else %}
+  {{ ui.fact('Calendar link', 'Off') }}
+  <div class="ui-btnrow">{{ ui.action(url_for('calendar_link_settings'), 'Turn on the calendar link', fields={'act': 'on'}, kind='primary', inplace=false) }}</div>
   {% endif %}
 {% endcall %}
 
 {% elif tab == 'system' %}
 <div class="ui-sec" style="max-width:560px">{{ ui.fact('Database', db_path) }}{{ ui.fact('Plugins', plugins|join(', ') or 'none') }}</div>
 {% call sui.danger_zone('Reset database', id='reset') %}
-  <p class="sui-tip">Deletes every client, person, session, event, payment and note.{{ help("Settings and the current price list stay. A copy of the database is saved first (sealed in the vault once a master key exists).") }}</p>
+  <p class="sui-tip">Deletes every client, person, session, event, payment and note.{{ help("Settings and the current price list stay. A copy of the database is saved first (sealed in the vault once a master key exists). If that fails, nothing is reset and no gallery comes down.") }}</p>
+  <p class="sui-tip">Uploaded photos are removed 30 days later.{{ help("They stay that long with the saved copy of the database, so the reset can be undone by restoring it. Then they are deleted, with their backup copies.") }}</p>
+  {% if reset_online %}<p class="sui-tip"><b>{{ reset_online }} galler{{ 'y is' if reset_online == 1 else 'ies are' }} online on your web host.</b>{{ help("After a reset the app no longer knows them, so it can't take them down later or close them when their days are up. Taking them down first is usually right. One the web host won't let come down now is tried again at the regular check and listed on Today until it is gone.") }}</p>{% endif %}
   {% if request.args.get('reset') == 'done' %}<div class="sub"><b>Reset done.</b> The old database was saved as {{ request.args.get('saved') }}</div>
   {% elif request.args.get('reset') == 'nope' %}<div class="sub"><b>Not reset.</b> Type RESET exactly to confirm.</div>{% endif %}
-  <form method="post" action="{{ url_for('settings_reset') }}" class="ui-form-row" style="margin-top:10px"
+  <form method="post" action="{{ url_for('settings_reset') }}" style="margin-top:10px"
         data-confirm="Delete ALL clients, sessions and history? A backup copy is saved first.">
-    <input name="confirm" placeholder="Type RESET" aria-label="Type RESET to confirm" autocomplete="off" style="width:140px" required>
-    <button class="ui-btn ui-btn-quiet">Reset database</button></form>
+    {% if reset_online %}<p><label class="ui-check"><input type="checkbox" name="take_down" value="1" checked>Take the {{ reset_online }} galler{{ 'y' if reset_online == 1 else 'ies' }} down from the web host</label></p>{% endif %}
+    <div class="ui-form-row"><input name="confirm" placeholder="Type RESET" aria-label="Type RESET to confirm" autocomplete="off" style="width:140px" required>
+    <button class="ui-btn ui-btn-quiet">Reset database</button></div></form>
 {% endcall %}
 {% endif %}
 {% endblock %}

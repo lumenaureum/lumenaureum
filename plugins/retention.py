@@ -22,6 +22,7 @@ BLOCK = """
 </form>{% endif %}
 {% if r and r.sealed_at and not r.purged_at %}<div class="row" style="font-size:13px"><span class="grow">Sealed {{ nice(r.sealed_at) }}</span>
   {% if r.unsealed_dir %}<span class="mute" data-tip="Removed after {{ reprint_days }} days">Reprint copy: {{ r.unsealed_dir }}</span>
+  {% elif lost %}<span class="mute">{{ lost }}</span>
   {% else %}<details class="early" {{ 'open' if failed or slow }}><summary>Open for a reprint</summary>{% if slow %}<div style="color:var(--crit);font-size:12.5px">Too many wrong keys from here. Try again {{ slow }}.</div>{% elif failed %}<div style="color:var(--crit);font-size:12.5px">That key did not open it.</div>{% endif %}<form method="post" action="{{ url_for('retention_unseal', sid=s.id) }}" class="row" style="margin-top:6px;align-items:end">
     <input type="hidden" name="back" value="{{ back }}"><span class="grow" style="display:grid;gap:2px"><label class="l" for="unseal-key-{{ s.id }}">Master key</label><input type="password" id="unseal-key-{{ s.id }}" name="master" placeholder="AGE-SECRET-KEY-1..." autocomplete="off" required style="width:auto"></span><span style="display:grid;gap:2px"><label class="l" for="unseal-only-{{ s.id }}">Only these files</label><input id="unseal-only-{{ s.id }}" name="only" placeholder="Blank: all" style="width:200px"></span>
     <button class="quiet">Open the sealed files</button></form></details>{% endif %}</div>
@@ -185,6 +186,13 @@ def register(ctx):
         finally:
             con.close()
 
+    def unfinished(sid):
+        con = ctx.connect()
+        try:
+            return [r[0] for r in con.execute("SELECT name FROM photo_files WHERE session_id=? AND state='partial' ORDER BY name", (sid,))]
+        finally:
+            con.close()
+
     def busy_uploading(sid):
         import photostore
         con = ctx.connect()
@@ -248,7 +256,17 @@ def register(ctx):
             import jobs
 
             def work(job):
-                return "Sealed into the vault." if seal(s, row(sid)) else "Nothing to seal (or an upload is still unfinished)."
+                if seal(s, row(sid)):
+                    return "Sealed into the vault."
+                left_ = unfinished(sid)
+                if left_:
+                    return (f"Not sealed: the upload of {', '.join(left_[:3])}{' and more' if len(left_) > 3 else ''} is "
+                            "unfinished. Finish it, or remove it on the session's Photos, then seal again.")
+                from vault import web as VW_
+                if VW_.new_master_running():
+                    return ("Not sealed yet: photo keys are still moving to the new master key. "
+                            "Seal again once that finishes.")
+                return "Nothing to seal."
             jobs.start(app, f"seal:{sid}", "Sealing photos into the vault", work)
         return redirect(ctx.safe_back(request.form.get("back")) or url_for("home"))
 
@@ -256,7 +274,7 @@ def register(ctx):
     def retention_unseal(sid):
 
         import secrets as _secrets
-        VS, VW, _ = vault()
+        VS, VW, VK = vault()
         secret = request.form.get("master", "")
         dest = UNSEALED / _secrets.token_hex(8)
         only = [w_.strip() for w_ in (request.form.get("only") or "").split(",") if w_.strip()]
@@ -282,11 +300,18 @@ def register(ctx):
             con_ = ctx.connect()
             try:
                 import photostore
-                n_ = photostore.open_sealed(con_, sid, secret, VW.store_backends()[0], str(dest), only)
-                if con_.execute("SELECT 1 FROM vault_objects WHERE session_id=? AND kind='session' AND deleted IS NULL",
-                                (sid,)).fetchone():
+                lost_ = []
+                n_ = photostore.open_sealed(con_, sid, secret, VW.store_backends()[0], str(dest), only, lost=lost_)
+                live_ = con_.execute("SELECT 1 FROM vault_objects WHERE session_id=? AND kind='session' AND deleted IS NULL",
+                                     (sid,)).fetchone()
+                if live_:
                     VS.open_session(con_, sid, secret, VW.store_backends()[0], str(dest))
-                job["message"] = f"{n_} photo{'s' if n_ != 1 else ''} opened."
+                elif not n_ and (lost_ or con_.execute("""SELECT 1 FROM vault_objects WHERE session_id=? AND kind='session-lost'
+                                                         AND deleted IS NULL""", (sid,)).fetchone()):
+                    raise RuntimeError(VK.LOST_TEXT)
+                job["message"] = f"{n_} photo{'s' if n_ != 1 else ''} opened." + (
+                    f" {len(lost_)} {'was' if len(lost_) == 1 else 'were'} sealed with a master key that was replaced; "
+                    f"{'it' if len(lost_) == 1 else 'they'} can't be opened." if lost_ else "")
             finally:
                 con_.close()
             x("""INSERT INTO retention (session_id, unsealed_dir, unsealed_at) VALUES (?,?,?)
@@ -388,6 +413,9 @@ def register(ctx):
             app.logger.info("seal %s waits: an upload into it is unfinished", s["id"])
             return False
         VS, VW, _ = vault()
+        if VW.new_master_running():
+            app.logger.info("seal %s waits: photo keys are moving to the new master key", s["id"])
+            return False
         folders = plain_folders(s, r)
         sealed_rows = uploads(s["id"])
         if not folders and not sealed_rows:
@@ -627,6 +655,16 @@ def register(ctx):
             return th_.wait_text(ip_)
         return ""
 
+    def lost_only(sid):
+
+        try:
+            kinds = {r_["kind"] for r_ in q("SELECT DISTINCT kind FROM vault_objects WHERE session_id=? AND deleted IS NULL", (sid,))}
+        except Exception:
+            return ""
+        if kinds & {"session-lost", "photo-key-lost"} and not kinds & {"session", "photo-key"}:
+            return vault()[2].LOST_TEXT
+        return ""
+
     def block(s):
         if s["stage"] not in ("shot", "delivered", "closed"):
             return []
@@ -637,7 +675,8 @@ def register(ctx):
                                       tomorrow=(date.today() + timedelta(days=1)).isoformat(), dirs=raw_dirs(s) if not (r and r["sealed_at"]) else [], due=due, soon=soon,
                                       nice=ctx.nice, back=back_of(s), plain=bool(plain_folders(s, r) or uploads(s["id"])), master=has_master(),
                                       reprint_days=REPRINT_DAYS, sdate=seal_date(s), folders=FOLDERS,
-                                      failed=request.args.get("unseal") == "failed", slow=_slow_text())
+                                      failed=request.args.get("unseal") == "failed", slow=_slow_text(),
+                                      lost=lost_only(s["id"]) if r and r["sealed_at"] else "")
         return [("Photo storage", html)]
 
     ctx.hooks.stage_blocks.append(block)

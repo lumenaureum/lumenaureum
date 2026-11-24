@@ -31,7 +31,8 @@ laptop or a stolen drive exposes no client records.
   Replace the quote starts a new one.
 - **Scheduling**: a month calendar with a day view, sunset and golden hour for each session, and a check for clashes.
 - **Billing and finances**: deposits, payments, refunds, mileage, expenses, and sales tax counted when payments are
-  received; each payment keeps its tax, so a past year never changes. Every amount says what it is for and shows
+  received; each payment keeps its tax, so a closed year never changes. Last year stays open through January 31 for
+  money that arrived in December (or until you close it on Finances). Every amount says what it is for and shows
   cents. A payment can be made any way, a trade included, at the value you received. Tips are their own kind of
   payment, never taxed (a tip given back lowers the tips only). A balance you waive is written off. Finances gives
   your accountant a one-page year summary as a PDF, with the details as CSV files.

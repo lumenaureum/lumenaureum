@@ -9,7 +9,8 @@ database is open in the app's memory; the sealed session archives stay closed to
 ## Principles
 1. Write-only. The app holds only the master PUBLIC key: it can seal, never open, sealed data.
 2. Only ciphertext under random names leaves the database. No client name, date or type appears in an object name.
-3. Deletion = key destruction (crypto-shred). Copies on versioned buckets, snapshots or forgotten disks become unreadable.
+3. Deletion = key destruction (crypto-shred). Copies on versioned buckets, snapshots or forgotten disks become unreadable
+   once the database backups made before the deletion (which still hold the wrapped key) have aged out.
 4. Standard format. Everything is `age` (X25519, ChaCha20-Poly1305, authenticated), so the stock `age` tool can
    recover it without this code.
 5. Backends never see keys; every backend passes the same contract tests.

@@ -392,8 +392,8 @@ def test_the_gallery_block_says_it_from_the_clients_side_with_its_actions(env):
     assert f"Diaz can download 4 photos · made {made}" in b
     assert "Preview the gallery" in b and "Copy link" in b and "Replace this link" in b
     assert f"Online since {made}" in b
-    assert "Opened " in b and "Look for client activity now" in b
-    for gone in ("Check now", "Planned deletion", ">Sent<", "Rebuild"):
+    assert "Opened " in b and "Check now" not in b
+    for gone in ("Look for client activity now", "Planned deletion", ">Sent<", "Rebuild"):
         assert gone not in b, gone
     assert not re.search(r"built [A-Z][a-z]{2} ", b)
 

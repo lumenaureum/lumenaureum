@@ -186,13 +186,14 @@ def test_unknown_payment_kind_and_junk_dates_are_refused(env):
     run(A, "INSERT INTO payments (session_id, kind, amount, received) VALUES (1, 'balance', 1, '2026-05-03junk')")
     assert c.get("/c/1", environ_base=E).status_code == 200
 
-def test_sales_tax_file_shows_the_region_the_rate_was_kept_with(env):
+def test_sales_tax_file_shows_each_tax_at_the_rate_it_was_kept_with(env):
+
     A, c, freeze = env
-    A.hooks.tax_region = dict(name="Testland", areas=[("in", "Inside"), ("out", "Outside")],
-                              area_of=lambda addr: ("in", "") if "City" in addr else ("out", ""),
-                              extra_pct=lambda area, local: local if area == "in" else 0)
+    rule = lambda sale, taxes: {"city": dict(on="City" in (sale.get("address") or ""))}
+    A.hooks.tax_rules.append(rule)
     try:
-        run(A, """INSERT INTO settings (key, value) VALUES ('tax_mode','regional'),('sales_tax_pct','4'),('local_tax_pct','4.5');
+        run(A, """INSERT INTO settings (key, value) VALUES ('taxes', '[{"key": "sales", "name": "Sales tax", "rate": 4, "default": true},
+                                                                   {"key": "city", "name": "City tax", "rate": 4.5, "default": false}]');
                   INSERT INTO households (id, name, address) VALUES (1, 'Lane', '1 Main St, City');
                   INSERT INTO sessions (id, household_id, type, stage, shoot_date) VALUES (1, 1, 'portrait', 'quoted', '2026-01-10')""")
         A.apply_settings()
@@ -200,11 +201,11 @@ def test_sales_tax_file_shows_the_region_the_rate_was_kept_with(env):
         line(c, 1, "Session", 400)
         pay(c, 1, "deposit", 100, "2025-11-02")
         freeze("2026-01-11")
-        post(c, "/session/1/quote/exempt", tax_area="out")
+        run(A, "UPDATE households SET address='9 Elm St, Lakeside' WHERE id=1")
         rows = get_zip(c, 2025)["sales-tax.csv"]
-        assert [(r["region"], r["rate (%)"]) for r in rows] == [("Inside", "8.5")]
+        assert [(r["tax"], r["rate (%)"]) for r in rows] == [("Sales tax", "4"), ("City tax", "4.5")]
     finally:
-        A.hooks.tax_region = None
+        A.hooks.tax_rules.remove(rule)
 
 def test_canceled_booking_profit_and_wording(env):
 

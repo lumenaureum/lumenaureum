@@ -30,7 +30,8 @@ says so and nothing is uploaded.
    of the four swatches. To use your own font (one you already use for your brand), add its file in Settings,
    Client galleries; the site and your galleries then both use it, and carry the file with them. A variable font
    (one file with a range of weights) is used across its whole range, so headings and buttons get the font's own
-   heavier weight rather than one the browser makes up.
+   heavier weight rather than one the browser makes up. The **Accent color** (gold, or your own) draws the thin lines
+   and underlines on the page and the Book a session button you can paste on another website.
 5. **Photos**: up to 24, shown in the order listed. Give each one a few words saying what it shows, for people who
    can't see it. The page warns while a photo has none.
    - **Your own photos**: JPEG or PNG. Only the pixels are kept, at a size for the web.
@@ -72,11 +73,15 @@ preview is removed when you upload, take the site down, or the app locks or rest
 removed once it has gone up. The
 inquiry form in the preview shows, but sends nothing.
 
-**Upload** builds the site fresh and puts it on your web host. It goes through the same approval as a gallery upload:
-if a plugin of yours holds gallery uploads for an approval, it holds this too. It never happens on its own. When it is
-approved, every photo is checked again against what its client allows now: if a client declined portfolio use, or
+What goes online is what is on the screen. The words save when you press **Save the words** (the page says
+"Unsaved changes" until then, with **Discard changes**, and asks before you leave); the ticks save as you tick them,
+with **Undo** for a few seconds. While there are unsaved words or photo descriptions, Upload says **Save and put
+online**: it saves them first, then uploads. Preview asks you to save first.
+
+**Upload** builds the site fresh and puts it on your web host. A `gallery_upload` guard also applies to the studio page
+(see plugins/README.md). It never happens on its own. When it goes ahead, every photo is checked again against what its client allows now: if a client declined portfolio use, or
 asked you not to show a photo, while the upload waited, the site is built again without it before anything is sent.
-Before the site is built, and again when the upload is approved, the client's latest picks (their Don't show list
+Before the site is built, and again when the upload goes ahead, the client's latest picks (their Don't show list
 among them) are read from your web host, so a list the client sent since the app last checked counts too. If they
 can't be read, nothing is uploaded and the page says so.
 
@@ -98,14 +103,15 @@ What it writes, and what it never touches:
 - A client's photo is the exception that stays on the list: if its client no longer allows it and its copy on the host
   was changed there (your host recompressed it, say), Upload and Take the site down leave it, so Today keeps reminding
   until it is gone from the host, and the Studio page offers **Remove it anyway** for that file (through the same
-  approval). Deleting it on the host yourself works too; the next upload notices it has gone.
+  guard). Deleting it on the host yourself works too; the next upload notices it has gone.
 - When the web host settings change (another SFTP user name, port or root, the server's name written another way,
   another path to the same folder), the app tells whether it is still the same place: the same server, port, user name
-  and folder written another way is the same host, and otherwise a small probe file written through the new settings
+  and folder written another way is the same host (a local folder is the same host at any path: its marker file keeps
+  its id), and otherwise a small probe file written through the new settings
   and looked for through the earlier ones tells (it is removed right away). The same place keeps its list. Another
   place never makes the app forget what it put on the earlier one: those files stay listed as **left on an earlier
   host**, Today keeps reminding while a client photo there is no longer allowed, and the Studio page offers **Take down
-  there** (through the same approval; never the folder in use, which a probe checks first) and, for a host that is gone
+  there** (through the same guard; never the folder in use, which a probe checks first) and, for a host that is gone
   for good, **Gone for good**, which forgets it without touching anything.
 - An `.htaccess` file already at the top of your site is left as it is. For the site's own "not found" page, it then
   needs the line `ErrorDocument 404 /404.html` (the page tells you the exact line).
@@ -175,6 +181,21 @@ Details:
 - The form needs a host that runs PHP (SFTP web hosting, or a folder a PHP web server serves). On a host that doesn't,
   such as an S3 bucket, the Contact page shows your email and phone instead.
 - No captcha, nothing from other sites.
+
+## The inquiry form on another website
+Made your main website elsewhere (Squarespace, WordPress, Showit and the like)? Under **Use the inquiry form on another
+website**, turn on **Show the inquiry form on another website**, list that website's address (up to 5; the www. version
+of each is allowed too; https:// only), press **Save the addresses**, then **Copy the code**. Paste it into that website where it takes HTML code
+(in Squarespace an Embed or Code block, in WordPress a Custom HTML block). It goes online with the next **Upload**.
+- The code is one `<iframe>` of `inquiry-form.php`, a page on your own web host: the same form, the same sealing in the
+  visitor's browser, and the same `inquiry.php` as the Contact page. Inquiries arrive in the Inbox on Today like any
+  other. The code holds only the page's address: nothing secret, no script.
+- Only the websites you list can show it in a frame; anywhere else, browsers refuse.
+- Tick **Show a Book a session button instead of the whole form** for a button that opens the form in a tab of its
+  own, on your web host. No addresses are needed then, and no website can show the form in a frame.
+  The button takes your Accent color, with white or dark words, whichever reads clearly on it (4.5 to 1 or better).
+- It needs what the form needs: the inquiry form ticked under Words, and a host that runs PHP. The preview and a draft
+  don't build it.
 
 ## What it doesn't do
 No page builder or layouts, no blog, no booking or payments, no help with domains or DNS, no search tuning beyond the

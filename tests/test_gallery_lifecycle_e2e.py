@@ -373,6 +373,7 @@ def test_move_to_a_new_address_carries_picks_and_lists_the_client(site, browser)
         ctx, page = _open(browser, site.link(sid), PHONE)
         page.wait_for_selector(".cell")
         page.wait_for_timeout(1000)
+
         assert page.locator(".cell").nth(0).get_attribute("aria-label") == "Photo 1, Suggested for portfolio"
         ctx.close()
         site.c.post("/galleries/clear-old", environ_base=E)

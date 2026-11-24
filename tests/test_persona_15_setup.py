@@ -208,6 +208,8 @@ def test_host_fields_have_labels_that_stay_and_fit_on_a_phone(browser, fresh):
     try:
         p.goto(f"{BASE}/setup/galleries")
         p.select_option("#f-gallery_type", "sftp")
+        assert not p.locator("#f-gallery_port").is_visible()
+        p.locator("#adv-gallery_sftp summary").click()
         for name, label in (("gallery_host", "Host"), ("gallery_user", "User name on the server"),
                             ("gallery_root", "Web folder on the server"), ("gallery_port", "Port (blank for 22)")):
             lab = p.locator(f"label[for=f-{name}]")

@@ -21,7 +21,7 @@ def test_new_contact_help_tips_are_closed_until_hovered(browser, env, width):
             assert page.locator(".ui-form-grid .qh").nth(i).evaluate("e => getComputedStyle(e).display") == "inline-flex"
         if SHOTS:
             page.screenshot(path=os.path.join(SHOTS, f"contact-new-{width}.png"), full_page=True)
-        page.locator(".ui-form-grid .qh").first.hover() if width > 500 else page.locator(".ui-form-grid .qh").first.focus()
+        page.locator(".ui-form-grid .qh").first.hover() if width > 500 else page.locator(".ui-form-grid .qh").first.tap()
         assert pops.first.is_visible()
         assert sum(pops.nth(i).is_visible() for i in range(pops.count())) == 1
         if SHOTS:

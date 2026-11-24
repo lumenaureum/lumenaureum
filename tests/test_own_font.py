@@ -87,7 +87,8 @@ def test_settings_file_carries_the_font_checked_again(env):
 def test_viewer_uses_the_own_font_from_beside_the_page():
     from plugins import gallery as G
     page = (G.ASSETS / "viewer.html").read_text()
-    assert 'new FontFace("Gallery Own", "url(font.woff2)"' in page and "url(font-light.woff2)" in page
+    assert 'new FontFace("Gallery Own", fontSrc("font.woff2")' in page and 'fontSrc("font-light.woff2")' in page
+    assert '"url(" + n + ")"' in page
     assert "fonts.googleapis" not in page and "font-src 'self'" in page
 
 def test_studio_page_build_uses_the_own_font():

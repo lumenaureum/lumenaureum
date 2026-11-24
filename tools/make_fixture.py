@@ -1967,6 +1967,145 @@ def scenario_150(x, made_with):
     x.v15 = True
     return scenario_101(x, made_with, more=More150())
 
+class More154(More150):
+
+    WEDDING = "Wynn and Sato"
+    SCHOOL = "Maple Grove Elementary picture day"
+    SCHOOL_DATE = f"{YEAR}-10-08"
+    FAMILY_PRICE = "45"
+
+    FAMILIES = (("Abara", "Nia Abara", "Kofi 7"), ("Brandt", "Lena Brandt", "Max 9, Ida 7 and Paul 5"),
+                ("Castillo", "Marta Castillo", "Luis 8 and Ana 10"), ("Dunmore", "Pat Dunmore", "Finn 11"),
+                ("Eklund", "Siri Eklund", "Elsa 7 and Nils 9"), ("Farrow", "Jamie Farrow", "June 6"),
+                ("Gupta", "Asha Gupta", "Dev 8"))
+    SIGNED_AT_EVENT = ("Abara", "Brandt", "Castillo", "Eklund", "Gupta")
+    PAID = ("Abara", "Brandt", "Dunmore", "Gupta")
+
+    def data(self, x):
+        super().data(x)
+        self.s154, self.h154, self.e154 = {}, {}, {}
+        self.types154(x)
+        self.wedding(x)
+        self.school(x)
+
+    def types154(self, x):
+
+        have = x.in_request(lambda: list(x.A.C.SESSION_TYPES))
+        x.post("/setup/shoot", preset_weddings="1", preset_engagements="1", preset_events="1",
+               **{f"keep_{k}": "1" for k in have})
+        now = x.in_request(lambda: list(x.A.C.SESSION_TYPES))
+        assert set(have) | {"wedding", "engagement", "event"} <= set(now), (have, now)
+
+    def wedding(self, x):
+        post, one, rows = x.post, x.one, x.rows
+        post("/contact/new", contact_name="Robin Wynn", household_name=self.WEDDING, email="robin.wynn@example.com")
+        hid = one("SELECT id FROM households WHERE name=?", (self.WEDDING,))[0]
+        post(f"/client/{hid}/person", name="Alex Sato", role="adult", email="alex.sato@example.com")
+        post(f"/client/{hid}/person", name="Ivy Wynn", role="child", age="8")
+        post(f"/client/{hid}/person", name="Theo Sato", role="child", age="10")
+        pid = {r[1]: r[0] for r in rows("SELECT id, name FROM people WHERE household_id=?", (hid,))}
+        couple = [pid["Robin Wynn"], pid["Alex Sato"]]
+        party = [pid["Ivy Wynn"], pid["Theo Sato"]]
+
+        post(f"/client/{hid}/session", type="wedding", stage="inquiry", title="Wynn and Sato wedding",
+             shoot_date=f"{YEAR}-09-19", subjects=[str(p) for p in couple + party])
+        s_wed = one("SELECT MAX(id) FROM sessions")[0]
+        post(f"/client/{hid}/session", type="engagement", stage="inquiry", title="Wynn and Sato engagement",
+             shoot_date=f"{YEAR}-05-09", subjects=[str(p) for p in couple])
+        s_eng = one("SELECT MAX(id) FROM sessions")[0]
+        post(f"/session/{s_eng}/plan", plan_of=str(s_wed))
+        assert one("SELECT plan_of FROM sessions WHERE id=?", (s_eng,))[0] == s_wed
+        assert not one("SELECT 1 FROM documents WHERE session_id=? AND kind='agreement'", (s_eng,))
+        signers = rows("SELECT id, about_person FROM documents WHERE session_id=? AND kind='agreement' ORDER BY id", (s_wed,))
+        assert sorted(r[1] for r in signers) == sorted(couple), signers
+        releases = rows("SELECT id, about_person FROM documents WHERE session_id=? AND kind='release' ORDER BY id", (s_wed,))
+        assert sorted(r[1] for r in releases) == sorted(party), releases
+
+        post(f"/session/{s_wed}/delivery", delivery_method="link")
+        post(f"/session/{s_wed}/money", what="line", label="Wedding day (8 hr)", amount="2800")
+        post(f"/session/{s_wed}/money", what="line", label="Engagement session (1.5 hr)", amount="350")
+        post(f"/session/{s_wed}/quote/send")
+        post(f"/quote/{one('SELECT MAX(id) FROM quote_versions WHERE session_id=?', (s_wed,))[0]}/sent")
+        assert one("SELECT stage FROM sessions WHERE id=?", (s_wed,))[0] == "quoted"
+        post(f"/session/{s_eng}/docs/sent", kind="agreement")
+        assert {r[0] for r in rows("SELECT status FROM documents WHERE session_id=? AND kind='agreement'", (s_wed,))} == {"sent"}
+        for did, _ in signers:
+            post(f"/session/{s_wed}/quick", act="sign", kind="agreement", did=str(did))
+        assert {r[0] for r in rows("SELECT status FROM documents WHERE session_id=? AND kind='agreement'", (s_wed,))} == {"signed"}
+        post(f"/session/{s_wed}/quick", act="book")
+        post(f"/session/{s_wed}/money", what="payment", kind="deposit", amount="945", method="check", received=f"{YEAR}-03-02")
+        post(f"/session/{s_wed}/docs/sent", kind="release")
+        post(f"/session/{s_wed}/quick", act="sign", kind="release", did=str(releases[0][0]))
+        post(f"/session/{s_eng}/quick", act="book")
+        post(f"/session/{s_eng}/quick", act="shot")
+        stages = {r[0]: r[1] for r in rows("SELECT id, stage FROM sessions WHERE id IN (?, ?)", (s_wed, s_eng))}
+        assert stages == {s_wed: "booked", s_eng: "shot"}, stages
+        self.s154.update(wedding=s_wed, engagement=s_eng)
+        self.h154["wedding"] = hid
+
+    def school(self, x):
+        post, one, rows = x.post, x.one, x.rows
+        post("/events", name=self.SCHOOL, date=self.SCHOOL_DATE, venue="Maple Grove Elementary gym")
+        eid = one("SELECT MAX(id) FROM events")[0]
+        post(f"/event/{eid}/billing", billing="families")
+        for name, parent, children in self.FAMILIES:
+            post(f"/event/{eid}/family", household_name=name, parent_name=parent, children=children,
+                 email=f"{name.lower()}@example.com")
+        post(f"/event/{eid}/family-price", amount=self.FAMILY_PRICE)
+        fam = {r[1]: r[0] for r in rows("""SELECT s.id, h.name FROM sessions s JOIN households h ON h.id=s.household_id
+                                          WHERE s.event_id=?""", (eid,))}
+        assert sorted(fam) == sorted(f[0] for f in self.FAMILIES), fam
+        n_rel = one("""SELECT COUNT(*) FROM documents WHERE kind='release' AND session_id IN
+                       (SELECT id FROM sessions WHERE event_id=?)""", (eid,))[0]
+        assert n_rel == 11, n_rel
+        for name in self.SIGNED_AT_EVENT:
+            post(f"/event/{eid}/releases", session_id=str(fam[name]), signed_on=self.SCHOOL_DATE)
+        for name in self.PAID:
+            due = x.in_request(lambda sid=fam[name]: x.A.totals(sid))["due"]
+            post(f"/session/{fam[name]}/money", what="payment", kind="balance", amount=f"{due:.2f}",
+                 method="cash", received=self.SCHOOL_DATE)
+            assert x.in_request(lambda sid=fam[name]: x.A.totals(sid))["due"] <= 0.005, name
+        post(f"/event/{eid}/stage", stage="shot")
+        assert {r[0] for r in rows("SELECT stage FROM sessions WHERE event_id=?", (eid,))} == {"shot"}
+        self.e154["school"] = eid
+        self.s154.update({f"school_{n.lower()}": s for n, s in fam.items()})
+
+    def _measure140(self, x, out):
+        got = super()._measure140(x, out)
+        return dict(got, **self._measure154(x, dict(out, **got)))
+
+    def _measure154(self, x, out):
+        one, rows, in_request, A = x.one, x.rows, x.in_request, x.A
+        s_wed, s_eng, eid = self.s154["wedding"], self.s154["engagement"], self.e154["school"]
+        fam = sorted((k, v) for k, v in self.s154.items() if k.startswith("school_"))
+        docs = lambda sid, kind: [dict(person=r[0], status=r[1]) for r in rows(
+            """SELECT p.name, d.status FROM documents d LEFT JOIN people p ON p.id=d.about_person
+               WHERE d.session_id=? AND d.kind=? ORDER BY d.id""", (sid, kind))]
+        return dict(
+            sessions_by_name=dict(out["sessions_by_name"], **self.s154),
+            wedding=dict(client=self.h154["wedding"], name=self.WEDDING,
+                         people=[list(r) for r in rows("SELECT name, role, is_minor FROM people WHERE household_id=? ORDER BY id",
+                                                       (self.h154["wedding"],))],
+                         plan={str(s_eng): s_wed}, agreement=docs(s_wed, "agreement"), releases=docs(s_wed, "release"),
+                         stages={str(r[0]): r[1] for r in rows("SELECT id, stage FROM sessions WHERE id IN (?, ?)", (s_wed, s_eng))},
+                         delivery_method=one("SELECT delivery_method FROM sessions WHERE id=?", (s_wed,))[0],
+                         totals={str(s): {k: round(v, 2) for k, v in in_request(lambda s=s: A.totals(s)).items()
+                                          if k in ("quoted", "paid", "due")} for s in (s_wed, s_eng)}),
+            school=dict(event=eid, name=self.SCHOOL, date=self.SCHOOL_DATE, family_price=float(self.FAMILY_PRICE),
+                        families={k[len("school_"):]: dict(
+                            session=sid, children=[r[0] for r in rows(
+                                """SELECT p.name FROM people p JOIN session_people sp ON sp.person_id=p.id
+                                   WHERE sp.session_id=? ORDER BY p.id""", (sid,))],
+                            releases=[r[0] for r in rows(
+                                "SELECT status FROM documents WHERE session_id=? AND kind='release' ORDER BY id", (sid,))],
+                            due=round(in_request(lambda sid=sid: A.totals(sid))["due"], 2)) for k, sid in fam}),
+        )
+
+def scenario_154(x, made_with):
+
+    x.v15 = True
+    return scenario_101(x, made_with, more=More154())
+
 VERSIONS = {
     "1.0.0": dict(commit="a0966c9", scenario=scenario_100, files=("crm-before-delete.db",), env={}),
     "1.0.1": dict(commit="v1.0.1", scenario=scenario_101, files=(),
@@ -2007,6 +2146,14 @@ VERSIONS = {
     "1.5.3": dict(commit="1b36647", scenario=scenario_150, files=("ntfy.json",),
                   dirs=("galleries", "galleries-kept", "host", "web", "photos", "faces"),
                   env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
+
+    "1.5.4": dict(commit="02128b8", scenario=scenario_154, files=("ntfy.json",),
+                  dirs=("galleries", "galleries-kept", "host", "web", "photos", "faces"),
+                  env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
+
+    "next": dict(commit="HEAD", scenario=scenario_154, files=("ntfy.json",),
+                 dirs=("galleries", "galleries-kept", "host", "web", "photos", "faces"),
+                 env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
 }
 
 def inner(version, code, work, made_with):
@@ -2030,6 +2177,10 @@ def main(argv):
     if version not in VERSIONS:
         sys.exit(f"--version must be one of {', '.join(VERSIONS)}")
     spec = VERSIONS[version]
+    if version == "next":
+        if "--out" not in args:
+            sys.exit("--version next needs --out <folder> (an unreleased build is never saved under tests/fixtures)")
+        args.setdefault("--code", str(REPO))
     out = Path(args.get("--out", REPO / "tests" / "fixtures" / f"db-{version}"))
     short = subprocess.run(["git", "-C", str(REPO), "rev-parse", "--short=7", spec["commit"] + "^{commit}"], check=True,
                            capture_output=True, text=True).stdout.strip()

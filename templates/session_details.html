@@ -15,7 +15,7 @@
     <tr><td>Length</td><td>{{ v.length }}</td></tr>
   </table>
   {% if v.stops %}<h2>Where we'll be</h2>
-  <table>{% for st in v.stops %}<tr><td style="width:120px">{{ st.time or '' }}</td><td><b>{{ st.name }}</b>{% if st.town %}, {{ st.town }}{% endif %}{% if st.what %}<br>{{ st.what }}{% endif %}{% if st.light %}<br><span style="color:#6b6459">Light: {{ st.light }}</span>{% endif %}</td></tr>{% endfor %}</table>
+  <table>{% for st in v.stops %}<tr><td style="width:120px">{{ st.time or '' }}</td><td><b>{{ st.name }}</b>{% for ln in (st.note or '').splitlines() if ln.strip() %}<br>{{ ln }}{% endfor %}</td></tr>{% endfor %}</table>
   <p style="color:#6b6459;font-size:13px">These are the places we agreed on; use them as a guide when you plan the look.</p>{% endif %}
   {% if v.outfits %}<h2>What to wear and bring</h2>
   <p>You plan and bring the theme, {{ v.wear }}, and any props. Change outfits or props as often as you like during the session.</p>{% endif %}

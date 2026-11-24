@@ -144,7 +144,8 @@ def test_off_by_default_and_set_up_in_security(env, sent):
     A, c, tmp = env
     import locknotice
     page = c.get("/settings?tab=notifications", environ_base=E).get_data(as_text=True)
-    assert 'id="notice"' in page and "Send a test notice" in page and "Studio locked after a restart" not in page
+    assert 'id="notice"' in page and "Send a test notice" in page
+    assert re.search(r'<input type="checkbox" disabled>Studio locked after a restart', page)
     assert not locknotice.config_path().exists()
     assert "ntfy.json" in page
 
@@ -168,7 +169,8 @@ def test_off_by_default_and_set_up_in_security(env, sent):
 
     c.post("/security/notice", data=dict(act="remove"), environ_base=E)
     assert not locknotice.config_path().exists()
-    assert "Studio locked after a restart" not in c.get("/settings?tab=notifications", environ_base=E).get_data(as_text=True)
+    assert re.search(r'<input type="checkbox" disabled>Studio locked after a restart',
+                     c.get("/settings?tab=notifications", environ_base=E).get_data(as_text=True))
     assert not sent
 
 def test_the_test_button_sends_with_the_token(env, sent, monkeypatch):

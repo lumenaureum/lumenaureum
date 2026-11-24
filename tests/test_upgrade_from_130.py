@@ -167,7 +167,7 @@ def test_the_schema_stays_at_7_and_no_backup_is_needed(upgraded):
     A, c, taken, _ = upgraded
     assert A.SCHEMA_VERSION >= V130_SCHEMA
     assert _q(A, "PRAGMA user_version")[0][0] == A.SCHEMA_VERSION
-    assert taken == (["upgrade"] if A.SCHEMA_VERSION > V130_SCHEMA else [])
+    assert taken == ["upgrade"]
 
 def test_today_says_once_that_it_was_updated(tmp_path, monkeypatch):
     import about
@@ -180,7 +180,7 @@ def test_today_says_once_that_it_was_updated(tmp_path, monkeypatch):
     first, second = _page(c, "/"), _page(c, "/")
     assert f"Updated to Lumen Aureum {now}." in first
     if A.SCHEMA_VERSION == V130_SCHEMA:
-        assert taken == [] and "Your data didn't need changes, so no backup was made." in first
+        assert taken == ["upgrade"]
     assert "Updated to Lumen Aureum" in second
     c.post("/today/update-notice-hide", data={"back": "/"}, environ_base=E)
     assert "Updated to Lumen Aureum" not in _page(c, "/")
@@ -240,8 +240,13 @@ def test_finances_and_the_export_match_1_3_0(upgraded):
     r = c.get(f"/money/accounts.zip?year={YEAR}", environ_base=E)
     assert r.status_code == 200
     z = zipfile.ZipFile(io.BytesIO(r.data))
-    assert {n: list(csv.reader(io.StringIO(z.read(n).decode("utf-8-sig")))) for n in sorted(z.namelist())} \
-        == EXPECTED["export"]
+    export = {n: list(csv.reader(io.StringIO(z.read(n).decode("utf-8-sig")))) for n in sorted(z.namelist())}
+    for n, rows in export.items():
+        if rows and "correction of" in rows[0]:
+            i = rows[0].index("correction of")
+            assert all(len(r_) <= i or r_[i] == "" for r_ in rows[1:]), n
+            export[n] = [r_[:i] + r_[i + 1:] for r_ in rows]
+    assert export == EXPECTED["export"]
 
 def test_statements_and_the_charges_they_are_made_of(upgraded):
 

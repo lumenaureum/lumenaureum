@@ -26,7 +26,11 @@
 <div class="ui-today-cols"><div class="ui-today-main">
 
 
-{% if clock_paused or unconfirmed %}{% call sect('Check first', 'check-first') %}
+{% if clock_paused or unconfirmed or master_pending or aside_expiring %}{% call sect('Check first', 'check-first') %}
+  {% if master_pending %}<div role="alert" id="master-pending"><p class="ui-needs-line"><b>A new master key takes effect on {{ master_pending.when }}.</b> Until then the current key keeps working. If you didn't ask for it, cancel it.</p>
+    <div class="ui-btnrow">{{ ui.action(url_for('master_pending_cancel'), 'Cancel the new master key', {}, url_for('home'), 'primary', inplace=false, confirm='Cancel the new master key? The current one stays in use.') }}</div></div>{% endif %}
+  {% for a_ in aside_expiring %}<div id="aside-expiring"><p class="ui-needs-line"><b>The data set aside at the restore on {{ a_.made.strftime('%B %-d') }} is removed on {{ a_.gone.strftime('%B %-d') }}.</b> Lumen Aureum keeps a set-aside copy for 30 days. To go back to it, restore it before then; to keep it longer, copy its folder somewhere else.</p>
+    <div class="ui-btnrow">{{ ui.button_link(url_for('vault_restore'), 'Restore from a backup') }}</div></div>{% endfor %}
   {% if clock_paused %}<div role="alert"><p class="ui-needs-line"><b>Automatic deletions are paused.</b> The date moved from {{ nice(clock_paused[0]) }} to {{ nice(clock_paused[1]) }} since the last check, which can mean the clock is wrong. Nothing is sealed or deleted on its own until you confirm today's date.</p>
     <div class="ui-btnrow">{{ ui.action(url_for('clock_confirm'), "Today's date is right", {}, None, 'primary', inplace=false, confirm="Today is " ~ today.strftime('%A, %B %-d, %Y') ~ ". Is that right?") }}</div></div>{% endif %}
   {% if unconfirmed %}<div role="alert" id="unconfirmed"><p class="ui-needs-line"><b>{{ unconfirmed|length }} client{{ '' if unconfirmed|length == 1 else 's' }} you may have deleted {{ 'is' if unconfirmed|length == 1 else 'are' }} back:</b>
@@ -58,12 +62,12 @@
                                 placeholder='Filter by name, task, or label:name', scope='work') }}{% endif %}
 
 
-{% if n_work or loose or B.quiet %}{% call sect('Tasks', 'work') %}
+{% if n_work or loose or B.quiet %}{% call sect('Tasks', 'work') %}{% for k_ in checking %}{{ ui.job_watch(k_) }}{% endfor %}
   {% if not n_work and not loose %}<p class="ui-needs-line">Nothing waits on you today.</p>{% endif %}
   {% if n_work %}<ul class="ui-tlines">{% for l in B.money %}{{ tu.today_line(l, back) }}{% endfor %}{% for l in B.work %}{{ tu.today_line(l, back) }}{% endfor %}{% for l in B.other %}{{ tu.today_line(l, back) }}{% endfor %}</ul>{% endif %}
   {% if loose %}<h3 class="ui-sub-title">Also</h3>{% for it in loose %}
     <div {{ uf.item('mine', it.when or '', dict(kind='Other')) }}>{% if it.post %}<div class="ui-form-row"><span class="ui-grow">{{ it.text }}{% if it.help %}{{ help(it.help) }}{% endif %}{% if it.sub %} <span class="ui-mute">{{ it.sub }}</span>{% endif %}</span>{{ ui.action(it.post, it.verb, it.fields or {}, back) }}</div>
-    {% elif it.link %}{{ ui.list_row(it.link, it.text, it.sub or '') }}
+    {% elif it.link %}{{ ui.list_row(it.link, it.text, it.sub or '', ui.chip('Late', 'late') if it.late else '') }}
     {% else %}<p>{{ it.text }}{% if it.help %}{{ help(it.help) }}{% endif %}{% if it.sub %} <span class="ui-mute">{{ it.sub }}</span>{% endif %}</p>{% endif %}</div>{% endfor %}{% endif %}
   
   {% if B.quiet %}{% call ui.fold('Waiting on the client or nothing to do now', id='quiet', count=B.quiet|length) %}

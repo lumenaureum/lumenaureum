@@ -18,7 +18,7 @@
     {% if i_.email %}{{ ui.fact('Email', '<a href="mailto:'|safe ~ i_.email ~ '">'|safe ~ i_.email ~ '</a>'|safe) }}{% endif %}
     {% if i_.phone %}{{ ui.fact('Phone', '<a href="tel:'|safe ~ (i_.phone|replace(' ', '')|replace('-', '')|replace('(', '')|replace(')', '')|replace('.', '')) ~ '">'|safe ~ i_.phone ~ '</a>'|safe) }}{% endif %}
     <p>Kind of session: {{ kind_ }}</p>
-    {% if i_.date %}{{ ui.fact('Preferred date', i_.date) }}{% endif %}
+    {% if i_.date %}{{ ui.fact('Preferred date', i_.date) }}{% set holds_ = date_holds(i_.date) %}{% if holds_ %}<div class="ui-chips">{{ ui.chip(holds_.words, 'attention') }}</div>{% endif %}{% endif %}
     {% if i_.matches or i_.twin %}<div class="ui-chips">{% for m_ in i_.matches %}{{ ui.chip('Matches ' ~ m_.name ~ ': the same email or phone number', 'attention') }} {% endfor %}
       {% if i_.twin %}{{ ui.chip('The same email or phone number as another inquiry waiting here', 'attention') }}{% endif %}</div>{% endif %}
     {% set pick_ = not i_.type_label or i_.type == 'other' %}

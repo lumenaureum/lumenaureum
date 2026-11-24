@@ -5,8 +5,25 @@ from flask.testing import FlaskClient
 class HttpsClient(FlaskClient):
 
     def open(self, *args, **kw):
+        if args and not isinstance(args[0], str):
+            return super().open(*args, **kw)
         kw.setdefault("base_url", "https://localhost")
+        kw["headers"] = _like_a_browser(kw.get("headers"), kw.get("environ_base"), kw.get("environ_overrides"))
         return super().open(*args, **kw)
+
+PROVENANCE = ("Sec-Fetch-Site", "Origin", "Referer")
+
+def _like_a_browser(headers, *environs):
+
+    from werkzeug.datastructures import Headers
+    given = list(headers.items() if hasattr(headers, "items") else (headers or []))
+    out = Headers([(k, v) for k, v in given if v is not None])
+    named = {k.lower() for k, _ in given}
+    for env in environs:
+        named |= {k[5:].replace("_", "-").lower() for k in (env or {}) if k.startswith("HTTP_")}
+    if not named & {h.lower() for h in PROVENANCE}:
+        out["Sec-Fetch-Site"] = "same-origin"
+    return out
 
 TEST_PASSWORD = "test password 123"
 MODULES = ("app", "auth", "config", "setup", "sun", "datakey", "locknotice", "db", "atrest", "rotate", "netsec", "about", "settings_io", "serve", "seed_demo", "walkthrough")
@@ -16,6 +33,10 @@ def fresh_modules():
     import sys
     for m in [m for m in sys.modules if m in MODULES or m.startswith(("vault", "plugins"))]:
         del sys.modules[m]
+
+    ps = sys.modules.get("photostore")
+    if ps is not None:
+        ps.ON_GONE.clear()
 
 def unlock_new_install(A, password=TEST_PASSWORD):
 

@@ -12,6 +12,8 @@
 
 {% block body %}
 {% set T = tiers %}
+
+{% set free_ = nothing_to_pay(s.id, t) if t else false %}
 {% set cur = wf.current %}
 {% set open_steps = cur.steps|rejectattr('done')|map(attribute='label')|list if cur else [] %}
 {% set intake_q = C.INTAKE.get(s.type) or [] %}
@@ -66,7 +68,25 @@
 {% endset %}
 
 
+
+
+{% set from_line_ %}{% if from_client %}{% set ck_ = from_client.checked %}{% if from_client.checking %}{% set fl_ %}From the client: checking now{{ ui.job_watch(from_client.key) }}{% endset %}{% call ph.fact_row(fl_, id='from-client') %}{% endcall %}
+{% else %}{% call ph.fact_row(('From the client, ' ~ from_client.said) if from_client.said else 'From the client' ~ ( (': last checked ' ~ ('just now' if ck_ < 1 else '1 min ago' if ck_ == 1 else ck_ ~ ' min ago' if ck_ < 120 else (ck_ // 60) ~ ' hours ago')) if ck_ is not none else ''), id='from-client') %}{{ ui.action(url_for('client_check_now', hid=h.id), 'Check now', {}, back, 'quiet') }}{% endcall %}{% endif %}{% endif %}{% endset %}
 {% set follow_ = acts|selectattr('followup')|first if s.stage == 'quoted' else none %}
+
+{% set pencil_ %}{% if s.stage in ('inquiry', 'quoted') and s.shoot_date and not s.event_id %}
+  {%- set day_ = nice(s.shoot_date[:10]) %}{% set holds_ = date_holds(s.shoot_date, s.id) %}{% set pen_ = penciled(s) %}{% set lapsed_ = pencil_lapsed(s) %}
+  {%- set line_ = ((holds_.words ~ ' ') if holds_ else '') ~ (('The hold on ' ~ day_ ~ ' lapsed ' ~ nice(s.pencil_until[:10]) ~ '.') if lapsed_ else ('Penciled in ' ~ day_ ~ ', held until ' ~ nice(s.pencil_until[:10]) ~ '.') if pen_ else '') %}
+  {%- set do_ %}{% if not pen_ %}{{ ui.action(url_for('session_pencil', sid=s.id), 'Pencil in ' ~ day_, dict(act='pencil'), back, 'quiet') }}{{ help('Holds ' ~ day_ ~ ' on your calendar for ' ~ PENCIL_DAYS ~ ' days, so other inquiries for that day show it. Only you see it.') }}
+    {%- else %}{% if lapsed_ %}{{ ui.action(url_for('session_pencil', sid=s.id), 'Extend the hold ' ~ PENCIL_DAYS ~ ' days', dict(act='extend'), back, 'quiet') }}{% else %}{{ ui.opener('pencil-until', 'Change the hold') }}{% endif %}
+    {{- ui.action(url_for('session_pencil', sid=s.id), 'Release the date', dict(act='release'), back, 'quiet') }}{% endif %}{% endset %}
+  {%- if line_ %}{% call ph.fact_row(line_|trim, id='pencil', tone='attention' if holds_ or lapsed_ else '') %}{{ do_ }}{% endcall %}
+  {%- else %}<div class="ui-btnrow" id="pencil">{{ do_ }}</div>{% endif %}
+  {%- if pen_ and not lapsed_ %}{% call ui.inline_form('pencil-until', 'Hold until') %}<form method="post" action="{{ url_for('session_pencil', sid=s.id) }}" class="ui-form-row" data-ui-inplace>
+    <input type="hidden" name="act" value="until"><input type="hidden" name="back" value="{{ back }}">
+    <label>Hold until <input type="date" name="until" value="{{ s.pencil_until[:10] }}" min="{{ today.isoformat() }}" required class="ui-input-date"></label>
+    <button class="ui-btn ui-btn-primary">Hold until this day</button></form>{% endcall %}{% endif %}
+{% endif %}{% endset %}
 
 {% macro why_lost(reasons, label_id, label) -%}
   <span class="ui-label" id="{{ label_id }}">{{ label }}</span>{{ seg('lost_reason', reasons, None, attrs='required', by=label_id) }}
@@ -81,19 +101,23 @@
     {{ why_lost(C.NOT_BOOKED_REASONS, 'nb-why', 'Why') }}
     <button class="ui-btn ui-btn-primary">Do not book</button>{{ help("Closes the " ~ ('inquiry' if s.stage == 'inquiry' else 'quote') ~ ". You can undo it.") }}</form>{% endcall %}
 {%- endmacro %}
-{% if s.stage == 'lost' and before_lost in ('inquiry', 'quoted') %}{% call ui.needs('Not booked', id='lost') %}
+{% if s.stage == 'lost' and before_lost in ('inquiry', 'quoted') %}{% call ui.needs('Not booked', id='lost', lead=from_line_) %}
   <p class="ui-needs-line">Not booked{% if s.lost_reason %}: {{ s.lost_reason }}{% endif %}.</p>
   <form method="post" action="{{ url_for('session_stage', sid=s.id) }}" class="ui-form-row" data-ui-inplace>
     <input type="hidden" name="stage" value="lost"><input type="hidden" name="back" value="{{ back }}"><span class="ui-label" id="nb-why">Why</span>{{ seg('lost_reason', C.NOT_BOOKED_REASONS, s.lost_reason, attrs='data-autosubmit', by='nb-why') }}</form>
   <div class="ui-btnrow">{{ ui.action(url_for('session_stage', sid=s.id), 'Undo: reopen at ' ~ stage_label[before_lost], dict(stage=before_lost), back, 'quiet') }}</div>
 {% endcall %}
-{% elif s.stage == 'lost' %}{% call ui.needs('Why it was lost', id='lost') %}
+{% elif s.stage == 'lost' %}{% call ui.needs('Why it was lost', id='lost', lead=from_line_) %}
   <form method="post" action="{{ url_for('session_stage', sid=s.id) }}" class="ui-form-row" data-ui-inplace>
     <input type="hidden" name="stage" value="lost"><input type="hidden" name="back" value="{{ back }}">{{ seg('lost_reason', C.LOST_REASONS, s.lost_reason, attrs='data-autosubmit', label='Why it was lost') }}</form>
-  {% if t.kept > 0.005 or t.refund_due > 0.005 %}<p class="ui-mute">{% if t.kept > 0.005 %}You keep the deposit, {{ money(t.kept) }}, per the Terms, whatever the reason it was lost{% if kept_tax %}; it carries {{ money(kept_tax) }} sales tax, counted in the year it was paid{% endif %}.{% else %}No deposit to keep.{% endif %}
-    {% if t.refund_due > 0.005 %}<b>Refund due: {{ money(t.refund_due) }}</b>, paid beyond the deposit. Record it under Billing as a Refund once it goes back.{% endif %}</p>{% endif %}
+  {% if own_credit or t.kept > 0.005 or t.refund_due > 0.005 %}<p class="ui-mute">{% if own_credit %}{{ 'The deposit'|dep }}, {{ money(own_credit.amount) }}, is held as a credit toward a future session{% if own_credit.used > 0.005 or own_credit.left < own_credit.amount - 0.005 %}: {{ money(own_credit.used) }} used, {{ money(own_credit.left) }} left{% endif %}. It shows on this client's next session, ready to use.
+    {%- elif t.kept > 0.005 %}{{ 'You keep the deposit'|dep }}, {{ money(t.kept) }}, per the Terms, whatever the reason it was lost{% if kept_tax %}; it carries {{ money(kept_tax) }} sales tax, counted in the year it was paid{% endif %}.{% else %}{{ 'No deposit to keep.'|dep }}{% endif %}
+    {% if t.refund_due > 0.005 %}<b>Refund due: {{ money(t.refund_due) }}</b>, {{ 'paid beyond the deposit'|dep }}. Record it under Billing as a Refund once it goes back.{% endif %}</p>{% endif %}
+  
+  {% if (t.kept > 0.005 and not own_credit) or (own_credit and own_credit.used <= 0.005) %}<form method="post" action="{{ url_for('session_credit_choice', sid=s.id) }}" class="ui-form-row" data-ui-inplace>
+    <input type="hidden" name="back" value="{{ back }}"><span class="ui-label" id="dep-choice">{{ 'The deposit'|dep }}</span>{{ seg('deposit', [('keep', 'Keep it'), ('credit', 'Credit toward a future session')], 'credit' if own_credit else 'keep', attrs='data-autosubmit', by='dep-choice') }}{{ help(("Keep it: the Terms say you keep the deposit if the client cancels."|dep) ~ " A credit: the client may put it toward a session they book later; until they do, it counts as kept. Undo is here until any of it is used.") }}</form>{% endif %}
 {% endcall %}
-{% elif s.stage == 'inquiry' %}{% call ui.needs('Their message', id='message') %}{{ message_ }}
+{% elif s.stage == 'inquiry' %}{% call ui.needs('Their message', id='message', lead=from_line_) %}{{ message_ }}
   <div class="ui-btnrow">
     
     {% set reply_ = reply_ways(s.id) %}{% set replied_ = replied_on(s.id) %}
@@ -104,17 +128,17 @@
   
   {% if replied_ %}<p class="ui-mute">You replied {{ nice(replied_) }}.</p>
   {% else %}<form method="post" action="{{ url_for('session_reply', sid=s.id) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ back }}">
-    {{ seg('how', REPLY_HOW.items()|list, 'email', label='How you replied') }}<button class="ui-btn ui-btn-quiet">Mark replied</button></form>{% endif %}{{ dont_book_form() }}{% endcall %}
-{% elif s.stage == 'quoted' %}{% call ui.needs('The quote', id='quote-now') %}
-  <p class="ui-needs-line">{% if lines %}{{ money(t.quoted) }}{% if versions %}, sent {{ nice(versions[0].at[:10]) }}{% else %}, not sent yet{% endif %}{% if t.deposit_short > 0.005 %} &middot; deposit {{ money(t.deposit_short) }} due{% endif %}{% else %}No quote lines yet{% endif %}</p>
+    {{ seg('how', REPLY_HOW.items()|list, 'email', label='How you replied') }}<button class="ui-btn ui-btn-quiet">Mark replied</button></form>{% endif %}{{ pencil_ }}{{ dont_book_form() }}{% endcall %}
+{% elif s.stage == 'quoted' %}{% call ui.needs('The quote', id='quote-now', lead=from_line_) %}
+  <p class="ui-needs-line">{% if lines or free_ %}{{ 'No charge' if free_ else money(t.quoted) }}{% if versions %}, sent {{ nice(versions[0].at[:10]) }}{% else %}, not sent yet{% endif %}{% if t.deposit_short > 0.005 %} &middot; {{ 'deposit'|dep }} {{ money(t.deposit_short) }} due{% endif %}{% else %}No quote lines yet{% endif %}</p>
   <div class="ui-btnrow">
-    {{ ui.action(url_for('quick', sid=s.id), 'Book it', dict(act='book'), back, 'primary') }}
+    {{ ui.action(url_for('quick', sid=s.id), 'Book it', dict(act='book'), back, 'primary', extra=ui.final_tick(s.shoot_date) if s.shoot_date else '') }}
     {% if follow_ %}{{ ui.button_link(follow_.doc, 'Follow up', 'quiet') }}{{ ui.action(follow_.post, 'I sent the follow-up', follow_.fields, back, 'quiet') }}{% endif %}
     {{ dont_book() }}
-  </div>{{ dont_book_form() }}{% endcall %}
-{% elif fst == 'shoot_day' %}{% call ui.needs('The shoot', id='shoot') %}{{ shoot_ }}{% endcall %}
-{% elif fst == 'closed' %}{% call ui.needs('Closed', id='closed-now') %}
-  <p class="ui-needs-line">{% if s.shoot_date %}Shot {{ nice(s.shoot_date) }} &middot; {% endif %}{{ money(t.paid) }} of {{ money(t.quoted) }} paid{% if t.written_off > 0.005 %}, {{ money(t.written_off) }} waived{% endif %}</p>
+  </div>{{ pencil_ }}{{ dont_book_form() }}{% endcall %}
+{% elif fst == 'shoot_day' %}{% call ui.needs('The shoot', id='shoot', lead=from_line_) %}{{ shoot_ }}{% endcall %}
+{% elif fst == 'closed' %}{% call ui.needs('Closed', id='closed-now', lead=from_line_) %}
+  <p class="ui-needs-line">{% if s.shoot_date %}Shot {{ nice(s.shoot_date) }} &middot; {% endif %}{% if free_ %}No charge{% else %}{{ money(t.paid) }} of {{ money(t.quoted) }} paid{% endif %}{% if t.written_off > 0.005 %}, {{ money(t.written_off) }} waived{% endif %}</p>
   <div class="ui-btnrow">{{ ui.opener('new-session', '+ New session for ' ~ h.name, 'primary') }}
     {% if s.stage == 'closed' %}{{ ui.action(url_for('session_stage', sid=s.id), 'Reopen at Delivered', dict(stage='delivered'), back, 'quiet') }}{% endif %}</div>
   {% call ui.inline_form('new-session', 'New session') %}<div class="ui-btnrow">{% for k, v in C.SESSION_TYPES.items() %}{% if k in C.NEW_SESSION_TYPES %}{{ ui.go(url_for('inquiry', hid=h.id, type=k), v) }}{% endif %}{% endfor %}</div>{% endcall %}
@@ -136,14 +160,28 @@
       {% if rest %}<optgroup label="Other session types">{% for it in rest %}{{ fee_opt(it) }}{% endfor %}</optgroup>{% endif %}
       {% if custom %}<optgroup label="Not on the price list"><option value="custom">Something else (type it)</option></optgroup>{% endif %}
     </select>
-    {% if custom %}<span class="qcustom" hidden><input name="label" maxlength="200" placeholder="What it is" aria-label="What it is"><input type="number" step="0.01" name="amount" placeholder="$ each" aria-label="Price each, in dollars" class="ui-input-money">{% if tax_rate %}<input type="hidden" name="taxable_shown" value="1"><label class="ui-check"><input type="checkbox" name="taxable" value="1" checked>taxed</label>{% endif %}</span>{% endif %}
+    {% if custom %}<span class="qcustom" hidden><input name="label" maxlength="200" placeholder="What it is" aria-label="What it is"><input type="number" step="0.01" name="amount" placeholder="$ each" aria-label="Price each, in dollars" class="ui-input-money">{% if taxed %}<input type="hidden" name="taxable_shown" value="1"><label class="ui-check"><input type="checkbox" name="taxable" value="1" checked>taxed</label>{% endif %}</span>{% endif %}
     
     <label class="ui-qty-l"><span>How many</span><input type="number" step="0.5" min="0.5" name="qty" value="1" class="ui-input-qty"></label><button class="ui-btn {{ 'ui-btn-primary' if primary else 'ui-btn-quiet' }}">Add the line</button><span class="qmsg ui-mute" role="alert" hidden>Pick a line from the list first.</span></form>
 {%- endmacro %}
 
+{% macro inst_form() -%}
+  <form method="post" action="{{ url_for('session_installments', sid=s.id) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ back }}">
+    <label>{{ 'The balance after the deposit'|dep }} in <input type="number" name="n" min="1" max="{{ [C.INSTALLMENTS_MAX, inst_n]|max }}" value="{{ [inst_n, 1]|max }}" class="ui-input-qty" required> payments</label>
+    <button class="ui-btn ui-btn-quiet">Save payments</button>{{ help("Equal payments, one a month on the same day of the month as the booking; the last is due on the day the balance is due. With fewer months than payments, they are spread evenly instead. At most " ~ C.INSTALLMENTS_MAX ~ " payments. 1 is one payment. Only the dates change: the price stays as agreed.") }}</form>
+  {% if inst_n > C.INSTALLMENTS_MAX %}<p class="ui-mute">This plan has {{ inst_n }} payments, set before plans were limited to {{ C.INSTALLMENTS_MAX }}. It stays as agreed. A new or changed plan has at most {{ C.INSTALLMENTS_MAX }} payments.</p>{% endif %}
+  
+  
+  {% if plan_dates_moved(s.id) %}<p class="ui-mute">The shoot date changed after this plan was agreed. Its dates stay as agreed, so no payment is due sooner than the client was told.</p>
+  <div class="ui-btnrow">{{ ui.action(url_for('session_installments', sid=s.id), 'Set the dates again from the new shoot date', dict(redate='1'), back, 'quiet', confirm='Set the plan\'s dates again from the new shoot date? Tell the client: the dates on a quote or invoice already sent stay as sent.') }}</div>{% endif %}
+  {% if inst and not plan_dates_moved(s.id) and inst[0].spacing == 'even' %}<p class="ui-mute">There are fewer months between booking and the day the balance is due than payments, so the payments are spread evenly instead of one a month.</p>{% endif %}
+{%- endmacro %}
 {% set bill_ %}
   
   {% set open_q = s.stage in ('inquiry','quoted') or replacing %}{% set edit_q = not q_locked and s.stage not in ('closed', 'lost') %}
+  
+  {% set on_plan_ = s.plan_of and not lines and not replacing and billed_on_plan(s.id) %}
+  {% if on_plan_ %}<p>Billed on the quote of {{ plan_head_label(s.id) }}. {{ ui.go(url_for('session_quote', sid=s.plan_of), 'Open that quote') }}</p>{% endif %}
   {% if replacing %}<p>{{ ui.chip('New quote', 'attention') }} Replaces the booked quote of {{ money(replacing.old_total) }}, canceled {{ nice(replacing.at[:10]) }}{{ help("The canceled quote is kept in History. Change this one, send it, and press Book it when they say yes.") }}</p>{% endif %}
   
   {% set sch_id_ = quote.schedule_id if quote else fee_sched.id %}
@@ -160,8 +198,9 @@
       {%- if l.kind == 'portfolio' and edit_q %}<form method="post" action="{{ url_for('portfolio_set', sid=s.id) }}" class="ui-action" data-ui-inplace><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="set" value="declined"><button class="ui-x" title="Remove: the client does not allow portfolio use" aria-label="Remove the portfolio discount: the client does not allow portfolio use">&times;</button></form>
       {%- elif l.kind not in ('discount', 'tax') and edit_q %}<form method="post" action="{{ url_for('money_delete', what='line', rid=l.id) }}" class="ui-action" data-ui-inplace><input type="hidden" name="back" value="{{ back }}"><button class="ui-x" title="Remove this line" aria-label="Remove line {{ l.label }}">&times;</button></form>{% endif %}
     {% endcall %}{% endfor %}
-    {% if lines %}{{ ui.money_total('Total', money(t.quoted)) }}{% endif %}
-    {% for p_ in x_.payments %}{% call ui.money_row(money(p_.amount), 'ui-money-sub') %}{{ nice(p_.received) if p_.received else '' }} {{ p_.kind }}{% if p_.method == 'other' and p_.note %}, {{ p_.note }}{% elif p_.method %}, {{ p_.method }}{% endif %}{% endcall %}{% endfor %}
+    {% if lines or free_ %}{{ ui.money_total('Total', 'No charge' if free_ else money(t.quoted)) }}{% endif %}
+    {% for it_ in included %}{% call ui.money_row(money(it_.amount), 'ui-money-sub') %}Includes {{ it_.name }} ({{ '%g' % it_.rate }}%){% endcall %}{% endfor %}
+    {% for p_ in x_.payments %}{% call ui.money_row(money(p_.amount), 'ui-money-sub') %}{{ nice(p_.received) if p_.received else '' }} {{ p_.kind|dep }}{% if p_.method == 'other' and p_.note %}, {{ p_.note }}{% elif p_.method %}, {{ p_.method }}{% endif %}{% endcall %}{% endfor %}
     {% if lines and t.paid %}{{ ui.money_total('Paid', money(t.paid)) }}{% if t.due > 0.005 %}{{ ui.money_total('Balance', money(t.due)) }}{% endif %}{% endif %}
   {% endcall %}
   
@@ -171,7 +210,26 @@
     {% set pay_ = dict(form='deposit_paid' if dep_ else 'pay_balance', verb='Record payment', sid=s.id, dep_amt=t.deposit_short, pay_amt=t.due) %}
     <div class="ui-btnrow">{{ ui.opener(ui.step_form_id(pay_), 'Record payment') }}</div>{{ ui.step_form(pay_, back, s) }}
   {% endif %}
-  {% if edit_q %}{% set mine_ = fee_sched['items']|selectattr('type', 'defined')|selectattr('type', 'equalto', s.type)|map(attribute='key')|list %}
+  
+  {% if resched_open %}{% call ph.fact_row('Rescheduled ' ~ ('once' if moved == 1 else moved ~ ' times') ~ ': the Terms charge ' ~ money(C.RESCHEDULE_FEE) ~ ' for each reschedule after the free one.', id='resched-fee', tone='attention') %}
+    {{ ui.action(url_for('session_reschedule_fee', sid=s.id), 'Add the ' ~ money(C.RESCHEDULE_FEE) ~ ' fee', dict(act='add', once=form_once()), back) }}{{ ui.action(url_for('session_reschedule_fee', sid=s.id), 'Waive it', dict(act='waive'), back) }}{% endcall %}{% endif %}
+  
+  {% if lines and t.due > 0.005 and s.stage not in ('lost', 'closed') %}{% for c_ in credits %}{% set use_ = [c_.left, t.due]|min %}
+    {% call ph.fact_row('Credit from the canceled ' ~ c_.what ~ ' session: ' ~ money(c_.left) ~ '.', id='credit-' ~ c_.id, tone='attention') %}
+    {{ ui.action(url_for('session_credit_use', sid=s.id), 'Use ' ~ money(use_) ~ ' of the credit', dict(credit=c_.id, once=form_once()), back,
+       confirm='Put ' ~ money(use_) ~ ' of the credit toward this session? It is recorded today as a payment here and as money moved out of the canceled session.') }}{% endcall %}{% endfor %}{% endif %}
+  
+  {% if inst %}{% set nx_ = inst|selectattr('status', 'ne', 'paid')|first %}
+    {% if nx_ %}<p>Next installment ({{ nx_.n }} of {{ nx_.of }}): <b>{{ money(nx_.left) }}</b>{% if nx_.due %} {{ ui.due_words(nice(nx_.due), nx_.status == 'late') }}{% endif %}</p>{% endif %}
+    {% call ui.fold('Installments', id='installments', count=inst|length) %}
+      {% call ui.money_table('Installments') %}{% for r_ in inst %}{% call ui.money_row(money(r_.amount)) %}{{ r_.n }} of {{ r_.of }}{% if r_.due %}, due {{ nice(r_.due) }}{% else %}, due once the shoot date is set{% endif %}
+        {% if r_.status == 'paid' %}{{ ui.chip('Paid', 'done') }}{% elif r_.status == 'late' %}{{ ui.chip(money(r_.left) ~ ' late', 'late') }}{% elif r_.part %}{{ ui.chip(money(r_.left) ~ ' left', 'neutral') }}{% endif %}{% endcall %}{% endfor %}{% endcall %}
+      {% if s.stage not in ('lost', 'closed') %}{{ inst_form() }}{% endif %}
+    {% endcall %}
+  {% elif lines and t.due > 0.005 and s.stage not in ('lost', 'closed') and not free_ %}
+    <div class="ui-btnrow">{{ ui.opener('inst-form', 'Pay in installments') }}</div>{% call ui.inline_form('inst-form', 'Pay in installments') %}{{ inst_form() }}{% endcall %}
+  {% endif %}
+  {% if edit_q and not on_plan_ %}{% set mine_ = fee_sched['items']|selectattr('type', 'defined')|selectattr('type', 'equalto', s.type)|map(attribute='key')|list %}
   {% set own_ = fee_sched['items']|selectattr('key', 'in', mine_)|list %}{% set add_ = fee_sched['items']|selectattr('key', 'in', C.ADDON_FEES)|list %}
   {% set rest_ = fee_sched['items']|rejectattr('key', 'in', mine_)|rejectattr('key', 'in', C.ADDON_FEES)|list %}
   
@@ -179,34 +237,33 @@
   {{ line_form(own_, add_, [] if split_ else rest_, 'Add a line' if lines else 'Pick the first line', not lines, true) }}
   {% if split_ %}{% call ui.fold('Lines from other session types', id='other-lines', count=rest_|length) %}{{ line_form([], [], rest_, 'Lines from other session types', false, false) }}{% endcall %}{% endif %}
   {% endif %}
-  {% if lines and t.deposit_short > 0.005 and s.stage in ('quoted', 'booked') %}<p>{% if t.paid > 0.005 %}Deposit <b>{{ money(t.deposit_short) }}</b> short of {{ money(t.deposit_req) }}{% else %}Deposit <b>{{ money(t.deposit_req) }}</b> due{% endif %}</p>{% endif %}
-  {% if not lines and not edit_q %}<p class="ui-mute">No quote yet. {{ ui.go(url_for('fee_sheet', type=s.type, sid=s.id), 'Send the ' ~ C.SESSION_TYPES.get(s.type, '') ~ ' price list', blank=true) }}</p>{% endif %}
-  {% if edit_q %}{% call ui.fold('Discount' ~ (', portfolio' if C.TYPE_KIND.get(s.type) != 'property' else '') ~ (', tax' if tax_rate else ''), id='bill-options') %}
+  {% if lines and t.deposit_short > 0.005 and s.stage in ('quoted', 'booked') %}<p>{% if t.paid > 0.005 %}{{ 'Deposit'|dep }} <b>{{ money(t.deposit_short) }}</b> short of {{ money(t.deposit_req) }}{% else %}{{ 'Deposit'|dep }} <b>{{ money(t.deposit_req) }}</b> due{% endif %}</p>{% endif %}
+  {% if not lines and not edit_q and not on_plan_ %}<p class="ui-mute">No quote yet. {{ ui.go(url_for('fee_sheet', type=s.type, sid=s.id), 'Send the ' ~ C.SESSION_TYPES.get(s.type, '') ~ ' price list', blank=true) }}</p>{% endif %}
+  {% if edit_q and not on_plan_ %}{% call ui.fold('Discount' ~ (', portfolio' if C.TYPE_KIND.get(s.type) != 'property' else '') ~ (', tax' if taxed else ''), id='bill-options') %}
     <form method="post" action="{{ url_for('quote_discount', sid=s.id) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ back }}">
       <span class="seg" role="radiogroup" aria-label="Discount reason">{% for k, lab, pct in C.DISCOUNTS %}<label><input type="radio" name="reason" value="{{ k }}" data-fill="pct" data-value="{{ pct }}"{{ ' checked' if (quote.discount_reason if quote else '') == k }}><span>{{ lab }}{% if pct %} ({{ pct }}%){% endif %}</span></label>{% endfor %}</span>
       <input type="number" name="pct" min="0" max="100" step="1" value="{{ (quote.discount_pct|int) if quote else 0 }}" class="ui-input-qty" title="Discount %" aria-label="Discount percent"><span class="ui-mute">%</span><button class="ui-btn ui-btn-quiet">Apply</button></form>
     {% if C.TYPE_KIND.get(s.type) != 'property' %}<form method="post" action="{{ url_for('portfolio_set', sid=s.id) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ back }}">
       <span class="ui-mute">Portfolio{{ help("Allowed: you may show up to " ~ C.MARKETING_PICKS ~ " photos (you choose; the client may suggest favorites and say no to any). Not allowed: nothing from this session is ever shown.") }}</span>
       {{ seg('set', [('allowed', 'Allowed' ~ (' (' ~ C.portfolio_discount_words(s.type) ~ ' off)' if C.portfolio_discount_words(s.type) else '')), ('declined', 'Not allowed')], 'declined' if s.portfolio_no else 'allowed', attrs='data-autosubmit', label='Portfolio') }}</form>{% endif %}
-    {% if tax_rate %}<form method="post" action="{{ url_for('quote_exempt', sid=s.id) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ back }}">
-      <label class="ui-check"><input type="checkbox" name="tax_exempt" value="1" data-autosubmit {{ 'checked' if s.tax_exempt }}>Tax exempt, certificate on file</label></form>
-    {% if not s.tax_exempt and tax_areas %}<form method="post" action="{{ url_for('quote_exempt', sid=s.id) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ back }}">
-      <span class="ui-label" id="taxarea-l">Delivered</span>{{ seg('tax_area', tax_areas, s.tax_area or 'auto', attrs='data-autosubmit', by='taxarea-l') }}
-      {% if not s.tax_area %}<span class="ui-mute">{{ tax_area_names.get(tax_auto[0], '') }}</span>{% endif %}</form>
-    {% if tax_auto[1] %}{{ ui.chip('Warning: ' ~ tax_auto[1], 'attention') }}{% endif %}{% endif %}{% endif %}
+    {% if taxed %}{% if tax_exempt_why == 'client' %}{{ ui.fact('Tax', 'Exempt, the client\'s certificate' ~ (' ' ~ tax_cert if tax_cert else '') ~ ' on file') }}
+    {% else %}<form method="post" action="{{ url_for('quote_exempt', sid=s.id) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ back }}">
+      <label class="ui-check"><input type="checkbox" name="tax_exempt" value="1" data-autosubmit {{ 'checked' if s.tax_exempt }}>Tax exempt, certificate on file</label>{{ help("For this session only. A client exempt on every session: tick Tax exempt in their details.") }}</form>{% endif %}
+    {% if not tax_exempt_why %}{% for t_ in tax_items %}<form method="post" action="{{ url_for('quote_exempt', sid=s.id) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="tax_key" value="{{ t_.key }}">
+      <label class="ui-check"><input type="checkbox" name="tax_on" value="1" data-autosubmit {{ 'checked' if t_.on }}>{{ t_.name }} {{ '%g' % t_.rate }}%{% if t_.included %}, included in the price{% endif %}</label>{% if t_.note %}{{ ui.chip(t_.note, 'attention') }}{% endif %}</form>{% endfor %}{% endif %}{% endif %}
   {% endcall %}
   
   {% if s.type in C.LICENSE_TYPES and business_client(s) %}{% call ui.fold('License', id='license') %}
     <form method="post" action="{{ url_for('quote_license', sid=s.id) }}" class="ui-form-grid" data-ui-inplace><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="lic_present" value="1">
       <label><span>License term</span><input name="lic_term" maxlength="200" value="{{ s.lic_term or '' }}" placeholder="2 years, or blank for no end"></label>
       <label><span>Territory</span><input name="lic_territory" maxlength="200" value="{{ s.lic_territory or '' }}" placeholder="United States, or blank for anywhere"></label>
-      <label class="ui-check"><input type="checkbox" name="lic_exclusive" value="1"{{ ' checked' if s.lic_exclusive }}>Exclusive license</label>
+      <label class="ui-check"><input type="checkbox" name="lic_exclusive" value="1"{{ ' checked' if s.lic_exclusive }}>Exclusive license{{ help("On an exclusive license, sign your own line on the agreement too, not only the client.") }}</label>
       <div><button class="ui-btn ui-btn-quiet">Save license</button></div></form>{% endcall %}{% endif %}
   {% elif lines %}
     {% set dr_ = (C.DISCOUNTS|selectattr(0, 'equalto', quote.discount_reason)|map(attribute=1)|first) if quote and quote.discount_reason else '' %}
     {% if quote and quote.discount_pct %}{{ ui.fact('Discount', (dr_ ~ ', ' if dr_ else '') ~ (quote.discount_pct|int) ~ '%') }}{% endif %}
     {% if C.TYPE_KIND.get(s.type) != 'property' %}{{ ui.fact('Portfolio', 'Not allowed' if s.portfolio_no else 'Allowed') }}{% endif %}
-    {% if tax_rate and s.tax_exempt %}{{ ui.fact('Sales tax', 'Exempt, certificate on file') }}{% endif %}
+    {% if taxed and tax_exempt_why %}{{ ui.fact(tax_word, 'Exempt, certificate on file') }}{% endif %}
     {% if s.type in C.LICENSE_TYPES and business_client(s) %}{{ ui.fact('License', [s.lic_term or 'No end', s.lic_territory or 'anywhere', 'exclusive' if s.lic_exclusive else 'not exclusive']|join(', ')) }}{% endif %}
   {% endif %}
   {% if quote %}<p class="ui-mute">{% if quote.expired and open_q %}{{ ui.chip('Expired ' ~ nice(quote.expires), 'attention') }}{% elif open_q %}Good through {{ nice(quote.expires) }}{% else %}Quoted {{ nice(quote.created[:10]) }}{% endif %}
@@ -216,12 +273,17 @@
     {%- if quote_same %}<a class="ui-btn ui-btn-{{ qcls_ }}" href="{{ url_for('quote_doc', vid=quote_same.id) }}" target="_blank" title="Nothing changed since quote {{ quote_same.number or quote_same.id }} was made: open it to email, print, or mark sent">Send the quote</a>
     {%- else %}<form method="post" action="{{ url_for('quote_send', sid=s.id) }}" class="ui-action" data-quote-send title="Numbers the quote and opens it to email, print, or mark sent. Nothing is emailed yet."><input type="hidden" name="total" value="{{ '%.2f'|format(t.quoted) }}"><button class="ui-btn ui-btn-{{ qcls_ }}">{{ 'Prepare updated quote' if versions else 'Prepare quote' }}</button></form>
     {{ ui.go(url_for('quote_preview', sid=s.id), 'Preview', blank=true) }}{% endif %}{% endif %}
-    {% for v in versions %}{{ ui.go(url_for('quote_doc', vid=v.id), 'Quote ' ~ (v.number or v.id) ~ ', ' ~ nice(v.at[:10]) ~ (', canceled' if v.id in canceled_vids else ''), blank=true) }}{% endfor %}
-    {% if lines and s.stage not in ('inquiry', 'quoted', 'lost') %}{% if t.due > 0.005 %}{{ ui.go(url_for('invoice', sid=s.id), 'Invoice', blank=true) }}{% elif t.paid > 0.005 %}{{ ui.go(url_for('receipt', sid=s.id), 'Receipt', blank=true) }}{% endif %}{% endif %}</div>
+    
+    {% for v in versions %}{% set newer_ = versions[loop.index0 - 1] if not loop.first else none %}{{ ui.go(url_for('quote_doc', vid=v.id), 'Quote ' ~ (v.number or v.id) ~ ', ' ~ nice(v.at[:10]) ~ (', canceled' if v.id in canceled_vids else (', replaced by ' ~ (newer_.number or newer_.id)) if newer_ else ''), blank=true) }}{% endfor %}
+    {% if lines and s.stage not in ('inquiry', 'quoted', 'lost') %}{% if t.due > 0.005 %}{{ ui.go(url_for('invoice', sid=s.id), 'Invoice', blank=true) }}{% elif t.paid > 0.005 %}{{ ui.go(url_for('receipt', sid=s.id), 'Receipt', blank=true) }}{% endif %}{% endif %}
+    
+    {% if free_ and s.stage in ('booked', 'shot', 'delivered', 'closed') %}{% set inv_no_ = invoice_number(s.id) %}{% if inv_no_ %}{{ ui.go(url_for('invoice', sid=s.id), 'No-charge invoice ' ~ inv_no_, blank=true) }}
+    {%- else %}{{ ui.action(url_for('bill_issue', sid=s.id, kind='invoice'), 'Issue a no-charge invoice', dict(no_charge='1'), back,
+       confirm='Issue a no-charge invoice? It gets the next invoice number and a total of $0.00, as a record of what was given. There is nothing to pay and no receipt to follow.') }}{% endif %}{% endif %}</div>
   
   {% if lines and open_q and (s.stage == 'inquiry' or replacing) %}<p class="ui-mute">The quote opens in a new tab. Press Email it there, then Mark sent once it has gone.</p>{% endif %}
 {% endset %}
-{% set bill_sum %}{% if s.stage == 'quoted' and lines %}Quote {{ money(t.quoted) }}{% if versions %}, sent {{ nice(versions[0].at[:10]) }}{% endif %}{% if t.deposit_short > 0.005 %} &middot; deposit {{ money(t.deposit_short) }} due{% endif %}{% elif lines %}{{ money(t.paid) }} of {{ money(t.quoted) }} paid{% if t.written_off > 0.005 %}, {{ money(t.written_off) }} waived{% endif %}{% if t.due > 0.005 %}, balance {{ money(t.due) }}{% endif %}{% elif s.plan_of %}Billing: on the quote of {{ plan_head_label(s.id) }}{% else %}Billing: no quote yet{% endif %}{% endset %}
+{% set bill_sum %}{% if free_ and not lines %}No charge{% elif free_ %}Quote: no charge{% if s.stage == 'quoted' and versions %}, sent {{ nice(versions[0].at[:10]) }}{% endif %}{% elif s.stage == 'quoted' and lines %}Quote {{ money(t.quoted) }}{% if versions %}, sent {{ nice(versions[0].at[:10]) }}{% endif %}{% if t.deposit_short > 0.005 %} &middot; {{ 'deposit'|dep }} {{ money(t.deposit_short) }} due{% endif %}{% elif lines %}{{ money(t.paid) }} of {{ money(t.quoted) }} paid{% if t.written_off > 0.005 %}, {{ money(t.written_off) }} waived{% endif %}{% if t.due > 0.005 %}, balance {{ money(t.due) }}{% endif %}{% elif s.plan_of %}Billing: on the quote of {{ plan_head_label(s.id) }}{% else %}Billing: no quote yet{% endif %}{% endset %}
 
 {% set rows_ = acts|reject('sameas', follow_)|list %}{% set todo_first = fst in ('booked', 'shot', 'delivered') %}
 
@@ -237,9 +299,9 @@
   {% if cur %}{% set done_ = cur.steps|selectattr('done')|list %}{% if done_ %}{% set really_ = done_|rejectattr('outcome')|list %}{% set other_ = done_|selectattr('outcome')|list %}
     {% set others_ %}{% for o_, g_ in other_|groupby('outcome') %}, {{ g_|length }} {{ OUTCOMES[o_]|lower }}{% endfor %}{% endset %}
     {% call ui.fold(really_|length ~ ' of ' ~ cur.steps|length ~ ' done' ~ others_, id='done-steps') %}
-    <div class="ui-chips">{% for st in done_ %}{{ ui.chip((money(t.written_off) ~ ' waived') if st.key == 'balance_paid' and st.outcome == 'waived' and t.written_off > 0.005 else (((st.how[:1]|upper) ~ st.how[1:] if st.how else st.label) ~ (' (' ~ OUTCOMES[st.outcome]|lower ~ ')' if st.outcome else (' (done: ' ~ st.settled ~ ')' if st.settled else ''))), 'neutral' if st.outcome else 'done') }} {% endfor %}</div>{% endcall %}{% endif %}{% endif %}
+    <div class="ui-chips">{% for st in done_ %}{{ ui.chip((money(t.written_off) ~ ' waived') if st.key == 'balance_paid' and st.outcome == 'waived' and t.written_off > 0.005 else (((st.how[:1]|upper) ~ st.how[1:] if st.how else st.label|dep) ~ (' (' ~ OUTCOMES[st.outcome]|lower ~ ')' if st.outcome else (' (done: ' ~ st.settled ~ ')' if st.settled else ''))), 'neutral' if st.outcome else 'done') }} {% endfor %}</div>{% endcall %}{% endif %}{% endif %}
 {% endset %}
-{% if todo_first %}{% call ui.needs('Tasks', id='needs') %}{{ todo_ }}{% endcall %}{{ timeline_ }}
+{% if todo_first %}{% call ui.needs('Tasks', id='needs', lead=from_line_) %}{{ todo_ }}{% endcall %}{{ timeline_ }}
 {% elif rows_ or s.stage not in ('lost', 'closed') or g.get('edit_clash_form') == 'todo' %}{% call ui.section('Tasks', id='needs', part=true) %}{{ todo_ }}{% endcall %}{% endif %}
 {% if T.shoot == 1 and fst != 'shoot_day' and (shoot_|ui_shape).lines %}{% call ui.section('The shoot', id='shoot', part=true) %}{{ shoot_ }}{% endcall %}{% endif %}
 
@@ -286,7 +348,7 @@
 
 {% if replacing %}
 {% elif T.quote == 1 %}{% call ui.section('Quote', id='billing', part=true) %}{{ bill_ }}{% endcall %}
-{% else %}{% call ui.fold(bill_sum, id='billing', open=request.args.get('bill'), part=true) %}{{ bill_ }}{% endcall %}{% endif %}
+{% else %}{% call ui.fold(bill_sum, id='billing', open=request.args.get('bill') or resched_open, part=true) %}{{ bill_ }}{% endcall %}{% endif %}
 
 
 {% if T.shoot == 2 and s.shoot_date %}{% call ui.fold(when_words ~ (', ' ~ x_.place if x_.place else ''), id='shoot') %}{{ shoot_ }}{% endcall %}{% endif %}
@@ -297,6 +359,8 @@
   <div class="ui-form-row">{{ ui.chip(d.status, 'done' if d.status == 'signed' else ('late' if s.shoot_date and s.shoot_date < today.isoformat() and fst != 'closed' else ('attention' if s.shoot_date and s.shoot_date <= (today + delta3).isoformat() else 'neutral'))) }}
     {{ ui.go(url_, ('Signed ' ~ dkind_) if d.status == 'signed' else (dkind_|capitalize ~ ' to sign') ~ (' - ' ~ d.person if d.person else ''), blank=d.kind != 'other') }}{% if d.signer %} <small class="ui-mute">{{ d.signer }}</small>{% endif %}</div>{% endfor %}
   {% set said_ = signed_delivery_differs(s.id) %}{% if said_ %}{{ ui.chip('The signed agreement says you deliver the photos ' ~ said_ ~ '.', 'attention') }}{% endif %}
+  {% if C.TYPE_KIND.get(s.type) == 'personal' %}<form method="post" action="{{ url_for('trade_copies_set', sid=s.id) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ back }}">
+    <label class="ui-check"><input type="checkbox" name="trade_copies" value="1" data-autosubmit {{ 'checked' if s.trade_copies }}>Traded for photos{{ help("The releases say the person receives copies of the edited photos they appear in, for personal use. A release already signed keeps its words.") }}</label></form>{% endif %}
   <p>{{ ui.go(url_for('session_edit', sid=s.id) ~ '#paperwork', 'Who signs, add a release') }}</p>{% endset %}
 {% set n_signed = j.docs|selectattr('status', 'equalto', 'signed')|list|length %}
 {% if j.docs and T.paperwork in (2, 3) %}{% call ui.fold(('Paperwork: ' ~ ('all signed' if n_signed == j.docs|length else n_signed ~ ' of ' ~ j.docs|length ~ ' signed')) if T.paperwork == 2 else 'Paperwork', id='paperwork', count=none if T.paperwork == 2 else j.docs|length) %}{{ papers_ }}{% endcall %}{% endif %}
@@ -351,6 +415,7 @@
       {{ hrow_(r, back ~ '#history') }}
     {% endfor %}
     </div>
+    <p>{{ ui.go(url_for('studio_history_view'), 'Studio history, all clients') }}</p>
   {% endcall %}
   
   {% if fst != 'closed' %}<div class="ui-flat" id="new-session-more"><h3 class="ui-sub-title">New session for {{ h.name }}</h3><div class="ui-btnrow">{% for k, v in C.SESSION_TYPES.items() %}{% if k in C.NEW_SESSION_TYPES %}{{ ui.go(url_for('inquiry', hid=h.id, type=k), v) }}{% endif %}{% endfor %}</div></div>{% endif %}
@@ -361,9 +426,9 @@
     {% elif wf.next_stage and s.stage != 'lost' and not wf.wait_close and not (wf.ready and can_move) %}{{ ui.action(url_for('quick', sid=s.id), 'Skip to ' ~ stage_label[wf.next_stage], dict(act='stage', stage=wf.next_stage), back, 'quiet',
         confirm='Skip to ' ~ stage_label[wf.next_stage] ~ '?' ~ ((' Still open: ' ~ open_steps|join(', ') ~ '. They carry along to ' ~ stage_label[wf.next_stage] ~ '.') if open_steps else '')) }}{% endif %}
     {% if wf.wait_close %}{{ ui.action(url_for('quick', sid=s.id), 'Close it now', dict(act='stage', stage='closed'), back, 'quiet', confirm='Close this session now? The gallery stays up until its days have run.') }}{% endif %}
-    {% if s.stage == 'inquiry' %}{{ ui.action(url_for('quick', sid=s.id), 'Book without a quote', dict(act='book'), back, 'quiet', confirm='Book ' ~ h.name ~ ' without a quote? It moves to Booked now.') }}{% endif %}
+    {% if s.stage == 'inquiry' %}{{ ui.action(url_for('quick', sid=s.id), 'Book without a quote', dict(act='book'), back, 'quiet', confirm='Book ' ~ h.name ~ ' without a quote? It moves to Booked now.', extra=ui.final_tick(s.shoot_date) if s.shoot_date else '') }}{% endif %}
     {% if q_locked and s.stage in ('booked', 'shot', 'delivered') and not s.event_id %}{% if lines %}{{ ui.action(url_for('quote_replace', sid=s.id), 'Replace the quote', {}, back, 'quiet',
-        confirm=h.name ~ ' agreed to ' ~ money(t.quoted) ~ '. Replace the quote? The booked quote is canceled and kept in History, and the new one needs Book it again'
+        confirm=h.name ~ ' agreed to ' ~ ('a session at no charge' if free_ else money(t.quoted)) ~ '. Replace the quote? The booked quote is canceled and kept in History, and the new one needs Book it again'
                 ~ (' and a fresh signature on the agreement' if j.docs|selectattr('kind', 'equalto', 'agreement')|list else '') ~ '.'
                 ~ (' The ' ~ money(t.paid) ~ ' paid carries over to it.' if t.paid > 0.005 else '') ~ ' The shoot stays on the calendar.') }}
     {%- else %}{{ ui.action(url_for('quote_replace', sid=s.id), 'Build a quote', {}, back, 'quiet',
@@ -393,12 +458,16 @@
   {% if s.stage not in ('lost', 'closed', 'inquiry', 'quoted') %}{% call ui.inline_form('cancel-booking', 'Cancel the booking') %}<form method="post" action="{{ url_for('session_stage', sid=s.id) }}" class="ui-form-row" data-ui-inplace data-confirm="Cancel this booking? It can be reopened.">
     <input type="hidden" name="stage" value="lost"><input type="hidden" name="back" value="{{ back }}">
     {{ why_lost(C.CANCEL_REASONS, 'cb-why', 'Why') }}
+    
+    {% set keep_ = (t.paid if t.quoted <= 0.005 else [t.paid, t.deposit_req]|min) %}
+    {% if keep_ > 0.005 %}<span class="ui-label" id="cb-dep">{{ 'The deposit'|dep }}, {{ money(keep_) }}</span>{{ seg('deposit', [('keep', 'Keep it'), ('credit', 'Credit toward a future session')], 'keep', by='cb-dep') }}{{ help(("Keep it: the Terms say you keep the deposit if the client cancels."|dep) ~ " A credit: the client may put it toward a session they book later. You can change this after canceling.") }}{% endif %}
     <button class="ui-btn ui-btn-danger">Cancel the booking</button></form>{% endcall %}{% endif %}
 {% endcall %}
 
 </div>
 <div class="vh" id="ui-live" role="status" aria-live="polite"></div>
 <script src="{{ url_for('static', filename='stage.js', v=static_v('stage.js')) }}"></script>
-{% if photos %}<script src="{{ url_for('static', filename='photos.js', v=static_v('photos.js')) }}"></script>{% endif %}
+
+<script src="{{ url_for('static', filename='photos.js', v=static_v('photos.js')) }}"></script>
 {% endblock %}
 

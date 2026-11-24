@@ -8,6 +8,7 @@ import tempfile
 import threading
 from datetime import date, datetime
 
+import errtext
 import hostcheck
 import items
 import legacy_130
@@ -726,7 +727,7 @@ def old_phase(env, only_sid=None):
             waits[old] = dict(host=hfp, why=w.why, words=w.words)
         except Exception as e:
             env.ctx.app.logger.exception("upgrade 1.4: the old folder of %s", gid)
-            waits[old] = dict(host=hfp, why="unreachable", words=str(e)[:120])
+            waits[old] = dict(host=hfp, why="unreachable", words=errtext.words(e, 120))
         env.save()
 
 def _kept_there(env, r, hfp):
@@ -812,7 +813,7 @@ def gallery_phase(env, only_sid=None, force=False):
             host = G.open_host(cfg)
         except Exception as e:
             for r in rs:
-                waits[r["gallery_id"]] = dict(host=hfp, why="unreachable", words=str(e)[:120])
+                waits[r["gallery_id"]] = dict(host=hfp, why="unreachable", words=errtext.words(e, 120))
             continue
         try:
             with host.session():
@@ -835,7 +836,7 @@ def gallery_phase(env, only_sid=None, force=False):
         except Exception as e:
             env.ctx.app.logger.exception("upgrade 1.4: web host %s", hfp)
             for r in rs:
-                waits.setdefault(r["gallery_id"], dict(host=hfp, why="unreachable", words=str(e)[:120]))
+                waits.setdefault(r["gallery_id"], dict(host=hfp, why="unreachable", words=errtext.words(e, 120)))
         if all(waits.get(r["gallery_id"]) is None for r in rs):
             env.ctx.hooks.fire("host_refit", hfp)
     env.save()
@@ -953,7 +954,7 @@ def site_phase(env):
     try:
         host, ih, base, kind = s["hosts"]()
     except Exception as e:
-        env.st["site_wait"] = dict(why="unreachable", words=str(e)[:120])
+        env.st["site_wait"] = dict(why="unreachable", words=errtext.words(e, 120))
         env.save()
         return False
     if kind != "php":
@@ -976,7 +977,7 @@ def site_phase(env):
         s["put_form"](host)
     except Exception as e:
         env.ctx.app.logger.exception("upgrade 1.4: studio page")
-        env.st["site_wait"] = dict(why="unreachable", words=str(e)[:120])
+        env.st["site_wait"] = dict(why="unreachable", words=errtext.words(e, 120))
         env.save()
         return False
     env.st.pop("site_wait", None)
@@ -1065,6 +1066,16 @@ def nothing_to_do(env):
     if env.studio is not None and env.studio["form_online"]():
         return False
     return True
+
+def quiet(ctx, G):
+
+    if G is None:
+        return False
+    try:
+        env = Env(ctx, G, ctx.app.config.get("studio_page_upgrade"))
+        return not env.st and nothing_to_do(env)
+    except Exception:
+        return False
 
 def run(ctx, G, job=None, only_sid=None, force=False):
 

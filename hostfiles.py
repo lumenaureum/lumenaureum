@@ -5,6 +5,8 @@ import re
 
 EXIT = b"<?php exit; ?>\n"
 GATED = {"manifest.bin": ".bin", "offer.bin": ".bin", "picks.las": ".las", "draft.las": ".las"}
+
+DEVICE = re.compile(r"(picks|draft)-[0-9a-f]{16}\.las")
 OWNED = ("manifest.bin", "offer.bin")
 STATE = {"limits.txt": "limits.php", "seen.txt": "seen-at.php", "once.txt": "once.php", "done.txt": "done.php"}
 STATE_BACK = {v: k for k, v in STATE.items()}
@@ -16,10 +18,14 @@ def proof_of(key_raw):
 
 def name_for(proof, plain):
 
-    if plain not in GATED or not PROOF_OK.fullmatch(proof or ""):
+    if not gated(plain) or not PROOF_OK.fullmatch(proof or ""):
         raise ValueError("not a gated file or not a proof")
     h = hashlib.sha256(b"lumen-aureum file name\0" + plain.encode() + b"\0" + proof.encode()).hexdigest()
-    return h[:24] + GATED[plain]
+    return h[:24] + plain[-4:]
+
+def gated(plain):
+
+    return plain in GATED or bool(DEVICE.fullmatch(plain or ""))
 
 def state_bytes(raw):
 
@@ -51,7 +57,7 @@ class HostFiles:
     def _gated(self, name):
 
         folder, base = self._split(name)
-        if base not in GATED:
+        if not gated(base):
             return None
         try:
             p = self._proof(folder)
@@ -137,6 +143,10 @@ class HostFiles:
                     n = f"{folder}/{back[folder][base]}"
             out.append(n)
         return sorted(dict.fromkeys(out))
+
+    def host_name(self, name):
+
+        return self._gated(name)
 
     def plain_copy(self, name):
 

@@ -29,6 +29,7 @@ def test_the_page_uses_the_library_not_its_own_sealing():
     inquiry = (ROOT / "plugins" / "studio_assets" / "inquiry.js").read_text()
     outside = viewer.replace(sync_sealed.embedded(viewer), "")
     assert "LAS.sealLink(" in outside and "LAS.openLink(" in outside
-    assert "gate.php?f=picks.las" in outside and "gate.php?f=draft.las" in outside
+    assert 'sentOn("picks.las")' in outside and "gate.php?f=draft.las" in outside
+    assert 'sentOn(mine("picks"))' in outside and 'mine("draft")' in outside
     assert "deriveBits" not in inquiry.replace(sync_sealed.embedded(inquiry), "")
     assert "LAS.sealStudio(\"inquiry\"" in inquiry

@@ -121,7 +121,8 @@ def test_finances_marks_an_overdue_balance_and_offers_remind_them(env):
         return
     sec = page.split('id="upcoming"', 1)[1].split("</section>", 1)[0]
     assert "Overdue " in sec
-    assert 'action="/session/1/remind"' in sec and ">Remind them</button>" in sec
+
+    assert 'action="/session/1/remind"' in sec and ">Remind them by email</button>" in sec and ">Remind them by text</button>" in sec
 
 def test_history_is_first_and_open_and_cancel_stands_apart(env):
     A, c = env

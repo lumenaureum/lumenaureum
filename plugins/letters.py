@@ -137,6 +137,20 @@ def register(ctx):
                 ctx.audit("Printed the QR letter", sid=sid)
         return out
 
+    @app.get("/letters/<int:sid>/card-letter.pdf", endpoint="letter_card")
+    def letter_card(sid):
+
+        s, subjects, adults = load(sid)
+        code_ = current_app.config.get("gallery_card_code")
+        code = (code_(sid) if callable(code_) else "") or ""
+        lines = [s["household"]] + [ln.strip() for ln in (s["address"] or "").splitlines() if ln.strip()]
+        when = f" on {long_date(s['shoot_date'])}" if s["shoot_date"] else ""
+        return pdf(CARD_LETTER, f"card-letter-{slug(s)}.pdf", studio=studio(), photographer=setting("photographer_name"),
+                   draft=not code or not (s["address"] or "").strip(), code=code, lines=lines,
+                   today=date.today().strftime("%B %-d, %Y"), greeting=greeting(s, adults), who=who_shot(s, subjects, adults),
+                   when=when, license=ctx.licensed(sid), event_family=bool(s["event_id"]),
+                   credit="" if setting("credit_off") == "1" else ctx.C.CREDIT, logo=__import__("app").logo_src())
+
     @app.get("/letters/<int:sid>/print-release.pdf", endpoint="letter_release")
     def letter_release(sid):
         s, subjects, adults = load(sid)
@@ -168,7 +182,8 @@ def register(ctx):
                   "FAVORITES": favorites,
                   "WHAT THE LICENSE COVERS": ctx.C.fill(s["type"], "license_use"),
                   "LICENSE SCOPE": ag.get("lic_scope", ""), "PORTFOLIO": portfolio,
-                  "OTHER USES": ("Anyone else who wants to use the photos needs their own license from me." if places else
+                  "OTHER USES": ((ctx.C.MLS_SENTENCE + " " if ctx.C.is_place(s["type"]) else "")
+                                 + "Anyone else who wants to use the photos needs their own license from me." if places else
                                  "The people photographed share this license. Anything else, such as selling the photos or"
                                  + (" using them to advertise a business," if ctx.C.fill(s["type"], "license_use")
                                     == ctx.C.DEFAULT_POLICY["license_use"] else " licensing them to others,")
@@ -177,8 +192,11 @@ def register(ctx):
                                                       f" {s['household']} and the people photographed.")}
         sections = wording.sections(core.own_wording(doc, s["type"]), values)
         if s["event_id"]:
-            rights_ = core.event_rights_text(s["event_id"]) or ("I keep the copyright in the event photos. Each family"
-                      " receives a permanent personal license to its own photos and to group photos that include its child.")
+            ev_ = core.q("SELECT * FROM events WHERE id=?", (s["event_id"],), one=True)
+            rights_ = core.event_rights_text(s["event_id"]) or (
+                ctx.C.EVENT_RIGHTS_PEOPLE["families"] if ev_ and core.event_nouns(ev_)[0] == "person" else
+                "I keep the copyright in the event photos. Each family receives a permanent personal license to its own"
+                " photos and to group photos that include its child.")
             sections = [("Your photos", rights_), ("Printing", values["PRINT RELEASE"] or
                          f"This is a print release: any print lab may print these photos for {s['household']}.")]
         return pdf(TRANSFER, f"{'photo-license' if realestate else 'copyright-transfer'}-{slug(s)}.pdf",
@@ -234,11 +252,18 @@ def register(ctx):
         draft, cw_ = link_mail(s)
         key_ = ctx.C.delivery_method(s["type"], s["delivery_method"])
         medium = ctx.C.DELIVERY_METHODS[key_][0]
-        return dict(what=f"Get the photos to {client_first(s)}", verb="Mark delivered", post=url_for("quick", sid=s["id"]),
-                    fields=dict(act="mark", field="sd_shipped"), note=("On an " if medium.startswith("SD") else "On a ") + medium,
+        card_ = app.config.get("gallery_card")
+        card_ = card_(s) if callable(card_) and key_ == "card" else None
+        note_ = "On a sealed card" if key_ == "card" else ("On an " if medium.startswith("SD") else "On a ") + medium
+
+        ask_ = bool(card_ and card_.get("saved"))
+        handed = dict(post=url_for("delivery_another", sid=s["id"]), fields=dict(how="card", step="sd_shipped")) if ask_ else None
+        return dict(what="Card handed over?" if ask_ else f"Get the photos to {client_first(s)}", verb="Mark delivered",
+                    post=url_for("quick", sid=s["id"]), handed=handed,
+                    fields=dict(act="mark", field="sd_shipped"), note=note_,
                     close=dict(sid=s["id"], step="sd_shipped"),
                     deliver=dict(sid=s["id"], step="sd_shipped", mail=draft, codeword=cw_, usual=key_,
-                                 online=bool(gallery_link(s["id"]))))
+                                 online=bool(gallery_link(s["id"])), card=card_))
 
     def step_action(label, s):
 
@@ -331,6 +356,48 @@ h2 { font: bold 10.5pt/14pt Helvetica, Arial, sans-serif; margin: 10pt 0 3pt; } 
 <div class="sig"><div><span class="l">Photographer{% if photographer %}&nbsp; {{ photographer }}{% endif %}</span><span class="d">Date</span></div>
 {% for contact in contacts or [''] %}<div><span class="l">Client{% if contact %}&nbsp; {{ contact }}{% endif %}</span><span class="d">Date</span></div>{% endfor %}</div>
 </body></html>"""
+
+CARD_LETTER = """<!doctype html><html><head><meta charset="utf-8"><style>
+@page { size: Letter; margin: 0; }
+body { margin: 0; font: 12.5pt/17.5pt "Times New Roman", Times, serif; color: #000; }
+.abs { position: absolute; } .sans { font-family: Helvetica, Arial, sans-serif; }
+.ret { left: 0.875in; top: 0.5in; } .ret b { font: bold 10pt Helvetica, Arial, sans-serif; display: block; }
+.ret span { font: 9.5pt Helvetica, Arial, sans-serif; color: #4d4d4d; }
+.draft { right: 1in; top: 0.5in; font: bold 10pt Helvetica, Arial, sans-serif; color: #737373; }
+.draft.nocode { left: 1in; top: 0.35in; font-size: 16pt; color: #a8323e; border: 2pt solid #a8323e; padding: 6pt 10pt; text-align: center; }
+.to { left: 0.875in; top: 2.0in; font: 11.5pt/15pt Helvetica, Arial, sans-serif; }
+.to i { color: #737373; font-size: 10pt; }
+.date { right: 1in; top: 2.0in; font-size: 12pt; }
+.logo { left: 0; right: 0; top: 0.45in; text-align: center; } .logo img { max-height: 0.6in; max-width: 2.4in; }
+.body { position: absolute; left: 0.875in; right: 1in; top: 3.75in; }
+.body p { margin: 0 0 10pt; } ol { margin: 0 0 10pt; padding-left: 18pt; } li { margin-bottom: 4pt; }
+.code { font: bold 17pt/22pt "Courier New", Courier, monospace; letter-spacing: 1pt; text-align: center; border: 1pt solid #000;
+  padding: 8pt 6pt; margin: 6pt 0 12pt; }
+.sig { margin-top: 22pt; border-top: 0.6pt solid #000; width: 2.6in; padding-top: 3pt; font-size: 12pt; }
+.sig i { display: block; font-size: 11.5pt; }
+</style></head><body>
+{% if logo %}<div class="abs logo"><img src="{{ logo }}" alt=""></div>{% endif %}
+<div class="abs ret"><b>{{ (studio or photographer)|upper }}</b>{% if photographer and studio %}<span>{{ photographer }}</span>{% endif %}</div>
+{% if not code %}<div class="abs draft nocode">DRAFT: not for mailing. The card has not been written yet, so this letter has no code. For checking the layout only.</div>
+{% elif draft %}<div class="abs draft">DRAFT</div>{% endif %}
+<div class="abs to">{% for ln in lines %}{{ ln }}<br>{% endfor %}{% if lines|length == 1 %}<i>No mailing address on file</i>{% endif %}</div>
+<div class="abs date">{{ today }}</div>
+<div class="body">
+  <p>{{ greeting }}</p>
+  <p>Thank you for letting me photograph {{ who }}{{ when }}. Your photos are finished and ready for you, sealed on an SD card or USB drive. Nobody can open them without the code in this letter.</p>
+  <p>Open them on a computer. A phone or tablet can't open them from the card.</p>
+  <ol>
+    <li>Put the card or drive in the computer and open the file &ldquo;Open your photos.html&rdquo; on it.</li>
+    <li>When the page asks, choose the folder named &ldquo;Sealed photos&rdquo;.</li>
+    <li>Type this code:</li>
+  </ol>
+  <div class="code">{{ code or 'XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXX' }}</div>
+  <p>Then download each photo, or all of them at once, and keep a copy somewhere safe. Keep this letter apart from the card: the code is the only key to your photos. If you lose it, ask me for another letter.</p>
+  <p>{% if event_family %}Your photos are for your family's personal use: to print, share, and post, not to sell. The license letter with your photos has the details.{% elif license %}Your license to use the photos is set out in your agreement, and your license letter is a print release for any print lab.{% else %}The photos are yours to print and use however you like.{% endif %}</p>
+  <p>With thanks,</p>
+  <div class="sig">{% if photographer %}{{ photographer }}{% endif %}{% if studio %}<i>{{ studio }}</i>{% endif %}</div>
+{% if credit %}<p class="sans" style="margin-top:14pt;text-align:center;font-size:8pt;color:#8a8478">{{ credit }}</p>{% endif %}
+</div></body></html>"""
 
 LABELS = """<!doctype html><html><head><meta charset="utf-8"><style>
 @page { size: Letter; margin: 0.5in; }

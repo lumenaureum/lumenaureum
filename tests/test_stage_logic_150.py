@@ -381,7 +381,7 @@ def test_delivered_and_paid_auto_closes(env):
     r = _pay(A, c, "300")
     assert r.status_code == 302 and _stage(A) == "closed"
     h = _history(A)
-    assert h[-1] == "Moved to Closed: delivered and paid in full." and h[-2].startswith("Recorded balance")
+    assert h[-1] == "Moved to Closed: delivered and paid in full." and h[-2].startswith("Recorded a $")
     page = c.get("/c/1?s=1", environ_base=E).get_data(as_text=True)
     assert ">Reopen at Delivered</button>" in page and "+ New session for Morgan" in page
     assert "closes by itself" not in page

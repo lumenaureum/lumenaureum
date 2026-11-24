@@ -1,3 +1,11 @@
+function selectDefault(el) {
+  const d = [...el.options].map(o => o.defaultSelected);
+  if (!el.multiple && el.size <= 1 && !d.some(Boolean)) {
+    const first = [...el.options].findIndex(o => !o.disabled);
+    if (first >= 0) d[first] = true;
+  }
+  return d.join();
+}
 (() => {
 if (document.fonts) document.fonts.load('24px "Material Symbols Rounded"').then(() => document.documentElement.classList.add('fonts-ready'));
 else document.documentElement.classList.add('fonts-ready');
@@ -14,7 +22,7 @@ function sortTable(th){
 }
 document.querySelectorAll('table.data th').forEach(th => th.addEventListener('click', () => sortTable(th)));
 document.querySelectorAll('tr.rowlink').forEach(tr => tr.addEventListener('click', e => {
-  if (!e.target.closest('a,button,input,select,form')) location = tr.dataset.href; }));
+  if (!e.target.closest('a,button,input,label,select,form,.ui-inline')) location = tr.dataset.href; }));
 document.documentElement.style.scrollBehavior = 'smooth';
 (() => {
   const tip = document.createElement('div'); tip.id = 'tipbox'; document.body.appendChild(tip);
@@ -65,6 +73,49 @@ document.documentElement.style.scrollBehavior = 'smooth';
   });
 })();
 
+const QH_NOTICE = '.toast, .ui-note, .ui-flash';
+const qhOpen = () => document.querySelector('.qh.qh-open');
+const qhShut = () => { const q = qhOpen(); if (q) { q.classList.remove('qh-open', 'qh-up', 'qh-over'); q.setAttribute('aria-expanded', 'false'); } };
+const qhPlace = q => {          // never under a notice: above the (?) when there is room, else drawn over the notice
+  q.classList.remove('qh-up', 'qh-over');
+  const pop = q.querySelector('.qh-pop'); if (!pop) return;
+  const hits = () => { const r = pop.getBoundingClientRect();
+    return [...document.querySelectorAll('.toast')].some(t => { const s = t.getBoundingClientRect();
+      return !t.hidden && s.width && r.left < s.right && r.right > s.left && r.top < s.bottom && r.bottom > s.top; }); };
+  if (!hits()) return;
+  q.classList.add('qh-up');
+  if (hits() || pop.getBoundingClientRect().top < 0) { q.classList.remove('qh-up'); q.classList.add('qh-over'); }
+};
+const qhShow = q => { if (qhOpen() !== q) qhShut(); q.classList.add('qh-open'); q.setAttribute('aria-expanded', 'true'); qhPlace(q); };
+const qhKeep = (from, to) => {  // a part swapped in place keeps its open bubble open
+  const was = [...from.querySelectorAll('.qh')], now = [...to.querySelectorAll('.qh')], i = was.findIndex(q => q.classList.contains('qh-open'));
+  if (i >= 0 && now[i]) { now[i].classList.add('qh-open'); now[i].setAttribute('aria-expanded', 'true'); }
+};
+document.documentElement.classList.add('qh-js');
+document.addEventListener('click', e => {
+  const q = e.target.closest && e.target.closest('.qh');
+  if (q) {
+    e.preventDefault();                       // never the label, fold or link around it
+    if (e.target.closest('.qh-pop')) return;  // reading the bubble keeps it open
+    if (q.classList.contains('qh-open')) qhShut(); else qhShow(q);
+    return;
+  }
+  if (qhOpen() && !(e.target.closest && e.target.closest(QH_NOTICE))) qhShut();
+});
+document.addEventListener('keydown', e => {
+  const q = e.target.closest && e.target.closest('.qh');
+  if (q && e.target === q && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); if (q.classList.contains('qh-open')) qhShut(); else qhShow(q); return; }
+  if (e.key === 'Escape' && qhOpen()) { qhShut(); e.stopPropagation(); }   // closes the bubble only, nothing else
+});
+let qhKeyed = false;                          // Tab onto a (?) opens it; a tap or click is handled above
+addEventListener('keydown', () => { qhKeyed = true; }, true);
+addEventListener('pointerdown', () => { qhKeyed = false; }, true);
+document.addEventListener('focusin', e => { const q = e.target.closest && e.target.closest('.qh'); if (q && qhKeyed) qhShow(q); });
+document.addEventListener('focusout', e => {
+  const q = qhOpen(), to = e.relatedTarget;
+  if (q && qhKeyed && to && q.contains(e.target) && !q.contains(to) && !to.closest(QH_NOTICE)) qhShut();   // Tab away; a tap is the click's
+});
+
 const _waits = new WeakMap();
 document.addEventListener('change', e => {
   const el = e.target.closest && e.target.closest('[data-autosubmit]'); if (!el || !el.form) return;
@@ -105,6 +156,7 @@ document.addEventListener('submit', async e => {
 });
 function wire(root) {
 uiUnchanged(root);
+root.querySelectorAll('.qh:not([aria-expanded])').forEach(q => q.setAttribute('aria-expanded', 'false'));   // (?) bubbles
 root.querySelectorAll('[data-ui-map]:not([data-ui-map-done])').forEach(el => {
   el.dataset.uiMapDone = '1';
   const q = encodeURIComponent(el.dataset.uiMap), ua = navigator.userAgent;
@@ -170,6 +222,12 @@ root.querySelectorAll('[data-poll-up]:not([data-poll-up-done])').forEach(el => {
       if (r.upload !== 'uploading') { clearInterval(t); refreshParts(); return; }
       const lab = el.dataset.label && document.getElementById(el.dataset.label);   // "Uploading: file N of M" (backlog 236)
       if (lab && r.up_label && lab.textContent !== r.up_label) lab.textContent = r.up_label; } catch (_) {} }, 2000); });
+root.querySelectorAll('[data-ui-job]:not([data-ui-job-on])').forEach(el => {
+  el.dataset.uiJobOn = '1';
+  const t = setInterval(async () => {
+    if (!el.isConnected) { clearInterval(t); return; }
+    try { const r = await (await fetch(el.dataset.uiJob, { credentials: 'same-origin' })).json();
+      if (r.state !== 'running') { clearInterval(t); refreshParts(); } } catch (_) {} }, 1500); });
 }
 wire(document);
 
@@ -214,7 +272,7 @@ async function refreshParts() {
     parts.forEach(el => { const n = doc.getElementById(el.id); if (n && !el.contains(document.activeElement) && !(el.matches('[data-ui-part]') && uiDirty(el))) {
       const open_ = [...el.querySelectorAll('details')].map(d => d.open);
       n.querySelectorAll('details').forEach((d, i) => { if (open_[i]) d.open = true; });
-      if (el.matches('[data-ui-part]')) uiKeepOpen(el, n);
+      if (el.matches('[data-ui-part]')) uiKeepOpen(el, n); else qhKeep(el, n);
       el.replaceWith(n); wire(n); } });
   } catch (_) {}
 }
@@ -287,6 +345,7 @@ document.querySelectorAll('aside.jobs').forEach(box => {
   const fit = () => document.documentElement.style.setProperty('--jobs-h', box.offsetHeight + 'px');
   fit();
   if (window.ResizeObserver) new ResizeObserver(fit).observe(box);
+  if (getComputedStyle(box).position !== 'fixed') return;
   box.querySelectorAll('.job.done').forEach(j => setTimeout(() => {
     j.remove();
     if (!box.querySelector('.job')) { box.remove(); document.documentElement.style.removeProperty('--jobs-h'); }
@@ -324,6 +383,7 @@ const uiKeepOpen = (from, to, except) => {           // folds, menus and inline 
   const ds = [...from.querySelectorAll('details')], dn = [...to.querySelectorAll('details')];
   ds.forEach((d, i) => { const n = d.id ? to.querySelector('#' + CSS.escape(d.id)) : dn[i]; if (n && !d.matches('.ui-rowmore, .ui-more')) n.open = d.open; });
   from.querySelectorAll('.ui-inline.ui-open[id]').forEach(b => { if (b.id !== except) { const n = to.querySelector('#' + CSS.escape(b.id)); if (n) n.classList.add('ui-open'); } });
+  qhKeep(from, to);
 };
 const uiLive = msg => { const l = document.getElementById('ui-live'); if (l) { l.textContent = ''; setTimeout(() => { l.textContent = msg; }, 60); } };
 const uiNote = (where, msg, bad, after) => {
@@ -337,7 +397,8 @@ const uiNote = (where, msg, bad, after) => {
 };
 const UI_PAST = { Add: 'Added', Apply: 'Applied', Approve: 'Approved', Book: 'Booked', Close: 'Closed', Collect: 'Collected',
   Give: 'Gave', Log: 'Logged', Mark: 'Marked', Move: 'Moved', Record: 'Recorded', Remove: 'Removed', Reopen: 'Reopened',
-  Reply: 'Replied', Save: 'Saved', Send: 'Sent', Set: 'Set', Undo: 'Undid', Follow: 'Followed', Hide: 'Hid', Fill: 'Filled' };
+  Reply: 'Replied', Save: 'Saved', Send: 'Sent', Set: 'Set', Undo: 'Undid', Follow: 'Followed', Hide: 'Hid', Fill: 'Filled',
+  Pencil: 'Penciled', Release: 'Released', Extend: 'Extended', Hold: 'Held' };
 const uiSaid = (btn, what) => {
   const label = ((btn && (btn.getAttribute('aria-label') || btn.textContent)) || '').trim().replace(/\s+/g, ' ');
   const m = label.match(/^(\S+)(.*)$/);
@@ -462,7 +523,7 @@ document.addEventListener('submit', e => {
   const base = new WeakMap(), now_ = el => el.type === 'checkbox' || el.type === 'radio' ? el.checked
     : el.tagName === 'SELECT' ? [...el.options].map(o => o.selected).join() : el.value;
   const dflt = el => el.type === 'checkbox' || el.type === 'radio' ? el.defaultChecked
-    : el.tagName === 'SELECT' ? [...el.options].map(o => o.defaultSelected).join() : el.defaultValue;
+    : el.tagName === 'SELECT' ? selectDefault(el) : el.defaultValue;
   const touched = new WeakSet();
   const touch = el => { const f = el.form, g = f && el.name && f.elements[el.name];
     (g instanceof RadioNodeList ? [...g] : [el]).forEach(x => touched.add(x)); };
@@ -500,6 +561,148 @@ document.addEventListener('submit', e => {
 })();
 
 (() => {
+  const skip = ['hidden', 'submit', 'button', 'reset', 'image', 'file'];
+  const now_ = el => el.type === 'checkbox' || el.type === 'radio' ? el.checked
+    : el.tagName === 'SELECT' ? [...el.options].map(o => o.selected).join() : el.value;
+  const dflt = el => el.type === 'checkbox' || el.type === 'radio' ? el.defaultChecked
+    : el.tagName === 'SELECT' ? selectDefault(el) : el.defaultValue;
+  const sync = f => { const bar = f && f.querySelector && f.querySelector('[data-ui-unsaved]'); if (!bar) return;
+    bar.hidden = ![...f.elements].some(el => el.name && !skip.includes(el.type) && now_(el) !== dflt(el)); };
+  document.addEventListener('input', e => sync(e.target.form), true);
+  document.addEventListener('change', e => sync(e.target.form), true);
+  document.addEventListener('reset', e => { const f = e.target; setTimeout(() => {
+    const el = [...f.elements].find(x => x.name && !skip.includes(x.type));
+    if (el) el.dispatchEvent(new Event('input', {bubbles: true}));    // the kept copy is dropped, the bar hides
+    sync(f); }, 0); }, true);
+  document.querySelectorAll('form [data-ui-unsaved]').forEach(b => sync(b.closest('form')));
+})();
+
+(() => {
+  const skip = ['hidden', 'submit', 'button', 'reset', 'image', 'file'];
+  const now_ = el => el.type === 'checkbox' || el.type === 'radio' ? el.checked
+    : el.tagName === 'SELECT' ? [...el.options].map(o => o.selected).join() : el.value;
+  const dflt = el => el.type === 'checkbox' || el.type === 'radio' ? el.defaultChecked
+    : el.tagName === 'SELECT' ? selectDefault(el) : el.defaultValue;
+  const edited = f => [...f.elements].some(el => el.name && !skip.includes(el.type) && !el.disabled && now_(el) !== dflt(el));
+  const host = (f, b) => (b && b.closest('[data-ui-save-first]')) || (f && f.closest('[data-ui-save-first]'));
+  const targets = (h, self) => { let l = []; try { l = [...document.querySelectorAll(h.dataset.uiSaveFirst)]; } catch (_) {}
+    return l.map(x => x.matches('form') ? x : x.querySelector('form')).filter(o => o && edited(o) && (o !== self || 'uiSaveFirstAsk' in h.dataset)); };
+  const saveBtn = o => o.querySelector('button.ui-btn-primary:not([type=reset]), button:not([type]):not([formaction]), button[type=submit]:not([formaction])');
+  const relabel = () => document.querySelectorAll('[data-ui-dirty-label]').forEach(b => {
+    if (!b.dataset.uiCleanLabel) b.dataset.uiCleanLabel = b.textContent;
+    const h = host(b.form, b), want = h && targets(h, null).length ? b.dataset.uiDirtyLabel : b.dataset.uiCleanLabel;
+    if (b.textContent !== want) b.textContent = want; });
+  ['input', 'change'].forEach(t => document.addEventListener(t, () => setTimeout(relabel, 0), true));
+  document.addEventListener('reset', () => setTimeout(relabel, 0), true);
+  const say = (b, f, msg) => {                    // a refusal beside the button, as plainly as the in-place notes
+    document.querySelectorAll('.ui-note[data-ui-note]').forEach(n => n.remove());
+    const n = document.createElement('span'); n.className = 'ui-note ui-note-error'; n.dataset.uiNote = ''; n.setAttribute('role', 'alert');
+    n.textContent = msg; if (b) b.after(n); else f.appendChild(n); };
+  const point = o => { const s = saveBtn(o); if (!s) return; s.scrollIntoView({ block: 'center' }); s.focus({ preventScroll: true });
+    s.classList.remove('ui-found'); void s.offsetWidth; s.classList.add('ui-found'); };
+  const save = async o => {
+    const body = new FormData(o), s = saveBtn(o); if (s && s.name) body.append(s.name, s.value);
+    let r, text; try { r = await fetch(o.action, { method: 'POST', body, credentials: 'same-origin' }); text = await r.text(); }
+    catch (_) { return 'No answer from the app, so nothing was sent. Your changes are still here: press Save.'; }
+    const doc = /html/.test(r.headers.get('content-type') || '') ? new DOMParser().parseFromString(text, 'text/html') : null;
+    const toast = doc && doc.querySelector('.toast[data-refused]'), bad = doc && doc.querySelector('main .err, main .sui-err');
+    const words = el => { const c = el.cloneNode(true); c.querySelectorAll('button').forEach(x => x.remove()); return c.textContent.trim(); };
+    if (!r.ok || toast || bad) return 'Not saved, so nothing was sent' + ((toast || bad) ? ': ' + words(toast || bad) : '.');
+    const anchor = o.closest('[data-ui-part][id]') || o.closest('[id]') || o;
+    if ((r.redirected && new URL(r.url, location.href).pathname !== location.pathname) || !doc || (anchor.id && !doc.getElementById(anchor.id)))
+      return 'Save your changes first: they need a look of their own before anything goes out.';
+    [...o.elements].forEach(el => { if (el.type === 'checkbox' || el.type === 'radio') el.defaultChecked = el.checked;
+      else if (el.tagName === 'SELECT') [...el.options].forEach(x => { x.defaultSelected = x.selected; });
+      else if ('defaultValue' in el && !skip.includes(el.type)) el.defaultValue = el.value; });
+    const any = [...o.elements].find(x => x.name && !skip.includes(x.type));
+    if (any) any.dispatchEvent(new Event('input', { bubbles: true }));       // "Unsaved changes" goes, the words come back
+    return true;
+  };
+  document.addEventListener('submit', async e => {
+    const f = e.target, b = e.submitter;
+    if (e.defaultPrevented || !f.matches || f.dataset.uiSavedFirst || (f.getAttribute('method') || '').toLowerCase() !== 'post') return;
+    const h = host(f, b); if (!h) return;
+    const dirty = targets(h, f); if (!dirty.length) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    if ('uiSaveFirstAsk' in h.dataset) { say(b, f, 'Save your changes first.'); point(dirty[0]); return; }
+    if (f.dataset.uiBusy) return;
+    f.dataset.uiBusy = '1'; if (b) b.disabled = true;
+    for (const o of dirty) {
+      const ok = await save(o);
+      if (ok !== true) { delete f.dataset.uiBusy; if (b) b.disabled = false; say(b, f, ok); point(o); relabel(); return; }
+    }
+    delete f.dataset.uiBusy; if (b) b.disabled = false; relabel();
+    const asked = f.dataset.confirm !== undefined && !('noConfirm' in f.dataset);
+    f.dataset.uiSavedFirst = '1'; if (asked) f.dataset.noConfirm = '';     // its question was asked before the save
+    if (f.requestSubmit) f.requestSubmit(b && b.form === f ? b : undefined); else f.submit();
+    setTimeout(() => { delete f.dataset.uiSavedFirst; if (asked) delete f.dataset.noConfirm; }, 0);
+  }, true);
+  let going = false;
+  document.addEventListener('submit', e => { if (!e.defaultPrevented && (e.target.getAttribute('method') || '').toLowerCase() === 'post'
+    && !e.target.closest('[data-ui-inplace]') && !e.target.matches('[data-ui-inplace]') && e.target.target !== '_blank') going = true; });
+  addEventListener('pageshow', () => { going = false; });
+  addEventListener('beforeunload', e => {
+    if (going || window.laSignedOut) return;
+    const watched = new Set([...document.querySelectorAll('[data-ui-unsaved]')].map(x => x.closest('form')).filter(Boolean));
+    document.querySelectorAll('[data-ui-save-first]').forEach(h => targets(h, null).forEach(o => watched.add(o)));
+    if ([...watched].some(edited)) { e.preventDefault(); e.returnValue = ''; }
+  });
+  relabel();
+})();
+
+(() => {
+  const KEY = 'la-undo';
+  const label = el => el.closest('label') || el;
+  const note = (el, msg, bad, undo) => {
+    document.querySelectorAll('.ui-note[data-ui-autosave-note]').forEach(n => n.remove());
+    const n = document.createElement('span'); n.className = 'ui-note ' + (bad ? 'ui-note-error' : 'ui-note-ok'); n.dataset.uiAutosaveNote = '';
+    n.setAttribute('role', bad ? 'alert' : 'status'); n.textContent = msg;
+    if (undo) { const u = document.createElement('button'); u.type = 'button'; u.className = 'ui-btn ui-btn-quiet ui-btn-small'; u.textContent = 'Undo';
+      u.addEventListener('click', () => { n.remove(); undo(); }); n.append(' ', u); }
+    label(el).after(n);
+    if (!bad) setTimeout(() => { n.classList.add('ui-fade'); setTimeout(() => n.remove(), 700); }, undo ? 6000 : 3000);
+  };
+  const post = async f => {
+    let r, text; try { r = await fetch(f.action, { method: 'POST', body: new FormData(f), credentials: 'same-origin' }); text = await r.text(); }
+    catch (_) { return { why: 'No answer from the app: not saved.' }; }
+    const doc = /html/.test(r.headers.get('content-type') || '') ? new DOMParser().parseFromString(text, 'text/html') : null;
+    const toast = doc && doc.querySelector('.toast[data-refused]');
+    if (!r.ok || toast) { const c = toast && toast.cloneNode(true); if (c) c.querySelectorAll('button').forEach(x => x.remove());
+      return { why: 'Not saved' + (c ? ': ' + c.textContent.trim() : '.') }; }
+    return { doc };
+  };
+  const swap = (doc, el) => {                     // the part it sits in shows what the save changed (rule 7)
+    const p = el.closest('[data-ui-part][id]'), n = p && doc && doc.getElementById(p.id);
+    if (!n || [...p.querySelectorAll('input, textarea, select')].some(i => i !== el && i.type !== 'hidden' && i.type !== 'file'
+      && ((i.type === 'checkbox' || i.type === 'radio') ? i.checked !== i.defaultChecked : i.value !== i.defaultValue))) return el;   // never lose typing
+    p.querySelectorAll('details[id]').forEach(d => { const m = n.querySelector('#' + CSS.escape(d.id)); if (m) m.open = d.open; });
+    p.replaceWith(n); if (typeof wire === 'function') wire(n);
+    return (el.id && document.getElementById(el.id)) || n.querySelector(`[name="${CSS.escape(el.name)}"]`) || el;
+  };
+  const run = async (f, el, back) => {
+    const was = !el.checked;
+    const res = await post(f);
+    if (res.why) { el.checked = was; el.defaultChecked = was; note(el, res.why, true); return; }
+    el.defaultChecked = el.checked;
+    if ('uiAutosaveReload' in f.dataset) {
+      try { sessionStorage.setItem(KEY, JSON.stringify({ path: location.pathname + location.search, id: el.id, undo: !back })); } catch (_) {}
+      location.reload(); return;
+    }
+    const at = swap(res.doc, el);
+    if (back) note(at, 'Undone'); else note(at, 'Saved', false, () => { at.checked = !at.checked; run(at.form, at, true); });
+  };
+  document.addEventListener('change', e => {
+    const el = e.target; if (!el.matches || !el.matches('input[type=checkbox], input[type=radio]')) return;
+    const f = el.form; if (!f || !f.matches('[data-ui-autosave]')) return;
+    e.stopImmediatePropagation();
+    run(f, el, false);
+  }, true);
+  let s = null; try { s = JSON.parse(sessionStorage.getItem(KEY) || 'null'); sessionStorage.removeItem(KEY); } catch (_) {}
+  const el = s && s.path === location.pathname + location.search && s.id && document.getElementById(s.id);
+  if (el) { if (s.undo) note(el, 'Saved', false, () => { el.checked = !el.checked; run(el.form, el, true); }); else note(el, 'Undone'); }
+})();
+
+(() => {
   const nav = document.querySelector('.settabs[data-settings-moved]');
   if (!nav || !location.hash || location.hash.length < 2) return;
   const id = decodeURIComponent(location.hash.slice(1));
@@ -522,8 +725,18 @@ addEventListener('hashchange', uiFound); uiFound();
 (() => {
   const nav = document.querySelector('.settabs'), on = nav && nav.querySelector('a.on');
   if (!on || nav.scrollHeight <= nav.clientHeight + 2) return;
-  const top = on.getBoundingClientRect().top - nav.getBoundingClientRect().top + nav.scrollTop, room = nav.clientHeight;
-  if (top < nav.scrollTop || top + on.offsetHeight > nav.scrollTop + room) nav.scrollTop = Math.max(0, top - room / 3);
+  const at = el => el.getBoundingClientRect().top - nav.getBoundingClientRect().top + nav.scrollTop;
+  const top = at(on), room = nav.clientHeight, grp = on.closest('.sg');
+  if (top < nav.scrollTop || top + on.offsetHeight > nav.scrollTop + room) {
+    const max = nav.scrollHeight - room, fits = t => t <= top && top + on.offsetHeight <= t + room;
+    let want = grp ? at(grp) : top;
+    if (!fits(want)) want = top;
+    if (want > max) {        // the list's end is in view: start at the last group heading that still shows the row
+      const heads = [...nav.querySelectorAll('.sg')].map(at).filter(t => t <= max && fits(t));
+      want = heads.length ? Math.max(...heads) : max;
+    }
+    nav.scrollTop = Math.max(0, want);
+  }
 })();
 
 (() => {
@@ -629,4 +842,29 @@ function uiUnchanged(root) {
     f.addEventListener('input', wake); f.addEventListener('change', wake);
   });
 }
+
+(() => {
+  const pick = e => e.target && e.target.closest ? e.target.closest('[data-ui-filepick]') : null;
+  const show = box => { const inp = box.querySelector('input[type=file]'), out = box.querySelector('.ui-filepick-name');
+    if (inp && out) out.textContent = [...inp.files].map(f => f.name).join(', '); };
+  document.addEventListener('dragover', e => { const b = pick(e); if (!b) return; e.preventDefault(); b.classList.add('over'); });
+  document.addEventListener('dragleave', e => { const b = pick(e); if (b) b.classList.remove('over'); });
+  document.addEventListener('drop', e => { const b = pick(e); if (!b) return; e.preventDefault(); b.classList.remove('over');
+    const inp = b.querySelector('input[type=file]'); if (!inp || !e.dataTransfer.files.length) return;
+    const dt = new DataTransfer(); dt.items.add(e.dataTransfer.files[0]); inp.files = dt.files; show(b); });
+  document.addEventListener('change', e => { const b = pick(e); if (b && e.target.matches('input[type=file]')) show(b); });
+})();
+
+(() => {
+  const sync = () => document.querySelectorAll('[data-ui-picked]').forEach(row => {
+    const n = document.querySelectorAll('input[type=checkbox][form="' + row.dataset.uiPicked + '"]:checked').length;
+    if (row.hidden !== !n) row.hidden = !n;
+    const b = row.querySelector('button[data-one]');
+    const t = b && (n === 1 ? b.dataset.one : b.dataset.many.replace('N', n));
+    if (b && n && b.textContent !== t) b.textContent = t;
+  });
+  document.addEventListener('change', e => { if (e.target.matches && e.target.matches('input[type=checkbox][form]')) sync(); });
+  new MutationObserver(sync).observe(document.documentElement, { childList: true, subtree: true });   // a part swapped in place
+  sync();
+})();
 

@@ -31,12 +31,48 @@ def _pipe_thread(fn):
     t.start()
     return rf, t, box
 
+def add_tree(tf, path, arcname, skip_bad=False):
+
+    real = os.path.realpath(path)
+    if not os.path.isdir(real):
+        raise ValueError(f"{arcname} is not a folder; nothing was sealed")
+
+    skipped = []
+
+    def refuse(rel, why):
+        if skip_bad:
+            skipped.append(rel)
+            return
+        raise ValueError(f"{arcname}/{rel} {why}, so the folder can't be sealed as it is (nothing was removed). "
+                         "Put the file itself there, or remove it, then seal again.")
+    tf.add(real, arcname=arcname, recursive=False)
+    def unreadable(e):
+        raise e
+    for top, dirs, files in os.walk(real, onerror=unreadable, followlinks=False):
+        rel_top = os.path.relpath(top, real)
+        for d in sorted(dirs):
+            if os.path.islink(os.path.join(top, d)):
+                refuse(os.path.normpath(os.path.join(rel_top, d)), "is a link to a folder")
+        dirs[:] = sorted(d for d in dirs if not os.path.islink(os.path.join(top, d)))
+        for d in dirs:
+            tf.add(os.path.join(top, d), arcname=os.path.normpath(os.path.join(arcname, rel_top, d)), recursive=False)
+        for f in sorted(files):
+            p = os.path.join(top, f)
+            rel = os.path.normpath(os.path.join(rel_top, f))
+            target = os.path.realpath(p)
+            if not os.path.isfile(target):
+                refuse(rel, "is not a file" if not os.path.islink(p) else
+                       "is a link to something that isn't a file" if os.path.exists(target) else "is a link that leads nowhere")
+                continue
+            tf.add(target, arcname=os.path.join(arcname, rel), recursive=False)
+    return skipped
+
 def tar_reader(paths, members=()):
 
     def write(wf):
         with tarfile.open(fileobj=wf, mode="w|") as tf:
             for p in paths:
-                tf.add(p, arcname=os.path.basename(p.rstrip("/")))
+                add_tree(tf, p, os.path.basename(p.rstrip("/")))
             for name, size, opener in members:
                 ti = tarfile.TarInfo(name)
                 ti.size, ti.mode, ti.mtime = size, 0o600, int(datetime.now().timestamp())
@@ -259,3 +295,43 @@ def destroy_session(con, sid, backends):
             raise
     keys.shred(con, sid)
     con.commit()
+
+REWRAP_KINDS = ("photo-key", "session-key")
+
+def rewrap_key_files(con, old_secret, new_pub, backends):
+
+    import hashlib
+    import io
+    import json
+    ident = keys.parse_secret(old_secret)
+    rcpt = keys.recipient(new_pub)
+    by_kind = {b.kind: b for b in backends}
+    moved = left = 0
+    rows = con.execute(f"""SELECT id, session_id, kind, name, backend FROM vault_objects WHERE deleted IS NULL
+                           AND kind IN ({','.join('?' * len(REWRAP_KINDS))}) ORDER BY id""", REWRAP_KINDS).fetchall()
+    for oid, sid, kind, name, where in rows:
+        bk = by_kind.get(where)
+        if bk is None:
+            left += 1
+            continue
+        try:
+            buf = io.BytesIO()
+            bk.get_stream(name, buf)
+            plain = pyrage.decrypt(buf.getvalue(), [ident])
+            if kind == "session-key":
+                w = con.execute("SELECT wrapped FROM vault_keys WHERE session_id=?", (sid,)).fetchone()
+                m = json.loads(plain)
+                if w:
+                    m["wrapped"] = w[0]
+                plain = json.dumps(m).encode()
+            ct = pyrage.encrypt(plain, [rcpt])
+            bk.put_stream(name, io.BytesIO(ct))
+            sha = hashlib.sha256(ct).hexdigest()
+            if bk.stat(name) != len(ct):
+                raise IOError(f"the new copy of {name} did not verify")
+            con.execute("UPDATE vault_objects SET size=?, sha256=? WHERE id=?", (len(ct), sha, oid))
+            con.commit()
+            moved += 1
+        except Exception:
+            left += 1
+    return moved, left

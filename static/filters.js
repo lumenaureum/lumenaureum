@@ -109,7 +109,25 @@ const uiFilterStart = bar => {
   Object.keys(st.g).forEach(k => { st.g[k] = st.g[k].filter(v => bar.querySelector(`[data-f-key="${CSS.escape(k)}"][data-f-val="${CSS.escape(v)}"]`)); });
   sortNow();
   apply();
+  cue(bar);
   return { bar, apply };
+};
+const cue = bar => {
+  const row = bar.querySelector('[data-f-row]'); if (!row || row.parentElement.classList.contains('ui-filter-rowwrap')) return;
+  const wrap = document.createElement('div'); wrap.className = 'ui-filter-rowwrap';
+  row.before(wrap); wrap.appendChild(row);
+  const more = document.createElement('button'); more.type = 'button'; more.className = 'ui-btn ui-btn-quiet ui-filter-more';
+  more.setAttribute('aria-label', 'Show more filters'); more.title = 'More filters'; more.hidden = true;
+  more.innerHTML = '<span aria-hidden="true">&rsaquo;</span>'; wrap.appendChild(more);
+  const look = () => {
+    const right = row.scrollLeft + row.clientWidth < row.scrollWidth - 2, left = row.scrollLeft > 2;
+    more.hidden = !right; row.toggleAttribute('data-more-right', right); row.toggleAttribute('data-more-left', left);
+  };
+  more.addEventListener('click', () => row.scrollBy({ left: Math.max(120, row.clientWidth * 0.7), behavior: 'smooth' }));
+  row.addEventListener('scroll', look, { passive: true });
+  addEventListener('resize', look);
+  bar.addEventListener('click', () => setTimeout(look, 0));        // a chip picked or cleared changes the row's width
+  look();
 };
 (() => {
   let cur = document.querySelector('[data-ui-filter]') ? uiFilterStart(document.querySelector('[data-ui-filter]')) : null, t = 0;

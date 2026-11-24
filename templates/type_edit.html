@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% from "_macros.html" import help with context %}{% import "_ui.html" as ui with context %}{% import "_steps.html" as sw %}
+{% extends "base.html" %}{% from "_macros.html" import help with context %}{% import "_ui.html" as ui with context %}{% import "_steps.html" as sw %}{% import "_settings_ui.html" as sui with context %}
 {% block title %}{{ t.label }} - Lumen Aureum{% endblock %}
 {% block body %}
 {{ ui.page_head(t.label, kicker='Session type', face=ui.type_mark(t.key, 'ui-type-face')) }}
@@ -69,6 +69,8 @@
     <select name="deposit_mode" aria-label="Deposit in" style="width:auto"><option value="amt"{{ ' selected' if t.get('deposit_amount') is not none }}>dollars</option><option value="pct"{{ ' selected' if t.get('deposit_pct') is not none }}>% of the price</option></select>
     <span class="mute" style="font-size:12px">Blank uses your answer in Payments and terms.</span></div>
   {{ sw.reuse_lines(reuse('deposit')) }}
+  <label class="row" style="gap:6px;flex-wrap:wrap">{{ 'The balance after the deposit'|dep }} in <input type="number" name="installments" min="1" max="{{ [C.INSTALLMENTS_MAX, t.get('installments') or 1]|max }}" value="{{ t.get('installments') or 1 }}" style="width:90px;display:inline;margin:0"> payments{{ help("1 is one payment, when the Terms say the balance is due. More splits it into equal payments, one a month on the booking's day of the month; the last is due when the whole balance would be. With fewer months than payments, they are spread evenly instead. At most " ~ C.INSTALLMENTS_MAX ~ " payments. The quote, the agreement and the invoice list the dated amounts. A session can have its own plan, on its Billing.") }}</label>
+  {% if (t.get('installments') or 0) > C.INSTALLMENTS_MAX %}<p class="mute" style="font-size:12px">This type splits the balance into {{ t.installments }} payments, set before plans were limited to {{ C.INSTALLMENTS_MAX }}. It stays as it is. A new or changed number is at most {{ C.INSTALLMENTS_MAX }}.</p>{% endif %}
   <div class="row" style="gap:8px;flex-wrap:wrap"><span id="folio-l">Portfolio permission discount</span>
     <input type="number" name="portfolio_value" aria-labelledby="folio-l" min="0" value="{{ t.portfolio_pct or t.portfolio_amount or '' }}" placeholder="none" style="width:110px">
     <select name="portfolio_mode" aria-label="Discount in" style="width:auto"><option value="amt"{{ ' selected' if t.portfolio_amount }}>dollars</option><option value="pct"{{ ' selected' if t.portfolio_pct }}>% of the price</option></select>
@@ -76,10 +78,12 @@
   {{ sw.reuse_lines(reuse('portfolio')) }}
   <label class="row" style="gap:6px"><input type="checkbox" id="f-gallery_codeword" name="gallery_codeword" value="1" data-off-warn="Without a codeword, anyone who gets the gallery link can open the gallery: a forwarded email or a photo of the letter is enough. Turn it off for this type?"{{ ' checked' if policy.get('gallery_codeword') }} style="width:auto;margin:0">Ask for a gallery codeword{{ help("The client picks three words at booking, in person or on the phone. Their gallery opens only with the link and the words together; short or common words are refused, since anyone holding the link could try to guess them. On for every type unless you turn it off. The words are never written into any email the app drafts.") }}</label>
   <p class="cw-off-note" data-off-note="f-gallery_codeword"{% if policy.get('gallery_codeword') %} hidden{% endif %}>Without a codeword, anyone who gets the gallery link can open the gallery: a forwarded email or a photo of the letter is enough.</p>
+  {% if no_cw %}{{ sui.no_cw_check(no_cw.words, 'name="cw_all_off" value="1"', no_cw.confirm, choose_href=no_cw.choose, attrs=' data-show-if="gallery_codeword=1"') }}{% endif %}
   <label class="row" style="gap:6px"><input type="checkbox" name="indoors" value="1"{{ ' checked' if t.indoors }} style="width:auto;margin:0">Shot indoors{{ help("No golden hour or sunset times. Studio, newborn and food sessions don't need sunset times; they are left off this type's pages and documents.") }}</label>
   <label class="row" style="gap:6px"><input type="checkbox" name="all_sign" value="1"{{ ' checked' if t.all_sign }} style="width:auto;margin:0">Every adult on the client record signs the agreement{{ help("For couples and weddings: each adult gets a signature line, and a signer needs no separate release.") }}</label>
   <div class="ui-btnrow" style="margin-top:12px"><button class="ui-btn ui-btn-primary">Save</button></div>
 </form>
+{% for p_ in type_panels %}{{ p_ }}{% endfor %}
 <div class="ui-sec" id="terms" style="max-width:720px"><h2 class="ui-sec-title">Terms as clients read them</h2>
   <p class="ui-mute" style="margin:0 0 8px">On quotes, invoices and session sheets for {{ t.label }}. Built from the settings above and in Payments and terms.</p>
   {% for head, txt in C.build_terms(t.key, setting('business_name')) %}{{ ui.fact(head, txt) }}{% endfor %}

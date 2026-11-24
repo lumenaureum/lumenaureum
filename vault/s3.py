@@ -264,6 +264,15 @@ def _error_of(status, body, key=""):
         return S3Error(status, _text(root, "Code"), _text(root, "Message"), key)
     return S3Error(status, {404: "NotFound", 403: "AccessDenied"}.get(status, ""), "", key)
 
+def region_of(host):
+
+    import re
+    host = (host or "").lower().rstrip(".")
+    m = re.fullmatch(r"s3\.([a-z0-9-]+)\.(backblazeb2|wasabisys)\.com", host)
+    if m:
+        return m.group(1)
+    return "auto" if host.endswith(".r2.cloudflarestorage.com") else None
+
 def _dns_bucket(b):
     import re
     return bool(re.fullmatch(r"[a-z0-9][a-z0-9-]{1,61}[a-z0-9]", b))
@@ -303,6 +312,8 @@ class Client:
                 raise ValueError("The S3 endpoint's port isn't a number.") from None
             self.base = u.path.rstrip("/")
             self.aws = self.host.endswith(".amazonaws.com")
+            if not (region or "").strip():
+                self.region = region_of(self.host) or self.region
         else:
             self.scheme, self.port, self.base = "https", 443, ""
             self.host = self._aws_host()

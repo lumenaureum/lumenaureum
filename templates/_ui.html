@@ -13,12 +13,16 @@
 {%- endmacro %}
 
 
-{% macro action(url, label, fields={}, back=None, kind='quiet', inplace=true, confirm=None, name=None, value=None, extra='') -%}
-<form method="post" action="{{ url }}" class="ui-action"{% if inplace %} data-ui-inplace{% endif %}{% if confirm %} data-confirm="{{ confirm }}"{% endif %}>
+
+{% macro action(url, label, fields={}, back=None, kind='quiet', inplace=true, confirm=None, name=None, value=None, extra='', id='', dirty='') -%}
+<form method="post" action="{{ url }}" class="ui-action"{% if id %} id="{{ id }}"{% endif %}{% if inplace %} data-ui-inplace{% endif %}{% if confirm %} data-confirm="{{ confirm }}"{% endif %}>
 {%- for k, v in fields.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor -%}
 {%- if back %}<input type="hidden" name="back" value="{{ back }}">{% endif -%}
-{{ extra|safe }}<button class="ui-btn ui-btn-{{ kind }}"{% if name %} name="{{ name }}" value="{{ value }}"{% endif %}>{{ label }}</button></form>
+{{ extra|safe }}<button class="ui-btn ui-btn-{{ kind }}"{% if name %} name="{{ name }}" value="{{ value }}"{% endif %}{% if dirty %} data-ui-dirty-label="{{ dirty }}"{% endif %}>{{ label }}</button></form>
 {%- endmacro %}
+
+
+{% macro job_watch(key) -%}<span hidden data-ui-job="{{ url_for('jobs_state', key=key) }}"></span>{%- endmacro %}
 
 
 {% macro type_mark(stype, cls='') -%}
@@ -46,10 +50,10 @@
 {%- endmacro %}
 
 
-{% macro needs(title, id='needs-you', part=true) -%}
+{% macro needs(title, id='needs-you', part=true, lead='') -%}
 <section class="ui-needs" id="{{ id }}"{% if part %} data-ui-part{% endif %}>
   <h2 class="ui-sec-title">{{ title }}</h2>
-  {{ caller() }}
+  {{ lead }}{{ caller() }}
 </section>
 {%- endmacro %}
 
@@ -124,6 +128,15 @@
 
 {% macro inline_form(id, label='') -%}
 <div class="ui-inline" id="{{ id }}" role="group"{% if label %} aria-label="{{ label }}"{% endif %}>{{ caller() }}</div>
+{%- endmacro %}
+
+
+
+
+{% macro file_pick(name, what='the file', accept='', required=false, id='') -%}
+{%- set id_ = id or 'fp-' ~ name -%}
+<label class="ui-filepick" data-ui-filepick for="{{ id_ }}"><span class="ui-filepick-ask">Drop {{ what }} here, or <u>Browse</u></span>
+<span class="ui-filepick-name" aria-live="polite"></span><input type="file" class="vh" id="{{ id_ }}" name="{{ name }}"{% if accept %} accept="{{ accept }}"{% endif %}{% if required %} required{% endif %}></label>
 {%- endmacro %}
 
 
@@ -210,15 +223,47 @@
 {%- elif a.doc -%}{{ button_link(a.doc, label or a.doc_verb or 'Open document', kind, blank=not a.doc_here) }}
 {%- elif a.post -%}
 {%- set day_ %}<input type="date" name="on" value="{{ iso_today() }}" max="{{ iso_today() }}"{% if a.date_tip %} title="{{ a.date_tip }}"{% endif %} aria-label="Day" class="ui-input-date">{% endset -%}
-{{ action(a.post, label or a.verb, a.fields or {}, back, kind, confirm=a.confirm, extra=day_ if a.ask_date else '') }}
+{{ action(a.post, label or a.verb, a.fields or {}, back, kind, inplace=not a.reloads, confirm=a.confirm, extra=day_ if a.ask_date else (final_tick(a.ask_final) if a.ask_final else '')) }}
 {%- else -%}{{ button_link(a.href, label or a.verb, kind) }}{%- endif -%}
 {%- if menu %}{{ row_more(a, back, more_) }}{% endif -%}
+{%- endmacro %}
+
+
+{% macro final_tick(day) -%}
+<input type="hidden" name="final_shown" value="1"><label class="ui-check"><input type="checkbox" name="final" value="1" checked>Is {{ nice(day[:10]) }} the final date?</label>
 {%- endmacro %}
 
 
 {% macro step_row_id(a) -%}row-{% if a.close and a.close.task %}t{{ a.close.task }}{% elif a.close and a.close.step %}{{ a.close.step }}{% elif a.form %}{{ a.form }}{% else %}{{ (a.what or '')|lower|replace(' ', '-') }}{% endif %}{%- endmacro %}
 
 {% macro step_form_id(a) -%}f-{{ step_row_id(a)[4:] }}-{{ a.sid }}{%- endmacro %}
+
+
+{% macro pay_methods(other=true) -%}
+<span class="seg" role="radiogroup" aria-label="Paid by">{% for m_ in C.PAYMENT_METHODS %}<label><input type="radio" name="method" value="{{ m_ }}"{{ ' checked' if loop.first }}><span>{{ m_ }}</span></label>{% endfor %}{% if other %}<label><input type="radio" name="method" value="other"><span>Other (say what)</span></label>{% endif %}</span>
+{%- endmacro %}
+
+
+{% macro pick_paid(id, url, back, first_day) -%}
+<div class="ui-btnrow" data-ui-picked="{{ id }}"><form method="post" action="{{ url }}" id="{{ id }}" class="ui-form-row"><input type="hidden" name="once" value="{{ form_once() }}"><input type="hidden" name="back" value="{{ back }}">
+  {{ pay_methods(other=false) }}<input type="date" name="received" value="{{ today.isoformat() }}" min="{{ first_day }}" max="{{ today.isoformat() }}" aria-label="Paid on" class="ui-input-date">
+  <button class="ui-btn ui-btn-primary" data-one="Record the selected one as paid in full" data-many="Record the N selected as paid in full">Record the selected as paid in full</button></form></div>
+{%- endmacro %}
+
+
+{% macro correct_form(id, url, back, what, now_amount, miles=none) -%}
+{% call inline_form(id, 'Correct ' ~ what) %}<form method="post" action="{{ url }}" class="ui-form-row"><input type="hidden" name="once" value="{{ form_once() }}"><input type="hidden" name="back" value="{{ back }}">
+  <label><span>Should have been</span><input type="number" step="0.01" min="0" name="should_be" value="0.00" class="ui-input-money" aria-label="What the {{ what }} should have been, now {{ now_amount }}"></label>
+  {% if miles is not none %}<label><span>Miles</span><input type="number" step="0.1" min="0" name="miles_should_be" value="0" class="ui-input-short"></label>{% endif %}
+  <input name="why" maxlength="120" placeholder="Why" aria-label="Why it is corrected" required class="ui-grow">
+  <input type="date" name="day" value="{{ today.isoformat() }}" min="{{ books_open_from() }}" max="{{ today.isoformat() }}" aria-label="Recorded on" class="ui-input-date">
+  <button class="ui-btn ui-btn-primary">Record the correction</button></form>{% endcall %}
+{%- endmacro %}
+
+
+{% macro pick_box(form, value, label) -%}
+<label class="ui-check"><input type="checkbox" name="pick" value="{{ value }}" form="{{ form }}" aria-label="{{ label }}"></label>
+{%- endmacro %}
 
 
 {% macro step_form(a, back, s=None) -%}
@@ -237,7 +282,7 @@
   {% elif a.form in ('deposit_paid', 'pay_balance') %}
     {%- set amt_ = a.dep_amt if a.form == 'deposit_paid' else a.pay_amt -%}
     <form method="post" action="{{ url_for('money_add', sid=a.sid) }}" class="ui-form-row" data-ui-inplace{% if a.form == 'pay_balance' %} data-balance="{{ '%.2f'|format(a.pay_amt or 0) }}"{% endif %}><input type="hidden" name="what" value="payment"><input type="hidden" name="once" value="{{ form_once() }}"><input type="hidden" name="kind" value="{{ 'deposit' if a.form == 'deposit_paid' else 'balance' }}"><input type="hidden" name="back" value="{{ back }}">
-      <input type="number" step="0.01" min="0.01" name="amount" placeholder="$" aria-label="Amount" required class="ui-input-money" value="{{ '%.2f'|format(amt_) if amt_ and amt_ > 0.005 }}"><span class="seg" role="radiogroup" aria-label="Paid by">{% for m_ in C.PAYMENT_METHODS %}<label><input type="radio" name="method" value="{{ m_ }}"{{ ' checked' if loop.first }}><span>{{ m_ }}</span></label>{% endfor %}<label><input type="radio" name="method" value="other"><span>Other (say what)</span></label></span>
+      <input type="number" step="0.01" min="0.01" name="amount" placeholder="$" aria-label="Amount" required class="ui-input-money" value="{{ '%.2f'|format(amt_) if amt_ and amt_ > 0.005 }}">{{ pay_methods() }}
       <input name="ref" maxlength="40" placeholder="Check #" aria-label="Check number" class="ui-input-short" data-show-if="method=check">
       <input name="note" maxlength="80" placeholder="What it was, such as a trade" aria-label="What it was" class="ui-grow" data-show-if="method=other">
       <input type="date" name="received" value="{{ today.isoformat() }}" aria-label="Payment received on" class="ui-input-date"><button class="ui-btn ui-btn-primary">Record payment</button></form>

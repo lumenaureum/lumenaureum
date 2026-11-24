@@ -98,9 +98,12 @@ def test_opening_an_invoice_uses_no_number_until_it_is_issued(tmp_path, monkeypa
     empty = _new(A, c, "family", subject_name="Ava")
     sid = _new(A, c, "family", subject_name="Ben")
     _line(c, sid)
+    page = c.get(f"/session/{empty}/invoice", environ_base=E).get_data(as_text=True)
+    assert "Nothing to invoice yet" in page and "Issue this invoice" not in page
+    page = c.get(f"/session/{sid}/invoice", environ_base=E).get_data(as_text=True)
+    assert "Assigned when issued" in page and "Issue this invoice" in page
     for s_ in (empty, sid):
         page = c.get(f"/session/{s_}/invoice", environ_base=E).get_data(as_text=True)
-        assert "Assigned when issued" in page and "Issue this invoice" in page
         assert 'href="/session/%d/invoice.pdf"' % s_ not in page
     assert c.get(f"/session/{sid}/invoice.pdf", environ_base=E).status_code == 200
     assert not _q(A, "SELECT 1 FROM doc_numbers")

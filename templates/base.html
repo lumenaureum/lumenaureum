@@ -32,10 +32,11 @@
       <form method="post" action="{{ url_for('logout') }}"><button class="ui-menu-item">Sign out</button></form>
     </div></details>
 </nav>
-<main id="main" tabindex="-1">{% set notice = take_notice() %}{% if notice %}<div class="clash toast" role="status"{% if g.get("notice_refused") %} data-refused{% endif %}{% if take_refill() %} data-refill="{{ take_refill() }}"{% endif %}>{{ notice }}<button type="button" class="toast-x" aria-label="Dismiss this message" title="Dismiss" data-dismiss>&times;</button></div>{% endif %}{% set sp_ = ep in SETTINGS_ENDPOINTS %}{% if sp_ %}<div class="setwrap">{% include "_settings_nav.html" %}<div class="setmain">{% endif %}{% block body %}{% endblock %}{% if sp_ %}</div></div>{% endif %}</main>
+<main id="main" tabindex="-1">
 {% set jobs_ = jobs_visible() %}{% if jobs_ %}<aside class="jobs" aria-live="polite">{% for j in jobs_ %}
   <div class="job {{ j.state }}"><b>{{ j.label }}</b> <span>{% if j.state == 'running' %}working...{% if j.total %} ({{ j.done }} of {{ j.total }} done){% endif %}{% elif j.state == 'error' %}{{ j.message }}{% else %}{{ j.message }}{% endif %}</span></div>{% endfor %}
   {% if jobs_|selectattr('state', 'equalto', 'running')|list %}<span hidden data-poll="{{ url_for('jobs_state') }}"></span>{% endif %}</aside>{% endif %}
+{% set notice = take_notice() %}{% if notice %}<div class="clash toast" role="status"{% if g.get("notice_refused") %} data-refused{% endif %}{% if take_refill() %} data-refill="{{ take_refill() }}"{% endif %}>{{ notice }}<button type="button" class="toast-x" aria-label="Dismiss this message" title="Dismiss" data-dismiss>&times;</button></div>{% endif %}{% set sp_ = ep in SETTINGS_ENDPOINTS %}{% if sp_ %}<div class="setwrap">{% include "_settings_nav.html" %}<div class="setmain">{% endif %}{% block body %}{% endblock %}{% if sp_ %}</div></div>{% endif %}</main>
 
 <div class="clash toast" role="alertdialog" aria-live="assertive" aria-label="Signing out soon" hidden data-idle-warn data-idle="{{ idle_hours() * 3600 }}" data-idle-left="{{ url_for('idle_left') }}">
   <span>You will be signed out in about 2 minutes, after a while with no activity. Anything you typed stays on this page.</span>

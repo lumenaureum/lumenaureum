@@ -332,3 +332,59 @@ def banner(unclaimed, plugins=(), plugin_errors=()):
         lines.append(f" Setup code: {claim_code()}   (also in {CODE_FILE} in the data folder)")
     lines += ["=" * 66, ""]
     print("\n".join(lines), flush=True)
+
+ONLY_HERE_NETS = [ipaddress.ip_network(n) for n in ("127.0.0.0/8", "::1/128", "169.254.0.0/16", "fe80::/10",
+                                                    "0.0.0.0/8", "::/128")]
+
+def only_here(url, timeout=2.0):
+
+    from urllib.parse import urlsplit
+    try:
+        host = (urlsplit((url or "").strip()).hostname or "").strip("[]")
+    except ValueError:
+        return ""
+    if not host:
+        return ""
+
+    def flagged(a_):
+        try:
+            ip = ipaddress.ip_address(a_.split("%", 1)[0])
+        except ValueError:
+            return False
+        if ip.version == 6 and ip.ipv4_mapped:
+            ip = ip.ipv4_mapped
+        return any(ip in n for n in ONLY_HERE_NETS)
+
+    try:
+        ipaddress.ip_address(host.split("%", 1)[0])
+        return host if flagged(host) else ""
+    except ValueError:
+        pass
+    if host.lower().rstrip(".") == "localhost" or host.lower().rstrip(".").endswith(".localhost"):
+        return host
+    import concurrent.futures as cf
+    ex = cf.ThreadPoolExecutor(max_workers=1)
+    try:
+        infos = ex.submit(socket.getaddrinfo, host, None).result(timeout=timeout)
+    except Exception:
+        return ""
+    finally:
+        ex.shutdown(wait=False)
+    for info in infos:
+        if flagged(info[4][0]):
+            return info[4][0]
+    return ""
+
+def only_here_words(url):
+
+    at = only_here(url)
+    if not at:
+        return ""
+    from urllib.parse import urlsplit
+    host = urlsplit(url.strip()).hostname or at
+    shown = host if host == at else f"{host} ({at})"
+    return f"The gallery address {shown} only works from this machine, so clients can't open galleries there."
+
+ONLY_HERE_HELP = ("Addresses like localhost, 127.0.0.1, ::1 and 169.254.x.x reach only the machine that uses them, never a "
+                  "client's phone or computer. The app's own checks of the web host also go to this machine instead. "
+                  "Use the address clients open on the internet. It was saved anyway, in case this is a test setup.")

@@ -357,6 +357,8 @@ def test_an_unreachable_host_waits_and_today_says_so(site):
     s.down = False
     run(s)
     assert_done(s, legacy_payload(s, picks, "picks.bin"))
+    import jobs
+    jobs.JOBS.pop("upgrade-140", None)
     assert "Updating galleries" not in s.c.get("/", environ_base=E).get_data(as_text=True)
 
 def test_php_below_the_floor_leaves_the_gallery_on_13(site, monkeypatch):

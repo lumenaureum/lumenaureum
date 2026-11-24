@@ -10,10 +10,12 @@ SETTING_KEYS = ("business_name", "photographer_name", "studio_name", "business_e
                 "local_tax_pct", "gallery_base_url", "backup_time", "governing_law", "credit_off", "agreement_text", "release_text", "transfer_text", "license_text",
                 "home_base", "business_tax_id", "bank_details", "pay_details", "age_majority", "logo_png",
                 "logo_dark_png", "gallery_font", "gallery_bg", "proof_mark", "proof_mark_text", "proof_mark_strength",
-                "business_website", "brand_font_400", "brand_font_300", "brand_font_name")
+                "business_website", "brand_font_400", "brand_font_300", "brand_font_name", "taxes", "deposit_word")
 SECRET_FIELDS = ("secret_key", "password", "private_key")
 STORAGE_PARTS = ("primary", "secondary", "gallery_host")
-BACKEND_FIELDS = {"local": ("type", "path"), "sftp": ("type", "host", "user", "key_file", "root", "port", "known_hosts", "host_key"),
+
+PIN_FIELDS = ("host_key", "known_hosts")
+BACKEND_FIELDS = {"local": ("type", "path"), "sftp": ("type", "host", "user", "key_file", "root", "port", "auth"),
                   "s3": ("type", "bucket", "endpoint", "region", "access_key", "prefix", "addressing")}
 FEE_UNITS = ("flat", "hour", "each", "mile", "person")
 MAX_TEXT = 2000
@@ -344,15 +346,26 @@ def gallery_logo(bg, logo, logo_dark):
 class ImportProblem(ValueError):
     pass
 
-def export(get_setting, fee_items, storage_cfg):
+def export(get_setting, fee_items, storage_cfg, plugins=None):
     settings = {k: get_setting(k) for k in SETTING_KEYS if get_setting(k) is not None}
     storage = {}
     for part in STORAGE_PARTS:
         cfg = storage_cfg.get(part)
         if cfg:
-            storage[part] = {k: v for k, v in cfg.items() if k not in SECRET_FIELDS}
+            storage[part] = {k: v for k, v in cfg.items() if k not in SECRET_FIELDS and k not in PIN_FIELDS}
     return {"lumen_aureum_settings": FORMAT, "exported": datetime.now().isoformat(timespec="seconds"),
-            "settings": settings, "rules": C.current_rules(), "fees": fee_items, "storage": storage}
+            "settings": settings, "rules": C.current_rules(), "fees": fee_items, "storage": storage,
+            **({"plugins": plugins} if plugins else {})}
+
+def plugin_parts(text):
+
+    try:
+        raw = json.loads(text).get("plugins")
+    except (ValueError, AttributeError):
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    return {k: v for k, v in raw.items() if isinstance(k, str) and re.fullmatch(r"[a-z0-9_]{1,40}", k)}
 
 def _text(v, what, limit=MAX_TEXT):
     if not isinstance(v, (str, int, float)) or isinstance(v, bool):
@@ -556,10 +569,42 @@ def _fees(raw):
         for flag in ("taxable", "passthrough"):
             if flag in it:
                 item[flag] = bool(it[flag])
+        if it.get("untaxed"):
+            if not isinstance(it["untaxed"], list) or not all(isinstance(k_, str) and re.fullmatch(r"[a-z0-9_]{1,20}", k_)
+                                                              for k_ in it["untaxed"]):
+                raise ImportProblem(f"fees[{i}].untaxed: a list of tax keys")
+            item["untaxed"] = list(dict.fromkeys(it["untaxed"]))[:20]
         if "min" in it and isinstance(it["min"], (int, float)) and not isinstance(it["min"], bool):
             item["min"] = it["min"]
         out.append(item)
     return out
+
+def check_taxes(raw):
+
+    try:
+        items = json.loads(raw or "[]")
+    except ValueError:
+        raise ImportProblem("settings.taxes: not readable")
+    if not isinstance(items, list) or len(items) > 10:
+        raise ImportProblem("settings.taxes: a list of up to 10 taxes")
+    out, keys, names = [], set(), set()
+    for i, t_ in enumerate(items):
+        if not isinstance(t_, dict):
+            raise ImportProblem(f"settings.taxes[{i}]: not a tax")
+        key = t_.get("key")
+        name = _text(t_.get("name", ""), f"settings.taxes[{i}].name", 40).strip()
+        rate = t_.get("rate")
+        if not isinstance(key, str) or not re.fullmatch(r"[a-z0-9_]{1,20}", key) or key in keys:
+            raise ImportProblem(f"settings.taxes[{i}].key: letters, digits and _ only, each once")
+        if not name or name.lower() in names:
+            raise ImportProblem(f"settings.taxes[{i}].name: a name, each once")
+        if not isinstance(rate, (int, float)) or isinstance(rate, bool) or not 0 <= rate <= 25:
+            raise ImportProblem(f"settings.taxes[{i}].rate: a percentage from 0 to 25")
+        keys.add(key)
+        names.add(name.lower())
+        out.append(dict(key=key, name=name, rate=float(rate), included=bool(t_.get("included")),
+                        default=bool(t_.get("default", True))))
+    return json.dumps(out)
 
 def _storage(raw, current):
     if not isinstance(raw, dict):
@@ -581,7 +626,7 @@ def _storage(raw, current):
                 clean[k] = v
             else:
                 clean[k] = _text(v, f"storage.{part}.{k}", 2000)
-        for k in ("path", "key_file", "known_hosts"):
+        for k in ("path", "key_file"):
             if clean.get(k) and _inside_private(clean[k]):
                 raise ImportProblem(f"storage.{part}.{k}: can't be inside Lumen Aureum's data folder or program")
         if clean.get("type") == "s3" and clean.get("endpoint"):
@@ -591,10 +636,18 @@ def _storage(raw, current):
                 raise ImportProblem(f"storage.{part}.endpoint: {why}")
         if clean.get("type") == "s3" and clean.get("addressing", "auto") not in ("auto", "path", "virtual"):
             raise ImportProblem(f"storage.{part}.addressing: auto, path or virtual")
-        old = current.get(part) or {}
-        if old.get("type") == clean.get("type"):
-            clean.update({k: old[k] for k in SECRET_FIELDS if k in old})
-        out[part] = clean
+        if clean.get("type") == "sftp" and clean.get("auth", "password") != "password":
+            raise ImportProblem(f"storage.{part}.auth: password, or left out for a key")
+        if clean.get("auth") == "password" and part != "gallery_host":
+            raise ImportProblem(f"storage.{part}.auth: a password sign-in is for a web host only")
+        from vault import backends as B
+        if clean.get("type") == "sftp":
+
+            mine = current.get(part) or {}
+            if B.same_account(mine, clean):
+                clean.update({k: mine[k] for k in PIN_FIELDS if mine.get(k)})
+
+        out[part] = B.carry_secrets(current.get(part) or {}, clean, SECRET_FIELDS)
     return out
 
 def _inside_private(path):
@@ -604,7 +657,8 @@ def _inside_private(path):
     data = os.path.realpath(os.path.dirname(os.environ.get("CRM_DB", os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "crm.db"))))
     prog = os.path.realpath(os.path.dirname(os.path.abspath(__file__)))
     private = [os.path.join(data, n) for n in ("keyring.json", "tls", "crm.db", "crm.db-wal", "crm.db-shm", "faces",
-                                                "SETUP-CODE.txt", "RECOVERY-CODE.txt", "storage.json", "unlock.key")]
+                                                "SETUP-CODE.txt", "RECOVERY-CODE.txt", "storage.json", "unlock.key",
+                                                "known-browsers.json")]
     under = lambda d: real == d or real.startswith(d.rstrip("/") + "/")
     return real == data or under(prog) or any(under(p_) for p_ in private)
 
@@ -631,6 +685,18 @@ def parse(text, current_storage):
                 raise ImportProblem(f"settings.{k_}: a number, not {v_[:20]!r}")
             if n_ != n_ or n_ in (float("inf"), float("-inf")) or n_ < -360 or n_ > 100000:
                 raise ImportProblem(f"settings.{k_}: out of range")
+    if "deposit_word" in settings:
+        import config as _C
+        settings["deposit_word"] = _C.clean_deposit_word(settings["deposit_word"])
+    if "taxes" in settings:
+        settings["taxes"] = check_taxes(settings["taxes"])
+    elif "tax_mode" in settings:
+        try:
+            rate_ = min(25.0, max(0.0, float(settings.get("sales_tax_pct") or 0)))
+        except ValueError:
+            rate_ = 0.0
+        settings["taxes"] = json.dumps([dict(key="sales", name="Sales tax", rate=rate_, included=False, default=True)]
+                                       if settings["tax_mode"] != "none" and rate_ else [])
     for lk_ in ("logo_png", "logo_dark_png"):
         if settings.get(lk_):
             import base64

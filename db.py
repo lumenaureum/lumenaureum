@@ -51,13 +51,37 @@ class _Connection(sqlite3.Connection):
         with _OPEN_CLOSE:
             super().close()
 
+SELF_WAITS = []
+_WRITE_SQL = re.compile(r"\s*(INSERT|UPDATE|DELETE|REPLACE|CREATE|ALTER|DROP|BEGIN\s+(IMMEDIATE|EXCLUSIVE))\b", re.I)
+_MINE = threading.local()
+
+class _TestConnection(_Connection):
+    def execute(self, sql, *a):
+        live = getattr(_MINE, "cons", None)
+        if live is None:
+            import weakref
+            live = _MINE.cons = weakref.WeakSet()
+        live.add(self)
+        if isinstance(sql, str) and _WRITE_SQL.match(sql) and not self.in_transaction:
+            for other in list(live):
+                try:
+                    held = other is not self and other.in_transaction
+                except sqlite3.ProgrammingError:
+                    held = False
+                if held:
+                    import traceback
+                    SELF_WAITS.append(sql.strip()[:80] + "\n" + "".join(traceback.format_stack(limit=14)))
+                    raise sqlite3.OperationalError("database is locked (by another connection of this same thread)")
+        return super().execute(sql, *a)
+
 def connect(path=None, key=None):
 
     path = Path(path or DB_PATH)
     key_hex = datakey.db_key_hex(key)
     path.parent.mkdir(parents=True, exist_ok=True)
     with _OPEN_CLOSE:
-        con = sqlite3.connect(str(path), factory=_Connection, timeout=BUSY_TIMEOUT)
+        con = sqlite3.connect(str(path), factory=_TestConnection if os.environ.get("CRM_TESTING") else _Connection,
+                              timeout=BUSY_TIMEOUT)
         try:
             _key(con, key_hex)
             con.row_factory = sqlite3.Row

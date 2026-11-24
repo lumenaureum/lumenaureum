@@ -183,20 +183,9 @@ def test_year_runs_in_the_app_time_zone(env, monkeypatch):
     assert [(p["date received"], p["amount"]) for p in pays] == [("2026-12-31", "250.00")]
     assert not get_zip(c, 2027)["payments.csv"]
 
-def test_region_column_only_in_regional_mode(env):
+def test_one_sales_tax_keeps_the_columns_it_always_had(env):
+
     A, c = env
     seed_year(A)
-    assert "region" not in get_zip(c, 2026)["sales-tax.csv"][0]
-    A.hooks.tax_region = dict(name="Testland", areas=[("in", "Inside"), ("out", "Outside")],
-                              area_of=lambda addr: ("out", ""), extra_pct=lambda area, local: local if area == "in" else 0)
-    try:
-        con = A.connect()
-        con.execute("UPDATE settings SET value='regional' WHERE key='tax_mode'")
-        con.execute("UPDATE sessions SET tax_area='in' WHERE id=1")
-        con.commit()
-        con.close()
-        tax = get_zip(c, 2026)["sales-tax.csv"]
-        lane = next(t for t in tax if t["session date"] == "2026-05-02")
-        assert lane["region"] == "Inside"
-    finally:
-        A.hooks.tax_region = None
+    row = get_zip(c, 2026)["sales-tax.csv"][0]
+    assert "region" not in row and "tax" not in row and "sales tax" in row

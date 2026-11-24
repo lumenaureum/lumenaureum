@@ -1,10 +1,12 @@
 import base64
 import hashlib
 import hmac
+import ipaddress
 import json
 import re
 import secrets
 import struct
+import threading
 import time
 from collections import defaultdict, deque
 from datetime import date, datetime, timedelta
@@ -14,6 +16,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 import datakey
 import db as dbmod
+import knownbrowser
 import netsec
 
 SCHEMA = """CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE,
@@ -21,12 +24,32 @@ SCHEMA = """CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT 
   failed INTEGER DEFAULT 0, locked_until TEXT);"""
 MAX_FAILS, LOCK_MIN = 5, 15
 IP_FAILS_PER_HOUR = 20
-OPEN = {"static", "about", "login", "login_2fa", "setup_owner", "setup_owner_verify", "setup_owner_key", "unlock_master", "healthz"}
+OPEN = {"static", "about", "login", "login_2fa", "setup_owner", "setup_owner_verify", "setup_owner_key", "unlock_master", "healthz",
+        "calendar_feed"}
 MIN_PASSWORD = 12
 SESSIONS = {}
 LAST_SEEN = {}
 SETUP = {}
 SETUP_TTL = 1800
+NEWKEY = {}
+NEWKEY_TTL = 600
+ROTATE_DUE = "rotate_due"
+
+MASTER_PENDING = "master_pending"
+MASTER_REPLACED = "master_replaced_on"
+MASTER_WAIT = timedelta(hours=48)
+MASTER_BANNER_DAYS = 30
+MASTER_STALE = timedelta(days=7)
+MASTER_TICK_AT = [0.0]
+MASTER_LOCK = threading.Lock()
+
+def _newkey_purge():
+
+    now = time.time()
+    for t in [t for t, st in list(NEWKEY.items()) if now - st["at"] > NEWKEY_TTL]:
+        NEWKEY.pop(t, None)
+
+datakey.ON_LOCK.append(NEWKEY.clear)
 
 def new_totp_secret():
     return base64.b32encode(secrets.token_bytes(20)).decode().rstrip("=")
@@ -84,6 +107,7 @@ def is_activity(req):
 
 def end_sessions(uid, keep=None):
 
+    knownbrowser.revoke_all()
     for sid in [s_ for s_, u in SESSIONS.items() if u == uid and s_ != keep]:
         SESSIONS.pop(sid, None)
         LAST_SEEN.pop(sid, None)
@@ -98,10 +122,35 @@ def init_schema(connect):
     finally:
         con.close()
 
+def _address(ip):
+
+    try:
+        addr = ipaddress.ip_address((ip or "").split("%", 1)[0])
+    except ValueError:
+        return None
+    if addr.version == 6 and addr.ipv4_mapped:
+        addr = addr.ipv4_mapped
+    return addr
+
+def sender(ip):
+
+    addr = _address(ip)
+    if addr is None:
+        return ip or ""
+    if addr.version == 4:
+        return str(addr)
+    return str(ipaddress.ip_network(f"{addr}/64", strict=False))
+
+def exact(ip):
+
+    addr = _address(ip)
+    return str(addr) if addr is not None else (ip or "")
+
 class Throttle:
 
     def __init__(self):
         self.ip = defaultdict(deque)
+        self.near = {}
         self.until = {}
         self.log = deque(maxlen=500)
 
@@ -121,17 +170,23 @@ class Throttle:
         now = time.time()
         for k in [k for k, t in self.until.items() if t < now]:
             del self.until[k]
+        for k in [k for k, q in self.near.items() if not q or now - q[-1] >= LOCK_MIN * 60]:
+            del self.near[k]
         while len(self.ip) > self.MAX_TRACKED:
             del self.ip[next(iter(self.ip))]
+        while len(self.near) > self.MAX_TRACKED:
+            del self.near[next(iter(self.near))]
 
-    def ip_blocked(self, ip):
-        return len(self._trim(ip)) >= IP_FAILS_PER_HOUR or time.time() < self.until.get(ip, 0)
+    def ip_blocked(self, ip, known=False):
 
-    def wait_text(self, ip):
+        return ((not known and len(self._trim(sender(ip))) >= IP_FAILS_PER_HOUR)
+                or time.time() < self.until.get(exact(ip), 0))
 
-        now, q = time.time(), self._trim(ip)
-        ends = [self.until.get(ip, 0)]
-        if len(q) >= IP_FAILS_PER_HOUR:
+    def wait_text(self, ip, known=False):
+
+        now, q = time.time(), self._trim(sender(ip))
+        ends = [self.until.get(exact(ip), 0)]
+        if not known and len(q) >= IP_FAILS_PER_HOUR:
             ends.append(q[len(q) - IP_FAILS_PER_HOUR] + 3600)
         mins = max(1, -(-int(max(ends) - now) // 60))
         return "in a minute" if mins == 1 else f"in {mins} minutes"
@@ -139,17 +194,23 @@ class Throttle:
     def fail(self, ip, what="sign-in"):
         now = time.time()
         self._sweep()
-        q = self._trim(ip)
-        self.ip[ip] = q
-        q.append(now)
         self.log.append((now, ip, what))
-        if sum(1 for t in q if now - t < LOCK_MIN * 60) >= MAX_FAILS:
-            self.until[ip] = now + LOCK_MIN * 60
+        key = sender(ip)
+        q = self._trim(key)
+        self.ip[key] = q
+        q.append(now)
+        one = exact(ip)
+        near = deque(t for t in self.near.get(one, ()) if now - t < LOCK_MIN * 60)
+        near.append(now)
+        self.near[one] = near
+        if len(near) >= MAX_FAILS:
+            self.until[one] = now + LOCK_MIN * 60
 
     def ok(self, ip=None):
         if ip:
-            self.ip.pop(ip, None)
-            self.until.pop(ip, None)
+            self.ip.pop(sender(ip), None)
+            self.near.pop(exact(ip), None)
+            self.until.pop(exact(ip), None)
 
     def take_report(self):
         items = list(self.log)
@@ -163,6 +224,37 @@ def _day(v):
         return date.fromisoformat(str(v or "")[:10])
     except ValueError:
         return None
+
+def when_text(dt):
+
+    return f"{dt:%A, %B} {dt.day} at {dt.strftime('%I:%M %p').lstrip('0')}"
+
+def _setting(con, k):
+    r = con.execute("SELECT value FROM settings WHERE key=?", (k,)).fetchone()
+    return r[0] if r else None
+
+def master_pending(con):
+
+    try:
+        v = json.loads(_setting(con, MASTER_PENDING) or "null")
+        due = datetime.fromisoformat(v["due"])
+    except (ValueError, TypeError, KeyError):
+        return None
+    if not isinstance(v, dict) or not v.get("pub"):
+        return None
+    return dict(v, due_at=due, when=when_text(due))
+
+def master_banner(con, today):
+
+    p = master_pending(con)
+    if p:
+        return (f"A new master key takes effect on {p['when']}. If you didn't ask for it, cancel it in Settings, "
+                "Security.")
+    on = _day(_setting(con, MASTER_REPLACED))
+    if on and today - on <= timedelta(days=MASTER_BANNER_DAYS):
+        return (f"Master key replaced on {on:%B} {on.day}, {on.year}. If you didn't ask for it, make a new one in "
+                "Settings, Security, and rotate the data key.")
+    return ""
 
 def master_check_due(con, today):
 
@@ -210,27 +302,123 @@ def register(app, connect, allowed, audit, on_unlock):
     kth.log = th.log
     app.config["key_throttle"] = kth
 
+    def known():
+
+        return knownbrowser.known(request.cookies.get(knownbrowser.COOKIE))
+
+    def fail(ip, what):
+
+        th.fail(ip, what)
+        knownbrowser.failed(request.cookies.get(knownbrowser.COOKIE))
+
     def has_owner():
         return datakey.exists()
 
     def sign_in(uid, remember=False, nxt=None):
+        master_tick(force=True)
         session.clear()
         session["uid"] = uid
         session["sid"] = start_session(uid)
         session.permanent = bool(remember)
         th.ok(request.remote_addr)
         report = th.take_report()
+        said = []
         if report:
             last = report[-1]
             when = datetime.fromtimestamp(last[0]).strftime("%b %-d, %-I:%M %p")
             text = (f"{len(report)} failed attempt{'s' if len(report) != 1 else ''} since the last sign-in "
                     f"(the last: {last[2]} from {last[1]}, {when}).")
-            session["notice"] = text
+            said.append(text)
             try:
                 audit("Security: " + text)
             except Exception:
                 pass
+        try:
+            con = connect()
+            try:
+                banner = master_banner(con, _today())
+            finally:
+                con.close()
+            if banner:
+                said.append(banner)
+        except Exception:
+            app.logger.warning("master key sign-in banner", exc_info=True)
+        if said:
+            session["notice"] = " ".join(said)
         return redirect(nxt or url_for("home"))
+
+    def _now():
+        return (app.config.get("now") or datetime.now)()
+
+    def master_tick(now=None, force=False):
+
+        if not force and time.time() - MASTER_TICK_AT[0] < 20:
+            return False
+        MASTER_TICK_AT[0] = time.time()
+        try:
+            return _master_take_effect(now or _now())
+        except Exception:
+            app.logger.exception("the new master key did not take effect; tried again at the next check")
+            return False
+
+    def _master_take_effect(now):
+        from vault import keys as K, web as VW
+        with MASTER_LOCK:
+            con = connect()
+            try:
+                p = master_pending(con)
+                if not p or p["due_at"] > now:
+                    return False
+                if now - p["due_at"] > MASTER_STALE:
+
+                    con.execute("DELETE FROM settings WHERE key=?", (MASTER_PENDING,))
+                    con.commit()
+                    stale = True
+                else:
+                    stale = False
+                in_use = K.master_pub(con)
+            finally:
+                con.close()
+            if stale:
+                with app.test_request_context():
+                    audit(f"The new master key that was to take effect on {p['when']} was not applied: it was found "
+                          "over a week late. Ask for a new one again if you still need it.")
+                    from flask import g as g_
+                    if "db" in g_:
+                        g_.db.commit()
+                return False
+            n = 0
+            if in_use != p["pub"]:
+                n = VW.replace_lost(connect, p["pub"])
+            elif datakey.master_pub() != p["pub"]:
+                datakey.replace_master(p["pub"])
+            con = connect()
+            try:
+                day = now.date().isoformat()
+                _put(con, MASTER_REPLACED, day)
+                _put(con, ROTATE_DUE, day)
+                _put(con, "master_checked", day)
+                con.execute("DELETE FROM settings WHERE key IN (?, 'master_check_later')", (MASTER_PENDING,))
+                con.commit()
+            finally:
+                con.close()
+
+        knownbrowser.revoke_all()
+        for sid in list(SESSIONS):
+            SESSIONS.pop(sid, None)
+            LAST_SEEN.pop(sid, None)
+        with app.test_request_context():
+            audit("Replaced a lost master key, asked for on "
+                  f"{when_text(datetime.fromisoformat(p['asked']))} (every device signed out)" +
+                  (f"; {n} sealed session{'s' if n != 1 else ''} stay closed to the new key" if n else ""))
+            _cred_changed()
+            from flask import g as g_
+            if "db" in g_:
+                g_.db.commit()
+        VW.after_new_master(app, connect)
+        return True
+
+    app.config["master_tick"] = master_tick
 
     def gate():
 
@@ -253,6 +441,8 @@ def register(app, connect, allowed, audit, on_unlock):
         if not datakey.is_unlocked():
             session.pop("uid", None)
             return redirect(url_for("login", next=nxt))
+        if session.get("uid"):
+            master_tick()
         uid = session.get("uid")
         if uid and SESSIONS.get(session.get("sid")) != uid:
             session.clear()
@@ -391,7 +581,7 @@ def register(app, connect, allowed, audit, on_unlock):
             if request.form.get("tail", "").strip().upper() != st["tail"]:
                 return _no_store(app, render_template("auth_setup_key.html", secret=st.get("secret"), err=True))
             try:
-                datakey.create_from(st["key"], st["pw_wrap"], st["master_pub"])
+                datakey.create_from(st["key"], st["pw_wrap"], st["master_pub"], owner_email=st["email"])
             except FileExistsError:
                 abort(404)
             datakey.set_unlocked(st["key"])
@@ -424,14 +614,14 @@ def register(app, connect, allowed, audit, on_unlock):
             datakey.drop_pending(session.get("pending_tok"))
             email = request.form.get("email", "").strip().lower()
             pw = request.form.get("password", "")
-            if th.ip_blocked(ip):
+            if th.ip_blocked(ip, known()):
                 err = "slow"
             else:
                 try:
                     key = unwrap_password_limited(pw)
                 except Busy:
-                    th.fail(ip, "password")
                     key, err = None, "busy"
+
                 except datakey.TooSlow:
                     key, err = None, "tooslow"
                 except ValueError:
@@ -441,13 +631,20 @@ def register(app, connect, allowed, audit, on_unlock):
                 if key:
                     return _to_2fa(datakey.hold_pending(key, dict(email=email)))
                 if not err:
-                    th.fail(ip, "password")
+                    fail(ip, "password")
                     err = "bad"
         return render_template("auth_login.html", err=err, next=request.args.get("next", ""), idle=bool(request.args.get("idle")),
                                locked=not datakey.is_unlocked(),
                                auto_removed=not datakey.is_unlocked() and datakey.legacy_auto_notice())
 
     def _owner_email_ok(key, email):
+
+        try:
+            known = datakey.owner_email_matches(email, key)
+        except Exception:
+            return False
+        if known is not None:
+            return known
         try:
             con = dbmod.connect(key=key)
             try:
@@ -456,6 +653,21 @@ def register(app, connect, allowed, audit, on_unlock):
                 con.close()
         except Exception:
             return True
+
+    def _remember_owner_email(key, email):
+
+        try:
+            if not email:
+                con = dbmod.connect(key=key)
+                try:
+                    row = con.execute("SELECT email FROM users ORDER BY id LIMIT 1").fetchone()
+                finally:
+                    con.close()
+                email = row[0] if row else ""
+            if email:
+                datakey.set_owner_email(email, key, only_if_missing=True)
+        except Exception:
+            app.logger.exception("adding the owner's email hash to the keyring")
 
     def _to_2fa(tok):
         nxt, remember = _safe_next(request.form.get("next")), bool(request.form.get("remember"))
@@ -492,7 +704,7 @@ def register(app, connect, allowed, audit, on_unlock):
         if request.method == "POST":
             code = request.form.get("code", "").strip()
             ip = request.remote_addr
-            if th.ip_blocked(ip):
+            if th.ip_blocked(ip, known()):
                 datakey.drop_pending(tok)
                 session.clear()
                 return redirect(url_for("login"))
@@ -515,6 +727,7 @@ def register(app, connect, allowed, audit, on_unlock):
                 con.close()
             if ok:
                 datakey.drop_pending(tok)
+                _remember_owner_email(key, ctx.get("email", ""))
                 unlocked_now = not datakey.is_unlocked()
                 if unlocked_now:
                     datakey.set_unlocked(key)
@@ -522,11 +735,17 @@ def register(app, connect, allowed, audit, on_unlock):
                 nxt, remember = session.get("next"), session.get("remember")
                 r = sign_in(u[0], remember, nxt)
                 try:
+                    new_ = knownbrowser.issue(request.cookies.get(knownbrowser.COOKIE))
+                    if new_:
+                        knownbrowser.set_cookie(r, new_)
+                except OSError:
+                    app.logger.warning("known browser not remembered", exc_info=True)
+                try:
                     audit(("Signed in and unlocked the data" if unlocked_now else "Signed in") + f" from {ip}")
                 except Exception:
                     pass
                 return r
-            th.fail(ip, "two-factor code")
+            fail(ip, "two-factor code")
             err = True
         return render_template("auth_2fa.html", err=err)
 
@@ -547,18 +766,18 @@ def register(app, connect, allowed, audit, on_unlock):
         if request.method == "POST":
             f = request.form
             pw = f.get("password", "")
-            if th.ip_blocked(request.remote_addr):
+            if th.ip_blocked(request.remote_addr, known()):
                 err = "slow"
             elif len(pw) < MIN_PASSWORD or pw != f.get("password2", ""):
                 err = "password"
             elif not netsec.recovery_ok(f.get("code", "")):
-                th.fail(request.remote_addr, "recovery code")
+                fail(request.remote_addr, "recovery code")
                 err = "code"
             else:
                 try:
                     key = datakey.unwrap_master(f.get("secret", ""))
                 except ValueError as e:
-                    th.fail(request.remote_addr, "master key")
+                    fail(request.remote_addr, "master key")
                     err, key = str(e), None
                 if key:
                     netsec.forget_recovery_code()
@@ -574,8 +793,10 @@ def register(app, connect, allowed, audit, on_unlock):
                         uid = con.execute("SELECT id FROM users ORDER BY id LIMIT 1").fetchone()[0]
                     finally:
                         con.close()
+                    _remember_owner_email(key, None)
                     r = sign_in(uid)
                     audit("Unlocked with the master key, set a new password and signed out every other device")
+                    _cred_changed()
                     return r
         return _no_store(app, render_template("auth_master_unlock.html", err=err, min_pw=MIN_PASSWORD))
 
@@ -625,17 +846,145 @@ def register(app, connect, allowed, audit, on_unlock):
         back_ = request.form.get("back") or ""
         return redirect(back_ if back_ == "/alerts" else url_for("home"))
 
+    def _cred_changed():
+
+        try:
+            fn = app.config.get("credential_changed")
+            if fn:
+                fn()
+        except Exception:
+            app.logger.warning("sign-in change notice not noted", exc_info=True)
+
+    def _second_factor_ok(uid, code):
+
+        if not code:
+            return False
+        con = connect()
+        try:
+            cols = dbmod.columns(con, "users")
+            u = con.execute("SELECT id, totp_secret, recovery, " + ("totp_last" if "totp_last" in cols else "0")
+                            + " FROM users WHERE id=?", (uid,)).fetchone()
+
+            def set_rec(h):
+                con.execute("UPDATE users SET recovery=? WHERE id=?", (json.dumps(h), uid))
+                con.commit()
+
+            def set_last(st):
+                if "totp_last" in cols:
+                    con.execute("UPDATE users SET totp_last=? WHERE id=?", (st, uid))
+                    con.commit()
+            return bool(u) and _check_code(u, code, set_rec, u[3] or 0, set_last)
+        finally:
+            con.close()
+
+    @app.route("/security/new-master-key", methods=["GET", "POST"], endpoint="new_master_key")
+    def new_master_key():
+
+        _newkey_purge()
+        tok = session.get("newkey_tok", "")
+        st = NEWKEY.get(tok)
+        if not st or time.time() - st["at"] > NEWKEY_TTL or st["uid"] != session.get("uid") or st["sid"] != session.get("sid"):
+            if st and time.time() - st["at"] > NEWKEY_TTL:
+                NEWKEY.pop(tok, None)
+            session.pop("newkey_tok", None)
+            session["notice"] = "That new master key wasn't confirmed in time, so nothing changed. The old one still works."
+            return redirect(url_for("security") + "#master-key")
+        if request.method == "POST":
+            if request.form.get("tail", "").strip().upper() != st["tail"]:
+                return _no_store(app, render_template("auth_setup_key.html", secret=st["secret"], err=True, replacing=True))
+            from vault import web as VW
+            NEWKEY.pop(tok, None)
+            session.pop("newkey_tok", None)
+            old_ = st.get("old") or ""
+            if not old_:
+
+                now_ = _now()
+                with MASTER_LOCK:
+                    con = connect()
+                    try:
+                        if master_pending(con):
+                            session["notice"] = ("A new master key is already waiting to take effect, so this one was "
+                                                 "not kept. Cancel the waiting one first to ask for a different one.")
+                            return redirect(url_for("security") + "#master-pending")
+                        due_ = now_ + MASTER_WAIT
+                        _put(con, MASTER_PENDING, json.dumps(dict(
+                            pub=st["pub"], asked=now_.isoformat(timespec="seconds"),
+                            due=due_.isoformat(timespec="seconds"))))
+                        con.commit()
+                    finally:
+                        con.close()
+                audit(f"Asked for a new master key in place of a lost one; it takes effect on {when_text(due_)} "
+                      "unless canceled")
+                session["notice"] = (f"Your new master key takes effect on {when_text(due_)}. Until then the current "
+                                     "key keeps working, and any signed-in device can cancel the new one here. When "
+                                     "it takes effect, every device is signed out, this one too. Keep the new key "
+                                     "safe: it won't be shown again.")
+                return redirect(url_for("security") + "#master-pending")
+
+            with MASTER_LOCK:
+                try:
+                    moved_ = VW.replace_with_old(connect, old_, st["pub"])
+                except Exception:
+                    app.logger.warning("new master key with the old one refused", exc_info=True)
+                    session["notice"] = ("The old master key didn't open every sealed session, so nothing was changed. "
+                                         "The old key still works.")
+                    return redirect(url_for("security") + "#master-key")
+                con = connect()
+                try:
+                    _put(con, "master_checked", _today().isoformat())
+
+                    had_pending_ = con.execute("DELETE FROM settings WHERE key=?", (MASTER_PENDING,)).rowcount
+                    con.execute("DELETE FROM settings WHERE key='master_check_later'")
+
+                    _put(con, ROTATE_DUE, _today().isoformat())
+                    con.commit()
+                finally:
+                    con.close()
+            end_sessions(session["uid"], keep=session.get("sid"))
+            _cred_changed()
+            audit("Replaced the master key, the old one given (every device signed out); "
+                  f"{moved_} sealed session key{'s' if moved_ != 1 else ''} moved to the new key" +
+                  ("; the new key that was waiting is canceled" if had_pending_ else ""))
+            VW.after_new_master(app, connect, old=old_)
+            session["notice"] = ("New master key in place: sealed sessions and photos move to it. Your password "
+                                 "still works; other devices are signed out. The old key still opens backups made "
+                                 "before now, and through them your data today, until you rotate the data key: "
+                                 "the steps are below.")
+            return redirect(url_for("security") + "#master-key")
+        return _no_store(app, render_template("auth_setup_key.html", secret=st["secret"], err=False, replacing=True))
+
+    @app.post("/security/master-key/cancel", endpoint="master_pending_cancel")
+    def master_pending_cancel():
+
+        with MASTER_LOCK:
+            con = connect()
+            try:
+                p = master_pending(con)
+                if p:
+                    con.execute("DELETE FROM settings WHERE key=?", (MASTER_PENDING,))
+                    con.commit()
+            finally:
+                con.close()
+        if p:
+            audit(f"Canceled the new master key that was to take effect on {p['when']}")
+            session["notice"] = "Canceled. The new master key won't take effect; the current one stays in use."
+        else:
+            session["notice"] = "No new master key is waiting. The current one is in use."
+        return redirect(_safe_next(request.form.get("back")) or url_for("security") + "#master-key")
+
     @app.route("/security", methods=["GET", "POST"], endpoint="security")
     def security():
+        _newkey_purge()
         msg = err = None
         codes = None
+        fresh_ = False
         if request.method == "POST":
             f = request.form
             cur = f.get("current", "")
             act = f.get("act")
             busy = False
             ip_ = request.remote_addr or ""
-            if th.ip_blocked(ip_):
+            if th.ip_blocked(ip_, known()):
                 ok, blocked_ = False, True
             else:
                 blocked_ = False
@@ -646,7 +995,7 @@ def register(app, connect, allowed, audit, on_unlock):
                 except ValueError:
                     ok = False
                 if not ok and not busy:
-                    th.fail(ip_, "current password on Security")
+                    fail(ip_, "current password on Security")
             if not ok:
                 err = ("Too many wrong passwords. Try again later." if blocked_ else
                        "Busy checking other sign-ins. Try again in a moment." if busy else "Your current password, please.")
@@ -658,7 +1007,9 @@ def register(app, connect, allowed, audit, on_unlock):
                     datakey.rewrap_password(pw)
                     datakey.drop_all_pending()
                     end_sessions(session["uid"], keep=session.get("sid"))
-                    audit("Changed the password (other devices signed out)")
+                    fresh_ = True
+                    audit("Changed the password (every device signed out)")
+                    _cred_changed()
                     msg = "Password changed. Other devices are signed out."
             elif act == "codes":
                 codes, hashes = new_recovery_codes()
@@ -671,21 +1022,68 @@ def register(app, connect, allowed, audit, on_unlock):
                 datakey.drop_all_pending()
                 end_sessions(session["uid"], keep=session.get("sid"))
                 audit("Made new recovery codes (the old ones no longer work; other devices signed out)")
+                _cred_changed()
+            elif act == "newmaster":
+
+                old_ = f.get("old_master", "").strip()
+                old_ok = True
+                if old_:
+                    try:
+                        old_ok = hmac.compare_digest(datakey.unwrap_master(old_) or b"", datakey.dk() or b"")
+                    except ValueError:
+                        old_ok = False
+                con = connect()
+                try:
+                    waiting_ = master_pending(con)
+                finally:
+                    con.close()
+                if not old_ok:
+                    th.fail(ip_, "old master key on Security")
+                    err = ("That isn't the master key in use now, so nothing was changed. If it's lost, leave that box "
+                           "empty.")
+                elif waiting_ and not old_:
+                    err = (f"A new master key is already waiting to take effect on {waiting_['when']}, so nothing was "
+                           "changed. Cancel it first to ask for a different one.")
+                elif not _second_factor_ok(session["uid"], f.get("code", "").strip()):
+                    th.fail(ip_, "two-factor code on Security")
+                    err = "That two-factor code didn't work. Nothing was changed."
+                else:
+                    from vault import keys as K
+                    secret_, pub_ = K.generate_master()
+                    tok_ = secrets.token_urlsafe(16)
+                    NEWKEY.clear()
+                    NEWKEY[tok_] = dict(secret=secret_, pub=pub_, tail=secret_[-6:].upper(), at=time.time(),
+                                        uid=session["uid"], sid=session.get("sid"), old=old_)
+                    session["newkey_tok"] = tok_
+                    return redirect(url_for("new_master_key"))
             elif act == "others":
                 datakey.drop_all_pending()
                 end_sessions(session["uid"], keep=session.get("sid"))
+                fresh_ = True
                 audit("Signed out every other device")
                 msg = "Every other device is signed out."
         con = connect()
         try:
             left = len(json.loads(con.execute("SELECT recovery FROM users WHERE id=?", (session["uid"],)).fetchone()[0] or "[]"))
             ntfy = dict(con.execute("SELECT key, value FROM settings WHERE key IN ('ntfy_server','ntfy_topic','ntfy_token')").fetchall())
+            rotate_due = (con.execute("SELECT value FROM settings WHERE key=?", (ROTATE_DUE,)).fetchone() or [""])[0]
+            pending_ = master_pending(con)
         finally:
             con.close()
-        return _no_store(app, render_template("auth_security.html", msg=msg, err=err, codes=codes, left=left,
-                                              ntfy=ntfy if ntfy.get("ntfy_server") and ntfy.get("ntfy_topic") else None,
-                                              min_pw=MIN_PASSWORD, pw_work=datakey.password_work(),
-                                              std_work=datakey.STANDARD_WORK))
+        r = _no_store(app, render_template("auth_security.html", msg=msg, err=err, codes=codes, left=left,
+                                           rotate_due=rotate_due, master_pending=pending_,
+                                           ntfy=ntfy if ntfy.get("ntfy_server") and ntfy.get("ntfy_topic") else None,
+                                           min_pw=MIN_PASSWORD, pw_work=datakey.password_work(),
+                                           std_work=datakey.STANDARD_WORK))
+        if fresh_:
+
+            try:
+                new_ = knownbrowser.issue()
+                if new_:
+                    knownbrowser.set_cookie(r, new_)
+            except OSError:
+                app.logger.warning("known browser not remembered", exc_info=True)
+        return r
 
 def _no_store(app, html):
     r = app.make_response(html)

@@ -11,7 +11,7 @@
 // limits: 5 orders an hour and 10 waiting from one sender (not behind a proxy: shared=1), 100 files and 6.5 MB waiting
 // in all. Each order is kept as orders/<first 32 hex of its SHA-256>.las, so the same envelope sent again is kept once.
 // There is no read path: no order is ever listed or served from here (orders/ holds an empty index.html).
-header('X-Host-Scripts: 1.5.0');
+header('X-Host-Scripts: 1.6.0');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') { http_response_code(405); exit; }

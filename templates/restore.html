@@ -1,0 +1,87 @@
+{% extends layout %}
+{% block title %}Restore from a backup - Lumen Aureum{% endblock %}
+{% block body %}{% import "_ui.html" as ui with context %}{% from "_macros.html" import help with context %}
+
+<div class="restore" style="max-width:640px">
+{% if step == 'choose' %}
+{{ ui.page_head('Restore from a backup', sub=('Bring a studio back from its backup, on this new install.' if fresh else 'Replace the data here with a backup. The data here now is set aside for 30 days, not deleted at once.')) }}
+{% if err %}<p class="ui-note ui-note-error" role="alert" id="restore-err">{{ err }}</p>{% endif %}
+{% if fresh %}
+<form method="post" action="{{ url_for('setup_restore') }}" class="ui-form-row" style="margin-top:12px" autocomplete="off"><input type="hidden" name="go" value="list">
+  <label class="l" for="r-folder" style="width:100%">Backup folder{{ help("The folder your backups went to, as this app sees it: /vault in the example compose file and in the TrueNAS app. Mount the old backup folder there before you start. Listing another folder asks for the setup code first.") }}</label>
+  <input id="r-folder" name="folder" value="{{ folder }}" placeholder="/vault" spellcheck="false" class="ui-grow">
+  <input name="claim" placeholder="Setup code" aria-label="Setup code, to list the backups in this folder" autocomplete="off" required spellcheck="false">
+  <button class="ui-btn ui-btn-quiet">List the backups here</button>
+</form>
+{% endif %}
+<form method="post" enctype="multipart/form-data" autocomplete="off" id="restore-choose" style="margin-top:12px">
+  <input type="hidden" name="go" value="check">
+  {% if fresh %}<input type="hidden" name="folder" value="{{ folder }}">{% endif %}
+  {% call ui.section('Backup', id='restore-list') %}
+  {% if items %}
+    {% for b in items %}<label class="ui-check" style="display:flex"><input type="radio" name="source" value="{{ ('folder:' ~ b.name) if fresh else b.name }}"{{ ' checked' if loop.first }}>
+      {{ nice(b.created[:10]) if nice is defined else b.created[:10] }} {{ b.created[11:16] }} &middot; {{ b.what }} &middot; {{ '%.1f'|format(b.size / 1048576) }} MB</label>{% endfor %}
+  {% elif fresh and need_code %}<p class="ui-mute">Type the setup code beside the folder and press List the backups here to see the backups in {{ folder }}.</p>
+  {% elif fresh and folder %}<p class="ui-mute">No backups in {{ folder }}. Check the folder, or choose a backup file below.</p>
+  {% elif not fresh %}<p class="ui-mute">No backups on record yet. Choose a backup file below.</p>{% endif %}
+  {% if asides %}{% call ui.fold('Data set aside at an earlier restore', id='restore-asides', count=asides|length, always=true) %}
+    {% for a in asides %}<label class="ui-check" style="display:flex"><input type="radio" name="source" value="aside:{{ a.stamp }}">Set aside {{ a.when }}</label>{% endfor %}
+  {% endcall %}{% endif %}
+  <div class="sui-field" style="margin-top:8px"><label class="l" for="r-file">Or a backup file from this computer{{ help("A .age file from your backup folder, copied here. A file chosen here is used instead of the list. A file the app has no record of can't be told apart from one someone else made, so it is restored only after a warning.") }}</label>
+    <input type="file" id="r-file" name="file" accept=".age" style="width:auto"></div>
+  <div class="sui-field"><label class="l" for="r-faces">Face photos backup (if you have it){{ help("Each backup is two files made at the same time: the data, and a smaller one with the face photos. Choose that second file here and the face photos come back too. Without it, the face photos here stay as they are.") }}</label>
+    <input type="file" id="r-faces" name="faces" accept=".age" style="width:auto"></div>
+  {% endcall %}
+  {% if fresh %}<div class="sui-field"><label class="l" for="r-claim">Setup code{{ help("In SETUP-CODE.txt in your data folder, or in the app's log. It shows that you can open this machine's folders.") }}</label>
+    <input id="r-claim" name="claim" placeholder="1A2B-3C4D-5E6F" autocomplete="off" required spellcheck="false"></div>{% endif %}
+  <div class="sui-field"><label class="l" for="r-secret">Master key{{ help("The key you saved when you set up the studio (it starts AGE-SECRET-KEY-1). Every backup is sealed to it. A backup made before a master key change needs the key the studio had then. The app uses it only to open this backup and does not keep it.") }}</label>
+    <input type="password" id="r-secret" name="secret" placeholder="AGE-SECRET-KEY-1..." required spellcheck="false" autocomplete="off"></div>
+  <div class="ui-btnrow" style="margin-top:12px"><button class="ui-btn ui-btn-primary">Check this backup</button></div>
+</form>
+{% if fresh %}<p style="margin-top:16px">{{ ui.go(url_for('setup_owner'), 'Set up a new studio instead') }}</p>{% endif %}
+
+{% elif step == 'review' %}
+{{ ui.page_head('Restore this backup?', sub='From ' ~ p.label ~ '.') }}
+{% if err %}<p class="ui-note ui-note-error" role="alert" id="restore-err">{{ err }}</p>{% endif %}
+{% if p.checked %}<p class="ui-note" id="restore-checked">{{ ui.chip('Checked', 'done') }} It opened with your master key, and it is the file the app made: its fingerprint matches the one recorded then.</p>
+{% else %}<p class="ui-note ui-note-error" id="restore-unchecked">{{ unchecked_words }}</p>{% endif %}
+{% call ui.section('What changes', id='restore-changes') %}
+<table class="data" style="width:100%"><thead><tr><th></th>{% if p.now %}<th>Now</th>{% endif %}<th>In the backup</th></tr></thead><tbody>
+  {% for k, words in [('clients', 'Clients'), ('sessions', 'Sessions'), ('galleries', 'Galleries online'), ('payments', 'Payments'), ('photos', 'Uploaded photos'), ('newest_client', 'Newest client added'), ('newest_session', 'Newest session added'), ('last_change', 'Last change')] %}
+  <tr><td>{{ words }}</td>{% if p.now %}<td>{{ p.now[k] if p.now[k] not in (none, '') else '-' }}</td>{% endif %}<td>{{ p.then[k] if p.then[k] not in (none, '') else '-' }}</td></tr>{% endfor %}
+</tbody></table>
+<ul class="restore-notes">
+  {% if p.down %}<li>{{ p.down|length }} galler{{ 'y' if p.down|length == 1 else 'ies' }} online now {{ 'is' if p.down|length == 1 else 'are' }} not online in the backup. The app takes {{ 'it' if p.down|length == 1 else 'them' }} down from the web host at the next gallery check, and Today lists {{ 'it' if p.down|length == 1 else 'them' }} until then.</li>{% endif %}
+  {% if p.marked %}<li>{{ p.marked|length }} galler{{ 'y' if p.marked|length == 1 else 'ies' }} the backup has online {{ 'was' if p.marked|length == 1 else 'were' }} taken down since. {{ 'It shows' if p.marked|length == 1 else 'They show' }} as taken down, with Put back online.</li>{% endif %}
+  {% if p.gone_photos %}<li>{{ p.gone_photos }} uploaded photo{{ '' if p.gone_photos == 1 else 's' }} added since {{ 'is' if p.gone_photos == 1 else 'are' }} not in the backup. {{ 'It stays' if p.gone_photos == 1 else 'They stay' }} in the photos folder for 30 days.{{ help("The command line's recover-photos opens them into a folder with your master key (docs/operations.md, Restoring a backup).") }}</li>{% endif %}
+  {% if p.gone_other %}<li>{{ p.gone_other }} equipment receipt{{ '' if p.gone_other == 1 else 's' }} added since {{ 'is' if p.gone_other == 1 else 'are' }} not in the backup. {{ 'It stays' if p.gone_other == 1 else 'They stay' }} in the photos folder for 30 days.{{ help("The command line's recover-photos opens them into a folder with your master key, like photos (docs/operations.md, Restoring a backup).") }}</li>{% endif %}
+  {% if p.now %}<li>Clients and sessions you deleted since the backup stay deleted, and invoice and client numbers carry on from the highest used.</li>{% endif %}
+  {% if p.faces == 'restored' %}<li>The face photos come back from the backup too.{% if p.now %} The face photos here now are set aside with the rest.{% endif %}</li>
+  {% elif p.faces == 'upload' %}<li>No face photos file was chosen, so the face photos are not restored. The face photos here stay as they are.</li>
+  {% elif p.faces == 'upload-unopened' %}<li>The face photos file you chose did not open as face photos sealed to this master key, so the face photos are not restored. The face photos here stay as they are.</li>
+  {% elif p.faces == 'unopened' %}<li>The face photos file made with this backup could not be opened. The face photos here stay as they are.</li>
+  {% elif p.now %}<li>No face photos file was made with this backup. The face photos here stay as they are.</li>{% endif %}
+  {% if p.older_key %}<li>This backup is sealed to an earlier master key, the one you typed. After the restore it is the studio's master key again. If you replaced it because it was lost or seen, replace it again in Settings, Security.</li>{% endif %}
+  {% if p.rotate %}<li>Your master key was replaced and the data key is not rotated yet. The restored studio still asks you to rotate it.</li>{% endif %}
+  {% if p.waiting %}<li>The backup was made while a new master key was waiting to take effect. That wait is not carried over. Ask for a new key again if you still need one.</li>{% endif %}
+  {% if p.now %}<li>The data here now is set aside in {{ data_dir }}/set-aside for 30 days, then removed. Today says so a few days before. You can come back to it the same way until then.</li>{% endif %}
+  <li>Lumen Aureum then restarts. Sign in with the password you had when the backup was made.</li>
+</ul>
+{% endcall %}
+<form method="post" autocomplete="off" id="restore-confirm" style="margin-top:12px">
+  <input type="hidden" name="go" value="restore">
+  {% if not fresh %}<div class="sui-field"><label class="l" for="r-pw">Your password{{ help("The password you use now, to confirm it is you.") }}</label>
+    <input type="password" id="r-pw" name="password" required autocomplete="current-password"></div>{% endif %}
+  <div class="ui-btnrow" style="margin-top:12px"><button class="ui-btn ui-btn-primary">Restore and restart</button></div>
+</form>
+<p style="margin-top:16px">{{ ui.go(url_for('setup_restore' if fresh else 'vault_restore'), 'Choose another backup') }}</p>
+
+{% elif step == 'done' %}
+{{ ui.page_head('Restored', sub='Lumen Aureum is restarting with ' ~ label ~ '.') }}
+{% if where %}<p class="ui-note" id="restore-aside">The data from before is set aside in {{ where }}. Nothing was deleted. Lumen Aureum removes it after 30 days, and Today says so a few days before.</p>{% endif %}
+<p>{% if same %}Sign in with your password, as before.{% else %}Sign in with the password you had when the backup was made. Forgot it? Your master key sets a new one on the sign-in page.{% endif %}</p>
+<div class="ui-btnrow" style="margin-top:12px">{{ ui.button_link(url_for('login'), 'Sign in to the restored studio', kind='primary') }}</div>
+{% endif %}
+</div>
+{% endblock %}
+

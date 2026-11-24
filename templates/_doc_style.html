@@ -67,6 +67,9 @@
     background: #fff; color: #1f1d1a; border: 1px solid #d8cbc4; border-radius: 6px; padding: 7px 10px; font: 400 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     text-align: left; box-shadow: 0 4px 14px rgba(0,0,0,.18); white-space: normal; letter-spacing: normal; text-transform: none; }
   .qh:hover .qh-pop, .qh:focus .qh-pop, .qh:focus-within .qh-pop { display: block; }
+  .qh-js .qh:not(.qh-open) .qh-pop { display: none; }
+  @media (hover: hover) { .qh-js .qh:hover .qh-pop { display: block; } }
+  .qh.qh-open .qh-pop { display: block; }
   @media print { .page > div[style^="display:flex;justify-content:space-between"], .billhead { flex-wrap: nowrap !important; } .qh { display: none; } }
   @media print { .bar, .reviewpanel { display: none; } .draft a, .draft form, .draft .wording-here { display: none; } .page { padding: 0; } @page { margin: 0.6in; } }
 </style>

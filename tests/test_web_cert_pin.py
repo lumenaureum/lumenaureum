@@ -480,8 +480,8 @@ def test_no_code_path_turns_certificate_checks_off():
 
 def test_healthcheck_reaches_only_this_machine():
     src = (ROOT / "healthcheck.py").read_text()
-    calls = [l_ for l_ in src.splitlines() if "urlopen(" in l_]
-    assert calls and all('://127.0.0.1:' in l_ for l_ in calls)
+    calls = [l_ for l_ in src.splitlines() if "create_connection(" in l_ or "urlopen(" in l_ or "connect(" in l_]
+    assert calls and all('("127.0.0.1", port)' in l_ for l_ in calls)
 
 @pytest.fixture
 def app_(tmp_path, monkeypatch):

@@ -1,10 +1,11 @@
-import io
 import json
 import os
 import runpy
+import socket
+import ssl
+import subprocess
 import sys
-import urllib.error
-import urllib.request
+import threading
 
 import pytest
 
@@ -129,28 +130,53 @@ def test_serve_behind_a_proxy_has_no_certificate(env):
     assert "--certfile" not in args and "--keyfile" not in args
     assert not (tmp / "tls").exists()
 
-class Answer:
-    def __init__(self, status, body):
-        self.status = status
-        self._body = body
+def serve_once(answers, tls_files=None):
 
-    def read(self):
-        return self._body
+    srv = socket.socket()
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(4)
+    port, seen = srv.getsockname()[1], []
+    ctx = None
+    if tls_files:
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(*map(str, tls_files))
 
-def probe(monkeypatch, answer):
+    def run():
+        for answer in answers:
+            try:
+                conn, _ = srv.accept()
+            except OSError:
+                return
+            try:
+                if ctx:
+                    conn = ctx.wrap_socket(conn, server_side=True)
+                data = b""
+                while b"\r\n\r\n" not in data:
+                    chunk = conn.recv(1024)
+                    if not chunk:
+                        break
+                    data += chunk
+                seen.append(data)
+                if answer is not None:
+                    code, body = answer
+                    conn.sendall(b"HTTP/1.1 %d X\r\nContent-Length: %d\r\n\r\n" % (code, len(body)) + body)
+            except (OSError, ssl.SSLError):
+                pass
+            finally:
+                conn.close()
 
-    fresh_modules()
-    asked = []
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
 
-    def fake_urlopen(url, timeout=None, context=None):
-        asked.append(url)
-        if isinstance(answer, Exception):
-            raise answer
-        return answer
-    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
-    with pytest.raises(SystemExit) as e:
-        runpy.run_path(HEALTHCHECK, run_name="__main__")
-    return e.value.code, asked[0]
+    def stop():
+        srv.close()
+        t.join(5)
+    return port, seen, stop
+
+def run_probe():
+
+    env = {k: v for k, v in os.environ.items() if k.startswith(("CRM_", "PATH", "SYSTEMROOT"))}
+    return subprocess.run([sys.executable, "-I", "-S", HEALTHCHECK], env=env, timeout=30).returncode
 
 def locked_healthz_answer(tmp_path, monkeypatch):
 
@@ -161,29 +187,61 @@ def locked_healthz_answer(tmp_path, monkeypatch):
     assert r.status_code == 200 and r.get_json() == {"ok": True, "locked": True}
     return r.data
 
-def test_a_locked_app_is_healthy(env):
+def app_certificate():
+    fresh_modules()
+    import netsec
+    return netsec.ensure_cert()
+
+def test_a_locked_app_is_healthy_over_https_with_its_own_certificate(env):
     tmp, mp = env
     body = locked_healthz_answer(tmp, mp)
-    code, url = probe(mp, Answer(200, body))
-    assert code == 0
-    assert url == "https://127.0.0.1:8780/healthz"
+    port, seen, stop = serve_once([(200, body)], app_certificate())
+    mp.setenv("CRM_PORT", str(port))
+    try:
+        assert run_probe() == 0
+    finally:
+        stop()
+    assert seen[0].startswith(b"GET /healthz HTTP/1.1\r\nHost: 127.0.0.1:%d\r\n" % port)
 
 def test_an_unlocked_app_is_healthy_on_its_port_over_plain_http_behind_a_proxy(env):
     _, mp = env
     mp.setenv("CRM_TLS", "off")
     mp.setenv("CRM_TRUSTED_PROXIES", "10.0.0.5")
-    mp.setenv("CRM_PORT", "8080")
-    code, url = probe(mp, Answer(200, json.dumps({"ok": True, "locked": False}).encode()))
-    assert code == 0 and url == "http://127.0.0.1:8080/healthz"
+    port, seen, stop = serve_once([(200, json.dumps({"ok": True, "locked": False}).encode())])
+    mp.setenv("CRM_PORT", str(port))
+    try:
+        assert run_probe() == 0
+    finally:
+        stop()
+    assert seen and seen[0].startswith(b"GET /healthz ")
 
-@pytest.mark.parametrize("answer", [
-    Answer(503, b'{"ok": false, "locked": true}'),
-    Answer(500, b""),
-    urllib.error.HTTPError("https://127.0.0.1:8780/healthz", 403, "Forbidden", {}, io.BytesIO(b"")),
-    urllib.error.URLError("connection refused"),
-    TimeoutError("timed out"),
-])
-def test_an_app_that_does_not_answer_ok_is_unhealthy(env, answer):
+@pytest.mark.parametrize("answer", [(503, b'{"ok": false, "locked": true}'), (500, b""), (403, b"Forbidden"), None])
+@pytest.mark.parametrize("tls", [True, False])
+def test_an_app_that_does_not_answer_ok_is_unhealthy(env, answer, tls):
     _, mp = env
-    code, _ = probe(mp, answer)
-    assert code == 1
+    if not tls:
+        mp.setenv("CRM_TLS", "off")
+    port, _, stop = serve_once([answer], app_certificate() if tls else None)
+    mp.setenv("CRM_PORT", str(port))
+    try:
+        assert run_probe() == 1
+    finally:
+        stop()
+
+def test_nothing_listening_or_plain_http_to_an_https_probe_is_unhealthy(env):
+    _, mp = env
+    port, _, stop = serve_once([])
+    stop()
+    mp.setenv("CRM_PORT", str(port))
+    assert run_probe() == 1
+    port, _, stop = serve_once([(200, b"{}")])
+    mp.setenv("CRM_PORT", str(port))
+    try:
+        assert run_probe() == 1
+    finally:
+        stop()
+
+def test_the_probe_uses_no_app_code():
+    src = open(HEALTHCHECK).read()
+    imports = {l_.split()[1] for l_ in src.splitlines() if l_.strip().startswith(("import ", "from "))}
+    assert imports <= {"os", "socket", "sys", "ssl"}

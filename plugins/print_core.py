@@ -130,7 +130,12 @@ CREATE INDEX IF NOT EXISTS print_lab_costs_order ON print_lab_costs(order_id);
         con = ctx.connect()
         try:
             for table_, col_, decl_ in (("print_order_lines", "shown_cents", "INTEGER"),
-                                        ("print_orders", "ship_by_hand", "INTEGER DEFAULT 0")):
+                                        ("print_orders", "ship_by_hand", "INTEGER DEFAULT 0"),
+
+                                        ("print_payments", "corrects", "INTEGER"),
+                                        ("print_payments", "note", "TEXT DEFAULT ''"),
+
+                                        ("print_galleries", "proofs", "INTEGER DEFAULT 0")):
                 if col_ not in [r_[1] for r_ in con.execute(f"PRAGMA table_info({table_})")]:
                     ctx.add_column(con, table_, col_, decl_)
                     con.commit()
@@ -413,18 +418,18 @@ CREATE INDEX IF NOT EXISTS print_lab_costs_order ON print_lab_costs(order_id);
 
     G.BEFORE_DELETE.append(lambda gid, host: collect_from(gid, host, strict=True))
 
-    def collect_all():
+    def collect_all(sids=None, failed=None):
 
         if not G.has_host():
             return 0
         fp = G.host_fingerprint()
-        rows = q("""SELECT s.gallery_id FROM galleries g JOIN sessions s ON s.id=g.session_id
+        rows = q("""SELECT s.gallery_id, s.id AS sid FROM galleries g JOIN sessions s ON s.id=g.session_id
                     JOIN print_galleries p ON p.session_id=g.session_id
                     WHERE g.upload_state='up' AND g.removed_at IS NULL AND p.ever=1 AND (g.host_fp IS NULL OR g.host_fp=?)""", (fp,))
         n = 0
         host = None
         for r_ in rows:
-            if not G.GID_OK.match(r_["gallery_id"] or ""):
+            if not G.GID_OK.match(r_["gallery_id"] or "") or sids is not None and r_["sid"] not in sids:
                 continue
             host = host or G.gallery_host()
             try:
@@ -432,7 +437,18 @@ CREATE INDEX IF NOT EXISTS print_lab_costs_order ON print_lab_costs(order_id);
                     n += collect_from(r_["gallery_id"], host, strict=False)
             except Exception:
                 app.logger.exception("prints: collecting from %s", r_["gallery_id"])
+                if failed is not None:
+                    failed.append(r_["gallery_id"])
         return n
+
+    def client_check(sids):
+
+        bad = []
+        with appctx():
+            n = collect_all(set(sids or ()), failed=bad)
+        return dict(got=[f"{n} new print order{'' if n == 1 else 's'}"] if n else [], failed=bool(bad))
+
+    ctx.hooks.client_checks.append(client_check)
 
     def trim_ship():
 
@@ -488,6 +504,25 @@ CREATE INDEX IF NOT EXISTS print_lab_costs_order ON print_lab_costs(order_id);
                                                   one=True)["n"]
     app.config["print_keep_books"] = keep_books
 
+    def invoice_at(r_):
+
+        try:
+            voided = (json.loads(r_["flags"] or "{}") or {}).get("voided") or []
+        except (ValueError, AttributeError):
+            voided = []
+        voided = sorted((v_ for v_ in voided if isinstance(v_, dict) and v_.get("total") and v_.get("at")),
+                        key=lambda v_: v_["at"])
+        for v_ in voided:
+            if (r_["received"] or "") < v_["at"]:
+                return v_, v_.get("number") or ""
+        try:
+            now_ = json.loads(r_["invoice_data"] or "{}")
+        except ValueError:
+            now_ = {}
+        if not now_.get("total") and voided:
+            return voided[-1], voided[-1].get("number") or ""
+        return now_, r_["invoice_number"] or ""
+
     def year(y):
 
         y = str(y)
@@ -495,13 +530,11 @@ CREATE INDEX IF NOT EXISTS print_lab_costs_order ON print_lab_costs(order_id);
         rows = []
 
         parts, runs = {}, {}
-        for r_ in q("""SELECT p.*, o.invoice_data FROM print_payments p JOIN print_orders o ON o.id=p.order_id
+        for r_ in q("""SELECT p.*, o.invoice_data, o.invoice_number, o.flags FROM print_payments p
+                       JOIN print_orders o ON o.id=p.order_id
                        WHERE p.voided IS NULL AND p.order_id IN (SELECT order_id FROM print_payments WHERE voided IS NULL
                        AND substr(received,1,4)=?) ORDER BY p.order_id, p.received, p.id""", (y,)):
-            try:
-                inv = json.loads(r_["invoice_data"] or "{}")
-            except ValueError:
-                inv = {}
+            inv = invoice_at(r_)[0]
             tot = inv.get("total") or 0
             run = runs.setdefault(r_["order_id"], dict(cum=0, sh=0, t=0))
             run["cum"] += r_["amount_cents"] if r_["kind"] == "payment" else -r_["amount_cents"]
@@ -511,7 +544,7 @@ CREATE INDEX IF NOT EXISTS print_lab_costs_order ON print_lab_costs(order_id);
             parts[r_["id"]] = ((amt_ - (sh_cum - run["sh"]) - (t_cum - run["t"])) if tot else 0, sh_cum - run["sh"],
                                t_cum - run["t"])
             run["sh"], run["t"] = sh_cum, t_cum
-        for r_ in q("""SELECT p.*, o.invoice_data, o.invoice_number, o.bill_name, o.id AS oid FROM print_payments p
+        for r_ in q("""SELECT p.*, o.invoice_data, o.invoice_number, o.flags, o.bill_name, o.id AS oid FROM print_payments p
                        JOIN print_orders o ON o.id=p.order_id WHERE p.voided IS NULL AND substr(p.received,1,4)=?
                        ORDER BY p.received, p.id""", (y,)):
             amt = r_["amount_cents"] if r_["kind"] == "payment" else -r_["amount_cents"]
@@ -522,12 +555,13 @@ CREATE INDEX IF NOT EXISTS print_lab_costs_order ON print_lab_costs(order_id);
             sales += s_
             ship += sh_
             tax += t_
-            rows.append(dict(day=r_["received"], invoice=r_["invoice_number"] or "", who=r_["bill_name"], kind=r_["kind"],
-                             amount=amt, sales=s_, ship=sh_, tax=t_, method=r_["method"] or ""))
+            rows.append(dict(day=r_["received"], invoice=invoice_at(r_)[1], who=r_["bill_name"], kind=r_["kind"],
+                             amount=amt, sales=s_, ship=sh_, tax=t_, method=r_["method"] or "",
+                             fix=ctx.correction_words("print_payments", r_) if "corrects" in r_.keys() else ""))
         for b_ in q("SELECT * FROM print_books WHERE substr(day,1,4)=? AND what IN ('payment', 'refund')", (y,)):
             received += b_["amount_cents"]
             rows.append(dict(day=b_["day"], invoice="", who="Deleted client", kind=b_["what"], amount=b_["amount_cents"],
-                             sales=0, ship=0, tax=0, method=""))
+                             sales=0, ship=0, tax=0, method="", fix=""))
         cost = lab_tax = 0
         costs = []
         for r_ in q("""SELECT c.*, o.invoice_number, o.bill_name FROM print_lab_costs c JOIN print_orders o ON o.id=c.order_id
@@ -557,15 +591,24 @@ CREATE INDEX IF NOT EXISTS print_lab_costs_order ON print_lab_costs(order_id);
             return []
         m = lambda c_: f"{c_ / 100:.2f}"
         pay = [[r_["day"], r_["invoice"], r_["who"], r_["kind"], r_["method"], m(r_["amount"]), m(r_["sales"]), m(r_["ship"]),
-                m(r_["tax"])] for r_ in ym["rows"]]
+                m(r_["tax"]), r_["fix"]] for r_ in ym["rows"]]
         cst = [[r_["day"], r_["invoice"], r_["who"], r_["lab"], r_["what"], r_["number"], m(r_["products"]),
                 m(r_["shipping"]), m(r_["other"]), m(r_["tax"])] for r_ in ym["costs"]]
         return [("prints.csv", ["date received", "invoice", "billed to", "kind", "method", "amount", "print sales",
-                                "shipping charged", "sales tax collected"], pay),
+                                "shipping charged", "sales tax collected", "correction of"], pay),
                 ("print-lab-costs.csv", ["date paid", "invoice", "billed to", "lab", "what", "lab order", "products",
                                          "shipping", "other", "the lab's sales tax"], cst)]
 
     app.config["prints_accounts"] = accounts
+
+    def corrections(y):
+
+        return [dict(day=r_["received"], words=ctx.correction_words("print_payments", r_),
+                     amount=(r_["amount_cents"] if r_["kind"] == "payment" else -r_["amount_cents"]) / 100)
+                for r_ in q("""SELECT * FROM print_payments WHERE corrects IS NOT NULL AND voided IS NULL
+                               AND substr(received,1,4)=? ORDER BY received, id""", (str(y),))]
+
+    app.config["prints_corrections"] = corrections
 
     def statement(hid):
 

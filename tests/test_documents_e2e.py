@@ -73,7 +73,7 @@ def test_standard_wording_fills_every_field_for_every_type(studio):
             assert not left, (key, name, left)
             assert "None" not in d[name].split() and "{{" not in d[name] and C.CREDIT not in d[name], (key, name)
         assert "Avery Lane" in d["agreement.pdf"] and f"Kid {key}" in d["release.pdf"]
-        assert flat(C.GALLERY_PHRASE.sub("", C.fill(key, "delivery")).strip()) in d["agreement.pdf"], key
+        assert flat(C.GALLERY_PHRASE.sub("", C.fill(key, "delivery")).strip()) in d["agreement.pdf"].replace("- ", "-"), key
 
 def test_own_wording_with_every_field_and_the_fill_ins(studio):
     A, C, c, sids = studio
@@ -219,7 +219,8 @@ def test_document_text_is_whole(studio):
     A, C, c, sids = studio
     _people_transfer(c, C)
     text = flat(pdf_text(c.get(f"/letters/{sids['portrait'][0]}/print-release.pdf", environ_base=E).data))
-    for want in ("transfers to you all copyright in the photos delivered from this session, effective when the session is paid in full.",
+    for want in ("transfers to you all copyright in the final edited photos delivered from this session, effective when the session is paid in full.",
+                 "Proofs, unedited files and photos that are not delivered are not included.",
                  "You may print, share, publish, sell or change them however you like, with no permission needed.",
                  "This permission continues after this transfer."):
         assert want in text, want

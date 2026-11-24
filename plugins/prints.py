@@ -188,7 +188,9 @@ def register(ctx):
         return ((caps.get("now") or caps.get("setup") or {}).get("kind")) or ""
 
     def full_build(gid):
-        return bool(gid and G.GID_OK.match(gid) and G.is_download(gid) and (G.OUT_ROOT / gid / "manifest.bin").is_file())
+
+        return bool(gid and G.GID_OK.match(gid) and (G.is_download(gid) or G.is_print(gid))
+                    and (G.OUT_ROOT / gid / "manifest.bin").is_file())
 
     def manifest_of(r):
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -203,6 +205,17 @@ def register(ctx):
         r_ = q("SELECT off FROM print_galleries WHERE session_id=?", (sid,), one=True)
         return not (r_ and r_["off"])
 
+    def proofs_switch(sid):
+
+        r_ = q("SELECT proofs FROM print_galleries WHERE session_id=?", (sid,), one=True)
+        return bool(r_ and r_["proofs"])
+
+    def keep_full(s):
+
+        return bool(active() and prints_on() and s["type"] not in type_off() and proofs_switch(s["id"]))
+
+    app.config["prints_keep_full"] = keep_full
+
     def why_no_prints(r):
 
         if not prints_on():
@@ -211,13 +224,18 @@ def register(ctx):
             return "This gallery was adopted from your web host with its own link, so it offers no prints."
         if r["type"] in type_off():
             return "This kind of session does not offer prints."
-        if not gallery_switch(r["sid"]):
+        gid = r["gallery_id"]
+        here = "uploading" in r.keys()
+        dl = G.is_download(gid) if here else G.online_download(gid)
+        if not ((gallery_switch(r["sid"]) if dl or G.is_download(gid) else proofs_switch(r["sid"]))):
             return "Prints are turned off for this gallery."
         if not (r["upload_state"] == "up" and not r["removed_at"]):
             return "The gallery is not online."
-        if not (G.is_download(r["gallery_id"]) if "uploading" in r.keys() else G.online_download(r["gallery_id"])):
-            return "Prints are offered from the download gallery only."
-        if not full_build(r["gallery_id"]):
+        if not dl and G.is_download(gid):
+            return "Prints are offered once the download gallery is online."
+        if not dl and not (G.is_print(gid) if here else G.online_print(gid)):
+            return "Build the gallery again to offer prints from these proofs."
+        if not full_build(gid):
             return "Prints need this gallery's files; rebuild it to offer prints."
         return ""
 
@@ -359,23 +377,16 @@ def register(ctx):
         return payload_of(o).get("ship") or {"how": "pickup"}
 
     def tax_flags():
-        mode = setting("tax_mode", "none")
-        on_prints = setting("tax_prints", "" if mode == "none" else "1") == "1" and mode != "none"
-        on_ship = setting("tax_print_shipping", "0") == "1" and mode != "none"
+        taxed = bool(ctx.taxes())
+        on_prints = setting("tax_prints", "1") == "1" and taxed
+        on_ship = setting("tax_print_shipping", "0") == "1" and taxed
         return on_prints, on_ship
 
-    def tax_area_for(o):
+    def tax_address(o):
 
-        reg = ctx.tax_region()
-        if not reg:
-            return "flat", ""
-        keys = [k_ for k_, _ in reg["areas"]]
-        if o.get("tax_area") in keys:
-            return o["tax_area"], ""
         sh = ship_of(o)
-        addr = setting("business_address") if sh.get("how") == "pickup" else \
+        return setting("business_address") if sh.get("how") == "pickup" else \
             "\n".join(x_ for x_ in (sh.get("addr1"), sh.get("addr2"), f"{sh.get('city', '')}, {sh.get('state', '')} {sh.get('zip', '')}") if x_)
-        return reg["area_of"](addr or "")
 
     def figures(o, lines=None):
 
@@ -387,7 +398,7 @@ def register(ctx):
         if o.get("tax_rate") is not None:
             rate = float(o["tax_rate"])
         else:
-            rate = ctx.sales_tax_pct(tax_area_for(o)[0]) if (on_prints or on_ship) else 0.0
+            rate = ctx.tax_pct_at(tax_address(o) or "") if (on_prints or on_ship) else 0.0
         taxable = (sub if on_prints else 0) + ((ship or 0) if on_ship else 0)
         tax = P.tax_cents(taxable, rate) if rate else 0
         pays = q("SELECT * FROM print_payments WHERE order_id=? AND voided IS NULL ORDER BY received, id", (o["id"],))
@@ -559,6 +570,8 @@ def register(ctx):
             raise ValueError("Photo changed since the order" if files is not None else "the gallery's files are not here")
         it = files[line["photo_file"]]
         p_ = G.OUT_ROOT / r_["gallery_id"] / line["photo_file"]
+        if G.is_print(r_["gallery_id"]):
+            p_ = G.OUT_ROOT / r_["gallery_id"] / G.FULL_DIR / line["photo_file"]
         blob = p_.read_bytes()
         data = AESGCM(_gkey(r_)).decrypt(blob[:12], blob[12:], ("lumen-aureum-gallery:" + line["photo_file"]).encode())
         return data, (int(it.get("ow") or 0), int(it.get("oh") or 0))
@@ -683,9 +696,8 @@ td.r,th.r{text-align:right}.mute{color:#6b6157}.tot td{font-weight:700;border-bo
         if not lines_of(o["id"]):
             raise LabError("The order has no lines.")
         num_ = ctx.doc_number(o["session_id"], f"PRINT:{o['id']}", "INV")
-        area, _w = tax_area_for(o)
-        x("UPDATE print_orders SET invoice_number=?, invoice_issued=?, tax_rate=?, tax_area=?, ship_cents=?, invoice_void=NULL WHERE id=?",
-          (num_, date.today().isoformat(), f_["rate"], area if ctx.tax_region() else None, f_["ship"], o["id"]))
+        x("UPDATE print_orders SET invoice_number=?, invoice_issued=?, tax_rate=?, ship_cents=?, invoice_void=NULL WHERE id=?",
+          (num_, date.today().isoformat(), f_["rate"], f_["ship"], o["id"]))
         data = invoice_data(o)
         x("UPDATE print_orders SET invoice_data=?, invoice_html=? WHERE id=?",
           (json.dumps(data), render_template_string(INVOICE_DOC, v=data), o["id"]))
@@ -703,7 +715,10 @@ td.r,th.r{text-align:right}.mute{color:#6b6157}.tot td{font-weight:700;border-bo
         data = json.loads(o["invoice_data"] or "{}")
         data["void"] = why
         fl = json.loads(o["flags"] or "{}")
+
         fl.setdefault("voided", []).append(dict(number=o["invoice_number"], why=why, at=date.today().isoformat(),
+                                                total=data.get("total") or 0, ship_cents=data.get("ship_cents") or 0,
+                                                tax_cents=data.get("tax_cents") or 0,
                                                 html=render_template_string(INVOICE_DOC, v=data)))
 
         x("""UPDATE print_orders SET invoice_number=NULL, invoice_issued=NULL, invoice_data=NULL, invoice_html=NULL,
@@ -1323,17 +1338,20 @@ and once paid, Prepare for the lab gives you the files and an order sheet for an
   <table class="r" style="max-width:640px"><tbody>
   <tr><td>Prints</td><td class="r">{{ dollars(f.sub) }}</td>{% if cost_lines is not none %}<td class="mute">your lab cost {{ dollars(cost_lines) }}</td>{% endif %}</tr>
   <tr><td>Shipping charged ({{ rule_words }})</td><td class="r">{% if f.ship is none %}<span style="color:var(--warn)">type the lab's shipping</span>{% else %}{{ dollars(f.ship) }}{% endif %}</td><td class="mute">{% if o.ship_lab_cents is not none %}the lab's shipping {{ dollars(o.ship_lab_cents) }}{% endif %}</td></tr>
-  <tr><td>Sales tax{% if f.rate %} ({{ '%g' % f.rate }}%){% endif %}</td><td class="r">{{ dollars(f.tax) }}</td><td class="mute">{{ tax_warning }}</td></tr>
+  <tr><td>Sales tax{% if f.rate %} ({{ '%g' % f.rate }}%){% endif %}</td><td class="r">{{ dollars(f.tax) }}</td><td class="mute"></td></tr>
   <tr><td><b>Total</b></td><td class="r"><b>{{ dollars(f.total) }}</b></td>{% if profit is not none %}<td class="mute">profit {{ dollars(profit) }}</td>{% endif %}</tr>
   <tr><td>Paid</td><td class="r">{{ dollars(f.paid) }}</td><td></td></tr><tr><td>Balance</td><td class="r">{{ dollars(f.balance) }}</td><td></td></tr></tbody></table>
   {% if editable %}<form method="post" action="{{ url_for('prints_act', oid_=o.id, do='shipping') }}" class="row" style="gap:6px;flex-wrap:wrap;align-items:end">
     <span><label class="l" for="labship">The lab's shipping for this order</label><input id="labship" name="lab_ship" value="{{ cents(o.ship_lab_cents) }}" style="width:90px"></span>
     <span><label class="l" for="chship">Charge the client{{ help("Left blank, the shipping rule sets it.") }}</label><input id="chship" name="ship" value="{{ cents(o.ship_cents) }}" style="width:90px"></span>
-    {% if areas %}<span><label class="l" for="area">Taxed for</label><select id="area" name="area">{% for k, lab in areas %}<option value="{{ k }}" {{ 'selected' if k == area }}>{{ lab }}</option>{% endfor %}</select></span>{% endif %}
     <button class="quiet">Save</button></form>
     {% if quote_lab %}<form method="post" action="{{ url_for('prints_act', oid_=o.id, do='quote') }}" class="inline"><button class="quiet">Shipping from {{ quote_lab }}</button></form>{% endif %}{% endif %}
-  {% for pmt in f.pays %}<div class="row" style="gap:8px"><span class="grow">{{ nice(pmt.received) }}: {{ 'Refund' if pmt.kind == 'refund' else 'Payment' }} {{ dollars(pmt.amount_cents) }}{% if pmt.method %} ({{ pmt.method }}{% if pmt.ref %} {{ pmt.ref }}{% endif %}){% endif %}</span>
-    <form method="post" action="{{ url_for('prints_act', oid_=o.id, do='void_payment') }}" class="inline" data-confirm="Void this {{ pmt.kind }}?"><input type="hidden" name="pid" value="{{ pmt.id }}"><button class="ghost">Void</button></form></div>{% endfor %}
+  {% for pmt in f.pays %}<div class="row" style="gap:8px;flex-wrap:wrap"><span class="grow">{{ nice(pmt.received) }}: {{ 'Refund' if pmt.kind == 'refund' else 'Payment' }} {{ dollars(pmt.amount_cents) }}{% if pmt.method %} ({{ pmt.method }}{% if pmt.ref %} {{ pmt.ref }}{% endif %}){% endif %}{% if pmt.corrects %} <span class="mute">{{ correction_words('print_payments', pmt) }}</span>{% endif %}</span>
+    {% if year_closed(pmt.received[:4]) %}<details><summary>Correct</summary><form method="post" action="{{ url_for('prints_act', oid_=o.id, do='correct_payment') }}" class="row" style="gap:6px;flex-wrap:wrap;align-items:end"><input type="hidden" name="pid" value="{{ pmt.id }}">
+      <span><label class="l" for="fx{{ pmt.id }}">Should have been{{ help(pmt.received[:4] ~ " is closed, so this " ~ pmt.kind ~ " stays as it is. The difference is recorded on the day below, in an open year, saying which one it corrects and why.") }}</label><input id="fx{{ pmt.id }}" name="should_be" value="0.00" style="width:90px"></span>
+      <span><label class="l" for="fw{{ pmt.id }}">Why</label><input id="fw{{ pmt.id }}" name="why" maxlength="120" required></span>
+      <span><label class="l" for="fd{{ pmt.id }}">Recorded on</label><input id="fd{{ pmt.id }}" type="date" name="day" value="{{ today }}" min="{{ books_open_from() }}"></span><button class="quiet">Record the correction</button></form></details>
+    {% else %}<form method="post" action="{{ url_for('prints_act', oid_=o.id, do='void_payment') }}" class="inline" data-confirm="Void this {{ pmt.kind }}?"><input type="hidden" name="pid" value="{{ pmt.id }}"><button class="ghost">Void</button></form>{% endif %}</div>{% endfor %}
   {% if o.invoice_number %}<form method="post" action="{{ url_for('prints_act', oid_=o.id, do='payment') }}" class="row" style="gap:6px;flex-wrap:wrap;align-items:end;margin-top:6px" data-balance="{{ '%.2f'|format(pay_balance / 100) }}" data-credit-on="order">
     <input type="hidden" name="once" value="{{ form_once() }}">
     <span><label class="l" for="pk">Record</label><select id="pk" name="kind"><option value="payment">Payment</option><option value="refund">Refund</option></select></span>
@@ -1450,8 +1468,6 @@ and once paid, Prepare for the lab gives you the files and an order sheet for an
         f_ = figures(o, ls)
         rules = ship_rules()
         rule = rules.get(f_["dest"], {})
-        reg = ctx.tax_region()
-        area, warn = tax_area_for(o)
         fl = json.loads(o["flags"] or "{}")
         who = who_of(o)
         sh = ship_of(o)
@@ -1474,8 +1490,7 @@ and once paid, Prepare for the lab gives you the files and an order sheet for an
             ship_lines=P.label_lines(sh, who[0]), rel=rel, dollars=P.dollars, cents=cents_s, nice=ctx.nice,
             editable=o["state"] in ("new", "unmatched"), can_check=o["state"] not in P.FINAL,
             photos=[(f, it.get("n") or f) for f, it in (files or {}).items()],
-            rule_words=RULE_LABEL.get(rule.get("rule"), "at cost").lower(), tax_warning=warn,
-            areas=reg["areas"] if reg else None, area=area, profit=profit,
+            rule_words=RULE_LABEL.get(rule.get("rule"), "at cost").lower(), profit=profit,
             cost_lines=cost_total if all_costed and ls else None,
             lab_cost_words=", ".join(f"{n_} {P.dollars(c_)}" for n_, c_ in zip(("products", "shipping", "the lab's tax", "other"), costs)
                                      if c_ is not None) or "none typed",
@@ -1603,10 +1618,8 @@ and once paid, Prepare for the lab gives you the files and an order sheet for an
                 if st not in ("new", "unmatched"):
                     return refuse("The invoice is issued: change the order to change its shipping.", back)
                 lab_c, ch = money_in(f.get("lab_ship")), money_in(f.get("ship"))
-                reg = ctx.tax_region()
-                area = f.get("area") if reg and f.get("area") in [k_ for k_, _ in reg["areas"]] else o["tax_area"]
-                x("UPDATE print_orders SET ship_lab_cents=?, ship_cents=?, ship_by_hand=?, tax_area=? WHERE id=?",
-                  (lab_c, ch, 1 if ch is not None else 0, area, oid_))
+                x("UPDATE print_orders SET ship_lab_cents=?, ship_cents=?, ship_by_hand=? WHERE id=?",
+                  (lab_c, ch, 1 if ch is not None else 0, oid_))
                 ctx.audit(f"Print order from {name}: shipping " + (f"charged {P.dollars(ch)}" if ch is not None else "by the rule")
                           + (f", the lab's {P.dollars(lab_c)}" if lab_c is not None else ""), sid=o["session_id"])
             elif do == "flags_ok":
@@ -1645,6 +1658,8 @@ and once paid, Prepare for the lab gives you the files and an order sheet for an
                         raise ValueError
                 except ValueError:
                     return refuse("That date isn't usable (from 2000 to today). Nothing was recorded.", back)
+                if ctx.closed_year_refusal(day):
+                    return refuse(ctx.closed_year_refusal(day), back)
                 kind = "refund" if f.get("kind") == "refund" else "payment"
                 f_ = figures(o)
                 if kind == "refund" and amt > f_["paid"]:
@@ -1660,9 +1675,37 @@ and once paid, Prepare for the lab gives you the files and an order sheet for an
                                          f"shows a {P.dollars(over)} credit to give back. Once you give it back, record "
                                          f"it as a Refund.")
             elif do == "void_payment":
+                pay_ = q("SELECT * FROM print_payments WHERE id=? AND order_id=?", (int(f.get("pid") or 0), oid_), one=True)
+                if pay_ and ctx.closed_year_change_refusal(pay_["received"]):
+                    return refuse(ctx.closed_year_change_refusal(pay_["received"]), back)
                 x("UPDATE print_payments SET voided=? WHERE id=? AND order_id=? AND voided IS NULL",
                   (date.today().isoformat(), int(f.get("pid") or 0), oid_))
                 ctx.audit(f"Print order from {name}: a payment was voided", sid=o["session_id"])
+                follow_payment(o)
+            elif do == "correct_payment":
+
+                pay_ = q("SELECT * FROM print_payments WHERE id=? AND order_id=? AND voided IS NULL",
+                         (int(f.get("pid") or 0), oid_), one=True)
+                if not pay_ or not ctx.year_closed(pay_["received"][:4]):
+                    return refuse("Only a payment in a closed year is corrected this way. Nothing was recorded.", back)
+                should = money_in(f.get("should_be")) if str(f.get("should_be") or "").strip() else None
+                if should is None or should < 0:
+                    return refuse("Enter what it should have been, as a positive amount (0 if it never happened). "
+                                  "Nothing was recorded.", back)
+                day, why_, refused_ = ctx.correction_in(f)
+                if refused_:
+                    return refuse(refused_, back)
+                net = pay_["amount_cents"] + sum(r_["amount_cents"] for r_ in q(
+                    "SELECT amount_cents FROM print_payments WHERE corrects=? AND voided IS NULL", (pay_["id"],)))
+                if should == net:
+                    return refuse(f"It already stands at {P.dollars(should)}. Nothing was recorded.", back)
+                x("""INSERT INTO print_payments (order_id, kind, amount_cents, received, method, ref, corrects, note)
+                     VALUES (?,?,?,?,?, '', ?, ?)""", (oid_, pay_["kind"], should - net, day, pay_["method"] or "",
+                                                     pay_["id"], why_))
+                ctx.audit(f"Print order from {name}: corrected the {P.dollars(net)} {pay_['kind']} from "
+                          f"{ctx.nice(pay_['received'])} ({pay_['received'][:4]} is closed) to {P.dollars(should)}, "
+                          f"recorded {ctx.nice(day)}. Why: {why_}", sid=o["session_id"])
+                session["notice"] = f"Recorded as a correction on {ctx.nice(day)}. {pay_['received'][:4]} stays as it was."
                 follow_payment(o)
             elif do == "before_payment":
                 if st != "invoiced":
@@ -1742,6 +1785,8 @@ and once paid, Prepare for the lab gives you the files and an order sheet for an
                         raise ValueError
                 except ValueError:
                     return refuse("That date isn't usable (from 2000 to today). Nothing was recorded.", back)
+                if ctx.closed_year_refusal(day):
+                    return refuse(ctx.closed_year_refusal(day), back)
                 if any(r_["reverses"] == rid for r_ in costs_of(oid_)):
                     return refuse("That lab cost was already taken back.", back)
                 record_cost(oid_, "refund", {k_: -row_[k_] for k_ in COST_KEYS}, row_["lab_name"], row_["lab_number"],
@@ -2324,12 +2369,24 @@ and once paid, Prepare for the lab gives you the files and an order sheet for an
         if not active():
             return None
         r_ = gallery_row(sid=s["id"])
-        if not (r_ and G.is_download(r_["gallery_id"] or "") and prints_on()) or G.is_adopted(r_):
+        if not (r_ and G.GID_OK.match(r_["gallery_id"] or "") and prints_on()) or G.is_adopted(r_):
             return None
-        why = why_no_prints(dict(r_))
-        note = ('This host runs no PHP: the gallery says "For prints, email the studio".' if host_kind() == "none"
-                else why if why and why != "Prints are turned off for this gallery." else "")
-        return dict(can_switch=True, switch=gallery_switch(s["id"]), note=note)
+        gid = r_["gallery_id"]
+        if G.is_download(gid):
+            why = why_no_prints(dict(r_))
+            note = ('This host runs no PHP: the gallery says "For prints, email the studio".' if host_kind() == "none"
+                    else why if why and why != "Prints are turned off for this gallery." else "")
+            return dict(can_switch=True, switch=gallery_switch(s["id"]), note=note)
+        if not r_["built_at"] or r_["type"] in type_off():
+            return None
+        on = proofs_switch(s["id"])
+        note = ""
+        if on and r_["upload_state"] == "up" and not r_["removed_at"]:
+            note = ('This host runs no PHP: the gallery says "For prints, email the studio".' if host_kind() == "none"
+                    else why_no_prints(dict(r_)))
+        elif on and not G.is_print(gid):
+            note = "Build the gallery again to offer prints from these proofs."
+        return dict(can_switch=True, switch=on, note=note, proofs=True)
 
     app.config["prints_offer"] = offer
 
@@ -2350,8 +2407,12 @@ and once paid, Prepare for the lab gives you the files and an order sheet for an
     def prints_gallery_switch(sid):
         r_ = gallery_row(sid=sid) or abort(404)
         on = bool(request.form.get("offer"))
-        x("""INSERT INTO print_galleries (session_id, gid, off) VALUES (?,?,?) ON CONFLICT(session_id) DO UPDATE SET off=excluded.off""",
-          (sid, r_["gallery_id"], 0 if on else 1))
+        if G.is_download(r_["gallery_id"] or ""):
+            x("""INSERT INTO print_galleries (session_id, gid, off) VALUES (?,?,?) ON CONFLICT(session_id) DO UPDATE SET off=excluded.off""",
+              (sid, r_["gallery_id"], 0 if on else 1))
+        else:
+            x("""INSERT INTO print_galleries (session_id, gid, proofs) VALUES (?,?,?)
+                 ON CONFLICT(session_id) DO UPDATE SET proofs=excluded.proofs""", (sid, r_["gallery_id"], 1 if on else 0))
         return redirect(ctx.safe_back(request.form.get("back")) or url_for("session_view", sid=sid))
 
     app.config["ep_words"]["prints_gallery_switch"] = lambda f: ("Offered prints from this gallery" if f.get("offer") else

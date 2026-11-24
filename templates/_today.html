@@ -1,5 +1,5 @@
 
-{% import "_ui.html" as ui with context %}{% import "_ui_mail.html" as uim with context %}{% import "_ui_filter.html" as uf with context %}{% from "_macros.html" import avatar, event_avatar, help with context %}
+{% import "_ui.html" as ui with context %}{% import "_ui_mail.html" as uim with context %}{% import "_ui_filter.html" as uf with context %}{% from "_macros.html" import avatar, event_avatar, help, ROW_FACE with context %}
 
 
 {% macro today_do(do, back, kind='quiet') -%}
@@ -7,12 +7,14 @@
 {%- if a.mail and a.post and not a.preview -%}{{ uim.mail_action(a.post, a.mail, a.verb, back, kind, fields=a.fields) }}
 {%- elif a.confirm and a.post -%}{{ ui.action(a.post, a.verb, a.fields or {}, back, kind, confirm=a.confirm) }}
 {%- else -%}{{ ui.step_action(a, back, kind, menu=false) }}{%- endif -%}
+
+{%- if a.also %}{{ ui.action(a.also.post, a.also.verb, a.also.fields or {}, back, 'quiet') }}{% endif -%}
 {%- endmacro %}
 
 {% macro today_line(line, back) -%}
 {%- set do = line.do -%}
 <li class="ui-tline{{ ' ui-tline-late' if do and do.late }}{{ ' ui-tline-new' if line.new }}" id="line-{{ line.key }}" data-ui-href="{{ line.href }}"{% if line.f %} {{ uf.item(line.f.status, line.f.due, dict(kind=line.f.kind, label=line.f.labels)) }}{% endif %}>
-  <span class="ui-tline-face" aria-hidden="true">{% if line.event %}{{ event_avatar(line.eid, line.name, 36) }}{% elif line.hid %}{{ avatar(line.hid, 36) }}{% endif %}</span>
+  <span class="ui-tline-face" aria-hidden="true">{% if line.event %}{{ event_avatar(line.eid, line.name, ROW_FACE) }}{% elif line.hid %}{{ avatar(line.hid, ROW_FACE) }}{% endif %}</span>
   <span class="ui-tline-main">
     <span class="ui-tline-who"><a class="ui-tline-name" href="{{ line.href }}">{{ line.name }}</a>
       {%- if line.new %} {{ ui.chip('New', 'attention') }}{% endif %}
@@ -30,7 +32,7 @@
 {% macro shoot_block(sh, back) -%}
 <div class="ui-tshoot" id="shoot-{{ sh.key }}">
   <div class="ui-tshoot-head">
-    <span class="ui-tline-face" aria-hidden="true">{% if sh.event %}{{ event_avatar(sh.eid, sh.name, 36) }}{% elif sh.hid %}{{ avatar(sh.hid, 36) }}{% endif %}</span>
+    <span class="ui-tline-face" aria-hidden="true">{% if sh.event %}{{ event_avatar(sh.eid, sh.name, ROW_FACE) }}{% elif sh.hid %}{{ avatar(sh.hid, ROW_FACE) }}{% endif %}</span>
     <p class="ui-needs-line ui-tshoot-who"><a class="ui-tline-name" href="{{ sh.href }}">{{ sh.name }}</a> <span class="ui-tline-stage">{{ sh.kind }}</span></p>
     {% if sh.do and sh.do.a %}<span class="ui-tshoot-act">{{ today_do(sh.do, back, 'primary') }}</span>{% endif %}
   </div>

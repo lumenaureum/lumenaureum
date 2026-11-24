@@ -6,12 +6,13 @@
 3. In `compose.yaml`, change the image tag to the new version (from the old version number to the new one).
 4. `docker compose pull && docker compose up -d`, then sign in to unlock.
 
-The database records which version of its layout it has. When a new version needs to change it, the change runs at
-the first sign-in, after the app has made an encrypted backup (listed under Settings, Backups as Before the update); if that backup
-can't be made, nothing is changed and sign-in says why. The change runs all at once or not at all. After an update,
+At the first sign-in after every update (any change of version, newer or older), the app makes an encrypted backup
+before it changes anything, listed under Settings, Backups as **Before the update**, with the version it came from (its
+kind is `upgrade`). If that backup can't be made, nothing is changed and sign-in says why. The database also records
+which version of its layout it has; when a new version needs to change it, the change runs right after that backup. The change runs all at once or not at all. After an update,
 Today shows a note with the new version number, a link to what's new (also on About), and which backup was made
 before it. The note stays until you hide it or until the next day. An older
-version never opens a database a newer one has changed: it says so and points here.
+version never opens a database whose layout number a newer one has moved on: it says so and points here.
 
 ### Galleries online get each new version's page
 Whenever a new version changes the gallery page or the host's small scripts, the app gives every gallery online the
@@ -22,6 +23,23 @@ for the first gallery on each host, opens it the way a client would. If that che
 previous page and scripts, the others on that host wait, and Today says why. A gallery whose client is picking right
 now waits until they have been quiet for 6 hours (at most a week); its Gallery block says so, with **Update it now**. If a client
 says "Send" failed in that moment, ask them to reload the page: their choices are still on their device.
+
+### The 1.6 update
+1.6 adds tables and columns to the database and changes nothing that was there, so the database's layout number stays
+the same. Its first sign-in still makes the Before the update backup first, as above. 1.5.4 does not refuse the
+database afterwards, but it reads none of what 1.6 added (taxes by name, payment plans, corrections to a closed year,
+deposit credits, crew). To go back to 1.5.4, restore the Before the update backup the app made at your first 1.6.0
+sign-in (see [Rolling back](#rolling-back)); never just set the older tag.
+
+Then, from the first sign-in:
+- **Taxes.** Your one sales tax rate becomes a tax named Sales tax, added on top of the price and applying to every
+  session (Settings, Taxes). Booked sessions keep the rate they were booked with.
+- **Closed years.** Each year now closes after the next January 31 (or sooner, when you close it on Finances in
+  January). Nothing more can be dated in a closed year, and its payments and expenses are corrected with a new entry
+  in the open year instead of being changed (see [Closing a year](getting-started.md#closing-a-year)).
+- **Galleries.** Every gallery online gets 1.6's page and scripts the usual way (above): from then on each device
+  keeps its own picks.
+- **Health check.** The image has no curl: see the note on your own health check, just above Rolling back.
 
 ### The 1.5 update
 1.5 changes the database (new tables only), so its first sign-in makes the **upgrade** backup first, as above, and
@@ -73,14 +91,26 @@ From 1.4.0, each image also carries two signed records made by the release build
 `gh attestation verify oci://ghcr.io/lumenaureum/lumenaureum:<version> --owner lumenaureum`
 (add `--predicate-type https://spdx.dev/Document/v2.3` to check the list of contents).
 
+The release build also checks that list's system libraries (the Debian packages under the app, such as OpenSSL and the
+ones PDFs are drawn with) against known vulnerabilities, at every severity and whether or not a fix exists yet. The
+findings go in the release run's summary on GitHub. This is a report, not a gate: the image scan before it already
+stops a release on any fixable critical or high finding. Python packages are checked on every change instead.
+A build of your own takes the Debian fixes published up to the day its system-library step last ran. Docker reuses
+that step from an earlier build when nothing above it changed, so build with `docker build --no-cache` to pick up
+newer fixes.
+
+The container's health check is the app's own probe, `python /app/healthcheck.py` (Docker runs it every minute). From
+1.6.0 the image has no curl ([What is in the image](security.md#what-is-in-the-image)), so if your compose file or app
+catalog sets its own health check with curl, change it to `["CMD", "python", "/app/healthcheck.py"]` before updating
+(it works on 1.5.2 and later). The `curl` commands elsewhere in these docs run on your own computer, not in the container.
+
 ## Rolling back
-1. Set the previous tag in `compose.yaml` and run `docker compose up -d`.
-2. If the newer version didn't change the database, that's all.
-3. If it did, the older version refuses to open the database and says so. Put the newer tag back and run
-   `docker compose up -d` (the older version can't read the list of backups). Then follow **Restoring a backup**
-   below, steps 1 to 9. In step 1, pick the line whose kind is `upgrade`: the backup made at the first sign-in on the
-   newer version, just before it changed anything. After step 3, set the older tag in `compose.yaml`, so step 8
-   starts the older version.
+Going back to an earlier version is always a restore, never just setting the older tag: the app backs up at the first
+sign-in after every update, and going back means restoring that backup.
+1. Keep the newer version running (an older one may refuse the database or misread it). Follow **Restoring a backup**
+   below, steps 1 to 9. In step 1, pick the line whose kind is `upgrade` (Before the update, from the version you are
+   going back to): the backup made at the first sign-in on the newer version, just before it changed anything.
+2. After step 3, set the older tag in `compose.yaml`, so step 8 starts the older version.
 
 Those steps move only the restored files into your existing data folder. Everything else in it stays, including the
 `tls` folder that holds the app's HTTPS certificate, so your devices don't warn about a new certificate. Keep the data
@@ -88,11 +118,10 @@ folder's own `deletions.json` and `doc-numbers.json` and move the restored copie
 merged at sign-in, so clients and sessions deleted since the upgrade stay deleted and numbers don't repeat. (A version from before 1.0 reads these as `deletions.enc` and `doc-numbers.enc`, so on those,
 check the clients list and the next invoice number.)
 
-Going back to an earlier version is always this restore: each version that changes the database updates it at the
-first sign-in (1.0.1 turned refunds recorded the 1.0.0 way into credits; 1.1 added the gallery draft fields; 1.1.1
+Going back is always this restore because each version that changes the database updates it at the first sign-in (1.0.1 turned refunds recorded the 1.0.0 way into credits; 1.1 added the gallery draft fields; 1.1.1
 keeps a copy of each issued invoice and receipt; 1.2 marks the data as using download galleries; 1.3 keeps each payment's sales tax and each statement charge as recorded; 1.5 adds tables for client labels, End
-contact, replaced quotes and the studio page's kept files, and applies the new stage rules once), and an earlier
-version refuses the updated database. Anything
+contact, replaced quotes and the studio page's kept files, and applies the new stage rules once; 1.6 adds tables and columns an earlier version would ignore), and an earlier
+version refuses the updated database or reads only part of it. Anything
 entered after the upgrade is not in that backup: before rolling back, look through each client's History and the
 audit log for what changed since, and note it. A rollback cannot undo a leak: if you rolled back because of a security
 problem, also follow "If you suspect a compromise".
@@ -105,10 +134,44 @@ is mirrored, still encrypted, to your second backup location (or the vault when 
 the photo is kept and deleted with it, so photos take twice their size. Their keys are in the database, so after
 restoring the database the app fetches any photo missing from the photos folder back from the mirror.
 
-This section is the one place with the restore steps; docs/security.md points here. A restore needs the command
-line: there is no restore button in the app yet. Settings, Backups has **Check the newest backup opens**, which tests
-a backup with your master key without changing anything. Each step below is one command or one file move; type them
-as shown, in a terminal on the machine that runs Docker.
+This section is the one place with the restore steps; docs/security.md points here. Settings, Backups has **Check
+the newest backup opens**, which tests a backup with your master key without changing anything.
+
+### In the app
+**An existing studio:** Settings, Backups, **Restore from a backup**.
+1. Choose a backup from the list (newest first), or a backup file from this computer, and paste your master key
+   (the one the studio had when the backup was made). Press **Check this backup**. The app opens it in a scratch
+   folder in the data folder and checks it: a backup from the list must match the fingerprint recorded when it was
+   made; a file from your computer has no record to compare with, so the next screen says it was not checked.
+2. The next screen shows what changes, side by side: clients, sessions, galleries online, payments, uploaded photos,
+   the newest client and session, and the last change. Type your current password and press **Restore and restart**.
+3. The data here now (`crm.db`, `keyring.json`, `storage.json`, the face photos, and a copy of `deletions.json` and
+   `doc-numbers.json`) moves into `set-aside/<date and time>` in the data folder, with a README.txt saying what it is.
+   The face photos made with the backup come back with it. A file from your computer holds no face photos: choose the
+   face photos file made at the same time in **Face photos backup (if you have it)** and they come back too (when the
+   studio has a record of the backup, that file must match the fingerprint recorded for it, or nothing is restored);
+   without it, the face photos here stay. The review screen says which. Nothing is deleted at once: the app removes a set-aside folder after 30 days, and Today says so five days
+   before. Copy it somewhere else to keep it longer. The backup takes its place, with its two `.restored.json` lists (step 6 below happens for you),
+   and Lumen Aureum restarts. Sign in with the password you had when the backup was made (or reset it with the
+   master key).
+
+Galleries stay in step with your web host: a gallery online now that the backup doesn't have online comes down at
+the next gallery check (Today lists it until then), and one the backup has online that was taken down since shows
+as taken down, with Put back online. Backups made after the restored one stay listed, so you can go forward again.
+To undo a restore, do the same with the copy under **Data set aside at an earlier restore** on the first screen, within
+30 days. A new master key waiting to take effect stops a restore: cancel it, or restore after it takes effect.
+
+**A new install** (a new machine, or after a loss): mount your old backup folder at `/vault` (the example compose
+file and the TrueNAS app already do), start the app, and on the first screen choose **Restore from a backup**
+instead of setting up the account. Type the setup code (in `SETUP-CODE.txt` in the data folder, or the app's log),
+pick the backup (the list is the folder's `db` files, newest first; if one turns out to hold only face photos, pick
+the one made at the same time), paste the master key, check it, and restore. It was not checked (a new machine has no
+record of the backup), so make sure it came from your own backup folder.
+
+A backup file chosen from your computer can be up to 40 MB. Larger ones, and anything below, use the command line.
+
+### On the command line
+Each step below is one command or one file move; type them as shown, in a terminal on the machine that runs Docker.
 
 **The files.** A restore writes these into a new folder, each in the place shown:
 
@@ -135,7 +198,9 @@ Backups from before settings were included have only `crm.db` and `keyring.json`
    the `db` folder of your vault.
 2. **Restore it.** `docker compose exec lumenaureum python -m vault.cli restore db/3f9c...6b.age /data/restored`, with your
    backup's full name. It asks for your master key. On a new machine, add `--from /vault` (the vault folder as the
-   app sees it). The files appear in a folder named `restored` inside your data folder.
+   app sees it). The files appear in a folder named `restored` inside your data folder. On a new machine it first says
+   the backup was not checked: there is no record here of the backup's fingerprint to compare with, so make sure it
+   came from your own vault folder (see Restoring a backup in docs/security.md).
 3. **Stop the app.** `docker compose stop`.
 4. **Move three files.** Move `crm.db`, `keyring.json`, and `storage.json` from `restored` into the data folder,
    replacing the ones there. If the data folder has `crm.db-wal` or `crm.db-shm`, delete them: they belong to the
@@ -178,7 +243,8 @@ Settings (Import settings). Your clients and money are not touched.
 above, then import the file you exported.
 
 ### On a TrueNAS catalog install
-The same steps, with the app's shell in place of `docker compose exec lumenaureum`, the Apps screen in place of
+In the app, nothing differs: the app sees the data and vault datasets as `/data` and `/vault`, as with compose, and
+restarts itself (the Apps screen shows it running throughout). On the command line, the same steps, with the app's shell in place of `docker compose exec lumenaureum`, the Apps screen in place of
 `docker compose stop` and `up -d`, and the TrueNAS shell for moving files.
 1. Open the app's shell: Apps, lumenaureum, then in **Workloads** the shell button beside the container. Type the
    commands of steps 1 and 2 above without `docker compose exec lumenaureum`, for example
@@ -194,6 +260,90 @@ The same steps, with the app's shell in place of `docker compose exec lumenaureu
 4. Start the app (Apps, lumenaureum, **Start**), sign in, and delete the `restored` folder
    (`rm -r restored` in the TrueNAS shell).
 
+## Behind a reverse proxy
+The app serves HTTPS itself, so most installs need no proxy. If you put your own HTTPS reverse proxy in front of it
+(`CRM_TLS=off`, with the proxy's address in `CRM_TRUSTED_PROXIES`), the proxy must **replace** two headers on every
+request, never add to what the visitor sent:
+- `X-Forwarded-For`: one address, the visitor's.
+- `X-Forwarded-Proto`: one word, `https` (or `http`), how the visitor reached the proxy.
+
+**Why.** The app believes these headers only from the addresses in `CRM_TRUSTED_PROXIES`, and refuses any request that
+carries them from anywhere else. It reads `X-Forwarded-For` from the right, passes over addresses listed in
+`CRM_TRUSTED_PROXIES`, and takes the first one that isn't listed as the visitor (if all are listed, it takes the first).
+That address decides whether the allow-list lets the visitor in, and which address failed sign-ins lock out.
+- A proxy that adds its own entry keeps whatever the visitor typed in front of it. That is safe only while the visitor's
+  address is never in `CRM_TRUSTED_PROXIES`. List a whole network there (`192.168.1.0/24`), or sign in from the
+  proxy's own machine, and the visitor's real address is passed over, so the address they made up is taken instead.
+- A proxy that passes the visitor's headers on unchanged lets every visitor choose their address, and lets a visitor
+  who reached the proxy over plain HTTP claim HTTPS, so the app answers a connection that isn't encrypted.
+- `X-Forwarded-Proto` must be exactly `http` or `https`. A value with more than one entry (`https, http`) is not
+  believed, and the request is refused as not HTTPS.
+
+So set `CRM_TRUSTED_PROXIES` to the proxy's own address only, not a network, and make the proxy replace both headers.
+If your proxy can only add to `X-Forwarded-For`, listing only its own address keeps the visitor's real address the one
+the app reads.
+
+**nginx.** Use `$remote_addr`, not `$proxy_add_x_forwarded_for` (that one adds to what the visitor sent):
+```nginx
+location / {
+    proxy_pass http://192.168.1.10:8780;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+**Caddy.** From version 2.5, Caddy replaces both headers by itself unless the visitor is in its own `trusted_proxies`,
+so leave your visitors' networks out of that. The two `header_up` lines say it outright:
+```caddy
+studio.example.com {
+    reverse_proxy 192.168.1.10:8780 {
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
+```
+
+**Traefik.** Traefik replaces both headers by itself unless the entry point trusts the sender. Leave
+`forwardedHeaders.insecure` off, and leave your visitors' networks out of `forwardedHeaders.trustedIPs`.
+
+**To check it,** from a computer on your network (not the proxy's machine), run
+`curl -H "X-Forwarded-For: 203.0.113.9" https://studio.example.com/healthz`. The answer should be
+`{"locked":...,"ok":true}`: the made-up address was not believed. A 403 means the app took the made-up address as the
+visitor's: fix the proxy before using the app this way.
+
+## Watching it from outside
+The locked-studio notice ([Notices while locked](security.md#notices-while-locked)) comes from the app itself, so it
+can't tell you the app has stopped, or that the whole machine is off. A monitor elsewhere can: it asks the app's
+`/healthz` address every minute or so, and sends a notice when the app doesn't answer or answers locked.
+
+`/healthz` answers without signing in: `{"locked":false,"ok":true}` while the studio is unlocked, and
+`{"locked":true,"ok":true}` while it is locked. It carries nothing else. Like every page, it answers only the networks
+the app allows (every private network, unless `CRM_ALLOW_ONLY` says otherwise). Never open it to the internet.
+
+Run the monitor on a different machine from the app if you can (a small computer that stays on), so a machine that is
+off is noticed too; for the same reason, a notice server on that same machine goes quiet with it.
+
+**With Uptime Kuma** (it is also in the TrueNAS app catalog):
+1. Add a new monitor of type **HTTP(s) - Keyword**.
+2. URL: the address you open the app by, with `/healthz`, for example `https://192.168.1.10:8780/healthz` (through
+   your proxy if you use one).
+3. Keyword: `"locked":false`, quotes included.
+4. If the app uses the certificate it made itself, tick **Ignore TLS/SSL error for HTTPS websites**.
+5. Under notifications, set up ntfy: the server address, a topic, and an access token if the server takes one. Give
+   the monitor a name that says nothing about your clients, such as "Studio": the notice shows it.
+
+That one monitor goes down both when the app stops answering and when it answers locked. To tell the two apart, add a
+second monitor of type **HTTP(s)** with the same address and no keyword: it goes down only when the app stops
+answering. After a restart you may hear twice, from the monitor and from the app's own locked-studio notice.
+
+**Any other monitor** works the same way: fetch `/healthz` over HTTPS, accept the app's own certificate, and alert when
+the answer isn't a 200 or doesn't contain `"locked":false`. From a scheduled job, for example:
+`curl -fsk https://192.168.1.10:8780/healthz | grep -q '"locked":false' || curl -H "Authorization: Bearer <token>" -d "Studio down or locked" https://ntfy.example.com/<topic>`
+
+A 403 means the app doesn't allow the monitor's address, or a name it doesn't know: see
+[Reaching the app](where-it-runs.md#reaching-the-app).
+
 ## If you suspect a compromise
 Signs: sign-in attempts you didn't make (you are told at sign-in), devices you don't recognize, settings you didn't
 change (every change is in each client's History and in the audit log).
@@ -202,8 +352,11 @@ change (every change is in each client's History and in the audit log).
    re-encrypted under a new key; old copies of the keyring stop working.
 3. **New password and recovery codes; sign out everywhere** (Settings > Security). Re-add two-factor in your
    authenticator app if the phone or its backup may be exposed.
-4. **Replace the master key** if it may have been seen: `python -m vault.cli new-master` (asks for the old one).
+4. **Replace the master key** if it may have been seen: `python -m vault.cli new-master` (asks for the old one). If
+   the old one is lost instead, use Settings > Security > Replace a lost master key (see Security in the docs).
    Backups made before that still open only with the old key until they age out (the 30 most recent daily backups are kept).
+   Then **rotate the data key again** (step 2): a replaced master key still opens the data key through every keyring
+   from before, so until a rotation after the replacement, the old key plus an earlier backup opens your data today.
 5. **Change the storage credentials** (SFTP key, S3 keys) at your provider, then enter the new ones in setup.
 6. **Review** the history for changes you didn't make, and take down any gallery you didn't publish.
 7. **Tell people if you have to.** If client information may have been seen by someone else, you may have legal duties

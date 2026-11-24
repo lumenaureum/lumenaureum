@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src blob:; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-'; style-src 'unsafe-inline'; img-src blob:; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow">
 <title>Photos</title>
@@ -111,6 +111,7 @@ header.two #how { margin: 8px 0 0; }
 #msgact button { font: inherit; padding: 8px 16px; border: 0; border-radius: 18px; background: #e3aa48; color: #1a1308; cursor: pointer; }
 #msgact button.plain { background: none; color: var(--ink); text-decoration: underline; padding: 8px 10px; }
 #msgact input { font: inherit; padding: 8px 10px; border: 1px solid var(--edge); background: var(--bg); color: var(--ink); border-radius: 8px; margin-right: 8px; }
+#msgact #cardcode { width: min(19em, 100%); margin: 0 0 8px; font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: .06em; text-transform: uppercase; }
 footer { background: #141210; color: #b9ad9a; padding: 26px 20px 30px; text-align: center; font-size: 13px; margin-top: auto; }
 #contact { margin-bottom: 14px; color: #e9e1d2; } #contact a { color: #e9e1d2; text-decoration: none; border-bottom: 1px solid #4a4237; }
 #contact span + span::before { content: "\00b7"; margin: 0 10px; color: #6e6455; }
@@ -470,6 +471,7 @@ const $ = id => document.getElementById(id);
 // The look the photographer chose (colors, font) rides in the encrypted manifest. The colors are remembered on this
 // device (sealed, see LS), so the next visit by the link alone opens in them before the manifest is read.
 const LOOK = "look:" + location.pathname;
+const fontSrc = n => CARD ? (CARDFONT[n] || new ArrayBuffer(0)) : "url(" + n + ")";   // a card: the bytes read from its folder
 let lookDone = false;
 function look(T, built) {
   if (!T || typeof T !== "object") return;
@@ -479,15 +481,15 @@ function look(T, built) {
   if (ok(C.bg) && ok(C.ink)) r.classList.toggle("dark", sum(C.bg) < sum(C.ink));
   if (!built) return;
   if ((T.font === "elegant" || T.font === "script") && window.FontFace && document.fonts) try {   // the file sits beside the page
-    const ff = new FontFace(T.font === "script" ? "Gallery Script" : "Gallery Serif", "url(font.woff2)");
+    const ff = new FontFace(T.font === "script" ? "Gallery Script" : "Gallery Serif", fontSrc("font.woff2"));
     document.fonts.add(ff); ff.load().catch(() => {});
     r.classList.add("f-" + T.font);
   } catch (e) {}
   if (T.font === "own" && window.FontFace && document.fonts) try {     // the studio's own font, beside the page
     const W = (v, d) => /^\d{1,4} \d{1,4}$/.test(v || "") ? v : d;   // a variable font's weight range, from the manifest
-    const reg = new FontFace("Gallery Own", "url(font.woff2)", { weight: W(T.wr, "400") });
+    const reg = new FontFace("Gallery Own", fontSrc("font.woff2"), { weight: W(T.wr, "400") });
     document.fonts.add(reg); reg.load().catch(() => {});
-    if (T.light) { const lt = new FontFace("Gallery Own", "url(font-light.woff2)", { weight: W(T.wl, "300") });
+    if (T.light) { const lt = new FontFace("Gallery Own", fontSrc("font-light.woff2"), { weight: W(T.wl, "300") });
       document.fonts.add(lt); lt.load().catch(() => {}); r.classList.add("f-light"); }
     r.classList.add("f-own");
   } catch (e) {}
@@ -501,6 +503,13 @@ let ckey = null;
 const HP = new URLSearchParams(location.hash.slice(1));
 const k = HP.get("k") || "";
 const NEEDS_WORD = HP.get("c") === "1";   // the gallery is protected by a codeword the client chose
+// A sealed card (SD card or USB drive, backlog 129): the page opens from the card itself, with no web host. Browsers
+// refuse fetch() of local files, so the client chooses the card's sealed folder once and the page reads the files from
+// it. The key is never on the card: it comes from the code in the card letter (cardOpen).
+const CARD = document.documentElement.dataset.card === "1";
+const CARD_DIR = "Sealed photos";
+const CARDF = new Map();                        // a file's name -> () => its File, from the folder the client chose
+const CARDFONT = {};                            // the gallery's font files from that folder, read once
 let raw = (() => {
   try {
     const s = k.replace(/-/g, "+").replace(/_/g, "/");
@@ -610,6 +619,7 @@ async function fingerprint(lines) {
 const GATE = document.documentElement.dataset.gate === "1";   // a PHP host: fetch through gate.php, which enforces expiry
 let proofFor = null, proofHex = "", sunset = "", once = "", onceDone = false, darkContact = "";
 let saved = null;                               // what the gate says the host keeps of the client's (X-Saved), or null: unknown
+let others = null;                              // the web host names of every device's picks and drafts (X-Picks), or null
 const EMAIL = /^[^\s"'<>\\=;&?#%]{1,64}@[^\s"'<>\\=;&?#%@]+\.[^\s"'<>\\=;&?#%@]+$/;
 function mailLink(e) { const a = document.createElement("a"); a.href = "mailto:" + e; a.textContent = e; return a; }
 // A closed gallery has gone dark. That need not mean the photos are gone for good: the photographer may still have
@@ -683,6 +693,7 @@ async function proved(u, opts) {
   }
 }
 async function fetchBin(name, fresh, signal) { // the encrypted bytes of one file, as the host sends them
+  if (CARD) return cardBin(name);
   const opts = { credentials: PREVIEW ? "same-origin" : "omit", cache: fresh ? "no-store" : "default", signal };
   let r = GATE && subtle ? await proved("gate.php?f=" + encodeURIComponent(name), opts)
     : GATE ? await reach("gate.php?f=" + encodeURIComponent(name), opts) : null, direct = false;
@@ -697,13 +708,112 @@ async function fetchBin(name, fresh, signal) { // the encrypted bytes of one fil
   if (name === "manifest.bin") {               // the gate's word that it closes soon, or is open for one download
     sunset = r.headers.get("X-Sunset") || ""; once = r.headers.get("X-Once") || ""; onceDone = r.headers.get("X-Once-Done") === "1";
     const sv = r.headers.get("X-Saved");        // a gate from before 1.3 doesn't say: then the page asks for each file
-    if (/^(none|draft|picks|draft,picks)$/.test(sv || "")) saved = sv.split(","); }
+    if (/^(none|draft|picks|draft,picks)$/.test(sv || "")) saved = sv.split(",");
+    const xp = r.headers.get("X-Picks") || "";  // every device's picks and draft by web host name (1.6); a gate before says nothing
+    if (/^(none|[0-9a-f]{24}\.las(,[0-9a-f]{24}\.las){0,63})$/.test(xp)) others = xp === "none" ? [] : xp.split(","); }
   try { return await r.arrayBuffer(); }
   catch (e) { if (e && e.name === "AbortError") throw e;
     throw Object.assign(new Error("network"), { network: true }); }   // the connection dropped mid-file
 }
 async function get(name, signal) {
   return open(await fetchBin(name, false, signal), name);
+}
+// ---- a sealed card. The page reads each sealed file from the folder the client chose; a file it can't read (the card
+// taken out) counts as a dropped connection, never as a wrong code.
+async function cardBin(name) {
+  const f = CARDF.get(name);
+  if (!f) throw Object.assign(new Error("missing"), { status: 404 });
+  try { return await (await f()).arrayBuffer(); }
+  catch (e) { throw Object.assign(new Error("network"), { network: true }); }
+}
+function cardFiles(fs) {                       // from a folder input: the files beside manifest.bin (the sealed folder)
+  CARDF.clear();
+  const dirOf = f => (f.webkitRelativePath || f.name).split("/").slice(0, -1).join("/");
+  const ms = fs.filter(f => f.name === "manifest.bin").sort((a, b) => dirOf(a).length - dirOf(b).length);
+  if (!ms.length) return false;
+  const at = dirOf(ms[0]);
+  fs.forEach(f => { if (dirOf(f) === at) CARDF.set(f.name, () => Promise.resolve(f)); });
+  return true;
+}
+async function cardDir(dir) {                  // from the folder picker: the sealed folder, or the card holding it
+  CARDF.clear();
+  let d = dir;
+  try { await d.getFileHandle("manifest.bin"); }
+  catch (e) { try { d = await dir.getDirectoryHandle(CARD_DIR); await d.getFileHandle("manifest.bin"); } catch (x) { return false; } }
+  for await (const [n, h] of d.entries()) if (h.kind === "file") CARDF.set(n, () => h.getFile());
+  return true;
+}
+function pickFolder(why) {
+  return new Promise(resolve => {
+    const ask = "Choose the folder named \u201c" + CARD_DIR + "\u201d on the card or drive.";
+    if (why === "folder") fail("That folder doesn't hold the photos", ask);
+    else if (why === "read") fail("The card couldn't be read", "Check it is still in the computer. " + ask);
+    else say("Your photos are sealed on this card", ask + " Your browser asks first. The photos stay on this computer.");
+    const go = document.createElement("button"), inp = document.createElement("input");
+    go.type = "button"; go.textContent = "Choose the folder";
+    inp.type = "file"; inp.multiple = true; inp.webkitdirectory = true; inp.hidden = true; inp.id = "cardpick";
+    inp.setAttribute("aria-label", "The sealed folder");
+    inp.onchange = () => { const fs = [...(inp.files || [])]; if (fs.length) resolve(cardFiles(fs)); };
+    go.onclick = async () => {
+      if (window.showDirectoryPicker) {         // Chrome and Edge: their own folder picker, which says "view files"
+        let dir;
+        try { dir = await window.showDirectoryPicker({ id: "lumen-aureum-card" }); }
+        catch (e) { if (e && e.name === "AbortError") return; inp.click(); return; }
+        try { resolve(await cardDir(dir)); } catch (e) { resolve(false); }
+        return;
+      }
+      inp.click();                              // Firefox and Safari: the folder input
+    };
+    $("msgact").append(go, inp); go.focus();
+  });
+}
+const CROCK = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";   // the code's letters: no I, L, O or U to misread
+async function codeBytes(text) {                // the code's 128 bits, or null when it is mistyped (its check character)
+  const t = String(text || "").replace(/[\s\-_.]+/g, "").toUpperCase().replace(/O/g, "0").replace(/[IL]/g, "1");
+  if (t.length !== 27 || [...t].some(c => CROCK.indexOf(c) < 0)) return null;
+  const h = new Uint8Array(await subtle.digest("SHA-256", new TextEncoder().encode(t.slice(0, 26))));
+  if (CROCK[h[0] & 31] !== t[26]) return null;
+  let n = 0n;
+  for (const c of t.slice(0, 26)) n = n * 32n + BigInt(CROCK.indexOf(c));
+  const out = new Uint8Array(16);
+  for (let i = 15; i >= 0; i--) { out[i] = Number(n & 255n); n >>= 8n; }
+  return out;
+}
+async function cardKey(bytes) {                 // the gallery key: HKDF-SHA256 of the code, as card_key() in the app
+  const base = await subtle.importKey("raw", bytes, "HKDF", false, ["deriveBits"]);
+  return new Uint8Array(await subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0),
+    info: new TextEncoder().encode("lumen-aureum card key") }, base, 256));
+}
+function askCode(why, last) {
+  return new Promise(resolve => {
+    const ask = "Type the code printed in your letter.";
+    if (why === "wrong") fail("That code doesn't open these photos", ask);
+    else if (why === "typo") fail("That code doesn't look right", "Check each letter and digit against your letter.");
+    else say("Enter your code", ask);
+    const f = document.createElement("form"), i = document.createElement("input"), go = document.createElement("button");
+    i.type = "text"; i.id = "cardcode"; i.autocomplete = "off"; i.spellcheck = false; i.setAttribute("autocapitalize", "characters");
+    i.setAttribute("aria-label", "Code from your letter"); i.value = why === "typo" ? last : "";
+    go.type = "submit"; go.textContent = "Open my photos";
+    f.append(i, go);
+    f.onsubmit = e => { e.preventDefault(); go.disabled = true; go.textContent = "Opening..."; resolve(i.value); };
+    $("msgact").append(f); i.focus();
+  });
+}
+async function cardOpen() {                     // the folder, then the code: the manifest's plain bytes, or null
+  if (!subtle) { fail("This browser can't open the photos", "Open the page in Chrome, Edge, Firefox or Safari on a computer."); return null; }
+  for (let why = ""; ; ) {
+    if (!(await pickFolder(why))) { why = "folder"; continue; }
+    let mbuf;
+    try { mbuf = await cardBin("manifest.bin"); } catch (e) { why = "read"; continue; }
+    for (let w = "", code = ""; ; ) {
+      code = await askCode(w, code);
+      const b = await codeBytes(code);
+      if (!b) { w = "typo"; continue; }
+      raw = await cardKey(b); ckey = null;
+      say("", OPENING);
+      try { return await open(mbuf, "manifest.bin"); } catch (e) { w = "wrong"; }
+    }
+  }
 }
 // What the page sends to the host's small scripts goes as a form (proof, picks), never as text/plain or raw bytes:
 // web firewalls (ModSecurity's core rules) flag other content types on every visit.
@@ -781,9 +891,14 @@ function askWord(why, last) {                  // why: "" (first ask), "wrong" (
 }
 
 async function main() {
-  if (!raw) { fail("This gallery is locked", "Open it from the code in your letter."); return; }
-  // manifest.bin is fetched once: its bytes are kept and decrypted again with each word tried
   let mbuf = null, plain = null;
+  if (CARD) {                                   // a sealed card: the folder and the letter's code first
+    plain = await cardOpen();
+    if (!plain) return;
+    await Promise.all(["font.woff2", "font-light.woff2"].map(async n => {
+      if (CARDF.has(n)) try { CARDFONT[n] = await cardBin(n); } catch (e) {} }));
+  } else if (!raw) { fail("This gallery is locked", "Open it from the code in your letter."); return; }
+  // manifest.bin is fetched once: its bytes are kept and decrypted again with each word tried
   const manifest = async () => { if (!mbuf) mbuf = await fetchBin("manifest.bin"); return open(mbuf, "manifest.bin"); };
   if (NEEDS_WORD) {
     if (!subtle) { fail("This gallery must be opened over https", "Check the address starts with https://."); return; }
@@ -819,7 +934,7 @@ async function main() {
   }
   $("msg").remove();
   // The final key: what this device keeps for the gallery opens with it. Read before any photo can be opened.
-  const PK = ["", ":sent", ":legacy", ":welcomed"], KEY = "picks:" + location.pathname;
+  const PK = ["", ":sent", ":legacy", ":welcomed", ":dev", ":rp"], KEY = "picks:" + location.pathname;
   let OLDS = [];                                // the picks' names at the address a gallery had before its 1.4 move
   {
     const was = document.documentElement.dataset.cws || "", now = document.documentElement.dataset.gid || "";
@@ -831,7 +946,7 @@ async function main() {
   }
   try { await LS.init(raw); await LS.load([KEY].concat(OLDS).flatMap(b => PK.map(t => b + t))); } catch (e) {}
   // the visit counts only with proof of the key: sha256(key), first 32 hex, matched by seen.php
-  if (!location.pathname.startsWith("/gallery-preview/")) try {
+  if (!location.pathname.startsWith("/gallery-preview/") && !CARD) try {
     const proof = [...new Uint8Array(await subtle.digest("SHA-256", raw))].map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
     fetch("seen.php", { method: "POST", credentials: "omit", cache: "no-store", body: form("p", proof) }).catch(() => {});
   } catch (e) {}
@@ -887,6 +1002,8 @@ async function main() {
   // Proofs are not for saving: no right-click menu and no dragging on the photos (a screenshot still works; this only
   // stops the easy way, the way proofing galleries usually do)
   const DL = m.dl === 1 && Array.isArray(m.zips);           // a download gallery: the final photos, to keep (nothing to pick)
+  const SHOP = !DL && m.pr === 1;    // proofs that sell prints: no Retouch, no portfolio picks; picks
+                                     // this device kept stay kept, for when the gallery is rebuilt without prints
   // In its last days the gallery opens with a notice, on every visit, that it is about to sunset: when it closes, Download
   // all for a download gallery, and how to reach the photographer
   const onceAt = once ? new Date(once) : null;
@@ -901,12 +1018,12 @@ async function main() {
   // gallery and removed the old files. If the manifest on the host is now a different one, the page says so and offers
   // a reload (picks are kept by file name, on this device and on the host, so nothing is lost).
   let updP = null, stale = false;              // stale: the host has a newer build than this page
-  const updated = () => updP || (updP = fetchBin("manifest.bin", true).then(b => open(b, "manifest.bin"))
+  const updated = () => CARD ? Promise.resolve(false) : updP || (updP = fetchBin("manifest.bin", true).then(b => open(b, "manifest.bin"))
     .then(b => new TextDecoder().decode(b) !== mText, () => false)
     .then(yes => { if (yes) { stale = true; $("upd").hidden = false; } else updP = null; return yes; }));
   $("updgo").onclick = () => location.reload();
   // An open page looks for a newer build by itself: when it comes back into view, and every few minutes while shown.
-  if (!PREVIEW) {
+  if (!PREVIEW && !CARD) {
     const look = () => { if (!stale && document.visibilityState === "visible") updated(); };
     document.addEventListener("visibilitychange", look);
     window.addEventListener("focus", look);
@@ -937,7 +1054,7 @@ async function main() {
   // picks: retouch (with a note), portfolio suggestions, and photos never to be shown; kept on this device until sent
   // Picks are kept by the photo's file name, not its place in the grid: a rebuild that adds or removes photos moves
   // the places, and each pick must stay on its own photo. Two photos with the same name are told apart by their order.
-  const P = DL ? {} : m.picks || {};
+  const P = DL || SHOP ? {} : m.picks || {};
   const KEYS = (() => { const seen = {};
     return m.items.map((it, i) => { const n = it.n ? "n:" + it.n : "#" + i; seen[n] = (seen[n] || 0) + 1;
       return seen[n] > 1 ? n + "#" + seen[n] : n; }); })();
@@ -960,6 +1077,24 @@ async function main() {
     return got;
   }
   const DRAFTS = GATE && !!P.post && !PREVIEW && !!subtle;
+  // Each device keeps its own picks and draft on the host (picks-<id>.las, draft-<id>.las), so two people picking on
+  // two devices never overwrite each other: the photographer's app reads them all and puts them together. The ID is 16
+  // random hex, made the first time this device saves a pick, and says nothing about who is picking.
+  let DEV = /^[0-9a-f]{16}$/.test(LS.get(KEY + ":dev") || "") ? LS.get(KEY + ":dev") : "";
+  const devId = () => { if (!DEV) { DEV = Array.from(crypto.getRandomValues(new Uint8Array(8)), b => (b + 256).toString(16).slice(1)).join("");
+    LS.set(KEY + ":dev", DEV); } return DEV; };
+  const mine = n => n + "-" + DEV + ".las";
+  // The picks.las or draft.las a page before 1.6 kept (every device's at once) that this device carries on from: their
+  // item IDs go with its own, so the app no longer adds what this device has since taken off.
+  let rp = [];
+  try { rp = (JSON.parse(LS.get(KEY + ":rp") || "[]") || []).filter(v => /^[0-9a-f]{32}$/.test(v)).slice(-16); } catch (e) {}
+  const claim = id => { if (/^[0-9a-f]{32}$/.test(id || "") && !rp.includes(id)) { rp = rp.concat([id]).slice(-16); LS.set(KEY + ":rp", JSON.stringify(rp)); } };
+  // A device new to the gallery shows everyone's picks so far (startFromAll) but makes nothing of its own until the
+  // client changes or sends them: then it carries on from those files (their item IDs join rp), so what it takes off
+  // stays off. Until then nothing is kept here, and the next visit starts again from everyone's latest.
+  let seeded = null, fromAll = false;
+  const adopt = () => { if (!seeded) return; seeded.forEach(claim); seeded = null; fromAll = false; keep(); };
+  const FULL_NOTE = "This gallery has reached the most devices it can save picks from. Please ask your photographer.";
   let hostOk = false, pending = false, timer = null, moved = false;   // moved: this copy refuses picks (picks.php 409)
   let picks = {}, sentSig = "", changed = "";   // changed: when the picks on this device last changed (ISO time)
   let legacySig = "";                           // picks carried over from a page before 1.1, which kept no record of sending
@@ -994,7 +1129,7 @@ async function main() {
   const nR = () => Object.values(picks).filter(p => p.r).length, nM = () => Object.values(picks).filter(p => p.m).length,
         nV = () => Object.values(picks).filter(p => p.v).length;
   const keep = () => LS.set(KEY, JSON.stringify({ v: 2, picks, at: changed }));
-  const save = () => { changed = new Date().toISOString(); keep(); sendNote = ""; if (DRAFTS) hostOk = false; paint(); later(); };
+  const save = () => { adopt(); changed = new Date().toISOString(); keep(); sendNote = ""; if (DRAFTS) hostOk = false; paint(); later(); };
   // Unsent picks: what was last sent is remembered, and leaving the page with something newer asks first
   // "Sent" is only ever what this device sent itself, or what picks.las on the host holds (verifySent): a draft from
   // another device never says so on its own.
@@ -1100,24 +1235,24 @@ async function main() {
   const GID = document.documentElement.dataset.gid || "";
   const itemId = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), b => (b + 256).toString(16).slice(1)).join("");
   async function sealPicks(purpose, at) {
-    return LAS.sealLink(purpose, GID, raw, new TextEncoder().encode(JSON.stringify({ v: 1, id: itemId(), at, picks: listOf() })));
+    return LAS.sealLink(purpose, GID, raw, new TextEncoder().encode(JSON.stringify({ v: 1, id: itemId(), at, d: devId(), rp, picks: listOf() })));
   }
   async function openPicks(purpose, bytes) {
     return JSON.parse(new TextDecoder().decode(await LAS.openLink(purpose, GID, raw, bytes)));
   }
-  // On a PHP host the picks are also kept on the host as a sealed draft (draft.las), saved a moment after each
-  // change, so they carry over to the client's other devices and the photographer sees they are still picking.
+  // On a PHP host the picks are also kept on the host as this device's sealed draft, saved a moment after each change,
+  // so the photographer sees they are still picking (and this device finds them again if its own storage is cleared).
   async function pushDraft(leaving) {
     pending = false;
     if (moved) return;                                    // this copy moved: drafts saved here would never be read
     try {
       const body = await sealPicks("draft", changed || new Date().toISOString());
       if (stale) return;                                  // the gallery was replaced: nothing goes to the new one
-      const r = await proved("picks.php?kind=draft", { method: "POST", credentials: "omit", cache: "no-store", body: form("d", b64u(body)),
+      const r = await proved("picks.php?kind=draft&dev=" + devId(), { method: "POST", credentials: "omit", cache: "no-store", body: form("d", b64u(body)),
         keepalive: !!leaving && body.length < 60000 });
       hostOk = r.ok;
       if (r.status === 409) moved = true;
-      if (r.ok && saved && !saved.includes("draft")) saved.push("draft");
+      if (r.status === 507) sendNote = FULL_NOTE;         // picks.php: the gallery holds as many devices' picks as it takes
     } catch (e) { hostOk = false; }
     if (!leaving) paint();
   }
@@ -1127,33 +1262,81 @@ async function main() {
     window.addEventListener("pagehide", flush);
     document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flush(); });
   }
-  // What was really sent: picks.las on the host, read back through the gate with the key proof. When it can be read,
-  // it decides whether this device's picks count as sent; when it can't (no PHP, no connection), this device keeps its
-  // own record of what it sent.
+  // What was really sent: this device's picks on the host (or, before it sent any, the picks.las a page before 1.6
+  // kept), read back through the gate with the key proof. When it can be read, it decides whether this device's picks
+  // count as sent; when it can't (no PHP, no connection), this device keeps its own record of what it sent.
+  async function sentOn(name) {                 // the picks in that file; "" none there; false unreadable; null unknown
+    const r = await proved("gate.php?f=" + encodeURIComponent(name), { credentials: "omit", cache: "no-store" });
+    if (r.status === 404) return "";
+    if (!r.ok || (r.headers.get("content-type") || "").includes("php")) return null;
+    let d = null;
+    try { d = await openPicks("picks", new Uint8Array(await r.arrayBuffer())); } catch (e) {}
+    return d && Array.isArray(d.picks) ? d : false;                            // unreadable: not what the app gets either
+  }
   async function verifySent() {
-    if (!DRAFTS) return;
+    if (!DRAFTS || fromAll) return;
     let host = null;
-    if (saved && !saved.includes("picks")) host = "";                        // the gate said: nothing sent yet
-    else try {
-      const r = await proved("gate.php?f=picks.las", { credentials: "omit", cache: "no-store" });
-      if (r.status === 404) host = "";                                       // nothing sent from any device
-      else if (!r.ok || (r.headers.get("content-type") || "").includes("php")) return;
-      else {
-        const b = new Uint8Array(await r.arrayBuffer());
-        let d = null;
-        try { d = await openPicks("picks", b); } catch (e) {}
-        host = d && Array.isArray(d.picks) ? sigOf(fromList(d.picks), KEYS) : "";   // unreadable: not what the app gets either
+    try {
+      let d = DEV && sentSig ? await sentOn(mine("picks")) : "";              // only a device that sent has its own
+      if (d === "" && !(saved && !saved.includes("picks"))) {               // none from this device: a page before 1.6's
+        d = await sentOn("picks.las");
+        if (d && sigOf(fromList(d.picks), KEYS) === sig()) claim(d.id);      // this device holds just what was sent there
       }
+      if (d === null) return;
+      host = d ? sigOf(fromList(d.picks), KEYS) : "";
     } catch (e) { return; }
     if (host !== sentSig) { setSent(host); paint(); }
   }
   // On opening: the host's draft and this device's picks, whichever changed last. A draft that is missing or can't be
   // read changes nothing here, and neither does one dated more than 5 minutes ahead of this device's clock.
+  // A device new to this gallery (nothing picked here, no file of its own: another phone, or a gallery moved to a new
+  // address) starts from what everyone picked so far: each device's latest (its draft, or what it sent if newer) put
+  // together, a Please don't show from anyone winning over a suggestion. From then on it keeps its own file.
+  async function startFromAll() {
+    const opts = { credentials: "omit", cache: "no-store" }, by = {};
+    for (const n of others.slice(0, 64)) {
+      let b;
+      try { const r = await proved("gate.php?f=" + n, opts); if (!r.ok) continue; b = new Uint8Array(await r.arrayBuffer()); }
+      catch (e) { continue; }
+      for (const purpose of ["draft", "picks"]) {
+        let d = null;
+        try { d = await openPicks(purpose, b); } catch (e) { continue; }
+        if (!d || !Array.isArray(d.picks)) break;
+        const dev = typeof d.d === "string" && /^[0-9a-f]{16}$/.test(d.d) ? d.d : "";
+        const at = typeof d.at === "string" && !isNaN(Date.parse(d.at)) ? Date.parse(d.at) : 0;
+        if (at > Date.now() + 5 * 60000) break;                               // from the future: not trusted
+        (by[dev] = by[dev] || {})[purpose] = Object.assign(d, { t: at });
+        break;
+      }
+    }
+    const union = lists => { const out = {};
+      lists.forEach(l => Object.entries(fromList(l)).forEach(([k, p]) => { const o = out[k] = out[k] || {};
+        if (p.r) { o.r = true; if (p.n && p.n !== o.n) o.n = (o.n ? o.n + " / " + p.n : p.n).slice(0, 200); }
+        if (p.m) o.m = true; if (p.v) o.v = true; }));
+      Object.values(out).forEach(o => { if (o.v) delete o.m; });             // a don't show from anyone wins
+      return out; };
+    const latest = Object.values(by).map(x => x.draft && (!x.picks || x.draft.t >= x.picks.t) ? x.draft : x.picks).filter(Boolean);
+    if (!latest.length) return false;
+    picks = union(latest.map(x => x.picks));
+    if (sig() === "[]") return false;
+    seeded = latest.map(x => x.id);            // claimed (adopt) only once the client changes or sends them
+    const sent = Object.values(by).filter(x => x.picks).map(x => x.picks.picks);
+    if (sent.length && sigOf(union(sent), KEYS) === sig()) sentSig = sig();  // what everyone sent: nothing new to send
+    fromAll = true; hostOk = true;                                          // on the host, in each device's own file
+    if (cur >= 0) bar();
+    paint();
+    return true;
+  }
   async function pullDraft() {
-    let d = null;
-    if (saved && !saved.includes("draft")) { if (sig() !== "[]") later(); return; }   // none yet (the gate said so)
+    if (!DEV && sig() === "[]" && others && others.length && await startFromAll()) return;
+    let d = null, legacy = false;
     try {
-      const r = await proved("gate.php?f=draft.las", { credentials: "omit", cache: "no-store" });
+      const opts = { credentials: "omit", cache: "no-store" };
+      let r = DEV ? await proved("gate.php?f=" + encodeURIComponent(mine("draft")), opts) : null;
+      if (!r || r.status === 404) {             // none of this device's own: the draft.las a page before 1.6 kept, if any
+        if (saved && !saved.includes("draft")) { if (sig() !== "[]") later(); return; }   // none (the gate said so)
+        r = await proved("gate.php?f=draft.las", opts); legacy = true;
+      }
       if (r.status === 404) { if (sig() !== "[]") later(); return; }   // none yet: this device's picks go up
       if (!r.ok) return;
       d = await openPicks("draft", new Uint8Array(await r.arrayBuffer()));
@@ -1161,6 +1344,7 @@ async function main() {
     const at = d && typeof d.at === "string" && !isNaN(Date.parse(d.at)) ? d.at : "";
     if (!at || !Array.isArray(d.picks)) return;
     if (Date.parse(at) > Date.now() + 5 * 60000) { if (sig() !== "[]") later(); return; }   // from the future: not trusted
+    if (legacy) claim(d.id);                    // this device's own draft carries on from it (newer, or taken up here)
     if (changed && Date.parse(changed) > Date.parse(at)) { later(); return; }     // this device is newer: it goes up
     picks = fromList(d.picks); changed = at; keep(); hostOk = true;                // its "sent", if any, is never read
     if (cur >= 0) bar();
@@ -1176,13 +1360,15 @@ async function main() {
     if (await updated()) { notNow(); return; }       // a newer build (the download gallery, say): its picks are not these
     try {
       let body;
+      adopt();                                  // sent as shown: it carries on from everyone's picks it started from
       try { body = await sealPicks("picks", new Date().toISOString()); }
       catch (e2) {
         if (!e2 || e2.code !== "E_LONG") throw e2;                     // the same limit picks.php and the app use
         sendNote = "That is too many picks to send at once. Please send fewer, or tell your photographer."; paint(); return; }
-      const r = await proved("picks.php", { method: "POST", credentials: "omit", cache: "no-store", body: form("d", b64u(body)) });
+      const r = await proved("picks.php?dev=" + devId(), { method: "POST", credentials: "omit", cache: "no-store", body: form("d", b64u(body)) });
       if (r.status === 410) { sendNote = "This gallery has gone dark, so picks can't be sent now. Please tell your photographer."; paint(); return; }
       if (r.status === 503) { sendNote = "This gallery is being updated. Please try again in a minute."; paint(); return; }
+      if (r.status === 507) { sendNote = FULL_NOTE; paint(); return; }
       if (r.status === 409) {                  // moved to another host: picks sent to this copy would never be read
         moved = true;
         let c = ""; try { const j = await r.json(); if (j && EMAIL.test(j.contact || "")) c = j.contact; } catch (e2) {}
@@ -1191,9 +1377,8 @@ async function main() {
           (c ? ": " + c : ".");
         paint(); return; }
       if (!r.ok) throw new Error("http " + r.status);
-      if (saved && !saved.includes("picks")) saved.push("picks");
       sendNote = ""; markSent();                                     // Sent shows until the picks change
-      if (DRAFTS) { clearTimeout(timer); pushDraft(false); verifySent(); }   // the draft follows; picks.las is read back
+      if (DRAFTS) { clearTimeout(timer); pushDraft(false); verifySent(); }   // the draft follows; the picks are read back
     } catch (err) {
       if (P.email) location.href = $("send").href;    // the script isn't there: the email draft instead
       else { sendNote = "Couldn't send. Please tell your photographer."; paint(); }
@@ -1204,7 +1389,8 @@ async function main() {
     ["pr", "pm", "pv", "note"].forEach(id => { $(id).hidden = true; });   // was made at home, sealed in parts
     $("dl").hidden = false;
     downloads();
-  } else if (!P.email && !P.post) $("pickbar").style.display = "none";
+  } else if (SHOP) ["pr", "pm", "pv", "note"].forEach(id => { $(id).hidden = true; });   // Order prints and Done stay
+  else if (!P.email && !P.post) $("pickbar").style.display = "none";
   if (!P.market) { $("pm").hidden = true; $("pv").hidden = true; }      // the client declined portfolio use: nothing to suggest
   if ((P.retouch || P.market) && (P.email || P.post)) {   // a welcome box says how to pick; "How to pick" opens it again
     const W = $("welcome"), wl = $("wlist"), seenKey = KEY + ":welcomed";
@@ -1281,13 +1467,14 @@ async function main() {
     document.addEventListener("keydown", keys, true); document.addEventListener("focusin", stray);
     first().focus();
   }
-  // ---- print orders (1.4). On a download gallery whose host offers prints (offer.bin, sealed under the gallery key like
+  // ---- print orders (1.4). On a download gallery, or a proofing one built to offer prints (m.pr: its full-size files
+  // stay with the studio, never online), whose host offers prints (offer.bin, sealed under the gallery key like
   // the manifest): each photo has Order prints; the order is put together on this device only (cart:<gid>: photos,
   // sizes, quantities, crops; no names, no address, no prices); on Send it is sealed here to the studio's key with the
   // gallery key mixed in, so only the studio's app can open it, and nobody can read it back from the host, this page
   // included. The sent screen shows it from this page's memory, to print or save; then only a small marker stays.
   async function startPrints() {
-    if (!DL || PREVIEW) return;
+    if (!(DL || m.pr === 1) || PREVIEW) return;
     let offer = null;
     try { offer = JSON.parse(new TextDecoder().decode(await get("offer.bin"))); } catch (e) { return; }
     if (!offer || offer.v !== 1) return;

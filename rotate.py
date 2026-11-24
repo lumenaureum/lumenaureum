@@ -4,6 +4,7 @@ import secrets
 from pathlib import Path
 
 import datakey
+import errtext
 import db as D
 from db import ident as db_ident
 from vault import web as VW
@@ -60,12 +61,12 @@ def _fetch_missing_photos(old):
         cfg = json.loads(datakey.open_bytes(raw, "storage", label="storage", key=old) if raw.startswith(datakey.FILE_MAGIC) else raw)
         target = VB.from_config(cfg.get("secondary") or cfg["primary"])
     except Exception as e:
-        target, failed = None, [f"the backup location can't be opened ({e})"]
+        target, failed = None, [f"the backup location can't be opened ({errtext.words(e)})"]
     for r in rows if target else []:
         try:
             photostore.fetch_back(r, target)
         except Exception as e:
-            failed.append(f"{r['name']} ({e})")
+            failed.append(f"{r['name']} ({errtext.words(e, 120)})")
     if failed:
         raise RuntimeError(f"{len(rows)} photo(s) are only on the backup location and could not all be fetched back: "
                            + "; ".join(failed[:5]) + ". Nothing was changed. Make the backup location reachable, then "
@@ -90,6 +91,15 @@ def stage(old, new, password):
     try:
         if chk.execute("PRAGMA integrity_check").fetchone()[0] != "ok" or _counts(chk) != before:
             raise RuntimeError("the re-encrypted database did not check out; nothing was changed")
+        try:
+            owner = chk.execute("SELECT email FROM users ORDER BY id LIMIT 1").fetchone()
+        except Exception:
+            owner = None
+        try:
+            chk.execute("DELETE FROM settings WHERE key='rotate_due'")
+            chk.commit()
+        except Exception:
+            pass
         chk.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         chk.execute("PRAGMA journal_mode = DELETE")
     finally:
@@ -108,7 +118,8 @@ def stage(old, new, password):
         plain = datakey.open_bytes(raw, "storage", label="storage", key=old) if raw.startswith(datakey.FILE_MAGIC) else raw
         datakey.write_sealed(Path(str(VW.CFG_PATH) + STAGED), plain, "storage", label="storage", key=new)
     _stage_photos(db_new, new)
-    datakey.new_ring_for(new, password, datakey.master_pub(), path=Path(str(datakey.KEYRING) + STAGED))
+    datakey.new_ring_for(new, password, datakey.master_pub(), path=Path(str(datakey.KEYRING) + STAGED),
+                         owner_email=owner[0] if owner else None)
     MARK.write_text("1")
 
 def _stage_photos(db_new, new):
@@ -130,10 +141,8 @@ def _stage_photos(db_new, new):
                         (fkey, ct_len, trail, r["id"]))
             kp = photostore.key_path(r["id"])
             if kp.exists():
-                lab = con.execute("""SELECT h.name, s.type, s.shoot_date FROM sessions s JOIN households h ON h.id=s.household_id
-                                     WHERE s.id=?""", (r["session_id"],)).fetchone()
                 photostore.write_key(dict(dict(r), fkey=fkey, key_trail=trail), datakey.master_pub(),
-                                     " - ".join(str(v) for v in lab if v) if lab else "", path=Path(str(kp) + STAGED))
+                                     photostore.label_of(con, r), path=Path(str(kp) + STAGED))
         con.commit()
     finally:
         con.close()
