@@ -148,8 +148,8 @@ the newest backup opens**, which tests a backup with your master key without cha
    the newest client and session, and the last change. Type your current password and press **Restore and restart**.
    Only the last backup checked can be restored: if you check another one (in another tab or on another device),
    Restore and restart on the earlier review restores nothing and asks you to check again.
-3. The data here now (`crm.db`, `keyring.json`, `storage.json`, the face photos, and a copy of `deletions.json` and
-   `doc-numbers.json`) moves into `set-aside/<date and time>` in the data folder, with a README.txt saying what it is.
+3. The data here now (`crm.db`, `keyring.json`, `storage.json`, the face photos, the added plugins' folder, and a copy
+   of `deletions.json` and `doc-numbers.json`) moves into `set-aside/<date and time>` in the data folder, with a README.txt saying what it is.
    The face photos made with the backup come back with it. A file from your computer holds no face photos: choose the
    face photos file made at the same time in **Face photos backup (if you have it)** and they come back too (when the
    studio has a record of the backup, that file must match the fingerprint recorded for it, or nothing is restored);
@@ -226,7 +226,8 @@ Backups from before settings were included have only `crm.db` and `keyring.json`
    `ls -ln <data folder>`; 568 on TrueNAS, 10001 with the example compose file), for example
    `sudo chown 10001:10001 <data folder>/*.db <data folder>/*.json`.
 8. **Start and sign in.** `docker compose up -d`, then sign in with the password that was current when the backup
-   was made (or reset it with the master key).
+   was made (or reset it with the master key). Plugins added in Settings, Plugins are kept in `crm.db`: at this
+   sign-in they are put back in the data folder, and Settings, Plugins asks for one more restart to load them.
 9. **Tidy up.** Delete the `restored` folder.
 
 After restoring:

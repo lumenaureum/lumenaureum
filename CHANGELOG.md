@@ -2,6 +2,11 @@
 
 New features, behavior changes, security fixes, and other fixes in each release.
 
+## 1.6.3 (2026-11-25)
+
+### New
+- Add a Lumen Aureum plugin from a link or a file, in Settings, Plugins. Only plugins Lumen Aureum signs are accepted, and each one stays off until you switch it on.
+
 ## 1.6.2 (2026-11-24)
 
 ### New

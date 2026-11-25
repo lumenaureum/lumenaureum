@@ -273,6 +273,8 @@ from home, over a VPN for example, or notices arrive only at home.
 - **The ntfy settings** (server, topic, access token, time zone), in `ntfy.json` in the data folder, so the locked
   studio can send its notice, and `lock-state.json` beside it: when the studio locked and when the last notice went,
   times only. See [Notices while locked](#notices-while-locked).
+- **Added plugins' files**, in `plugins/` in the data folder: each plugin's code and files as Lumen Aureum published
+  them, so they can load before you sign in. They hold nothing of yours. See [Plugins](#plugins).
 - **Kept copies of web host files.** When the studio page replaces files of yours on the web host (Replace these
   files), a copy of each old file is kept in `data/site-kept/` as it was on the host, so it can be put back. They are
   the public files of your website.
@@ -844,9 +846,47 @@ a tag made with the key the restored database holds (each rotation adds one, wit
 refused and left for `recover-photos <folder> --from <photos folder>`, which decrypts photos into a separate folder without touching the database.
 Photos rotated under 1.0.0 have no such tag, so relink refuses them too; that command still opens them.
 
+## Plugins
+A plugin runs inside Lumen Aureum with full access: once you sign in, it can read and change every record and see your
+keys. So adding one is held to these rules:
+- **The signature is the boundary.** Settings, Plugins adds a plugin only when it carries Lumen Aureum's signature: an
+  Ed25519 signature over its name, its version, the oldest app version it runs on, and the size and SHA-256 of every
+  file in it. The public key is part of the app. There is no setting to add another key or to skip the check. A plugin
+  that is unsigned, signed with any other key, or holds a file the signature doesn't cover is refused whole. A
+  signature says who published a plugin; it can't make a plugin harmless.
+- **Owner only, and confirmed.** Adding or removing a plugin asks for your current password and a two-factor code, as
+  a new master key does, and wrong ones count toward the sign-in limits.
+- **One download, nothing about you.** Add from the link fetches the link's small manifest, checks its signature, and
+  then fetches the package it names: over HTTPS only (a redirect to anything else is refused), each with a size cap,
+  a timeout on every read, and one deadline for the whole add. Those two requests are the only traffic, and they carry
+  nothing about your clients or your studio. Add from the file downloads nothing. A package is read with limits on its
+  size, the number of files, and each file's unpacked size, and a file that would land outside the plugin's own
+  folder, or a link, is refused.
+- **Checked again at every start.** An added plugin is kept in two places: its package in the encrypted database, so
+  every backup carries it and a restore brings it back, and a copy in `plugins/` in the data folder, which is what
+  loads (the studio starts locked, so the database can't be read then). At every start that copy is checked again:
+  the signature, every file's size and SHA-256, and nothing in its folder the signature doesn't list. The code that
+  runs is the very bytes that were checked. A plugin that fails isn't loaded: Settings, Plugins says it didn't load,
+  and the next sign-in puts its folder back from the database's copy, to load at the next start.
+- **No updates on their own.** The studio never fetches a plugin by itself or looks for a newer one. A newer signed
+  version replaces the one you have only when you add it; an older one is refused.
+- **Off until you turn it on.** An added plugin stays off until you turn it on in Settings, Plugins. While it is off,
+  none of it runs: the app doesn't execute its code at all. The switch is kept in the database, and mirrored by an
+  empty `.on` file in the plugin's folder so it can be read at start, before you sign in. That file is the only one
+  the start-time check allows beyond the signed list, and it can only start a plugin that passes every check; at
+  sign-in it is put back in line with the switch in the database. Turning a plugin on or off restarts the studio.
+- **Its name is its own.** An added plugin can't take the name of a plugin built into Lumen Aureum, or of one loaded
+  from `CRM_PLUGIN_DIRS`.
+- `CRM_PLUGIN_DIRS` stays the developer's way in: plugins in those folders load unsigned, as before, because whoever
+  can change the container's mounts and settings already controls the app.
+
 ## One process
 The data key lives in the memory of one process. Run the app as a single process (threads are fine); several worker
 processes would each need their own sign-in.
+
+Adding or removing a plugin restarts that process gracefully: the server starts a new one, then the old one finishes
+what it is doing and stops (the server itself keeps running). The new process holds no key, so the studio is locked
+until you sign in again. Where the app can't ask the server for this, Settings, Plugins says to restart the studio.
 
 ## What is in the image
 Only what the app runs on: Python, the libraries PDFs are drawn with (Pango and the fonts), and time zone data. Each

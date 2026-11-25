@@ -273,7 +273,7 @@ Set these under `environment:` in `compose.yaml`; leave out any you don't need.
 | `TZ` | The time zone to start with, for example `America/Chicago`, until you choose one in setup |
 | `CRM_THREADS` | Request threads (default 8) |
 | `CRM_GALLERY_SYNC` | `0` turns off the gallery check that runs every 30 minutes (first visits, picks, expiry) |
-| `CRM_PLUGIN_DIRS`, `CRM_PLUGINS_OFF` | Plugin folders, and plugins to turn off (see `plugins/README.md`) |
+| `CRM_PLUGIN_DIRS`, `CRM_PLUGINS_OFF` | Folders of plugins you write yourself, and plugins to turn off (see `plugins/README.md`). Plugins from Lumen Aureum need neither: add them in Settings, Plugins |
 
 ## On a TrueNAS (Install via YAML)
 To run the compose file yourself on a TrueNAS instead of installing from the catalog, use these steps.

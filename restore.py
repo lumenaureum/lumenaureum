@@ -25,6 +25,8 @@ KEEP_DAYS = 30
 WARN_DAYS = 5
 BACKUP_KINDS = ("db", "faces", "manual", "manual-faces", "upgrade", "upgrade-faces", "reset", "reset-faces", "found")
 
+AFTER_APPLY = []
+
 class Refused(Exception):
     pass
 
@@ -601,6 +603,12 @@ def apply(tok, connect, restart, fresh_done=None):
             locks.WRITES.release()
     finally:
         BK._ONE_AT_A_TIME.release()
+    for fn in AFTER_APPLY:
+        try:
+            fn(p_["key"], dest)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("after the restore")
     forget()
     if p_["fresh"] and fresh_done:
         fresh_done()

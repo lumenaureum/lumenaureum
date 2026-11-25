@@ -430,6 +430,18 @@ everything recorded.
   **Put the client's phone and email on the call sheet** for that session. The app never sends the call sheet: you
   print it or share the PDF. The crew list is kept in the encrypted database and its backups, not in the settings file.
 
+## Adding a plugin
+Lumen Aureum publishes some plugins on their own. To add one, open **Settings, Plugins** and go to **Add a plugin**:
+paste the link Lumen Aureum gives and press **Add from the link**, or choose the plugin file you downloaded and press
+**Add from the file** (nothing is downloaded then). Both ask for your current password and a two-factor code. Only
+plugins signed by Lumen Aureum are accepted: anything else is refused, and nothing changes.
+
+The studio then restarts to load the plugin, so sign in again. The plugin stays off until you turn it on in the list,
+and none of it runs while it is off. Turning it on or off restarts the studio again, so sign in once more.
+It is kept in your studio's database, so your backups carry it and a restore brings it back. It never updates itself:
+to get a newer version, add it again the same way. To remove one, open **Remove** under it in **Added plugins**; what
+it recorded stays in your records.
+
 ## Getting paid
 Every amount says what it is for and shows cents. Nothing is owed until you send the invoice: until then the row is
 "Invoice ($100.00 balance, Headshots session)" with **Send the invoice**, and Finances counts it as To invoice. After that

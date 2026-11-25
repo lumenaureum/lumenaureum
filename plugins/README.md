@@ -9,6 +9,10 @@ sections to the client screen, items on Today, search results, and more, without
 The plugins in this folder (galleries, letters, retention, the studio page, equipment, crew, sending sessions to a calendar) are built the same way and are good examples.
 
 ## Where your plugins live
+Plugins that Lumen Aureum publishes need no folder or setting: the owner adds them in **Settings, Plugins**, from a
+link or a file (see "Adding a plugin" in `docs/getting-started.md`). Only plugins signed by Lumen Aureum are accepted
+there. The folder below is the developer's way in, for plugins you write yourself, and it works as it always has.
+
 Keep your own plugins **outside** this code, in a folder of your own, so updates never touch them:
 
 1. Make a folder, for example `my-plugins/`, next to your `compose.yaml`.
@@ -41,9 +45,18 @@ kept, say). `ctx.plugin_on(name)` tells any plugin
 whether another is on. `CRM_PLUGINS_OFF` always wins: a plugin it names is not loaded, and its switch can't turn it on.
 Print orders (`prints`) are switchable and **off by default**: on a new install and after the 1.4 update.
 
+**Added plugins** (Settings, Plugins, Add a plugin) are kept in `plugins/<name>/` in the data folder, laid out as
+here: `<name>.py`, its `<name>_assets/` folder, and any data files beside it, so
+`Path(__file__).with_name("<name>_assets")` finds its files wherever the plugin is loaded from. Their files are
+checked against Lumen Aureum's signature at every start. An added plugin always gets a switch in Settings, Plugins,
+and starts off whatever default it asks for. While it is off, the app doesn't run it at all: its file isn't executed
+and `register(ctx)` is never called, so it adds no pages and no hooks. Turning it on or off restarts the studio (or
+asks for a restart) for the change to take effect. Its name can't be the name of a plugin built into Lumen Aureum or
+of one loaded from `CRM_PLUGIN_DIRS`.
+
 If a plugin needs a Python package the image doesn't have, build your own image on top of this one:
 ```dockerfile
-FROM ghcr.io/lumenaureum/lumenaureum:1.6.2     # the version you run
+FROM ghcr.io/lumenaureum/lumenaureum:1.6.3     # the version you run
 USER root
 RUN pip install some-package
 USER lumenaureum

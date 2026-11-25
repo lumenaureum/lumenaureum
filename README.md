@@ -50,7 +50,8 @@ Lumen Aureum keeps your studio on your own machine, but it isn't cut off:
 - **Backups** go to a folder, another machine over SFTP, or S3-compatible storage.
 - **Galleries and your studio page** upload to your web host over SFTP, to an S3-compatible bucket, or to a folder a
   web server serves. Clients' picks, inquiries, and print orders come back from there.
-- **Plugins** add features you can switch on or off. Print orders are the first.
+- **Plugins** add features you can switch on or off. Print orders are the first. More plugins from Lumen Aureum can be
+  added in Settings, Plugins, from a link or a file; only plugins Lumen Aureum signed are accepted.
 - **Notices** (optional): a short ntfy notice to your phone when the studio restarts and stays locked.
 
 Some things it leaves to you on purpose, for now: it records payments rather than taking cards, and it doesn't send

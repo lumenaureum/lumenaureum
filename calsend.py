@@ -88,8 +88,10 @@ def _conn_words(e):
         return "its answer wasn't understood"
     return "the connection failed (check the address, and this machine's internet connection)"
 
-def fetch(method, url, headers=None, body=None, lan_http=False):
+def fetch(method, url, headers=None, body=None, lan_http=False, *, max_body=None, deadline=None,
+          too_big="the answer was far larger than a calendar's should be"):
 
+    max_body = MAX_BODY if max_body is None else max_body
     u = urllib.parse.urlsplit(url)
     scheme, host, port = origin(url)
     if not host:
@@ -107,7 +109,8 @@ def fetch(method, url, headers=None, body=None, lan_http=False):
     hdrs.update(headers or {})
     if isinstance(body, str):
         body = body.encode()
-    deadline = time.monotonic() + TIMEOUT * DEADLINE_TIMEOUTS
+    own = time.monotonic() + TIMEOUT * DEADLINE_TIMEOUTS
+    deadline = own if deadline is None else min(own, deadline)
 
     def left():
         n = deadline - time.monotonic()
@@ -115,20 +118,21 @@ def fetch(method, url, headers=None, body=None, lan_http=False):
             raise socket.timeout
         return n
     try:
+        conn.timeout = min(TIMEOUT, left())
         conn.request(method, path, body=body, headers=hdrs)
         conn.sock.settimeout(min(TIMEOUT, left()))
         r = conn.getresponse()
         chunks, size = [], 0
-        while size <= MAX_BODY:
+        while size <= max_body:
             conn.sock and conn.sock.settimeout(min(TIMEOUT, left()))
-            part = r.read1(min(65536, MAX_BODY + 1 - size))
+            part = r.read1(min(65536, max_body + 1 - size))
             if not part:
                 break
             chunks.append(part)
             size += len(part)
             left()
-        if size > MAX_BODY:
-            raise SendError("the answer was far larger than a calendar's should be")
+        if size > max_body:
+            raise SendError(too_big)
         return r.status, {k.lower(): v for k, v in r.getheaders()}, b"".join(chunks)
     except SendError:
         raise

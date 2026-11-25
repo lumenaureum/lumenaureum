@@ -651,10 +651,53 @@ def load_plugins():
         loaded.append(path.stem)
         PLUGINS_LOADED.append(dict(name=path.stem, built_in=path.parent == ROOT / "plugins", folder=str(path.parent),
                                    label=f"{path.parent.name}/{path.stem}"))
+    _load_added(loaded)
     return loaded
+
+def taken_plugin_names(loaded=None):
+
+    names = {p_.stem for p_ in (ROOT / "plugins").glob("*.py")} | CORE_PLUGINS
+    names |= {p_["name"] for p_ in PLUGINS_LOADED if not p_.get("added")}
+    return names | {n_ for n_ in (loaded or ()) if n_ not in ADDED}
+
+def _load_added(loaded):
+
+    import types
+    import plugin_install as P_
+    good, bad = P_.on_disk(taken_plugin_names(loaded))
+    for name_, why_ in bad:
+        PLUGIN_ERRORS.append(f"{name_} (added): {why_}")
+    for p_ in good:
+        name_ = p_["name"]
+        if name_ in DISABLED_PLUGINS or name_ in loaded:
+            continue
+        if not p_["on"]:
+            ADDED_OFF[name_] = dict(version=p_["version"], folder=p_["folder"])
+            continue
+        path = Path(p_["folder"]) / f"{name_}.py"
+        mod = types.ModuleType(f"plugins.{name_}")
+        mod.__file__ = str(path)
+        before = set(app.view_functions)
+        try:
+            exec(compile(p_["code"], str(path), "exec", dont_inherit=True), mod.__dict__)
+            mod.register(PluginContext(name_))
+        except Exception as e:
+            app.logger.exception("added plugin %s failed to load", name_)
+            PLUGIN_ERRORS.append(f"{name_} (added): {type(e).__name__}")
+            continue
+        sw = SWITCHES.setdefault(name_, dict(default=False, label=name_, about="", before_off=None, when_on=None,
+                                             links=[], on_off=None))
+        sw["default"] = False
+        ADDED[name_] = dict(version=p_["version"], endpoints=set(app.view_functions) - before)
+        loaded.append(name_)
+        PLUGINS_LOADED.append(dict(name=name_, built_in=False, folder=p_["folder"], label=f"added/{name_}", added=True,
+                                   version=p_["version"]))
 
 PLUGIN_ERRORS = []
 PLUGINS_LOADED = []
+ADDED = {}
+ADDED_OFF = {}
+PLUGIN_CHANGES = []
 
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 TZ = ZoneInfo("UTC")
@@ -11486,6 +11529,31 @@ PLUGINS_PAGE = """{% extends "base.html" %}{% from "_macros.html" import help wi
   {% if p.about %}<p class="sub" style="margin:4px 0 0">{{ p.about }}</p>{% endif %}
   {% if p.next %}<p style="margin:8px 0 0;border-left:3px solid var(--gold);padding:2px 10px">{{ p.next }}{% for w_, href_ in p.links %} <a class="go" href="{{ href_ }}">{{ w_ }} &rsaquo;</a>{% endfor %}</p>{% endif %}
 </div>{% endfor %}
+{% macro owner_check(id_) %}<div><label class="l" for="pl-cur-{{ id_ }}">Current password</label><input type="password" id="pl-cur-{{ id_ }}" name="current" autocomplete="current-password" required></div>
+    <div><label class="l" for="pl-code-{{ id_ }}">Two-factor code{{ help("The code from your phone's authenticator app, or one of your recovery codes.") }}</label><input id="pl-code-{{ id_ }}" name="code" inputmode="numeric" autocomplete="one-time-code" required></div>{% endmacro %}
+<h2 class="ui-sec-title" id="added" style="max-width:760px;margin-top:24px">Added plugins</h2>
+{% if changed %}<p class="sui-tip" style="max-width:760px;border-left:3px solid var(--gold);padding:2px 10px">Restart the studio for the plugin changes made since it started to take effect.</p>{% endif %}
+{% for a in added %}<div class="card f" style="max-width:760px" id="added-{{ a.name }}">
+  <div class="row" style="gap:10px;align-items:center;flex-wrap:wrap"><span class="grow"><b>{{ a.name }}</b> <span class="mute" style="font-size:13px">{{ a.status }}</span></span></div>
+  <details style="margin-top:6px"><summary>Remove</summary>
+  <form method="post" action="{{ url_for('plugin_remove') }}" class="f" autocomplete="off" data-busy-says="Removing..."><input type="hidden" name="name" value="{{ a.name }}">
+    <p class="sub" style="margin:4px 0 8px">What it recorded stays in your studio's records. Removing it restarts the studio, so you sign in again.</p>
+    {{ owner_check('rm-' ~ a.name) }}
+    <div class="sui-save"><button class="ui-btn ui-btn-quiet">Remove {{ a.name }}</button></div></form></details>
+</div>{% else %}<p class="sub" style="max-width:760px">None yet.</p>{% endfor %}
+<div class="card f" style="max-width:760px" id="add">
+  <h2 class="ui-sec-title" style="margin-top:0">Add a plugin</h2>
+  <p class="sub" style="margin:0 0 10px">Only plugins signed by Lumen Aureum can be added. A plugin you add stays off until you turn it on here. Adding one restarts the studio, so you sign in again.{{ help("A plugin runs inside Lumen Aureum with full access to your records. The studio checks Lumen Aureum's signature on every file before it adds a plugin, and again at every start. It never updates a plugin by itself: to get a newer version, add it again.") }}</p>
+  {% if not can_add %}<p class="mute" style="margin:0">Plugins can't be added yet: this version of Lumen Aureum has no key to check them with.</p>{% else %}
+  <form method="post" action="{{ url_for('plugin_add') }}" class="f" autocomplete="off" data-busy-says="Adding..."><input type="hidden" name="how" value="link">
+    <div><label class="l" for="pl-link">Add from a link{{ help("The link Lumen Aureum gives for the plugin. The studio downloads it once, over https, and checks it before anything is added.") }}</label><input type="url" id="pl-link" name="link" placeholder="https://" inputmode="url" required></div>
+    {{ owner_check('link') }}
+    <div class="sui-save"><button class="ui-btn ui-btn-primary">Add from the link</button></div></form>
+  <form method="post" action="{{ url_for('plugin_add') }}" class="f" enctype="multipart/form-data" autocomplete="off" data-busy-says="Adding..." style="margin-top:14px"><input type="hidden" name="how" value="file">
+    <div><label class="l" for="pl-file">Add from a file{{ help("A plugin file from Lumen Aureum (a .zip). Nothing is downloaded.") }}</label><input type="file" id="pl-file" name="package" accept=".zip,application/zip" required style="width:auto"></div>
+    {{ owner_check('file') }}
+    <div class="sui-save"><button class="ui-btn ui-btn-primary">Add from the file</button></div></form>{% endif %}
+</div>
 {% endblock %}"""
 
 PLUGIN_WORDS = {
@@ -11502,6 +11570,11 @@ def _plugin_rows():
     names = [p_["name"] for p_ in PLUGINS_LOADED] + sorted(n_ for n_ in DISABLED_PLUGINS
                                                            if n_ not in {p_["name"] for p_ in PLUGINS_LOADED})
     rows = []
+    for n_, a_ in sorted(ADDED_OFF.items()):
+        rows.append(dict(name=n_, label=n_, about=f"Added from Lumen Aureum, version {a_['version']}. While it is off, "
+                                                  "nothing of it runs.",
+                         status="On at the next start" if added_switch(n_) else "Off", tech=f"Added in Settings, Plugins. Version {a_['version']}. Its files: "
+                                            f"{a_['folder']}.", switch=True, on=added_switch(n_), next="", links=[]))
     for n_ in names:
         sw = SWITCHES.get(n_)
         got = next((p_ for p_ in PLUGINS_LOADED if p_["name"] == n_), None)
@@ -11516,7 +11589,10 @@ def _plugin_rows():
             status, switch = (("On" if plugin_on(n_) else "Off"), True) if sw else ("On", False)
             tech = f"An administrator can keep this plugin off for the whole install with CRM_PLUGINS_OFF. {where}"
         label, about = PLUGIN_WORDS.get(n_, (n_, ""))
-        if got and not got["built_in"]:
+        if got and got.get("added"):
+            about = about or f"Added from Lumen Aureum, version {got['version']}."
+            tech = f"Added in Settings, Plugins. Version {got['version']}. Its files: {got['folder']}."
+        elif got and not got["built_in"]:
             about = about or f"Your own plugin, from {got['folder']}."
         on = plugin_on(n_)
         nxt, links = "", []
@@ -11531,18 +11607,27 @@ def _plugin_rows():
                          status=status, tech=tech, switch=switch, on=on, next=nxt, links=links))
     return rows
 
+def added_switch(name):
+
+    try:
+        return setting(f"plugin_on_{name}") == "1"
+    except Exception:
+        return False
+
 @app.route("/settings/plugins", methods=["GET", "POST"])
 def plugins_settings():
     ask = None
     if request.method == "POST":
         name = request.form.get("name", "")
         sw = SWITCHES.get(name)
-        if not sw or name in DISABLED_PLUGINS or not any(p_["name"] == name for p_ in PLUGINS_LOADED):
+        added_ = name in ADDED or name in ADDED_OFF
+        if name in DISABLED_PLUGINS or not (name in ADDED_OFF or (sw and any(p_["name"] == name for p_ in PLUGINS_LOADED))):
             session["notice"] = "That plugin has no switch here."
             g.refused = True
             return redirect(url_for("plugins_settings"))
+        sw = sw or {}
         on = request.form.get("turn") == "on"
-        if on == plugin_on(name):
+        if on == (added_switch(name) if added_ else plugin_on(name)):
             g.refused = True
             return redirect(url_for("plugins_settings"))
         if not on and sw.get("before_off") and request.form.get("anyway") != "1":
@@ -11550,7 +11635,7 @@ def plugins_settings():
             if words:
                 g.refused = True
                 ask = dict(name=name, words=words, finish=url_for("home"))
-                return render_template_string(PLUGINS_PAGE, rows=_plugin_rows(), ask=ask, plugin_errors=PLUGIN_ERRORS)
+                return render_template_string(PLUGINS_PAGE, rows=_plugin_rows(), ask=ask, plugin_errors=PLUGIN_ERRORS, **_added_page())
         if not on and sw.get("before_off") and request.form.get("anyway") == "1":
             words = sw["before_off"]() or ""
             if words:
@@ -11565,8 +11650,13 @@ def plugins_settings():
               (f"plugin_off_n_{name}", str(int(setting(f"plugin_off_n_{name}") or 0) + 1)))
             if sw.get("on_off"):
                 sw["on_off"]()
+        if added_:
+            import plugin_install as P_
+            P_.set_on(name, on)
+            _plugins_changed(f"Turned {sw.get('label') or name} {'on' if on else 'off'}.")
+            return redirect(url_for("plugins_settings"))
         return redirect(safe_back(request.form.get("back")) or url_for("plugins_settings"))
-    return render_template_string(PLUGINS_PAGE, rows=_plugin_rows(), ask=ask, plugin_errors=PLUGIN_ERRORS)
+    return render_template_string(PLUGINS_PAGE, rows=_plugin_rows(), ask=ask, plugin_errors=PLUGIN_ERRORS, **_added_page())
 
 @app.get("/settings/plugin/<name>")
 def plugin_page(name):
@@ -11587,6 +11677,161 @@ def plugin_page(name):
 
 app.config.setdefault("ep_words", {})["plugins_settings"] = lambda f: (
     f"Turned {(SWITCHES.get(f.get('name')) or {}).get('label') or f.get('name')} {'on' if f.get('turn') == 'on' else 'off'}")
+
+def _added_page():
+
+    import plugin_install as P_
+    try:
+        rec = P_.stored(db())
+    except Exception:
+        app.logger.exception("added plugins")
+        rec = {}
+    root = P_.home()
+    disk = {n_ for n_ in os.listdir(root) if not n_.startswith(".")} if root.is_dir() else set()
+    errs = {e_.split(" (added): ")[0]: e_.split(" (added): ", 1)[1] for e_ in PLUGIN_ERRORS if " (added): " in e_}
+    added = []
+    for n_ in sorted(set(rec) | set(ADDED) | disk):
+        if not P_.NAME_RE.fullmatch(n_):
+            continue
+        want_ = ((rec.get(n_) or {}).get("manifest") or {}).get("version")
+        have_ = (ADDED.get(n_) or {}).get("version")
+        if n_ in errs:
+            st_ = f"Didn't load at the last start: {errs[n_]}."
+        elif n_ in ADDED_OFF and n_ in rec:
+            st_ = f"Version {ADDED_OFF[n_]['version']}. Off: nothing of it runs until you turn it on."
+        elif have_ and n_ not in rec:
+            st_ = f"Version {have_}. Removed: it goes at the next start."
+        elif have_ and want_ and want_ != have_:
+            st_ = f"Version {have_}. Version {want_} loads at the next start."
+        elif have_:
+            st_ = f"Version {have_}."
+        else:
+            st_ = f"Version {want_ or '?'}. It loads at the next start."
+        added.append(dict(name=n_, status=st_))
+    return dict(added=added, can_add=bool(P_.PLUGIN_SIGNING_KEY), changed=bool(PLUGIN_CHANGES))
+
+def _owner_confirms(f, what):
+
+    th = app.config.get("auth_throttle")
+    ip_ = request.remote_addr or ""
+    if th is not None and th.ip_blocked(ip_):
+        return "Too many wrong tries. Try again later. Nothing was changed."
+    try:
+        k_ = owner_auth.unwrap_password_limited(f.get("current", "") or "")
+    except (owner_auth.Busy, ValueError):
+        k_ = None
+    if not k_ or not secrets.compare_digest(k_, datakey.dk()):
+        if th is not None:
+            th.fail(ip_, f"current password on {what}")
+        return "Your current password, please. Nothing was changed."
+    second = app.config.get("second_factor_ok")
+    if not second or not second(session.get("uid"), (f.get("code") or "").strip()):
+        if th is not None:
+            th.fail(ip_, f"two-factor code on {what}")
+        return "That two-factor code didn't work. Nothing was changed."
+    return ""
+
+def _plugins_changed(words):
+
+    import plugin_install as P_
+    if P_.restart_soon():
+        session["notice"] = words + " The studio restarts now for it to take effect, so sign in again in a moment."
+    else:
+        PLUGIN_CHANGES.append(True)
+        session["notice"] = words + " Restart the studio for it to take effect."
+    session["notice_refused"] = "warn"
+
+_ADDING = threading.Lock()
+UNLOCKED_POSTS.add("plugin_add")
+app.config.setdefault("quiet_endpoints", set()).update({"plugin_add", "plugin_remove"})
+
+@app.post("/settings/plugins/add")
+def plugin_add():
+
+    import locks
+    import plugin_install as P_
+    f = request.form
+
+    def refuse(words):
+        session["notice"] = words
+        session["notice_refused"] = True
+        return redirect(url_for("plugins_settings") + "#add")
+    why = _owner_confirms(f, "Plugins")
+    if why:
+        return refuse(why)
+    if not _ADDING.acquire(blocking=False):
+        return refuse("Another plugin is being added. Try again in a moment.")
+    try:
+        taken = taken_plugin_names()
+        try:
+            if f.get("how") == "file":
+                up = request.files.get("package")
+                if not up or not up.filename:
+                    return refuse("Choose the plugin's file first. Nothing was added.")
+                data = up.stream.read(P_.MAX_PACKAGE + 1)
+                m, files = P_.verify_package(data, taken=taken)
+                source = "a file"
+            else:
+                link = (f.get("link") or "").strip()
+                m, data, files = P_.from_link(link, taken=taken)
+                source = link
+        except P_.Refused as e:
+            return refuse(e.words)
+        name, version = m["name"], m["version"]
+        if not locks.WRITES.acquire(timeout=45):
+            return refuse("Busy finishing another change. Try again in a moment. Nothing was added.")
+        try:
+            con = connect()
+            try:
+                had = (P_.stored(con).get(name) or {}).get("manifest") or {}
+                if had.get("version") and not P_.newer(version, had["version"]):
+                    return refuse(f"This studio already has {name} {had['version']}, so nothing was added. Only a "
+                                  "newer version replaces it.")
+                try:
+                    P_.write_folder(m, files)
+                except OSError:
+                    app.logger.exception("added plugin %s: writing its folder", name)
+                    return refuse("The plugin couldn't be saved in the data folder, so nothing was added.")
+                con.execute("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET "
+                            "value=excluded.value", (P_.SETTING + name, P_.record(m, data, source)))
+                con.commit()
+            finally:
+                con.close()
+            audit((f"Added the plugin {name} {version}" if not had else
+                   f"Updated the plugin {name} from {had.get('version')} to {version}") + f", from {source}")
+            db().commit()
+        finally:
+            locks.WRITES.release()
+    finally:
+        _ADDING.release()
+    _plugins_changed(f"Added {name} {version}. It stays off until you turn it on." if not had else
+                     f"Updated {name} to {version}.")
+    return redirect(url_for("plugins_settings") + "#added")
+
+@app.post("/settings/plugins/remove")
+def plugin_remove():
+
+    import plugin_install as P_
+    f = request.form
+    name = f.get("name") or ""
+    root = P_.home()
+    known = P_.NAME_RE.fullmatch(name) and (name in P_.stored(db()) or name in ADDED or (root / name).exists())
+    if not known:
+        session["notice"] = "That plugin isn't one added here, so nothing was removed."
+        g.refused = True
+        return redirect(url_for("plugins_settings") + "#added")
+    why = _owner_confirms(f, "Plugins")
+    if why:
+        session["notice"] = why.replace("Nothing was changed.", "Nothing was removed.")
+        g.refused = True
+        return redirect(url_for("plugins_settings") + "#added")
+    for k_ in (P_.SETTING + name, f"plugin_on_{name}"):
+        x("DELETE FROM settings WHERE key=?", (k_,))
+    db().commit()
+    P_.remove_folder(name)
+    audit(f"Removed the plugin {name}")
+    _plugins_changed(f"Removed {name}.")
+    return redirect(url_for("plugins_settings") + "#added")
 
 def issue_bill(sid, receipt=False):
 
@@ -15307,6 +15552,32 @@ import setup as first_run
 first_run.register(app, connect, apply_settings, lambda what: audit(what, who="Owner"), ALLOW,
                    after_rules=_sync_after_rules)
 LOADED = load_plugins()
+
+@app.before_request
+def _added_plugin_off():
+
+    ep_ = request.endpoint
+    for n_, a_ in ADDED.items():
+        if ep_ in a_["endpoints"] and not plugin_on(n_):
+            abort(404)
+
+def _sync_added_plugins():
+
+    import plugin_install as P_
+    try:
+        con = connect()
+        try:
+            if P_.sync(con):
+                PLUGIN_CHANGES.append(True)
+        finally:
+            con.close()
+    except Exception:
+        app.logger.exception("added plugins: bringing the plugins folder in line")
+
+AFTER_UNLOCK_HOOKS.append(_sync_added_plugins)
+import plugin_install as _plugin_install
+if _plugin_install.after_restore not in _restore.AFTER_APPLY:
+    _restore.AFTER_APPLY.append(_plugin_install.after_restore)
 if not os.environ.get("CRM_TESTING"):
     netsec.banner(unclaimed=not datakey.exists(),
                   plugins=[(p_["name"], p_["built_in"], p_["folder"]) for p_ in PLUGINS_LOADED], plugin_errors=PLUGIN_ERRORS)

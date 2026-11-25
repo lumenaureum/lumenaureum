@@ -882,6 +882,8 @@ def register(app, connect, allowed, audit, on_unlock):
         finally:
             con.close()
 
+    app.config["second_factor_ok"] = _second_factor_ok
+
     @app.route("/security/new-master-key", methods=["GET", "POST"], endpoint="new_master_key")
     def new_master_key():
 
