@@ -4,7 +4,7 @@
 {% block body %}
 {{ sui.head('Security') }}
 {% if msg %}<p class="sui-saved" role="status">{{ msg }}</p>{% endif %}{% if err %}<p class="sui-err" role="alert">{{ err }}</p>{% endif %}
-<p class="sui-tip">Client records, settings and backups are encrypted. Signing in unlocks it; after a restart it stays
+<p class="sui-tip">Client records, settings, and backups are encrypted. Signing in unlocks it; after a restart it stays
   locked until you sign in again. Your master key (on paper) opens it if your password is lost.</p>
 
 {% if master_pending %}
@@ -94,6 +94,6 @@
   </div>
 {% endcall %}
 {% else %}{% call sui.section('Account activity', id='activity') %}
-<p class="ui-mute">Nothing yet. Sign-ins, password and code changes, master key checks and exports show here.</p>{% endcall %}{% endif %}
+<p class="ui-mute">Nothing yet. Sign-ins, password and code changes, master key checks, and exports show here.</p>{% endcall %}{% endif %}
 {% endblock %}
 

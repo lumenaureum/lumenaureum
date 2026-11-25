@@ -331,7 +331,7 @@ def test_the_sign_in_change_notice_is_on_by_default_once_a_server_is_set_up(env,
     c.post("/security", data=dict(act="codes", current=TEST_PASSWORD), environ_base=E)
     assert setting(A, N.KEY_CRED_AT) is None
     cfg = _ntfy(A)
-    assert 'checked>Your password, master key or recovery codes changed' in page(c, "/settings?tab=notifications")
+    assert 'checked>Your password, master key, or recovery codes changed' in page(c, "/settings?tab=notifications")
     assert N.cred_tick(A.connect, cfg) is None and not sent
     c.post("/security", data=dict(act="codes", current=TEST_PASSWORD), environ_base=E)
     assert N.cred_tick(A.connect, cfg) == "sent"

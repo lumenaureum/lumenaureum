@@ -28,13 +28,13 @@
 
 
 {% set shoot_row_ = acts|selectattr('shoot_facts')|first %}
-{% set when_a_ = shoot_row_ or dict(form='date_set', sid=s.id, prefill=true, where=x_.place, verb='Change the date, time or place', what='when') %}
+{% set when_a_ = shoot_row_ or dict(form='date_set', sid=s.id, prefill=true, where=x_.place, verb='Change the date, time, or place', what='when') %}
 {% set when_form_ = ui.step_form_id(when_a_)|trim if s.stage in ('inquiry', 'quoted', 'booked') and not s.event_id else '' %}
 {% set shot_line = fst == 'shot' and s.shoot_date and when_words.startswith('Shot ') %}
 {% set status_ %}{% if shot_line %}<span class="hn-stage">{{ when_words }}</span>{% else %}<span class="hn-stage">{% if s.stage == 'lost' %}Lost{% else %}{{ stage_label[s.stage] }}{% endif %}</span> {% if days_in is not none %}<span class="ui-mute">{% if days_in == 0 %}since today{% elif days_in == 1 %}since yesterday{% else %}for {{ days_in }} days{% endif %}</span>{% endif %}{% endif %}
   {%- set bh_ = booked_hint(s.id) %}{% if bh_ %} <span class="stage-hint">&middot; {{ bh_ }}</span>{% endif %}
   {%- if s.shoot_date and fst in ('inquiry', 'quoted', 'booked', 'shoot_day', 'shot') and not shot_line %}<br><span class="hn-when">
-    {%- if when_form_ %}<a class="ui-factlink" href="#{{ when_form_ }}" data-ui-open="{{ when_form_ }}" aria-controls="{{ when_form_ }}" aria-expanded="false" data-tip="Tap to change the date, time or place">{{ when_words }}{% if x_.place and fst in ('booked', 'shoot_day') %}, {{ x_.place }}{% endif %}</a>
+    {%- if when_form_ %}<a class="ui-factlink" href="#{{ when_form_ }}" data-ui-open="{{ when_form_ }}" aria-controls="{{ when_form_ }}" aria-expanded="false" data-tip="Tap to change the date, time, or place">{{ when_words }}{% if x_.place and fst in ('booked', 'shoot_day') %}, {{ x_.place }}{% endif %}</a>
     {%- else %}{{ when_words }}{% if x_.place and fst in ('booked', 'shoot_day') %}, {{ x_.place }}{% endif %}{% endif %}{% if moved %} &middot; Rescheduled {{ 'once' if moved == 1 else moved ~ ' times' }}{% endif %}</span>{% endif %}
   {%- if fst == 'shoot_day' and light_ %}<br><span class="ui-mute">{{ light_.text }}</span>{% endif %}
 {% endset %}
@@ -439,7 +439,7 @@
     {% if rf_.reason %}<p class="ui-mute">It can't move now: {{ rf_.reason }}.</p>
     {% else %}<div class="ui-btnrow">{{ ui.opener('refile-move', 'Move to another client') }}
       {{ ui.action(url_for('inquiry_refile', sid=s.id), 'Make it a new client', dict(do='new'), back, 'quiet', inplace=false,
-                   confirm='Make ' ~ rf_.name ~ ' a client of their own? This inquiry, their message and their contact details move there.') }}</div>
+                   confirm='Make ' ~ rf_.name ~ ' a client of their own? This inquiry, their message, and their contact details move there.') }}</div>
     {% call ui.inline_form('refile-move', 'Move to another client') %}<form method="post" action="{{ url_for('inquiry_refile', sid=s.id) }}" class="ui-action ui-form-row"><input type="hidden" name="do" value="move"><input type="hidden" name="back" value="{{ back }}">
       <datalist id="refile-clients">{% for hid_, label_, reach_ in refile_clients() if hid_ != h.id %}<option value="{{ label_ }}">{{ reach_ }}</option>{% endfor %}</datalist>
       <input type="search" name="client" list="refile-clients" class="ui-grow" placeholder="Type a client's name" aria-label="The client to move this to" autocomplete="off" required>

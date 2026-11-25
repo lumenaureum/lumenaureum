@@ -1,0 +1,5 @@
+
+{%- set fp_ = app_theme() if app_theme is defined else 'dark' -%}
+<meta name="color-scheme" content="{{ {'light': 'light', 'auto': 'dark light'}.get(fp_, 'dark') }}">
+<style>html { background: {{ '#efe8da' if fp_ == 'light' else '#12100e' }}; }{% if fp_ == 'auto' %} @media (prefers-color-scheme: light) { html { background: #efe8da; } }{% endif %}</style>
+

@@ -800,7 +800,7 @@ def register(app, connect, allowed, audit, on_unlock):
                         con.close()
                     _remember_owner_email(key, None)
                     r = sign_in(uid)
-                    audit("Unlocked with the master key, set a new password and signed out every other device")
+                    audit("Unlocked with the master key, set a new password, and signed out every other device")
                     _cred_changed()
                     return r
         return _no_store(app, render_template("auth_master_unlock.html", err=err, min_pw=MIN_PASSWORD))

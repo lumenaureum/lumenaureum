@@ -56,6 +56,7 @@ def _tab(browser, c, width=1280):
 def _notice(c, text="A date before 2000 isn't one this can use. Nothing was changed."):
     with c.session_transaction() as s:
         s["notice"] = text
+        s["notice_refused"] = True
 
 def _open(p, q, width):
     if width < 500:
@@ -83,7 +84,7 @@ def _page(browser, c, width, notice=True):
     return ctx, p, q
 
 def _toast(p):
-    return p.locator(".toast[role=status]")
+    return p.locator(".toast[data-refused]")
 
 W = [390, 1280]
 
@@ -123,11 +124,11 @@ def test_a_notice_or_note_appearing_and_leaving_leaves_the_bubble_open(browser, 
     ctx, p, q = _page(browser, c, width, notice=False)
     try:
         _open(p, q, width)
-        p.evaluate("""() => { document.querySelector('[data-idle-warn]').hidden = false;
+        p.evaluate("""() => { document.querySelector('[data-idle-warn]').showModal();
             const n = document.createElement('div'); n.className = 'ui-flash'; n.innerHTML = '<span class="ui-note ui-note-ok">Saved</span>';
             document.querySelector('main').prepend(n); }""")
         assert _pop(q)
-        p.evaluate("""() => { document.querySelector('[data-idle-warn]').hidden = true; document.querySelector('.ui-flash').remove(); }""")
+        p.evaluate("""() => { document.querySelector('[data-idle-warn]').close(); document.querySelector('.ui-flash').remove(); }""")
         assert _pop(q)
     finally:
         ctx.close()

@@ -65,7 +65,7 @@ def test_prices_label_their_columns_and_point_to_print_prices(env):
 def test_online_galleries_says_what_it_is_for_first(env):
     A, c = env
     page = _main(_page(c, "/setup/galleries"))
-    lead = page.index("Clients see, pick and download their photos in online galleries.")
+    lead = page.index("Clients see, pick, and download their photos in online galleries.")
     assert lead < page.index('id="f-gallery_type"')
 
 def test_settings_have_no_search_box_of_their_own(env):

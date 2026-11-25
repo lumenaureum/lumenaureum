@@ -1,4 +1,4 @@
--- The schema of a fresh install at SCHEMA_VERSION 9. Do not edit by hand: regenerate with
+-- The schema of a fresh install at SCHEMA_VERSION 10. Do not edit by hand: regenerate with
 -- python tools/pin_schema.py (see the schema versions checklist in app.py).
 index audit_hh: CREATE INDEX audit_hh ON audit(household_id, at)
 index audit_sid: CREATE INDEX audit_sid ON audit(session_id)
@@ -30,6 +30,8 @@ table audit: CREATE TABLE audit ( id INTEGER PRIMARY KEY, at TEXT NOT NULL, hous
 table bill_snapshots: CREATE TABLE bill_snapshots (number TEXT PRIMARY KEY, session_id INTEGER REFERENCES sessions(id) ON DELETE CASCADE, kind TEXT NOT NULL, at TEXT, sig TEXT, data TEXT NOT NULL, html TEXT)
 table books: CREATE TABLE books ( id INTEGER PRIMARY KEY, received TEXT, amount REAL, tax REAL DEFAULT 0, type TEXT, kind TEXT, "tax_parts" TEXT)
 table call_sheets: CREATE TABLE call_sheets ( session_id INTEGER PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE, notes TEXT NOT NULL DEFAULT '', client_contact INTEGER NOT NULL DEFAULT 0)
+table calsend_events: CREATE TABLE calsend_events (ident TEXT PRIMARY KEY, rid TEXT NOT NULL DEFAULT '', etag TEXT NOT NULL DEFAULT '', digest TEXT NOT NULL DEFAULT '', day TEXT NOT NULL DEFAULT '')
+table calsend_secret: CREATE TABLE calsend_secret (name TEXT PRIMARY KEY, value BLOB NOT NULL, at REAL)
 table charges: CREATE TABLE charges (id INTEGER PRIMARY KEY, session_id INTEGER REFERENCES sessions(id) ON DELETE CASCADE, at TEXT NOT NULL, amount REAL NOT NULL, number TEXT NOT NULL DEFAULT '', label TEXT NOT NULL DEFAULT '')
 table client_end_contact: CREATE TABLE client_end_contact (household_id INTEGER PRIMARY KEY REFERENCES households(id) ON DELETE CASCADE, since TEXT NOT NULL)
 table client_labels: CREATE TABLE client_labels (household_id INTEGER NOT NULL REFERENCES households(id) ON DELETE CASCADE, label TEXT NOT NULL, PRIMARY KEY (household_id, label))

@@ -8,7 +8,7 @@
 {{ ui.page_head('Clients', status=status_, sub=ui.go(url_for('contact_new'), 'New contact')) }}
 {% call ui.section(id='client-rows') %}
 
-{{ ur.roster('clients', cols, rows, sort, desc, term, url_for('clients'), placeholder='Filter by name, phone, email or label',
+{{ ur.roster('clients', cols, rows, sort, desc, term, url_for('clients'), placeholder='Filter by name, phone, email, or label',
              empty=('No one matches.' if term or rows else 'No one yet.'), add_url=url_for('contact_new'), add_name=add_name) }}
 {% endcall %}
 

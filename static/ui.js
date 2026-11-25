@@ -278,8 +278,12 @@ async function refreshParts() {
       el.replaceWith(n); wire(n); } });
   } catch (_) {}
 }
-document.addEventListener('click', e => { const x = e.target.closest('[data-dismiss]'); if (x) x.closest('.toast').remove(); });
-setTimeout(() => document.querySelectorAll('.toast').forEach(t => t.style.opacity = '.92'), 0);
+document.addEventListener('click', e => { const x = e.target.closest('[data-dismiss]'); if (!x) return;
+  const t = x.closest('.toast'), had = t.contains(document.activeElement), main = document.querySelector('main');
+  t.remove(); if (had && main) main.focus({ preventScroll: true }); });
+(() => { const b = document.querySelector('main > .toast[data-refused]');
+  if (b && (document.activeElement === document.body || !document.activeElement) && !document.querySelector('main [autofocus]')) {
+    b.tabIndex = -1; b.focus({ preventScroll: true }); } })();
 window.laRefresh = refreshParts;
 window.addEventListener('storage', e => { if (e.key === 'la-changed') refreshParts(); });
 document.addEventListener('click', e => {
@@ -443,7 +447,7 @@ document.addEventListener('submit', async e => {
   const doc = html ? new DOMParser().parseFromString(text, 'text/html') : null;
   const main = document.querySelector('main'), nmain = doc && doc.querySelector('main');
   if (r.ok && r.redirected && new URL(r.url).pathname !== location.pathname) { location.assign(r.url); return; }   // it lives elsewhere now
-  const toast = nmain && nmain.querySelector(':scope > .toast[role=status]');
+  const toast = nmain && nmain.querySelector(':scope > .toast');
   let msg = '';
   if (toast) { const c = toast.cloneNode(true); c.querySelectorAll('button').forEach(b => b.remove()); msg = c.textContent.trim(); toast.remove(); }
   const refused = !r.ok || !!(toast && toast.hasAttribute('data-refused'));
@@ -785,20 +789,24 @@ addEventListener('hashchange', uiFound); uiFound();
   const ask = async () => { try { const r = await fetch(box.dataset.idleLeft, { credentials: 'same-origin', headers: { 'X-LA-Background': '1' } });
     const j = await r.json(); return typeof j.left === 'number' ? j.left : null; } catch (_) { return 0; } };
   const out = () => { window.laSignedOut = true; location.reload(); };
+  const shut = () => { if (box.open) box.close(); };   // Escape closes it too (the dialog's own cancel): that never extends
   const plan = secs => { clearTimeout(timer); timer = setTimeout(check, Math.max(1, secs) * 1000); };
   const check = async () => {
     const left = await ask();
     if (left === null) return;
     if (left <= 0) return out();
-    if (left <= WARN + 5) { box.hidden = false; box.dataset.at = String(Date.now() + left * 1000); plan(left + 1); }
-    else { box.hidden = true; plan(left - WARN); }
+    if (left <= WARN + 5) { if (!box.open) box.showModal(); box.dataset.at = String(Date.now() + left * 1000); plan(left + 1); }
+    else { shut(); plan(left - WARN); }
   };
   plan(limit - WARN);
-  document.addEventListener('submit', () => { box.hidden = true; plan(limit - WARN); }, true);
+  document.addEventListener('submit', () => { shut(); plan(limit - WARN); }, true);
   box.querySelector('form').addEventListener('submit', async e => {
     e.preventDefault(); e.stopPropagation();
-    try { await fetch(e.target.action, { method: 'POST', credentials: 'same-origin', headers: { 'X-LA-Inplace': '1' } }); } catch (_) {}
-    box.hidden = true; plan(limit - WARN);
+    let r = null;
+    try { r = await fetch(e.target.action, { method: 'POST', credentials: 'same-origin', headers: { 'X-LA-Inplace': '1' } }); } catch (_) {}
+    if (r) { let j = null; try { j = r.ok && !r.redirected ? await r.json() : null; } catch (_) {}
+      if (!j || !j.ok) return out(); }
+    shut(); plan(limit - WARN);
   });
 })();
 

@@ -9,7 +9,7 @@
   .drafthead { margin: 0 0 14px; padding: 8px 12px; border: 2px solid #b86f86; color: #8a5a6b; font-weight: 700; letter-spacing: .04em; }
   .wm { position: fixed; top: 40%; left: 0; right: 0; text-align: center; font: 700 120px/1 sans-serif; color: rgba(184, 111, 134, .14);
     transform: rotate(-30deg); z-index: 0; pointer-events: none; }
-</style></head><body{% if then %} data-then="{{ then }}"{% endif %}>
+</style></head><body{% if then %} data-then="{{ then }}"{% endif %}{% if sample_ok %} data-sample-ok="1"{% endif %}>
 {% set note_ %}{% if notice %}<span class="ui-note" role="status">{{ notice }}</span>{% endif %}{% endset %}
 {%- if not pdf and v.waiting %}{% call plain_bar(v.back) %}{{ note_ }}
   {% if v.on_plan %}<span class="ui-note">This session is billed on the quote of {{ v.on_plan }}, so it has no {{ lword }} of its own.</span>
@@ -20,8 +20,9 @@
   {{ ui.button_link(v.inv_url, 'Open the invoice', 'primary') }}{% endif %}{% endcall %}
 {%- elif not pdf and v.number %}{% set before_ %}{{ note_ }}{% if v.since %}<span class="ui-note since">{{ v.since }}</span>{% endif %}{% endset %}{{ doc_bar(v.pdf_url, v.back, send, v.review if not v.reviewed, approve=v.approve, before=before_) }}
 {%- elif not pdf %}
-{{ bar_style() }}<div class="bar">{% set lead_ %}{{ note_ }}{{ ui.action(v.issue_url, 'Issue and email it', dict(then='email'), kind='primary', inplace=false,
-    confirm='Issue this ' ~ lword ~ ' now? It gets the next ' ~ lword ~ ' number and is kept exactly as it is. Then your mail app opens a draft email for you to send. This app never sends email itself.') }}{% endset %}
+
+{{ bar_style() }}<div class="bar">{% set lead_ %}{{ note_ }}{{ ui.action(v.issue_url, 'Issue and email it', dict(then='email', sample_ok='1') if not v.reviewed else dict(then='email'), kind='primary', inplace=false,
+    confirm=('This still prints SAMPLE: the wording has not been reviewed yet. Issue this ' ~ lword ~ ' and send it anyway? ' if not v.reviewed else 'Issue this ' ~ lword ~ ' now? ') ~ 'It gets the next ' ~ lword ~ ' number and is kept exactly as it is. Then your mail app opens a draft email for you to send. This app never sends email itself.') }}{% endset %}
   {%- call ui.doc_bar(lead_) %}{{ ui.action(v.issue_url, 'Issue this ' ~ lword, {}, inplace=false) }}{{ ui.action(v.issue_url, 'Issue and download PDF', dict(then='download'), inplace=false) }}{{ ui.action(v.issue_url, 'Issue and print', dict(then='print'), inplace=false) }}{% endcall %}
   <span class="ui-note">Draft, no number yet{{ help("Issuing gives it the next " ~ lword ~ " number and keeps it exactly as it is. Each button here issues it first.") }}</span>{{ close_(v.back) }}</div>{% endif %}
 

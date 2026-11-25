@@ -12,7 +12,7 @@
 {% set net_ = all_in - exp.a - mileage - tax_all - pr_cost %}
 {% set tax_lc = tax_word|lower if tax_word in ('Sales tax', 'Taxes') else tax_word %}
 {% set years_ %}{{ pg.pager(url_for('money_view', year=year-1), year-1, year, url_for('money_view', year=year+1), year+1, 'Year') }}{% endset %}
-{{ ui.page_head('Finances ' ~ year, status=money(all_in) ~ ' received, ' ~ money(net_) ~ ' net after expenses, mileage and ' ~ tax_lc, sub=years_) }}
+{{ ui.page_head('Finances ' ~ year, status=money(all_in) ~ ' received, ' ~ money(net_) ~ ' net after expenses, mileage, and ' ~ tax_lc, sub=years_) }}
 
 
 {% if outstanding %}{% call ui.needs('Owed to you', id='owed') %}

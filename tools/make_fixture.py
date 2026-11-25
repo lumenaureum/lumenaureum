@@ -2158,6 +2158,10 @@ VERSIONS = {
                   dirs=("galleries", "galleries-kept", "host", "web", "photos", "faces"),
                   env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
 
+    "1.6.1": dict(commit="618def1", scenario=scenario_154, files=("ntfy.json",),
+                  dirs=("galleries", "galleries-kept", "host", "web", "photos", "faces"),
+                  env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),
+
     "next": dict(commit="HEAD", scenario=scenario_154, files=("ntfy.json",),
                  dirs=("galleries", "galleries-kept", "host", "web", "photos", "faces"),
                  env=dict(CRM_PHOTO_FOLDERS="1", CRM_GALLERY_ROOT="galleries")),

@@ -80,7 +80,7 @@ def test_the_inquiry_hints_where_to_add_a_kind_of_shoot_and_ticks_the_contact(tm
     A, c = _app(tmp_path, monkeypatch)
     _studio(A)
     types = _page(c, "/inquiry?hid=2")
-    assert 'href="/setup/shoot">Add a kind of shoot in Settings, What you shoot</a>' in types
+    assert 'href="/setup/shoot#types">Add a kind of shoot in Settings, What you shoot</a>' in types
     form = _page(c, "/inquiry?hid=2&type=family")
     pid = _q(A, "SELECT id FROM people WHERE name='Priya Garcia'")[0][0]
     assert re.search(rf'name="subjects" value="{pid}" checked', form)

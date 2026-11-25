@@ -8,7 +8,7 @@
 {% call ui.section('Pick the file', id='pick') %}
   <form method="post" action="{{ url_for('clients_import_upload') }}" enctype="multipart/form-data">
     <div class="ui-form-grid">
-      <div class="ui-span-all"><span class="ui-label">Your client list (a spreadsheet file){{ help("A spreadsheet saved as CSV (Save as, or Download, in the spreadsheet app): any list with a name and, if you have them, email, phone, address and notes. Up to " ~ max_mb ~ " MB and " ~ max_rows ~ " rows. Nothing is added until you check the preview and press Import.") }}</span>
+      <div class="ui-span-all"><span class="ui-label">Your client list (a spreadsheet file){{ help("A spreadsheet saved as CSV (Save as, or Download, in the spreadsheet app): any list with a name and, if you have them, email, phone, address, and notes. Up to " ~ max_mb ~ " MB and " ~ max_rows ~ " rows. Nothing is added until you check the preview and press Import.") }}</span>
         {{ ui.file_pick('file', 'your client list', accept='.csv,.txt,text/csv', required=true) }}</div>
     </div>
     <div class="ui-btnrow"><button class="ui-btn ui-btn-primary">Read the file</button></div>

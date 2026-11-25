@@ -30,8 +30,11 @@ SHIP_DEFAULT = {"us": dict(on=True, rule="cost", handling=0, flat=0, say="Shippi
 DEST_LABEL = {"us": "US (48 states and DC)", "akhi": "Alaska and Hawaii", "ca": "Canada", "pickup": "Pick up from the studio"}
 RULE_LABEL = {"cost": "At cost", "cost_plus": "At cost plus handling", "flat": "A flat amount"}
 ARRIVE_DEFAULT = "Prints come straight from our lab."
-POLICY_LINE = ("Prints are made by our lab after this invoice is paid in full. Prints damaged in shipping, lost or "
-               "defective are remade by the lab at no cost to you; a crop, size or address you chose is a new order.")
+
+REBUILD_NOTES = ("Build the gallery again to offer prints from these proofs.",
+                 "Prints need this gallery's files; rebuild it to offer prints.")
+POLICY_LINE = ("Prints are made by our lab after this invoice is paid in full. Prints damaged in shipping, lost, or "
+               "defective are remade by the lab at no cost to you; a crop, size, or address you chose is a new order.")
 
 class ModuleView:
 
@@ -65,13 +68,13 @@ class LabError(RuntimeError):
 def check_host_folder(folder):
 
     if not isinstance(folder, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,30}\.d", folder):
-        raise ValueError("a lab plugin's host folder is letters, digits and hyphens ending in .d")
+        raise ValueError("a lab plugin's host folder is letters, digits, and hyphens ending in .d")
     return folder
 
 def check_host_name(name):
 
     if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,120}", name) or ".." in name:
-        raise ValueError("a file name in the lab's host folder is letters, digits, dots, hyphens and underscores")
+        raise ValueError("a file name in the lab's host folder is letters, digits, dots, hyphens, and underscores")
     return name
 
 def register(ctx):
@@ -105,7 +108,7 @@ def register(ctx):
                    about="Clients order prints from their download galleries; you review, invoice, and order them at "
                          "any lab. Off: no gallery offers prints (the offer comes off at the next gallery check) and "
                          "the print pages are hidden. Everything already recorded is kept; orders a client sends anyway "
-                         "are collected and kept, and Today says so; print money always stays in Finances, statements "
+                         "are collected and kept, and Today says so; print money always stays in Finances, statements, "
                          "and the accountant export.")
 
     @app.before_request
@@ -115,6 +118,7 @@ def register(ctx):
         if ep.startswith("prints_") and not active():
             if request.method == "GET" and not ep.endswith(("_image", "_photo", "_zip")):
                 session["notice"] = "Print orders are off. Turn them on in Settings, Plugins."
+                session["notice_refused"] = True
                 return redirect(url_for("plugins_settings"))
             abort(404)
 
@@ -240,9 +244,9 @@ def register(ctx):
         if not dl and G.is_download(gid):
             return "Prints are offered once the download gallery is online."
         if not dl and not (G.is_print(gid) if here else G.online_print(gid)):
-            return "Build the gallery again to offer prints from these proofs."
+            return REBUILD_NOTES[0]
         if not full_build(gid):
-            return "Prints need this gallery's files; rebuild it to offer prints."
+            return REBUILD_NOTES[1]
         return ""
 
     def offer_plain(r):
@@ -549,7 +553,7 @@ def register(ctx):
                 out.append(("price", f"Line {l_['n']}: the client's page said {P.dollars(l_['shown_cents'])} each; "
                                      f"your price list says {P.dollars(want)}", None))
         if P.incomplete(sh) and o["state"] not in P.FINAL:
-            out.append(("addr_missing", "Shipping address incomplete: only the city, state and ZIP are kept. Enter the full "
+            out.append(("addr_missing", "Shipping address incomplete: only the city, state, and ZIP are kept. Enter the full "
                                         "address before Prepare for the lab.", None))
         if o.get("ship_by_hand") and o.get("ship_cents") is not None and o["state"] in ("new", "unmatched"):
             now_ = rule_ship(o)
@@ -1199,6 +1203,7 @@ and once paid, Prepare for the lab gives you the files and an order sheet for an
                         x("UPDATE price_list_items SET lab=? WHERE id=?", (json.dumps(refs), it["id"]))
                     elif res and res[1]:
                         session["notice"] = f"{lab.get('name') or lab['id']}: {res[1]}"
+                        session["notice_refused"] = True
         put("prints_ship", json.dumps(rules))
         put("prints_markup", str(mk))
         put("prints_invoice_days", days)
@@ -1208,7 +1213,8 @@ and once paid, Prepare for the lab gives you the files and an order sheet for an
         v = save_version()
         put("prints_saved", "1")
         g.audit_note = f"version {v}"
-        session["notice"] = "Saved."
+        if not session.get("notice"):
+            session["notice"] = "Saved."
         return redirect(back)
 
     def fill_plan():
@@ -1349,7 +1355,7 @@ and once paid, Prepare for the lab gives you the files and an order sheet for an
   {% if lab_words %}<div class="sub">{{ lab_words }}</div>{% endif %}
 </div>
 {% if incomplete %}<div class="card f" style="max-width:980px;border-left:3px solid var(--crit)"><h2 style="margin:0">Shipping address incomplete</h2>
-  <p class="sub" style="margin:4px 0">Only the city, state and ZIP were kept (the full address is reduced a year after an order closes). Prepare for the lab and any lab hand-off wait until the full address is entered.</p>
+  <p class="sub" style="margin:4px 0">Only the city, state, and ZIP were kept (the full address is reduced a year after an order closes). Prepare for the lab and any lab hand-off wait until the full address is entered.</p>
   <form method="post" action="{{ url_for('prints_act', oid_=o.id, do='ship_to') }}" class="f2" style="max-width:760px">
     <div><label class="l" for="sn">Name{% if ship.how == 'other' %} (who receives it){% endif %}</label><input id="sn" name="name" maxlength="60" {{ 'required' if ship.how == 'other' }}></div>
     <div><label class="l" for="sa1">Street</label><input id="sa1" name="addr1" maxlength="60" required></div>
@@ -1411,7 +1417,7 @@ and once paid, Prepare for the lab gives you the files and an order sheet for an
   {% elif o.state in ('ordered','shipped','delivered','closed','remake') %}<div class="sub" style="margin-top:6px">Lab cost recorded: none typed</div>{% endif %}
 </div>
 <div class="card f" style="max-width:980px"><h2 style="margin:0">Next</h2>
-  {% if o.invoice_number %}<div class="row" style="gap:8px;flex-wrap:wrap">Invoice {{ o.invoice_number }}: <a class="go" href="{{ url_for('prints_invoice', oid_=o.id) }}">Open &rsaquo;</a> <a class="go" href="{{ mail_invoice }}" title="Opens a draft in your mail app with the invoice's number, total and how to pay.">Email it &rsaquo;</a> <span class="mute">The email gives the invoice's number, total and how to pay.</span></div>{% endif %}
+  {% if o.invoice_number %}<div class="row" style="gap:8px;flex-wrap:wrap">Invoice {{ o.invoice_number }}: <a class="go" href="{{ url_for('prints_invoice', oid_=o.id) }}">Open &rsaquo;</a> <a class="go" href="{{ mail_invoice }}" title="Opens a draft in your mail app with the invoice's number, total, and how to pay.">Email it &rsaquo;</a> <span class="mute">The email gives the invoice's number, total, and how to pay.</span></div>{% endif %}
   {% for v in voided %}<div class="sub">Invoice {{ v.number }} voided {{ nice(v.at) }} ({{ v.why }})</div>{% endfor %}
   <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:8px">
   {% if o.state == 'new' %}<form method="post" action="{{ url_for('prints_act', oid_=o.id, do='invoice') }}" class="inline"><button class="primary">Make invoice</button></form>{% endif %}
@@ -1446,7 +1452,7 @@ and once paid, Prepare for the lab gives you the files and an order sheet for an
   {% if o.state == 'shipped' %}<div class="row" style="gap:8px;flex-wrap:wrap;margin-top:8px"><a class="go" href="{{ mail_shipped }}">Tell {{ who[0] }} &rsaquo;</a>
     <form method="post" action="{{ url_for('prints_act', oid_=o.id, do='delivered') }}" class="inline"><button class="quiet">{{ 'Picked up' if pickup else 'Mark delivered' }}</button></form></div>{% endif %}
   {% if o.state == 'delivered' %}<form method="post" action="{{ url_for('prints_act', oid_=o.id, do='close') }}" class="inline"><button class="quiet">Close</button></form>{% endif %}
-  {% if o.state in ('shipped', 'delivered') %}<details style="margin-top:8px"><summary>Damaged, defective or lost</summary><form method="post" action="{{ url_for('prints_act', oid_=o.id, do='remake') }}" class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px"><input name="note" maxlength="300" placeholder="What happened" style="width:320px" aria-label="What happened"><button class="quiet">Remake requested</button></form><div class="sub">Ask the lab for a remake under its own policy, then type the remake's order number here.</div></details>{% endif %}
+  {% if o.state in ('shipped', 'delivered') %}<details style="margin-top:8px"><summary>Damaged, defective, or lost</summary><form method="post" action="{{ url_for('prints_act', oid_=o.id, do='remake') }}" class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px"><input name="note" maxlength="300" placeholder="What happened" style="width:320px" aria-label="What happened"><button class="quiet">Remake requested</button></form><div class="sub">Ask the lab for a remake under its own policy, then type the remake's order number here.</div></details>{% endif %}
   {% if o.state in ('new', 'unmatched', 'invoiced', 'paid', 'prepared', 'ordered', 'needs_files', 'with_lab') %}<details style="margin-top:8px"><summary>Cancel order</summary>
     <form method="post" action="{{ url_for('prints_act', oid_=o.id, do='cancel') }}" class="f2" style="margin-top:6px" data-confirm="Cancel this print order?">
     {% if o.state == 'ordered' %}<div role="radiogroup" aria-label="At the lab">Did you cancel it at {{ o.lab_name or 'the lab' }} too?
@@ -1720,6 +1726,7 @@ and once paid, Prepare for the lab gives you the files and an order sheet for an
                     session["notice"] = (f"Recorded. That's {P.dollars(over)} more than the balance, so the order now "
                                          f"shows a {P.dollars(over)} credit to give back. Once you give it back, record "
                                          f"it as a Refund.")
+                    session["notice_refused"] = "warn"
             elif do == "void_payment":
                 pay_ = q("SELECT * FROM print_payments WHERE id=? AND order_id=?", (int(f.get("pid") or 0), oid_), one=True)
                 if pay_ and ctx.closed_year_change_refusal(pay_["received"]):
@@ -1793,6 +1800,7 @@ and once paid, Prepare for the lab gives you the files and an order sheet for an
                         and ship_rules().get(f_["dest"], {}).get("rule") == "cost":
                     session["notice"] = (f"The lab's shipping was {P.dollars(costs['cost_shipping'])}; the invoice charged "
                                          f"{P.dollars(f_['ship'])}. The issued invoice stays as issued.")
+                    session["notice_refused"] = "warn"
             elif do == "shipped":
                 nums = json.loads(o["lab_orders"] or "[]")
                 if nums:
@@ -1849,8 +1857,9 @@ and once paid, Prepare for the lab gives you the files and an order sheet for an
                     return refuse("The gallery's files are gone, so this order can't be reopened.", back)
                 move(o, "new", "reopened: it needs a new invoice")
                 if P.incomplete(ship_of(o)):
-                    session["notice"] = ("Reopened. Its shipping address is incomplete (only the city, state and ZIP were "
+                    session["notice"] = ("Reopened. Its shipping address is incomplete (only the city, state, and ZIP were "
                                          "kept): enter the full address before Prepare for the lab.")
+                    session["notice_refused"] = "warn"
             elif do == "files_back":
                 prev = o["prev_state"] or "new"
                 if photo_files(o) is None:
@@ -2431,8 +2440,9 @@ and once paid, Prepare for the lab gives you the files and an order sheet for an
             note = ('This host runs no PHP: the gallery says "For prints, email the studio".' if host_kind() == "none"
                     else why_no_prints(dict(r_)))
         elif on and not G.is_print(gid):
-            note = "Build the gallery again to offer prints from these proofs."
-        return dict(can_switch=True, switch=on, note=note, proofs=True)
+            note = REBUILD_NOTES[0]
+
+        return dict(can_switch=True, switch=on, note=note, proofs=True, rebuild=note in REBUILD_NOTES)
 
     app.config["prints_offer"] = offer
 

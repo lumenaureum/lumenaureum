@@ -380,14 +380,14 @@ def test_the_sign_in_change_notice(env, monkeypatch):
         finally:
             con_.close()
     page = c.get("/settings?tab=notifications", environ_base=E).get_data(as_text=True)
-    assert 'data-autosubmit checked>Your password, master key or recovery codes changed' in page
+    assert 'data-autosubmit checked>Your password, master key, or recovery codes changed' in page
     c.post("/security/notice", data=dict(act="cred"), environ_base=E)
     page = c.get("/settings?tab=notifications", environ_base=E).get_data(as_text=True)
     assert 'name="cred_on" value="1" data-autosubmit>' in page
     c.post("/security", data=dict(act="codes", current=TEST_PASSWORD), environ_base=E)
     assert not pending() and N.cred_tick(A.connect, cfg) is None and not sent
     c.post("/security/notice", data=dict(act="cred", cred_on="1"), environ_base=E)
-    assert 'data-autosubmit checked>Your password, master key or recovery codes changed' in \
+    assert 'data-autosubmit checked>Your password, master key, or recovery codes changed' in \
         c.get("/settings?tab=notifications", environ_base=E).get_data(as_text=True)
     for act in (dict(act="codes"), dict(act="password", password="another long pass 1", password2="another long pass 1")):
         c.post("/security", data=dict(current=TEST_PASSWORD, **act), environ_base=E)

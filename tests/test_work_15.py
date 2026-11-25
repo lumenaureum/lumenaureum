@@ -23,11 +23,11 @@ def test_missing_shoot_facts_are_a_needs_you_row_with_its_form(env):
     A, c = env
     _session(A, "booked", days=10)
     acts = [a for a in _acts(A) if a.get("shoot_facts")]
-    assert len(acts) == 1 and acts[0]["what"] == "Set the shoot date, time and place" and acts[0]["detail"] == "No start time"
+    assert len(acts) == 1 and acts[0]["what"] == "Set the shoot date, time, and place" and acts[0]["detail"] == "No start time"
     assert not [a for a in _acts(A) if (a.get("what") or "").startswith("Confirm time and place")]
     page = _page(c)
     first = _todo(page)[0]
-    assert first[0] == "row-date_set" and " ".join(first[1]).startswith("Shoot date, time and place")
+    assert first[0] == "row-date_set" and " ".join(first[1]).startswith("Shoot date, time, and place")
     form = page.split('id="f-date_set-1"', 1)[1].split("</form>", 1)[0]
     assert 'value="Longwood Gardens"' in form and 'name="tentative"' in form and "Date not final yet" in form
     head = page.split('<header class="ui-head"', 1)[1].split("</header>", 1)[0]
@@ -308,7 +308,7 @@ def test_the_1_4_0_database_takes_the_new_table_and_columns_once(tmp_path, monke
     cols = lambda t: {r[1] for r in _q(A, f"PRAGMA table_info({t})")}
     assert {"note"} <= cols("payments") and {"note"} <= cols("write_offs")
     assert {"session_id", "old_vid", "old_total", "old_lines", "agreement", "new_vid", "booked_at"} <= cols("quote_replacements")
-    assert _q(A, "PRAGMA user_version")[0][0] == A.SCHEMA_VERSION == 9
+    assert _q(A, "PRAGMA user_version")[0][0] == A.SCHEMA_VERSION == 10
     assert _q(A, "SELECT COUNT(*) FROM payments WHERE note != ''")[0][0] == 0
     paid = _q(A, "SELECT session_id, SUM(amount) FROM payments WHERE voided IS NULL GROUP BY session_id ORDER BY 1")
     wo = _q(A, "SELECT session_id, SUM(amount) FROM write_offs GROUP BY session_id ORDER BY 1")

@@ -12,21 +12,21 @@ scheduling, invoices, and receipts, and delivers finished photos through proofin
 you: today's shoots, new website inquiries, money past due, and the next step for each client.
 
 Client records are encrypted on disk and open only when you sign in.
-Backups, archived sessions and client galleries are encrypted before they are stored or sent anywhere, so a lost
+Backups, archived sessions, and client galleries are encrypted before they are stored or sent anywhere, so a lost
 laptop or a stolen drive exposes no client records.
 
 ## What it does
 - **Today**: today's shoots; the Inbox, website inquiries not yet filed under a client, one line each, opened in
-  place to reply, add or mark as spam; and Tasks, one line per session with its next action on it (money past due
+  place to reply, add, or mark as spam; and Tasks, one line per session with its next action on it (money past due
   first, new picks and inquiries tagged New). Filter chips with counts narrow Tasks by status, due date, kind of task,
   label or a search.
 - **Clients and households**: one page per client, showing what needs you first. People, children and their
   details, referrals, notes, your own labels, and a history of every change. The Clients list is a table for finding
-  someone: name, phone, email, where they stand and what they owe, sorted by any column and filtered as you type.
+  someone: name, phone, email, where they stand, and what they owe, sorted by any column and filtered as you type.
 - **Sessions**: each kind of session has its own steps, each with a due date counted from the shoot. The stage changes
   when something happens: you send a quote, press Book it or Shoot done, the client's picks arrive, or the session is
   paid in full.
-- **Quotes, agreements, invoices and receipts** from your own prices and terms, as PDFs. Starter prices and wording
+- **Quotes, agreements, invoices, and receipts** from your own prices and terms, as PDFs. Starter prices and wording
   print SAMPLE until you approve them, which you can do right where you use them. A booked quote is read-only;
   Replace the quote starts a new one.
 - **Scheduling**: a month calendar with a day view, sunset and golden hour for each session, and a check for clashes.
@@ -49,7 +49,7 @@ laptop or a stolen drive exposes no client records.
 Lumen Aureum keeps your studio on your own machine, but it isn't cut off:
 - **Backups** go to a folder, another machine over SFTP, or S3-compatible storage.
 - **Galleries and your studio page** upload to your web host over SFTP, to an S3-compatible bucket, or to a folder a
-  web server serves. Clients' picks, inquiries and print orders come back from there.
+  web server serves. Clients' picks, inquiries, and print orders come back from there.
 - **Plugins** add features you can switch on or off. Print orders are the first.
 - **Notices** (optional): a short ntfy notice to your phone when the studio restarts and stays locked.
 
@@ -63,18 +63,18 @@ group events, real estate, products and brands, food, or personal projects. Pick
 You get only the types you pick. Skip it and you start with portraits, families, and group events. Change any of it,
 or add your own types, in Settings.
 
-Settings, prices and session types export to a single file (Settings, Export settings), and setup can start from one,
+Settings, prices, and session types export to a single file (Settings, Export settings), and setup can start from one,
 so you can move to a new machine or start over without entering them again.
 
 ## Privacy and security
-- Client records, settings and backups are encrypted; signing in unlocks them, and they are locked again after every
+- Client records, settings, and backups are encrypted; signing in unlocks them, and they are locked again after every
   restart until you sign in again. The app signs out after a time with no activity (8 hours unless you
   change it). Photos are uploaded into the app and encrypted as they arrive; they are never stored readable.
 - It speaks HTTPS from the first start, with its own certificate; you confirm its fingerprint once.
 - Sign-in uses a password and a code from an authenticator app. Only someone who can read its data folder or its
   container log (the person who installed it) can set up the owner account.
 - A master key, printed once and never stored by the app, recovers everything.
-- Daily backups go to an encrypted vault on your NAS, an SFTP server or S3-compatible storage, with an optional
+- Daily backups go to an encrypted vault on your NAS, an SFTP server, or S3-compatible storage, with an optional
   second copy.
 - By default it answers devices on your local network and refuses the rest, and only under the names you give it.
   Every device on your network can reach the sign-in page, so a strong password matters. Keep it on your local
@@ -97,7 +97,7 @@ refuses them. See [docs/where-it-runs.md](docs/where-it-runs.md).
 so your data stays if the app is ever removed: see
 [The easiest way: the TrueNAS app catalog](docs/where-it-runs.md#the-easiest-way-the-truenas-app-catalog).
 
-**Anywhere else, with Docker Compose** (64-bit Intel, AMD or ARM):
+**Anywhere else, with Docker Compose** (64-bit Intel, AMD, or ARM):
 
 ```
 mkdir lumenaureum && cd lumenaureum
@@ -123,7 +123,7 @@ that name to `CRM_HOSTNAMES` in compose.yaml.
 [docs/getting-started.md](docs/getting-started.md) walks through it and marks the choices that are hard to change later.
 
 ## Example documents
-The agreement, release and other documents that come with Lumen Aureum are examples only. They are not legal advice, and the makers of Lumen Aureum make no promise that they suit your business or hold up where you work. Read them, change them for your business and the laws where you work, and have a lawyer review them before you use them. You are responsible for the documents you give your clients.
+The agreement, release, and other documents that come with Lumen Aureum are examples only. They are not legal advice, and the makers of Lumen Aureum make no promise that they suit your business or hold up where you work. Read them, change them for your business and the laws where you work, and have a lawyer review them before you use them. You are responsible for the documents you give your clients.
 
 ## License
 Copyright (C) 2026 Walk Up Web LLC.
@@ -146,6 +146,6 @@ release are listed in [CHANGELOG.md](CHANGELOG.md).
 Lumen Aureum runs on your own machine and needs nothing from this project to keep working: it doesn't check in with
 any server of ours, and the version you have keeps running as long as your machine does. Your data doesn't depend on
 the app either. Backups and the keyring are standard `age` files that the stock `age` tool opens with your master
-key, and the database is SQLCipher. The photo, gallery and sealed-item formats are written down in
+key, and the database is SQLCipher. The photo, gallery, and sealed-item formats are written down in
 [docs](docs/photo-format.md), with test vectors, so another program can read them. The license (AGPL) lets anyone
 take the code and carry it on.

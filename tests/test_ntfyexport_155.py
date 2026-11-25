@@ -29,7 +29,7 @@ def test_the_security_doc_no_longer_describes_a_client_list_download():
 
 TITLES = {"inbox": "Studio inbox", "backup": "Studio backup", "storage": "Studio storage", "closing": "Gallery closing",
           "update": "Studio updated", "served": "Gallery page changed", "cred": "Studio sign-in changed",
-          "newmaster": "Studio master key"}
+          "newmaster": "Studio master key", "calendar": "Studio calendar"}
 
 def test_every_studio_notice_keeps_its_title():
     import inboxnotice as N
@@ -91,7 +91,7 @@ def test_saving_the_public_server_says_a_private_one_is_safer(env, monkeypatch):
 
 KINDS = ["Studio locked after a restart", "A new master key was asked for without the old one", "Something new in the studio inbox", "A backup failed or is late",
          "Storage running low", "A gallery closes tomorrow", "An update was installed",
-         "A gallery page on your web host changed", "Your password, master key or recovery codes changed"]
+         "A gallery page on your web host changed", "Your password, master key, or recovery codes changed"]
 
 def _page(c):
     return c.get("/settings?tab=notifications", environ_base=E).get_data(as_text=True)

@@ -283,6 +283,8 @@ FEATURES = (("expiry", "Galleries close on their last day, even with Lumen Aureu
             ("codeword", "Galleries with a codeword"))
 GATE_NOTE = "its web server hands out gallery files without asking for the key"
 
+GATED = ("expiry", "codeword")
+
 def capabilities(host, base_url, gallery=None):
 
     p = probe(host, base_url)
@@ -295,7 +297,7 @@ def capabilities(host, base_url, gallery=None):
                                  "needs a host that runs PHP" if p.kind == "none" else
                                  "its certificate must be checked first" if p.get("cert") else "the host couldn't be checked")
         ok = works
-        if key == "codeword" and works and gate is False:
+        if key in GATED and works and gate is False:
             ok, note = False, GATE_NOTE
         feats.append((key, label, ok, note))
     return dict(at=time.strftime("%Y-%m-%d %H:%M"), kind=p.kind, version=p.get("version", ""), detail=p.get("detail", ""),

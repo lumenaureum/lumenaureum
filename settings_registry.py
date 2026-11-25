@@ -1,7 +1,7 @@
 GROUPS = [
     dict(id="studio", title="Studio", pages=[
         dict(id="profile", label="Profile", sub="names, contact, time zone",
-             what="Your names and how clients reach you. They print on quotes, invoices and agreements.",
+             what="Your names and how clients reach you. They print on quotes, invoices, and agreements.",
              ep="settings_view", args={"tab": "profile"},
              match=[("settings_view", {"tab": "general"}), ("setup_step", {"step": "business"})],
              fields=[
@@ -73,7 +73,7 @@ GROUPS = [
     ]),
     dict(id="sessions", title="Sessions", pages=[
         dict(id="shoot", label="What you shoot", sub="your session types",
-             what="The kinds of sessions you offer. Each type has its own steps, intake and terms.",
+             what="The kinds of sessions you offer. Each type has its own steps, intake, and terms.",
              ep="setup_step", args={"step": "shoot"},
              fields=[
                  dict(key="TYPES", label="What you shoot: add or remove session types", anchor="types", input="preset_",
@@ -96,16 +96,24 @@ GROUPS = [
              fields=[
                  dict(key=None, label="Print orders: turn on, where orders show up", anchor="", input=None,
                       words="print prints print orders order photos lab plugin turn on off where"),
-                 dict(key=None, label="Print prices, shipping and lab", anchor="", input=None,
+                 dict(key=None, label="Print prices, shipping, and lab", anchor="", input=None,
                       words="print prints price prices price list lab cost shipping markup order orders sizes"),
              ]),
         dict(id="calendar", label="Calendar link", sub="your sessions on your phone's calendar",
-             what="A private link your phone's calendar can subscribe to: each session's type, day, time and length.",
+             what="A private link your phone's calendar can subscribe to: each session's type, day, time, and length.",
              ep="settings_view", args={"tab": "calendar"},
              fields=[dict(key=None, label="Calendar link: turn on, make a new one, turn off", anchor="calendar-link",
                           input=None,
                           words="calendar feed ics ical icalendar subscribe phone iphone android google outlook "
-                                "webcal sync schedule link private")]),
+                                "webcal sync schedule link private icsx5 tailscale")]),
+        dict(id="calsend", label="Send to your calendar", sub="Google, Outlook, iCloud, and others",
+             plugin="calendar_send",
+             what="Adds each session to a calendar you use, and keeps it up to date: its type, day, time, and length.",
+             ep="calendar_send_settings", args={},
+             fields=[dict(key=None, label="Send sessions to your calendar: Google, Outlook, iCloud, CalDAV",
+                          anchor="", input=None,
+                          words="calendar send push google outlook microsoft 365 icloud apple fastmail yahoo caldav "
+                                "nextcloud sync sessions events")]),
     ]),
     dict(id="money", title="Money", pages=[
         dict(id="payments", label="Payments and terms", sub="deposits, due dates, ways to pay, travel",
@@ -259,6 +267,11 @@ GROUPS = [
                           words="network allow ip addresses lan reach connect")]),
     ]),
     dict(id="app", title="App", pages=[
+        dict(id="appearance", label="Appearance", sub="dark or light",
+             what="How Lumen Aureum looks on your screens. Client galleries, your studio page, and documents keep their own look.",
+             ep="settings_view", args={"tab": "appearance"},
+             fields=[dict(key="app_theme", label="Dark or light", anchor="f-app_theme",
+                          words="theme dark light mode appearance colors colour scheme night day bright match device")]),
         dict(id="plugins", label="Plugins", sub="turn parts on or off",
              what="Parts of Lumen Aureum you can turn on or off.",
              ep="plugins_settings", args={},

@@ -30,7 +30,7 @@ Not in any of the three: the database (SQLCipher, under the data key), the keyri
 Everything a client or visitor reaches on the web host is a **link**: today a gallery, later a session's or an
 event's page. Each link has its own folder on the web host, named by its **link ID**, and its own **link key**: 32 random
 bytes that reach the client after the "#" of the link (which browsers never send to any server). A link's ID and key
-are made at random for it alone, never derived from a client's, a session's or anything else's ID or key, and a link ID
+are made at random for it alone, never derived from a client's, a session's, or anything else's ID or key, and a link ID
 is not a session ID.
 
 A link ID is 25 characters: its **kind** letter, "-", then 23 characters from `A-Z a-z 0-9 - _` (a fresh 17-byte random
@@ -66,7 +66,7 @@ exact copies) and `plugins/sealed_assets/sealed.php` (the web host, which only c
 
 ### Primitives
 
-Only standard primitives that the app, every current browser (WebCrypto) and the `cryptography` library already
+Only standard primitives that the app, every current browser (WebCrypto), and the `cryptography` library already
 offer: AES-256-GCM (96-bit nonce, 128-bit tag), HKDF-SHA256 (RFC 5869, 32-byte output), ECDH on P-256 with a one-time
 key (the shared secret is the 32-byte x-coordinate), SHA-256, and the platform's random number generator. No new
 dependency. HPKE (RFC 9180) describes the same idea; it is not used because neither browsers nor PHP offer its P-256
@@ -159,14 +159,14 @@ expected.
 | 3 | byte 3 is not "1" | E_VERSION |
 | 4 | longer than the purpose's largest envelope | E_LONG |
 | 5 | shorter than 7 bytes | E_SHORT |
-| 6 | mode is not 01, 02 or 03 | E_MODE |
+| 6 | mode is not 01, 02, or 03 | E_MODE |
 | 7 | purpose byte is not the expected purpose's code | E_PURPOSE |
 | 8 | mode is not the purpose's mode | E_MODE |
 | 9 | N is not 0 (mode 02), or not 25 (modes 01, 03) | E_SCOPE |
 | 10 | shorter than 7 + N | E_SHORT |
 | 11 | a link ID byte outside the allowed set, no "-" after its kind letter, or another link ID than expected | E_SCOPE |
 | 12 | the link's kind is not one the purpose belongs to | E_KIND |
-| 13 | shorter than the header, the nonce and 17 bytes | E_SHORT |
+| 13 | shorter than the header, the nonce, and 17 bytes | E_SHORT |
 | 14 | modes 02, 03: epk does not start with 04 | E_POINT |
 | 15 | modes 02, 03, when a key ID is expected: another key ID | E_KID |
 
@@ -175,7 +175,7 @@ printable text, it is refused (E_TEXT), so the scripts can't be used to park rea
 against its own folder's name, so a message sealed for a link of the wrong kind is refused there too.
 
 Opening (the app, all modes; the browser, mode 01 only) then needs a private key for the key ID (E_KID), a valid point
-for epk (E_POINT), and a tag that verifies (E_AUTH). E_AUTH covers a wrong key, a wrong link, a changed header and
+for epk (E_POINT), and a tag that verifies (E_AUTH). E_AUTH covers a wrong key, a wrong link, a changed header, and
 changed ciphertext alike. Sealing refuses an unknown purpose, an ID that isn't a link ID (E_SCOPE), a link of a kind the
 purpose doesn't belong to (E_KIND), an empty or oversized plaintext, and a key of the wrong size or shape.
 
@@ -208,7 +208,7 @@ this format.
 
 A new version is a new magic, `LAS2`, and a new vectors file; there is no algorithm choice inside a version and no
 negotiation. A reader picks its code path from the magic and refuses what it does not know (E_VERSION). The app, the
-host's check and the pages learn a new version in one release, with the host scripts going up before the page that
+host's check, and the pages learn a new version in one release, with the host scripts going up before the page that
 seals with it. Stored envelopes are never rewritten in place: they are carried over as new files beside the old ones,
 checked, and the old ones removed last, as the 1.4 update did for the forms before this one. What would not fit LAS1
 without a new mode or version: anything sealed for more than one recipient at once (a new mode), large uploads (those

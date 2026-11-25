@@ -57,15 +57,34 @@ def build(entries, token, now=None, studio=""):
              "METHOD:PUBLISH", "X-WR-CALNAME:" + escape(cal_name(studio)), "REFRESH-INTERVAL;VALUE=DURATION:PT1H",
              "X-PUBLISHED-TTL:PT1H"]
     for e in entries:
-        start, end = e["start"], e["end"]
-        lines += ["BEGIN:VEVENT", "UID:" + uid(token, e["key"]), "DTSTAMP:" + _utc(now)]
-        if isinstance(start, datetime):
-            lines += ["DTSTART:" + _utc(start), "DTEND:" + _utc(end)]
-        else:
-            lines += ["DTSTART;VALUE=DATE:" + start.strftime("%Y%m%d"), "DTEND;VALUE=DATE:" + end.strftime("%Y%m%d")]
-        lines += ["SUMMARY:" + escape(e["summary"]), "STATUS:" + ("TENTATIVE" if e.get("tentative") else "CONFIRMED"),
-                  "TRANSP:OPAQUE", "CLASS:PRIVATE", "END:VEVENT"]
+        lines += vevent(e, uid(token, e["key"]), now)
     lines.append("END:VCALENDAR")
+    return "".join(fold(ln) + "\r\n" for ln in lines)
+
+def public(e):
+
+    start, end = e["start"], e["end"]
+    return dict(summary=str(e["summary"]), start=start, end=end, all_day=not isinstance(start, datetime),
+                tentative=bool(e.get("tentative")))
+
+def vevent(e, uid_, now):
+
+    p = public(e)
+    lines = ["BEGIN:VEVENT", "UID:" + uid_, "DTSTAMP:" + _utc(now)]
+    if not p["all_day"]:
+        lines += ["DTSTART:" + _utc(p["start"]), "DTEND:" + _utc(p["end"])]
+    else:
+        lines += ["DTSTART;VALUE=DATE:" + p["start"].strftime("%Y%m%d"),
+                  "DTEND;VALUE=DATE:" + p["end"].strftime("%Y%m%d")]
+    lines += ["SUMMARY:" + escape(p["summary"]), "STATUS:" + ("TENTATIVE" if p["tentative"] else "CONFIRMED"),
+              "TRANSP:OPAQUE", "CLASS:PRIVATE", "END:VEVENT"]
+    return lines
+
+def one_event(e, uid_, now=None, prodid="-//Lumen Aureum//Send to calendar//EN"):
+
+    now = now or datetime.now(timezone.utc)
+    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:" + prodid, "CALSCALE:GREGORIAN"] + vevent(e, uid_, now) + \
+        ["END:VCALENDAR"]
     return "".join(fold(ln) + "\r\n" for ln in lines)
 
 def entry(key, summary, day, hm, minutes, tz, tentative=False):

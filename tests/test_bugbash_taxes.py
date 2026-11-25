@@ -91,7 +91,7 @@ def test_finances_and_the_event_form_name_the_studios_own_tax(env):
     freeze("2026-03-10")
     post(c, "/setup/tax", taxes_posted="1", new_tax_name="VAT", new_tax_rate="20", new_tax_default="1")
     t_ = text(page(c, "/money?year=2026"))
-    assert "mileage and VAT" in t_ and "sales tax" not in t_.lower(), t_[:300]
+    assert "mileage, and VAT" in t_ and "sales tax" not in t_.lower(), t_[:300]
     c.post("/events", data={"name": "Team day", "date": "2026-04-01"}, environ_base=E)
     c.post("/event/1/billing", data={"billing": "families"}, environ_base=E)
     t_ = text(page(c, "/event/1"))

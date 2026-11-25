@@ -890,7 +890,7 @@ def solve_work(body, bits):
 def inquiry_php_source(salt, work=INQ_WORK, kid="", shared=False):
 
     if not re.fullmatch(r"[0-9a-f]{16,64}", salt or "") or not 0 <= int(work) <= 32 or not re.fullmatch(r"[0-9a-f]{16}", kid or ""):
-        raise ValueError("bad inquiry salt, work or key ID")
+        raise ValueError("bad inquiry salt, work, or key ID")
     src = (ASSETS / "inquiry.php").read_text()
     out = re.sub(r"(?m)^\$SALT = '[^'\n]*';", f"$SALT = '{salt}';", src, count=1)
     out = re.sub(r"(?m)^\$WORK = \d+;", f"$WORK = {int(work)};", out, count=1)
@@ -898,7 +898,7 @@ def inquiry_php_source(salt, work=INQ_WORK, kid="", shared=False):
     out = re.sub(r"(?m)^\$SHARED = \d;", f"$SHARED = {1 if shared else 0};", out, count=1)
     if out.count(f"$SALT = '{salt}';") != 1 or out.count(f"$WORK = {int(work)};") != 1 or out.count(f"$KID = '{kid}';") != 1 \
             or len(re.findall(r"(?m)^\$SHARED = [01];", out)) != 1:
-        raise ValueError("inquiry.php has no salt, work, key ID or proxy line")
+        raise ValueError("inquiry.php has no salt, work, key ID, or proxy line")
     return out
 
 def kid_hex(public_b64):
@@ -1230,7 +1230,7 @@ SETTINGS_PAGE = """{% extends "base.html" %}{% import "_ui.html" as ui with cont
     goes online is what is on the screen. Every other action here saves them first too, so none is lost. -#}
 <div data-ui-save-first="#words, #photos form[data-sp-desc], #sp-widget-sites">
 <form method="post" action="{{ url_for('studio_page_switch') }}" class="ui-sec f" style="max-width:720px" data-ui-autosave data-ui-autosave-reload>
-  <p style="font-size:13px;margin:0">A small public website in the look of your galleries: photos you pick, an About page and an inquiry form. It goes up only when you press Upload.{{ help("It goes to your web host, in the folder above your galleries, which stay as they are. No tracking, and nothing loaded from anywhere else.") }}</p>
+  <p style="font-size:13px;margin:0">A small public website in the look of your galleries: photos you pick, an About page, and an inquiry form. It goes up only when you press Upload.{{ help("It goes to your web host, in the folder above your galleries, which stay as they are. No tracking, and nothing loaded from anywhere else.") }}</p>
   <label class="row" style="gap:6px"><input type="checkbox" id="sp-use" name="use" value="1" data-no-keep {{ 'checked' if on }}>Use the studio page</label>
   <noscript><div><button class="ui-btn ui-btn-quiet">Save</button></div></noscript>
 </form>
@@ -1301,7 +1301,7 @@ SETTINGS_PAGE = """{% extends "base.html" %}{% import "_ui.html" as ui with cont
 
 <div class="ui-sec f" style="max-width:720px" id="icon">
   <h2 class="ui-sec-title">Icon</h2>
-  <p class="ui-mute" style="margin:0">The small picture a browser shows on the tab. A square PNG works best; ICO, GIF and JPEG are fine too.</p>
+  <p class="ui-mute" style="margin:0">The small picture a browser shows on the tab. A square PNG works best; ICO, GIF, and JPEG are fine too.</p>
   {% if favicon %}<div><img src="{{ url_for('studio_page_favicon_png') }}" alt="Your icon" width="32" height="32"></div>{% endif %}
   <form method="post" action="{{ url_for('studio_page_favicon') }}" enctype="multipart/form-data" class="ui-form-row">
     <input type="file" name="icon" accept="image/png,image/jpeg,image/gif,image/x-icon,image/vnd.microsoft.icon,.ico" required aria-label="Icon for the browser tab" style="width:auto"><button class="ui-btn ui-btn-quiet">Upload the icon</button></form>
@@ -1309,7 +1309,7 @@ SETTINGS_PAGE = """{% extends "base.html" %}{% import "_ui.html" as ui with cont
 </div>
 
 {#- backlog 260: the inquiry form in a frame on a website made elsewhere. Off to start with. -#}
-<div style="max-width:720px">{% call sui.section('Use the inquiry form on another website', id='widget', help_text="For a website you made elsewhere (Squarespace, WordPress, Showit and the like). Paste the code into a page there and it shows this inquiry form. The form itself comes from your web host, and what a visitor types is sealed in their browser before it leaves, so the other website can't read it. Inquiries arrive here just as they do from the Contact page.") %}
+<div style="max-width:720px">{% call sui.section('Use the inquiry form on another website', id='widget', help_text="For a website you made elsewhere (Squarespace, WordPress, Showit, and the like). Paste the code into a page there and it shows this inquiry form. The form itself comes from your web host, and what a visitor types is sealed in their browser before it leaves, so the other website can't read it. Inquiries arrive here just as they do from the Contact page.") %}
   <form method="post" action="{{ url_for('studio_page_widget') }}" id="sp-widget-on" data-ui-autosave data-ui-autosave-reload><input type="hidden" name="what" value="switch">
     {{ sui.switch('site_widget', 'Show the inquiry form on another website', widget.on, 'Gives you a short piece of code to paste into a page of that website.', id='sp-widget', autosave=true) }}
     <noscript>{{ sui.save_bar('sp-widget-on', 'Save', sticky=false) }}</noscript>
@@ -1862,6 +1862,7 @@ def register(ctx):
             used += 1
         if refused:
             _fs["notice"] = "Not added: " + "; ".join(refused[:6])
+            _fs["notice_refused"] = True
             _g.refused = not (len(ids) > len(refused))
         return redirect(url_for("studio_page", **({"from": sid} if s else {})) + "#photos")
 
@@ -1920,7 +1921,7 @@ def register(ctx):
         try:
             put_setting("site_favicon", base64.b64encode(clean_favicon(f.stream.read(8 * 1024 * 1024))).decode())
         except Exception:
-            _fs["notice"] = "That file isn't a picture that can be an icon (PNG, ICO, GIF or JPEG)."
+            _fs["notice"] = "That file isn't a picture that can be an icon (PNG, ICO, GIF, or JPEG)."
             _g.refused = True
         return redirect(back("#icon"))
 
@@ -1941,9 +1942,11 @@ def register(ctx):
         except Exception as e:
             app.logger.exception("studio page preview")
             _fs["notice"] = f"The preview couldn't be built: {e}"
+            _fs["notice_refused"] = True
             return redirect(back("#publish"))
         if skipped:
             _fs["notice"] = "Left out: " + "; ".join(f"{r['name']} ({why})" for r, why in skipped[:5])
+            _fs["notice_refused"] = True
         return redirect(url_for("studio_page_preview"))
 
     @app.get("/studio-page/preview/", endpoint="studio_page_preview")

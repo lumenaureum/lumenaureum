@@ -712,6 +712,7 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
         if msg:
             g_.refused = True
             fs_["notice"] = "Still signing in with the password, as the app's own key didn't work: " + msg
+            fs_["notice_refused"] = True
         else:
             write_storage(dict(cfg, gallery_host=new))
             conn_mark("gallery", True)
@@ -1121,6 +1122,8 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
         if which == "gallery" and not msg:
             check_host()
         fs["notice"] = f"Tested: it works." if not msg else f"The test failed: {msg}"
+        if msg:
+            fs["notice_refused"] = True
         back_ = request.form.get("back") or ""
         if not back_.startswith("/") or back_.startswith("//") or "\\" in back_:
             back_ = url_for("setup_step", step="galleries" if which == "gallery" else "storage")
@@ -1150,7 +1153,7 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
                            keep=False)
         if not msg and which == "primary" and c.get("type") == "local" and same_disk(c.get("path", ""), str(VW.CFG_PATH.parent)):
             return {"ok": False, "message": "Works, but it's on the same disk as your data: one failure loses both."}
-        return {"ok": not msg, "message": msg or "Connected: a test file was written, read back and removed."}
+        return {"ok": not msg, "message": msg or "Connected: a test file was written, read back, and removed."}
 
     def finish_items():
 
@@ -1299,7 +1302,7 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
                 if (prim.get("type") == "local" and sec.get("type") == "local" and not cfg.get("same_disk_ok")
                         and same_disk(prim.get("path", ""), sec.get("path", ""))):
                     return ("SAME-DISK: The second copy is on the same disk as the first: one failed disk would take both. "
-                            "Pick a folder on another disk, a drive you plug in, your NAS or cloud storage, or press Keep it anyway.")
+                            "Pick a folder on another disk, a drive you plug in, your NAS, or cloud storage. Or press Keep it anyway.")
                 cfg["secondary"] = sec
             else:
                 cfg.pop("secondary", None)
@@ -1342,7 +1345,7 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             if "deposit_word" in f:
                 w_ = f.get("deposit_word", "")
                 if " ".join(w_.split()) and not C.clean_deposit_word(w_) and " ".join(w_.split()).lower() != "deposit":
-                    return "Call the deposit: letters, spaces and hyphens only, up to 30."
+                    return "Call the deposit: letters, spaces, and hyphens only, up to 30."
                 put(deposit_word=C.clean_deposit_word(w_))
             save_rules(**kv)
             put(mileage_rate=rate, quote_term_days=term)
@@ -1435,6 +1438,7 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
                 if warn_:
                     from flask import session as fs_
                     fs_["notice"] = "Saved. " + warn_
+                    fs_["notice_refused"] = "warn"
             else:
                 from plugins.gallery import setup_off
                 setup_off(cfg)

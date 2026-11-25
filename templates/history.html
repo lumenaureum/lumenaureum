@@ -27,7 +27,7 @@
 {{ uf.filter_bar('history', today_iso, status=false, groups=[dict(key='kind', label='Kind', values=kinds_, order=kind_order)],
                  q=term, placeholder='Find words in the history', noun='history', server=true, keep=keep_bar_) }}
 
-{% set count_ %}<span data-f-count data-one="entry" data-many="entries">{{ n_ }} entr{{ 'y' if n_ == 1 else 'ies' }}</span>{{ help("Every change the app recorded, across all clients, newest first. A client's own History is on their page. Sign-ins, password changes and exports are in Settings, Security, Account activity.") }}{% endset %}
+{% set count_ %}<span data-f-count data-one="entry" data-many="entries">{{ n_ }} entr{{ 'y' if n_ == 1 else 'ies' }}</span>{{ help("Every change the app recorded, across all clients, newest first. A client's own History is on their page. Sign-ins, password changes, and exports are in Settings, Security, Account activity.") }}{% endset %}
 {% call ui.section(count_, id='studio-history') %}
 {% for m_ in months %}
   {% call ui.fold(m_.label, id='m-' ~ m_.key, open=loop.first, count=m_.rows|length) %}

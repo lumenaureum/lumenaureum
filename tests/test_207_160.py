@@ -355,7 +355,7 @@ def test_setup_says_what_a_static_host_cannot_do(env):
     A, c, tmp = env
     page = c.get("/setup/galleries", environ_base=E).get_data(as_text=True)
     m = re.search(r'<div class="be" data-be="gallery_s3"><div class="hint">([^<]*)', page)
-    assert m and "Galleries with a codeword, print orders and the inquiry form need a web host that runs PHP" in m.group(1)
+    assert m and "Galleries with a codeword, print orders, and the inquiry form need a web host that runs PHP" in m.group(1)
 
 def test_security_doc_names_every_method_and_why():
     text = open(os.path.join(ROOT, "docs", "security.md")).read()

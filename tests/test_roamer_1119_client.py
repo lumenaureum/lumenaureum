@@ -107,7 +107,8 @@ def test_a_draft_invoice_asks_before_email_issues_it(env):
     _booked(A)
     page = c.get("/session/1/invoice", environ_base=E).get_data(as_text=True)
     bar = page.split('<div class="bar">', 1)[1].split('<div class="page">', 1)[0]
-    assert ">Issue and email it</button>" in bar and 'data-confirm="Issue this invoice now?' in bar
+    assert ">Issue and email it</button>" in bar and ('data-confirm="Issue this invoice now?' in bar or
+                                                     'Issue this invoice and send it anyway?' in bar)
     assert ">Issue and download PDF</button>" in bar and ">Issue and print</button>" in bar
     assert "Draft, no number yet" in bar
     assert not _q(A, "SELECT 1 FROM doc_numbers WHERE session_id=1 AND kind='INV'")

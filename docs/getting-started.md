@@ -8,7 +8,7 @@ they are marked **Decide carefully**.
 ## What you need
 
 - **A computer you own that is always on:** a TrueNAS (install it from the app catalog), or any NAS or home server
-  that runs Docker on a 64-bit Intel, AMD or ARM processor. You use Lumen Aureum from a web browser on any computer in your home or studio. See
+  that runs Docker on a 64-bit Intel, AMD, or ARM processor. You use Lumen Aureum from a web browser on any computer in your home or studio. See
   [where-it-runs.md](where-it-runs.md) for installing it.
 - **A phone with an authenticator app**, for two-factor sign-in.
 - **Somewhere for backups**: a second disk, a share on another machine, or an SFTP or S3 account. Setup checks it.
@@ -40,7 +40,7 @@ email, password, and two-factor (an authenticator app), then your **master key**
 manager and print it. You also get recovery codes to print.
 The first person to finish this step owns the install; the setup page closes to everyone else.
 
-Your client records, settings, backups and uploaded photos are encrypted, and your password is what unlocks them; see
+Your client records, settings, backups, and uploaded photos are encrypted, and your password is what unlocks them; see
 [Security](security.md).
 The master key, with a code the app writes to your data folder, lets you set a new password if the password is ever
 lost, and it is the only way to open a backup.
@@ -54,7 +54,7 @@ The key is checked in memory and forgotten; only the date of the check is kept. 
 
 ### 2. Your business
 - Your name, the business name that appears on contracts and invoices, and a brand name if it is different.
-- Business email, phone and mailing address, printed on your documents. Your website, if you add one in Settings,
+- Business email, phone, and mailing address, printed on your documents. Your website, if you add one in Settings,
   is linked from your client galleries. On a web host that runs PHP, the client's
   picks come back to the app by themselves. On any other host, the client's picks arrive by email at this address: paste
   the email on the client page with "Paste their picks email" (on the Gallery block) and the app records them.
@@ -62,7 +62,7 @@ The key is checked in memory and forgotten; only the date of the check is kept. 
   place names a US state and ZIP (Moab, UT 84532) gets that place's times, in its local time; any other shoot says
   the times are for home.
 
-**Decide carefully: time zone.** Every due date, shoot time and deadline is stored in it.
+**Decide carefully: time zone.** Every due date, shoot time, and deadline is stored in it.
 
 ### 3. Backups
 - **Backups**: a folder on this machine or a mounted share (the usual choice), a drive you plug in, your NAS, cloud
@@ -72,7 +72,7 @@ The key is checked in memory and forgotten; only the date of the check is kept. 
 - **Second copy, in another place** (optional): it receives a copy once a day. Plug in a drive, choose your NAS, or
   pick cloud storage.
 - Choosing a provider by name fills in what is certain about it and says, in two lines, where its control panel shows
-  the rest. Port, sign-in key file, region, folder prefix and bucket addressing wait under **Advanced**; the app tries
+  the rest. Port, sign-in key file, region, folder prefix, and bucket addressing wait under **Advanced**; the app tries
   both ways of addressing a bucket itself and keeps the one your storage answers.
 - **Daily backup time.**
 - **Test and continue** tests each location (write, read, delete) before it is accepted; nothing is saved unless it
@@ -94,7 +94,7 @@ photos folder.
 pick storage you expect to keep.
 
 ### 4. What you shoot (optional)
-Choose the session types you offer. Each starts with a workflow, a length and starter prices; set your own prices.
+Choose the session types you offer. Each starts with a workflow, a length, and starter prices; set your own prices.
 You get only the types you check. With none checked, you keep the types you already have (from an imported settings
 file, say), or start with portraits, families, and group events.
 The starter prices print **SAMPLE** until you approve them, the same as the starter wording (step 7). Each approved
@@ -107,14 +107,14 @@ the session, on delivery, or after an invoice), payment methods, reschedule fee,
 travel and mileage. The payment terms name the business checks are made out to (your business name from step 2).
 These answers apply to every session type they cover, weddings included. A type's own deposit
 (Settings, What you shoot) is used only once you change it on that type's page. Once setup is done, this page
-also lets you call the deposit something else, such as retainer or booking fee: quotes, agreements, invoices and
+also lets you call the deposit something else, such as retainer or booking fee: quotes, agreements, invoices, and
 your pages then use your word.
 A type's page can also split the balance after the deposit into installments: equal payments, one a month on the
 booking's day of the month, the last on the day the balance is due (spread evenly when there are fewer months than payments).
 The dates are kept once the session is booked: moving the shoot date later does not move them unless you set them again
 on the plan. A reschedule fee, if you add one, goes on the last payment. A session billed on another session's quote
 (an engagement on the wedding's) has its fee added to that quote.
-A plan has at most 4 payments; a plan set before that limit keeps its schedule. The agreement, the quote and the invoice
+A plan has at most 4 payments; a plan set before that limit keeps its schedule. The agreement, the quote, and the invoice
 list the dated amounts under the balance. One session can have its own plan: **Pay in installments** on its Billing.
 A plan changed on a type's page or in its walkthrough reaches only sessions whose quote is not sent yet; the others keep the plan they had.
 Changes apply to new quotes; a quote already sent keeps the terms it was sent with.
@@ -147,7 +147,7 @@ or **Me (license)** (you keep the copyright and the client gets a license). This
 already signed keep theirs. Then **which law applies**, which fills the "The law of ___ applies" line in the
 agreement (for example, Oregon).
 
-The agreement, photo release, delivery document, invoice, receipt and price list are filled in from your answers.
+The agreement, photo release, delivery document, invoice, receipt, and price list are filled in from your answers.
 Every client document prints **SAMPLE** (supplied example wording) until you review it, and you can do that where
 you are about to use it. A SAMPLE document opened from a client's page has **Approve this wording** and **Edit the
 wording**: the editor opens in the same window, and after Save you carry on sending from there. A quote on starter
@@ -158,12 +158,12 @@ not a review. Once reviewed, a document stays reviewed ("Revert to default" puts
 wording back, marked SAMPLE); a session type given its own wording is reviewed on its own. A settings file never
 brings reviews with it.
 
-The agreement, release and other documents that come with Lumen Aureum are examples only. They are not legal advice, and the makers of Lumen Aureum make no promise that they suit your business or hold up where you work. Read them, change them for your business and the laws where you work, and have a lawyer review them before you use them. You are responsible for the documents you give your clients.
+The agreement, release, and other documents that come with Lumen Aureum are examples only. They are not legal advice, and the makers of Lumen Aureum make no promise that they suit your business or hold up where you work. Read them, change them for your business and the laws where you work, and have a lawyer review them before you use them. You are responsible for the documents you give your clients.
 
 Signed documents keep the wording they were signed with.
 
 ### 8. Online galleries (optional)
-**Where are your galleries hosted?** DreamHost, SiteGround or Bluehost (what is certain about each is filled in,
+**Where are your galleries hosted?** DreamHost, SiteGround, or Bluehost (what is certain about each is filled in,
 and two lines say where its control panel shows the rest), a web server at home (a folder a web server on this
 machine serves), or something else: another web host's login (SFTP), or cloud storage with a public web address.
 Then **Where your galleries live online**: the folder's public web address. The port and a mounted key file wait
@@ -212,7 +212,7 @@ behind a router or VPN can share one address, so it may be the router's rather t
 local network; do not expose it to the internet.
 
 ## After a restart
-Lumen Aureum always starts **locked**: your data stays encrypted until you sign in. Backups, gallery checks and
+Lumen Aureum always starts **locked**: your data stays encrypted until you sign in. Backups, gallery checks, and
 scheduled deletions wait until then. On a web host that runs PHP and keeps gallery files behind the gallery's gate,
 galleries still expire on time; on other hosts they come down once you sign in. If the machine restarts on its own,
 for example after a system update, sign in once to unlock. To hear about it when you are away, turn on the
@@ -237,7 +237,7 @@ address) and **Spam**. Filed under an existing client, the message stays theirs:
 when, and History says "Inquiry from Riley Carter, filed under Grant Family". When the sender isn't a person on that
 client yet, **Add Riley Carter to this client as a contact** (ticked) keeps their email and phone. Filed under the
 wrong client? On that client's page, under Details and history, **Move to another client** or **Make it a new client**
-(the sender becomes a client of their own) takes the session, the message and the contact added at filing with it,
+(the sender becomes a client of their own) takes the session, the message, and the contact added at filing with it,
 with a line in History on both clients. It can move while it is an Inquiry or Quoted with nothing issued and no
 payment recorded; otherwise the page says why not. The count beside Today in the menu bar is the number of unread
 Inbox items.
@@ -258,7 +258,7 @@ has the same filters.
 Each client has one page. The top says who they are and where things stand. The first block is what needs you now,
 with each action on the thing it acts on (Reply on their message, Record payment on the balance), and a row's other
 actions in its **More** menu. A row names the step ("Agreement") and its button the action ("Send the agreement"). **Details and history**, folded at the bottom, holds the details forms, the less used
-actions and History. A (?) beside a word opens a short explanation of it. A session moves through Inquiry, Quoted, Booked, Shot, Delivered and Closed as the work happens:
+actions, and History. A (?) beside a word opens a short explanation of it. A session moves through Inquiry, Quoted, Booked, Shot, Delivered, and Closed as the work happens:
 
 - **Inquiry.** Their message reads like an email: who, how it came, the date and time, the preferred date, then their
   words. The actions are **Reply**, **Build a quote** and **Do not book**; **Book without a quote** is under Details and history.
@@ -276,7 +276,7 @@ actions and History. A (?) beside a word opens a short explanation of it. A sess
   stays on file and the new quote needs a fresh signature, and the session stays Booked with "New quote waiting for
   their OK" at the top until you press Book it again. A step the client does waits on them only after you send it;
   until then the row is yours: **Send the agreement**, **Send the deposit invoice**. **Send the session sheet** gives
-  the client the when, where and what to bring. A missing date, start time or place is its own row, with **Set date, time
+  the client the when, where, and what to bring. A missing date, start time, or place is its own row, with **Set date, time,
   and place**; later, tap the date at the top to change it. The session's length comes from the quote.
 - **Rescheduled.** A booked date that moves counts as a reschedule. The type's free reschedule asks nothing. After
   that, Billing asks once per reschedule: **Add the $50.00 fee** (a line on the balance, taxed like any other, never discounted) or **Waive it**.
@@ -286,7 +286,7 @@ actions and History. A (?) beside a word opens a short explanation of it. A sess
   shoot is still open, such as an unsigned agreement, the app lists what is open and asks before moving. **Skip to**
   the next stage (under Details and history) asks the same way.
 - **Shot.** Anything left from before the shoot comes first, then Upload original photos, Cull, Upload edited photos, Build gallery, the
-  invoice, the balance and the delivery. An unpaid deposit folds into the balance, but a proofing gallery still waits
+  invoice, the balance, and the delivery. An unpaid deposit folds into the balance, but a proofing gallery still waits
   for it (below).
 - **Delivered** when the client's picks arrive. **Closed** by itself once every step is done and nothing is owed
   either way: the balance paid or waived, retouched photos sent, files delivered. **Reopen** brings it back.
@@ -303,7 +303,7 @@ Doing a later step settles the earlier ones it covers, and a step whose fact is 
    under More, closes it after a warning that a copy made outside the app isn't encrypted by it.
 3. Cull and edit on your computer. The **Photos** section on the client's page is one line of what is in (such as
    "RAWs 812 files, 18.4 GB, sealed"), then the latest upload as up to 12 thumbnails, newest first (RAWs by their own
-   preview, JPEG, PNG and GIF files as themselves, anything else as a file icon with its name); tap one to see it large,
+   preview, JPEG, PNG, and GIF files as themselves, anything else as a file icon with its name); tap one to see it large,
    fitted to the window, with previous and next. **+ N more from this upload** opens the rest one at a time.
    **Find a file** shows only the files whose name matches what you type. The x on a thumbnail deletes that file in
    place, after asking. Tick the box on any thumbnails for **Delete the N selected**; **Delete this upload** deletes the
@@ -324,11 +324,11 @@ signs the one document still waiting; when several people still have to sign, it
 instead. A signed document keeps the wording it was signed with.
 
 **Email it** on a document opens a draft in your mail app, addressed to the client, with the document's key facts: an
-invoice's number, total, what it is for, what is paid so far and how to pay; a receipt's number and total; a quote's
+invoice's number, total, what it is for, what is paid so far, and how to pay; a receipt's number and total; a quote's
 total and the day it is good through. A mail link can't attach a file, and the draft never says anything is attached:
 download the PDF and attach it, if you like. **Text it** sends the same first line.
 
-Names written in Chinese, Japanese or Korean print on every PDF. The font that draws them (Droid Sans Fallback) has
+Names written in Chinese, Japanese, or Korean print on every PDF. The font that draws them (Droid Sans Fallback) has
 one weight, so where a document prints a name in bold, those characters print at regular weight.
 
 ## Galleries: proofing or delivery
@@ -422,10 +422,10 @@ everything recorded.
   receipts). A session type's page gets a **Packing list**; booked sessions of that type show it in The shoot, to tick
   off on the shoot day.
 - **Crew and call sheets.** A booked session shows a **Crew** fold in The shoot. **Add someone new to the crew** (a
-  name, and if you like a role, phone, email and call time) puts them on the session and on **Your crew list**; anyone
+  name, and if you like a role, phone, email, and call time) puts them on the session and on **Your crew list**; anyone
   on the list is added with **Add to this session**. **Pay** with their first name adds what you paid them as an
   ordinary expense on that session, and nothing more: there is no payroll. **Show the call sheet** opens one page for
-  the crew, to print or download as a PDF: the date and start, the places, each person's call time, role and contact,
+  the crew, to print or download as a PDF: the date and start, the places, each person's call time, role, and contact,
   a wedding's timeline, and your **Notes for the crew**. The client's phone and email are on it only when you tick
   **Put the client's phone and email on the call sheet** for that session. The app never sends the call sheet: you
   print it or share the PDF. The crew list is kept in the encrypted database and its backups, not in the settings file.
@@ -454,7 +454,7 @@ can still be dated in December. In January, Finances says "2026 is open through 
 it, for closing it sooner once everything is in (it asks first, and can't be undone). On February 1 the year closes on
 its own. From January 25, Today reminds you to enter last year's money first.
 
-Nothing more can be dated in a closed year, and its payments and expenses can't be voided, restored or removed, so its
+Nothing more can be dated in a closed year, and its payments and expenses can't be voided, restored, or removed, so its
 figures stay as they are. Instead:
 - **Correct**, on the payment's or expense's row, asks what the amount should have been and why, and records the
   difference as a new entry in the open year, naming the one it corrects. Finances lists these under **Corrections to
@@ -472,7 +472,7 @@ shows the name and where they stand.
 
 Labels, **Check in** (a short mail draft to a past client) and **End contact** are on the client's page. Labels are
 your words for a client; they are part of what a client gets if they ask for their data, and never show on a
-document, a gallery or an email.
+document, a gallery, or an email.
 
 On the month calendar, tap a day to see its shoots and steps, under the month on a phone and beside it
 on a wider screen. A crowded day shows the first few and
@@ -483,7 +483,7 @@ view and its free Saturdays count only bookings and penciled dates.
 Settings, Calendar link, **Turn on the calendar link** makes a private link your phone's calendar app can subscribe
 to (on an iPhone, Add Subscribed Calendar, among the calendar accounts in the phone's Settings; on Android, an app
 that subscribes to calendar links, such as ICSx5). **Subscribe on this device** does it in one tap where the phone offers it. Each
-session shows as its type, day, start time and length, and nothing else: never a name, a place or a note. A
+session shows as its type, day, start time, and length, and nothing else: never a name, a place, or a note. A
 penciled date shows as tentative. It is off until you turn it on.
 
 The phone reaches the link only where it can reach the studio itself: on your home network, or a private network you

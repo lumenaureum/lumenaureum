@@ -84,6 +84,19 @@ app.jinja_env.filters["todo"] = lambda label: todo_word(label)
 app.jinja_env.globals["plan_head_label"] = lambda sid: plan_head_label(sid)
 app.jinja_env.filters["stage_index"] = lambda st: C.STAGES.index(st)
 app.jinja_env.globals["setting"] = lambda k, d="": setting(k, d)
+APP_THEMES = ("dark", "light", "auto")
+
+def app_theme():
+
+    if not datakey.is_unlocked():
+        return "dark"
+    try:
+        v_ = setting("app_theme")
+    except Exception:
+        return "dark"
+    return v_ if v_ in APP_THEMES else "dark"
+
+app.jinja_env.globals["app_theme"] = app_theme
 app.jinja_env.globals["books_open_from"] = lambda: books_open_from()
 app.jinja_env.globals["year_closed"] = lambda y_: year_closed(y_)
 app.jinja_env.globals["correction_words"] = lambda t_, r_: correction_words(t_, r_)
@@ -554,6 +567,8 @@ class PluginContext:
         self.couple_of = lambda hid_, type_: couple_of(hid_, type_)
         self.client_people = lambda hid_, type_, email=False: client_people(hid_, type_, email)
 
+        self.calendar_entries = lambda: calendar_feed_entries()
+
     @staticmethod
     def csp(extra=""):
 
@@ -573,10 +588,10 @@ class PluginContext:
         UNLOCK_HOOKS.append(fn)
         return fn
 
-    def switchable(self, default=False, label="", about="", before_off=None, when_on=None, links=()):
+    def switchable(self, default=False, label="", about="", before_off=None, when_on=None, links=(), on_off=None):
 
         SWITCHES[self.name] = dict(default=default, label=label or self.name, about=about, before_off=before_off,
-                                   when_on=when_on, links=list(links))
+                                   when_on=when_on, links=list(links), on_off=on_off)
 
     def active(self):
         return plugin_on(self.name)
@@ -1168,6 +1183,7 @@ def globals_():
 
         from flask import session as _fs
         g.refill = _fs.pop("refill", None)
+
         g.notice_refused = _fs.pop("notice_refused", None)
         return _fs.pop("notice", None)
 
@@ -1591,6 +1607,7 @@ def portfolio_set(sid):
     x("UPDATE sessions SET portfolio_no=? WHERE id=?", (1 if want == "declined" else 0, sid))
     if s_now["stage"] in ("delivered", "closed") or (totals(sid)["due"] <= 0.005 and totals(sid)["paid"] > 0):
         session["notice"] = "Recorded. The photos were already delivered (or paid in full), so the discount stays, as the agreement says."
+        session["notice_refused"] = "warn"
         return redirect(safe_back(request.form.get("back")) or stage_url(sid) + "#billing")
     had_ = q("SELECT COALESCE(SUM(amount),0) v FROM lines WHERE session_id=? AND kind='portfolio'", (sid,), one=True)["v"]
     _reapply_portfolio(sid, force=True)
@@ -2617,7 +2634,6 @@ def session_reschedule_fee(sid):
                              + (f" of {plan_head_label(sid)}." if on_plan else "."))
     elif request.form.get("act") == "waive":
         audit(f"Waived the reschedule fee, {money(fee)}, for reschedule {n_}", sid=sid)
-        session["notice"] = "Waived. Nothing was added."
     else:
         abort(400)
     x("UPDATE sessions SET resched_settled=COALESCE(resched_settled, 0) + 1 WHERE id=?", (sid,))
@@ -3504,6 +3520,7 @@ def session_signers(sid):
             x("DELETE FROM documents WHERE session_id=? AND kind='release' AND about_person=? AND status != 'signed'", (sid, pid))
     if kept_signed:
         session["notice"] = f"{oxford(kept_signed)} already signed, so they stay on the agreement."
+        session["notice_refused"] = True
     audit("Who signs the agreement: " + oxford(allowed[p_] for p_ in want), sid=sid)
     return redirect(back)
 
@@ -4615,8 +4632,8 @@ def build_actions(only_sid=None):
         if missing_ and s["date_tentative"] and s["shoot_date"] and s["shoot_date"] <= t.isoformat():
             missing_ = []
         if missing_:
-            acts.append(dict(who=who, what="Set the shoot date, time and place", detail=", ".join(missing_).capitalize(),
-                             when=None, stage=s["stage"], verb="Set date, time and place", form="date_set", sid=s["id"],
+            acts.append(dict(who=who, what="Set the shoot date, time, and place", detail=", ".join(missing_).capitalize(),
+                             when=None, stage=s["stage"], verb="Set date, time, and place", form="date_set", sid=s["id"],
                              prefill=True, where=focus_place(s), shoot_facts=True,
 
                              shoot_date=s["shoot_date"], start_time=s["start_time"], date_tentative=s["date_tentative"],
@@ -5078,6 +5095,7 @@ def start_time_in(v, keep=""):
     v = (v or "").strip()[:5]
     if v in ("00:00", "0:00"):
         session["notice"] = "A midnight start looks like a slip, so no time was saved. For noon, pick 12:00 PM."
+        session["notice_refused"] = True
         return keep if keep not in ("00:00",) else ""
     return v if re.fullmatch(r"\d{1,2}:\d{2}", v) else ""
 
@@ -5156,6 +5174,12 @@ def quick(sid):
             x("UPDATE sessions SET date_tentative=0 WHERE id=?", (sid,))
         elif f.get("tentative_shown"):
             x("UPDATE sessions SET date_tentative=? WHERE id=?", (1 if f.get("tentative") else 0, sid))
+
+        n_ = q("SELECT shoot_date, start_time FROM sessions WHERE id=?", (sid,), one=True)
+        if n_ and n_["shoot_date"]:
+            when_ = nice(n_["shoot_date"]) + (f", {clock(n_['start_time'])}" if n_["start_time"] else "")
+            session["notice"] = (f"Moved to {when_}." if s["shoot_date"] and s["shoot_date"][:10] != n_["shoot_date"][:10]
+                                 else f"Set: {when_}.")
 
         date_moved(sid, s["shoot_date"], was_tentative=s["date_tentative"] or not s["start_time"])
         schedule_tasks(sid, fair=True)
@@ -6910,12 +6934,10 @@ def client_label(hid):
     q("SELECT 1 FROM households WHERE id=?", (hid,), one=True) or abort(404)
     if request.form.get("remove"):
         x("DELETE FROM client_labels WHERE household_id=? AND label=?", (hid, request.form["remove"]))
-        session["notice"] = f'Took the label "{request.form["remove"]}" off.'
     else:
         lab_ = label_clean(request.form.get("label"))
         if lab_:
             x("INSERT OR IGNORE INTO client_labels (household_id, label) VALUES (?,?)", (hid, lab_))
-            session["notice"] = f'Labeled "{lab_}".'
     return redirect(safe_back(request.form.get("back")) or url_for("client_view", hid=hid) + "#labels")
 
 @app.post("/settings/labels")
@@ -6963,7 +6985,6 @@ def client_end_contact(hid):
     q("SELECT 1 FROM households WHERE id=?", (hid,), one=True) or abort(404)
     if request.form.get("end") == "0":
         x("DELETE FROM client_end_contact WHERE household_id=?", (hid,))
-        session["notice"] = "Back in mailings and check-ins."
     else:
         x("INSERT OR IGNORE INTO client_end_contact (household_id, since) VALUES (?,?)", (hid, today().isoformat()))
         session["notice"] = "Ended contact: left out of mailings and check-ins."
@@ -7289,6 +7310,7 @@ def _draft_or_gone(token):
     d_ = _import_draft(token)
     if d_ is None:
         session["notice"] = "That file is no longer open here (an import waits an hour at most). Pick it again."
+        session["notice_refused"] = True
     return d_
 
 @app.get("/clients/import/<token>")
@@ -7311,14 +7333,12 @@ def clients_import_columns(token):
     keys_ = set(CC.FIELD_LABELS)
     d_["mapping"] = [v_ if v_ in keys_ else CC.LEAVE_OUT
                      for v_ in (request.form.get(f"col{i}", CC.LEAVE_OUT) for i in range(len(d_["header"])))]
-    session["notice"] = "Preview updated."
     return redirect(url_for("clients_import_check", token=token) + "#preview")
 
 @app.post("/clients/import/<token>/cancel")
 def clients_import_cancel(token):
     with _IMPORT_LOCK:
         _IMPORT_DRAFTS.pop(token, None)
-    session["notice"] = "Import canceled. Nothing was added or changed."
     return redirect(url_for("clients"))
 
 @app.post("/clients/import/<token>/confirm")
@@ -7921,6 +7941,7 @@ def set_delivery_method(sid, new):
     said = signed_delivery_differs(sid)
     if said:
         session["notice"] = f"The signed agreement says you deliver the photos {said}. Tell the client, or have it signed again."
+        session["notice_refused"] = "warn"
 
 def signed_delivery_differs(sid):
 
@@ -8025,7 +8046,6 @@ def quote_license(sid):
     if quote_locked(sid):
         return _refuse(QUOTE_LOCKED, back)
     _save_license(sid, request.form)
-    session["notice"] = "License terms saved"
     return redirect(back)
 
 RESCHEDULE_REOPENS = ("Send session details", "Confirm time and place")
@@ -8053,6 +8073,7 @@ def date_moved(sid, old, was_tentative=False):
     if resched_fees_open(sid) and has_request_context():
         session["notice"] = ((session.get("notice") or "") + " The Terms charge a reschedule fee for this one: add it "
                              "or waive it under Billing.").strip()
+        session["notice_refused"] = "warn"
 
 def releases_follow_subjects(sid, added, removed=()):
 
@@ -8217,6 +8238,7 @@ def session_delivery(sid):
         new_cw = " ".join((f.get("gallery_codeword") or "").split())[:60]
         if g_ and g_["cw_fixed"]:
             session["notice"] = "The gallery is already online, so its codeword stays as it is: the link you sent keeps working."
+            session["notice_refused"] = True
         else:
             x("UPDATE sessions SET gallery_codeword=? WHERE id=?", (new_cw, sid))
     x("""UPDATE sessions SET gallery_built=?, letter_mailed=?, first_visit=?, extension_used=?, sd_shipped=?,
@@ -9082,7 +9104,7 @@ def money_add(sid):
         if kind == "tip_back":
             return _tip_back(sid, f, back)
         if kind not in PAYMENT_KINDS:
-            return _refuse("Choose what the payment is: deposit, balance, tip, refund or other. Nothing was recorded.", back)
+            return _refuse("Choose what the payment is: deposit, balance, tip, refund, or other. Nothing was recorded.", back)
         try:
             amt = amount_in(f["amount"])
         except TooMuch:
@@ -9117,6 +9139,7 @@ def money_add(sid):
                 session["notice"] = (f"Recorded. That's {money(-t2_['due'])} more than the balance, so the session now "
                                      f"shows a {money(-t2_['due'])} credit to give back or put toward something else. If the client said to keep "
                                      f"it, void it and record the balance and the extra as a Tip.")
+                session["notice_refused"] = "warn"
             paying_means_yes(sid)
     elif what == "expense":
         refused_ = add_expense(sid, f)
@@ -10068,10 +10091,12 @@ def photo_download(fid):
     except StopIteration:
         first = b""
     except FileNotFoundError:
+        session["notice_refused"] = True
         session["notice"] = (f"{row['name']} isn't in the photos folder yet. After a restore, the app copies photos back "
                              "from the backup location on its next pass (within the hour, while unlocked); try again then.")
         return redirect(stage_url(row["session_id"]))
     except Exception:
+        session["notice_refused"] = True
         session["notice"] = (f"{row['name']} won't open with the key this database has. If you restored a backup made "
                              "before a key rotation, run `python -m vault.cli relink-photos` with your master key (see "
                              "Operations in the docs), then try again.")
@@ -10081,6 +10106,7 @@ def photo_download(fid):
             photostore.verify(row)
         except Exception as e:
             app.logger.error("Photo %s did not check out: %s", fid, e or type(e).__name__)
+            session["notice_refused"] = True
             session["notice"] = (f"{row['name']} is damaged in the photos folder and can't be downloaded. Upload it "
                                  "again from your own copy, or restore it from a backup.")
             return redirect(stage_url(row["session_id"]))
@@ -10681,6 +10707,7 @@ def contact_email(sid):
     who = household_contact(q("SELECT * FROM people WHERE household_id=? ORDER BY id", (s_["household_id"],)))
     if not who or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", em):
         session["notice"] = "That doesn't look like an email address." if who else "Add a grown-up to this client first."
+        session["notice_refused"] = True
     elif (who["email"] or "").strip():
         session["notice"] = (f"{who['name']} already has an email on file ({who['email']}), added since this page was "
                              "opened, so it wasn't changed. To change it, edit it on the client page.")
@@ -11536,7 +11563,8 @@ def plugins_settings():
 
             x("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
               (f"plugin_off_n_{name}", str(int(setting(f"plugin_off_n_{name}") or 0) + 1)))
-        session["notice"] = f"{sw['label']} turned {'on' if on else 'off'}."
+            if sw.get("on_off"):
+                sw["on_off"]()
         return redirect(safe_back(request.form.get("back")) or url_for("plugins_settings"))
     return render_template_string(PLUGINS_PAGE, rows=_plugin_rows(), ask=ask, plugin_errors=PLUGIN_ERRORS)
 
@@ -11606,6 +11634,8 @@ def bill_issue(sid, kind):
         then = request.form.get("then")
         if then in BILL_THEN:
             session["doc_then"] = then
+            if then == "email" and request.form.get("sample_ok"):
+                session["doc_sample_ok"] = True
     return redirect(url_for(kind, sid=sid))
 
 def _on_plan_v(sid, v):
@@ -11634,6 +11664,7 @@ def _bill_page(sid, receipt):
                    ["There is nothing to pay for this session."] if free_ else ["It is paid in full. Thank you."])
         lines_ = [l_ for l_ in lines_ if l_]
     then = session.pop("doc_then", None) if v["number"] else None
+    sample_ok = session.pop("doc_sample_ok", None) if then == "email" else None
     send_ = send_ctx(sid, "receipt" if receipt else "invoice", f"{word} {v['number']}" if v["number"] else word, lines_)
     if not receipt and not send_.get("task"):
         st_ = q("SELECT stage FROM sessions WHERE id=?", (sid,), one=True)
@@ -11643,7 +11674,7 @@ def _bill_page(sid, receipt):
                 send_["sent"] = send_.get("sent") or (nice(n_["issued"]) if n_ and n_["issued"] else "")
             elif totals(sid)["deposit_short"] > 0.005:
                 send_["mark_url"] = url_for("deposit_invoice_sent", sid=sid)
-    return render_template("invoice.html", v=v, then=then, notice=session.pop("notice", None), send=send_)
+    return render_template("invoice.html", v=v, then=then, sample_ok=sample_ok, notice=session.pop("notice", None), send=send_)
 
 @app.get("/session/<int:sid>/invoice")
 def invoice(sid):
@@ -11963,7 +11994,7 @@ def agreement(sid):
                     [f"Your session agreement for {_for_what(a.get('type_label'), a.get('shoot_date_long'))}"
                      + (f": {money(a['total'])}" if a.get("total") else "")
                      + (f", with a {money(a['deposit'])} deposit to hold the date" if a.get("deposit") else "") + "."
-                     + ("" if not a.get("unsigned") else " Please read it, sign it and send it back.")])
+                     + ("" if not a.get("unsigned") else " Please read it, sign it, and send it back.")])
     _doc_sent_state(send, sid, "agreement")
     rows_, _ = agreement_signers(sid)
     pending = [dict(did=r_["id"], name=r_["pname"] or "") for r_ in rows_ if r_["status"] != "signed"]
@@ -12277,7 +12308,7 @@ def event_billing(eid):
     fam_ = [r_["id"] for r_ in q("SELECT id FROM sessions WHERE event_id=? AND stage != 'lost'", (eid,))] \
         if now_ and now_ != was_ and was_ == "families" else []
     if any(_billed_on(sid_, signed=False) or quote_locked(sid_) for sid_ in fam_):
-        return _refuse(f"Some {event_nouns(e)[1]} have already paid, been invoiced or booked their quote. Refund or "
+        return _refuse(f"Some {event_nouns(e)[1]} have already paid, been invoiced, or booked their quote. Refund or "
                        "void that on their pages first. Nothing was changed.", back_)
     if now_:
         x("UPDATE events SET billing=? WHERE id=?", (now_, eid))
@@ -12330,8 +12361,8 @@ def event_billing(eid):
                 x("UPDATE sessions SET household_id=? WHERE id=?", (hid, ps_["id"]))
             else:
                 audit("Organizer changed; the billing session stays with the previous organizer (a quote, payments, "
-                      "signatures, an invoice or charges recorded)", sid=ps_["id"])
-                session["notice"] = ("The billing session stays with the previous organizer: a quote, invoice, signature or "
+                      "signatures, an invoice, or charges recorded)", sid=ps_["id"])
+                session["notice"] = ("The billing session stays with the previous organizer: a quote, invoice, signature, or "
                                      "payment of theirs is on it. To bill the new organizer instead, void and reissue there, "
                                      "or bill them separately.")
         if not ps_:
@@ -12988,11 +13019,15 @@ def settings_view():
                 raw_, v = v, _sio.clean_site(v)
                 if v is None:
                     session["notice"] = f"The website wasn't saved: {_sio.site_problem(raw_)}. Everything else was saved."
+                    session["notice_refused"] = True
+                    session["refill"] = request.path
                     _field_refused(k, f"Not saved: {_sio.site_problem(raw_)}.")
                     continue
             if k == "gallery_base_url" and v.strip() and not v.strip().startswith("https://"):
                 session["notice"] = ("The gallery address wasn't saved: it must start with https://. Clients' browsers"
                                      " open the encrypted photos only over https.")
+                session["notice_refused"] = True
+                session["refill"] = request.path
                 continue
             x("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
               (k, v))
@@ -13001,11 +13036,13 @@ def settings_view():
                 warn_ = _ns.only_here_words(v)
                 if warn_:
                     session["notice"] = "Saved. " + warn_
+                    session["notice_refused"] = "warn"
         term = request.form.get("quote_term_days", "")
         if term.isdigit() and 1 <= int(term) <= 365:
             x("INSERT INTO settings (key, value) VALUES ('quote_term_days',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (term,))
         elif term:
             session["notice"] = "Quotes good for wasn't saved: it is a number of days from 1 to 365."
+            session["notice_refused"] = True
 
         main_ = request.form.get("main_posted")
         if main_ or request.form.get("credit_posted"):
@@ -13019,6 +13056,7 @@ def settings_view():
                 x("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (k_, v_))
             elif v_:
                 session["notice"] = f"That number wasn't saved: it must be a whole number from {lo_} to {hi_}."
+                session["notice_refused"] = True
                 _field_refused(k_, f"Not saved: a whole number from {lo_} to {hi_}.")
         if main_ or request.form.get("clients_posted"):
             am = request.form.get("age_majority", "")
@@ -13034,6 +13072,7 @@ def settings_view():
                     v_ = -1
                 if not 0 <= v_ <= 25:
                     session["notice"] = "Sales tax rates are percentages between 0 and 25. That rate wasn't saved."
+                    session["notice_refused"] = True
                     continue
                 x("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                   (k, request.form.get(k, "").strip()))
@@ -13102,6 +13141,17 @@ def settings_view():
                            fees=current_schedule(), term=quote_term(), taxes_=taxes_list(), reviews=review_rows() if request.args.get("tab") == "documents" else [],
                            versions=q("SELECT id, created FROM fee_schedules ORDER BY id DESC LIMIT 8"))
 
+@app.post("/settings/appearance", endpoint="appearance_settings")
+def appearance_settings():
+
+    v_ = request.form.get("app_theme", "")
+    if v_ in APP_THEMES:
+        _put_setting("app_theme", v_)
+        return redirect(url_for("settings_view", tab="appearance", saved="appearance-form") + "#save-appearance-form")
+    session["notice"] = "Not saved: pick Dark, Light, or Match this device."
+    g.refused = True
+    return redirect(url_for("settings_view", tab="appearance"))
+
 GALLERY_FONTS_DIR = ROOT / "plugins" / "gallery_assets" / "fonts"
 
 @app.get("/settings/gallery-font/<name>.woff2")
@@ -13141,7 +13191,7 @@ def brand_font_upload():
             try:
                 got[key_] = _sio.clean_font(f_.stream.read(_sio.FONT_MAX + 1))
             except Exception:
-                session["notice"] = "That file isn't a font that can be used (WOFF2, WOFF, TTF or OTF, up to 2 MB)."
+                session["notice"] = "That file isn't a font that can be used (WOFF2, WOFF, TTF, or OTF, up to 2 MB)."
                 g.refused = True
                 return redirect(back_)
     if not got:
@@ -13268,8 +13318,6 @@ def logo_upload():
     x("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
       (key_, base64.b64encode(buf.getvalue()).decode()))
     audit("Uploaded " + ("the logo for dark gallery backgrounds" if dark else "a logo for the documents"))
-    if dark:
-        session["notice"] = "Logo for dark backgrounds uploaded."
     return redirect(back_)
 
 def _plugin_settings(con):
@@ -13600,6 +13648,7 @@ def wording_edit_here(doc):
     key = f"{doc}_text"
     if not text.strip():
         session["notice"] = "The wording can't be empty: nothing was saved."
+        session["notice_refused"] = True
         return redirect(safe_back(request.form.get("back")) or url_for("wording_edit", doc=doc, type=stype or None))
     if t_:
         t_[key] = text
@@ -13889,8 +13938,14 @@ def served_page_changed():
     fn_ = app.config.get("gallery_served_changed")
     return sorted((fn_() or {}).keys()) if callable(fn_) else []
 
+def calendar_send_failing():
+
+    fn_ = app.config.get("calendar_send_failing")
+    return bool(fn_()) if callable(fn_) else False
+
 STATUS_PROBLEMS = {"storage": storage_problem, "closing": galleries_closing_tomorrow, "update": update_installed,
-                   "served": served_page_changed, "cred": lambda: setting(inboxnotice.KEY_CRED_AT)}
+                   "served": served_page_changed, "calendar": calendar_send_failing,
+                   "cred": lambda: setting(inboxnotice.KEY_CRED_AT)}
 
 def _connection_alerts():
 
@@ -13991,7 +14046,7 @@ def type_edit(key):
 
     types = [dict(t) for t in C.TYPES]
     t = next((t_ for t_ in types if t_["key"] == key), None) or abort(404)
-    if request.method == "GET" and not type_walked(key, t):
+    if request.method == "GET" and not type_walked(key, t) and not request.args.get("all"):
 
         return redirect(url_for("type_walk", key=key, n=0))
     kind_flow = C.KINDS[t["kind"]]["flow"]
@@ -14117,7 +14172,6 @@ def type_steps_reset(key):
     _save_rules(TYPES=types)
     _sync_type_sessions(key)
     audit(f"Reset the steps for {t['label']} to the defaults")
-    session["notice"] = f"{t['label']} has the default steps again."
     return redirect(safe_back(request.form.get("back")) or url_for("type_edit", key=key))
 
 def _parse_questions(text, current):
@@ -14280,7 +14334,7 @@ def _wipe_after_backup(saved):
     con.execute("VACUUM")
     return saved
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 MIGRATIONS = {}
 
 def _migrate_2(con):
@@ -14345,6 +14399,11 @@ def _migrate_9(con):
     pass
 
 MIGRATIONS[9] = _migrate_9
+
+def _migrate_10(con):
+    pass
+
+MIGRATIONS[10] = _migrate_10
 
 class SchemaTooNew(RuntimeError):
     pass
@@ -14955,15 +15014,21 @@ STATUS_SWITCHES = {
     "closing": ("gallery closing", "You'll get a notice in the morning when a gallery closes the next day: never "
                                    "which, or how many."),
     "update": ("update", "You'll get a notice when your studio is updated to a new version."),
+    "calendar": ("calendar", "You'll get a notice when sessions can't be sent to your calendar for an hour or more: "
+                             "at most one a day while it lasts."),
     "served": ("gallery page", "You'll get a notice when a gallery page on your web host is not the one your studio "
                                "put there: at most one a day while it lasts."),
-    "cred": ("sign-in change", "You'll get a notice when your password, master key or recovery codes change."),
+    "cred": ("sign-in change", "You'll get a notice when your password, master key, or recovery codes change."),
 }
 
 def _public_ntfy_note(server):
 
-    return (" This is the public ntfy server, where anyone who learns the topic can read the notices: a private server "
-            "of your own is safer." if locknotice.public_server(server) else "")
+    if not locknotice.public_server(server):
+        return ""
+    words_ = (" This is the public ntfy server, where anyone who learns the topic can read the notices: a private "
+              "server of your own is safer.")
+    session["notice_refused"] = "warn"
+    return words_
 
 @app.post("/security/notice")
 def security_notice():
@@ -14979,7 +15044,7 @@ def security_notice():
                 why = f"The test notice couldn't be sent to the new server ({sent_}), so the one in use now stays."
         if why:
             session["notice"] = why
-            g.notice_refused = True
+            session["notice_refused"] = True
             if f.get("replace"):
                 return redirect(url_for("settings_view", tab="notifications", replace="ntfy") + "#notice")
         else:
@@ -15004,7 +15069,7 @@ def security_notice():
             why = locknotice.check(server, topic)
             if why:
                 session["notice"] = why
-                g.notice_refused = True
+                session["notice_refused"] = True
                 return redirect(url_for("settings_view", tab="notifications") + "#notice")
             token = "" if f.get("drop_token") else ((f.get("token") or "").strip() or (v or {}).get("token", ""))
             v = dict(server=server, topic=topic, token=token)
@@ -15016,6 +15081,7 @@ def security_notice():
             if server or topic:
                 session["ntfy_typed"] = dict(server=server, topic=topic)
             session["notice"] = f"The test notice couldn't be sent: {why}."
+            session["notice_refused"] = True
         elif (server or topic) and ntfy_settings() != v:
 
             mark_ = app.config.get("conn_mark")
@@ -15039,8 +15105,9 @@ def security_notice():
             _put_setting(inboxnotice.KEY_ON, "1" if on_ else "0")
             x("DELETE FROM settings WHERE key=?", (inboxnotice.KEY_STATE,))
             audit("Turned on the studio inbox notice" if on_ else "Turned off the studio inbox notice")
-        session["notice"] = ("You'll get a notice when something new comes in: never what or how many, at most one "
-                             f"every {inboxnotice.QUIET.seconds // 60} minutes." if on_ else "The studio inbox notice is off.")
+        if on_:
+            session["notice"] = ("You'll get a notice when something new comes in: never what or how many, at most "
+                                 f"one every {inboxnotice.QUIET.seconds // 60} minutes.")
     elif act == "backup":
 
         on_ = bool(f.get("backup_on")) and bool(ntfy_settings())
@@ -15048,8 +15115,9 @@ def security_notice():
             _put_setting(inboxnotice.KEY_BACKUP_ON, "1" if on_ else "0")
             x("DELETE FROM settings WHERE key=?", (inboxnotice.KEY_BACKUP_STATE,))
             audit("Turned on the backup notice" if on_ else "Turned off the backup notice")
-        session["notice"] = ("You'll get a notice when a backup fails or none has worked for over a day: at most one a "
-                             "day while it lasts." if on_ else "The backup notice is off.")
+        if on_:
+            session["notice"] = ("You'll get a notice when a backup fails or none has worked for over a day: at most "
+                                 "one a day while it lasts.")
     elif act in STATUS_SWITCHES:
 
         name_, said_ = STATUS_SWITCHES[act]
@@ -15063,7 +15131,8 @@ def security_notice():
             if seed_:
                 _put_setting(key_state_, seed_)
             audit(f"Turned on the {name_} notice" if on_ else f"Turned off the {name_} notice")
-        session["notice"] = said_ if on_ else f"The {name_} notice is off."
+        if on_:
+            session["notice"] = said_
     elif act == "remove":
         inboxnotice.keep_for_newmaster(db(), ntfy_settings())
         for k_ in NTFY_KEYS + (inboxnotice.KEY_ON, inboxnotice.KEY_STATE, inboxnotice.KEY_CRED_AT) + tuple(
@@ -15093,7 +15162,7 @@ def calendar_feed_entries():
         if lead_ and not penciled(s):
             continue
         tentative_ = lead_ or bool(s["date_tentative"])
-        label_ = C.SESSION_TYPES.get(s["type"], "Session") + (" (penciled)" if lead_ else
+        label_ = C.doc_label(s["type"]) + (" (penciled)" if lead_ else
                                                                " (date not final)" if s["date_tentative"] else "")
         e_ = calfeed.entry(("s", s["id"]), label_, s["shoot_date"], s["start_time"], session_minutes(s["id"], s["type"]),
                            TZ, tentative=tentative_)
@@ -15150,7 +15219,7 @@ def calendar_link_settings():
 
     act_, had_ = request.form.get("act"), bool(setting(calfeed.KEY_TOKEN))
     if act_ == "on" and had_:
-        session["notice"] = "The calendar link is already on."
+        pass
     elif act_ in ("on", "new"):
         _put_setting(calfeed.KEY_TOKEN, calfeed.new_token())
         if act_ == "new" and had_:
@@ -15158,12 +15227,10 @@ def calendar_link_settings():
             session["notice"] = "New link made. The old one stopped working: subscribe again on each phone."
         else:
             audit("Turned on the calendar link")
-            session["notice"] = "The calendar link is on. Subscribe to it on your phone."
     elif act_ == "off":
         if had_:
             x("DELETE FROM settings WHERE key=?", (calfeed.KEY_TOKEN,))
             audit("Turned off the calendar link")
-        session["notice"] = "The calendar link is off. Phones subscribed to it get nothing new."
     return redirect(url_for("settings_view", tab="calendar") + "#calendar-link")
 
 def _after_locked_start():

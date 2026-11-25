@@ -43,8 +43,9 @@ def test_a_draft_invoice_emails_through_issue_and_keeps_issue_under_more(tmp_pat
     bar = _bar(_page(c, f"/session/{sid}/invoice"))
     primary = bar.split('class="ui-more"', 1)[0]
 
-    assert re.search(r'name="then" value="email"><button class="ui-btn ui-btn-primary"[^>]*>Issue and email it<', primary)
-    assert "Issue this invoice now?" in primary
+    assert re.search(r'name="then" value="email">(?:<input type="hidden" name="sample_ok" value="1">)?'
+                     r'<button class="ui-btn ui-btn-primary"[^>]*>Issue and email it<', primary)
+    assert "Issue this invoice now?" in primary or "Issue this invoice and send it anyway?" in primary
     more = bar.split('class="ui-more-pop"', 1)[1]
     assert "Issue this invoice" in more and 'value="download"' in more and 'value="print"' in more
 

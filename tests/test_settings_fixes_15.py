@@ -323,7 +323,7 @@ def test_the_idle_warning_is_full_width_and_opaque(browser, env, width):
     ctx, p = _tab(browser, c, width)
     try:
         p.goto(BASE + "/security")
-        p.evaluate("document.querySelector('[data-idle-warn]').hidden = false")
+        p.evaluate("document.querySelector('[data-idle-warn]').showModal()")
         p.wait_for_timeout(50)
         box = p.locator("[data-idle-warn]").bounding_box()
         st = p.evaluate("getComputedStyle(document.querySelector('[data-idle-warn]')).opacity")

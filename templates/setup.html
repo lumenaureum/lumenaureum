@@ -185,7 +185,7 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
   <table class="r rs"><tbody>
     <tr><td><label for="f-deposit">Deposit to hold a date</label>{{ help("Asked for when the client books. A session type can have its own deposit, on its page under What you shoot.") }}</td><td><span class="pre">$</span><input type="number" id="f-deposit" name="deposit" min="0" value="{{ fv('deposit', rules.DEPOSIT_AMOUNT) }}"></td></tr>
     <tr><td><label for="f-event_pct">Deposit for {{ (C.setup_pct_types() + ['events'])|join(' and ')|lower if C.setup_pct_types() else 'events' }}</label></td><td><span class="pre"></span><input type="number" id="f-event_pct" name="event_pct" min="0" max="100" value="{{ fv('event_pct', rules.EVENT_DEPOSIT_PCT) }}">% of the price</td></tr>
-    {% if complete %}<tr><td><label for="f-deposit_word">Call the deposit</label>{{ help("The word your quotes, agreements, invoices and pages use for the deposit, such as retainer or booking fee. Leave it empty for deposit.") }}</td><td><span class="pre"></span><input id="f-deposit_word" name="deposit_word" maxlength="30" value="{{ fv('deposit_word', get('deposit_word')) }}" placeholder="deposit"></td></tr>{% endif %}
+    {% if complete %}<tr><td><label for="f-deposit_word">Call the deposit</label>{{ help("The word your quotes, agreements, invoices, and pages use for the deposit, such as retainer or booking fee. Leave it empty for deposit.") }}</td><td><span class="pre"></span><input id="f-deposit_word" name="deposit_word" maxlength="30" value="{{ fv('deposit_word', get('deposit_word')) }}" placeholder="deposit"></td></tr>{% endif %}
   </tbody></table>
   <label class="l" id="bal-l">Balance due{{ help("Before the session: due a set number of days ahead. On delivery: photos are released on payment. After (invoice): due a set number of days after the invoice.") }}</label>
   <table class="r rs"><tbody>{% for t, lab in types.items() %}{% set b_ = fv('bal_' ~ t, 'before' if t in rules.BEFORE_TYPES else ('after' if t in rules.NET_TERMS_TYPES else 'delivery')) %}
@@ -207,7 +207,7 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
   <label class="l" id="pay-methods">Ways clients can pay</label>
   <div class="checks">{% for m in pay_choices %}<label class="choice"><input type="checkbox" name="pay_{{ m }}" value="1"{{ ' checked' if fc('pay_' ~ m, m in rules.PAYMENT_METHODS) }}><span>{{ m|capitalize }}</span></label>{% endfor %}</div>
   <label class="l" for="f-pay_other">Other ways, separated by commas (optional)</label><input id="f-pay_other" name="pay_other" placeholder="e.g. Venmo, gift card" value="{{ fv('pay_other', rules.PAYMENT_METHODS|reject('in', pay_choices)|join(', ')) }}">
-  {% if complete %}<label class="l" for="f-pay_details">Where clients pay you{{ help("Printed after the ways to pay on quotes, agreements and invoices. For example: Venmo @yourname. Card: your payment link. Check your state's rules before adding a card fee.") }}</label><input id="f-pay_details" name="pay_details" maxlength="200" value="{{ fv('pay_details', get('pay_details')) }}" placeholder="Venmo @yourname. Card: your payment link">
+  {% if complete %}<label class="l" for="f-pay_details">Where clients pay you{{ help("Printed after the ways to pay on quotes, agreements, and invoices. For example: Venmo @yourname. Card: your payment link. Check your state's rules before adding a card fee.") }}</label><input id="f-pay_details" name="pay_details" maxlength="200" value="{{ fv('pay_details', get('pay_details')) }}" placeholder="Venmo @yourname. Card: your payment link">
   <label class="l" for="f-bank_details">Bank details for transfers, printed on invoices</label><textarea id="f-bank_details" name="bank_details" rows="2" maxlength="300">{{ fv('bank_details', get('bank_details')) }}</textarea>{% endif %}
   <h2 class="ui-sec-title sui-step-sec" id="travel">Travel</h2>
   <table class="r rs"><tbody>
@@ -237,12 +237,12 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
 
 {% elif step == 'shoot' %}{% import "_ui.html" as ui with context %}
   {% if complete %}<h2 class="ui-sec-title sui-step-sec">Your session types</h2>
-  <div class="sui-types">{% for k_, l_ in types.items() %}{{ ui.list_row(url_for('type_edit', key=k_), l_, 'steps, intake and terms', lead=ui.type_mark(k_, 'ui-type-nav')) }}{% endfor %}</div>
+  <div class="sui-types">{% for k_, l_ in types.items() %}{{ ui.list_row(url_for('type_edit', key=k_), l_, 'steps, intake, and terms', lead=ui.type_mark(k_, 'ui-type-nav')) }}{% endfor %}</div>
   <h2 class="ui-sec-title sui-step-sec" id="types">Add or remove a type</h2>{% endif %}
   <div class="checks"{% if not complete %} id="types"{% endif %}>{% for k, pr in presets.items() %}<label class="choice"><input type="checkbox" name="preset_{{ k }}" value="1"{{ ' checked' if fc('preset_' ~ k, k in chosen) }}><span>{{ pr.label }}</span></label>{% endfor %}</div>
   {% if custom %}<label class="l">Yours</label>
   <div class="checks">{% for t in custom %}<label class="choice"><input type="checkbox" name="keep_{{ t.key }}" value="1"{{ ' checked' if fc('keep_' ~ t.key, true) }}><span>{{ t.label }}</span></label>{% endfor %}</div>{% endif %}
-  <div class="hint">Check every kind you shoot. You can change this later.{{ help("With none checked, you keep the kinds you already have, or start with portraits, families and group events.") }}</div>
+  <div class="hint">Check every kind you shoot. You can change this later.{{ help("With none checked, you keep the kinds you already have, or start with portraits, families, and group events.") }}</div>
 
 {% elif step == 'documents' %}
   <label class="l" id="rights-l">Who owns the photos once paid{{ help("Me (license): you keep the copyright and your client gets a lasting license to print, share, and post the photos. Client: the copyright becomes theirs once the balance is paid, and you keep only your portfolio permission. Group-event families always receive a personal-use license. Applies to new sessions; documents already signed keep theirs.") }}</label>
@@ -252,7 +252,7 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
       <label><input type="radio" name="rights_{{ t }}" value="license"{{ ' checked' if fv('rights_' ~ t, 'license' if t in rules.LICENSE_TYPES else 'transfer') == 'license' }}><span>Me (license)</span></label></span></td></tr>{% endfor %}
   </tbody></table>
   <label class="l" for="f-governing_law">Which law applies to your agreements{{ help("Fills the 'which law applies' line in your agreement: \"The law of ___ applies.\" For example: Oregon. Left blank, it reads \"the place where I do business\".") }}</label><input id="f-governing_law" name="governing_law" maxlength="200" placeholder="State or country, e.g. Oregon" value="{{ fv('governing_law', get('governing_law')) }}">
-  <div class="hint" style="margin-top:14px">Your documents print as SAMPLE until you approve them. Approve each one right where you use it: a quote, agreement or release still marked SAMPLE offers Approve, and says what approving means.</div>
+  <div class="hint" style="margin-top:14px">Your documents print as SAMPLE until you approve them. Approve each one right where you use it: a quote, agreement, or release still marked SAMPLE offers Approve, and says what approving means.</div>
   <p style="font-size:13px;border-left:3px solid var(--gold);padding:4px 10px;margin-top:6px">{{ DOC_DISCLAIMER }}</p>
 
 {% elif step == 'galleries' %}{% import "_ui.html" as ui with context %}
@@ -270,14 +270,14 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
   <div class="ui-btnrow"><button type="submit" class="ui-btn ui-btn-quiet" formaction="{{ url_for('setup_gallery_app_key') }}" formnovalidate>Switch to the app's own key</button></div></div>{% endif %}
   {% if no_cw_check and gallery_saved.get('type') == 's3' %}{{ sui.no_cw_check(no_cw_check, 'formaction="' ~ url_for('setup_codewords_off') ~ '" formnovalidate', cw_confirm, choose_href=replace_url('gallery')) }}{% endif %}
   {% else %}
-  <p style="font-size:13px;margin:0 0 10px">Clients see, pick and download their photos in online galleries. Each gallery is built here, sealed so only someone
+  <p style="font-size:13px;margin:0 0 10px">Clients see, pick, and download their photos in online galleries. Each gallery is built here, sealed so only someone
   with the client's link can open it, and copied to your web host. Enter the details your web host gave you{{ '.' if replace_ else ', or choose No online galleries for now.' }}</p>
   {% if replace_ %}<div class="sui-replace-head"><b>Replace the web host</b><a class="ui-go" href="{{ url_for('setup_step', step=step) }}">Cancel</a></div>
   <p class="hint">The web host in use now stays in use until the new one passes its test.</p>{% endif %}
   {% set p = 'gallery_' %}{% set cur = {'type': gallery.get('type', '')} if replace_ and request.method != 'POST' else gallery %}
   
   {% set gt_ = fv('gallery_type', (provider_of(cur) or cur.type) if cur.get('type') else '') %}
-  <label class="l" for="f-gallery_type">Where are your galleries hosted?{{ help("Your web host is where your galleries, client links and studio page are published.") }}</label>
+  <label class="l" for="f-gallery_type">Where are your galleries hosted?{{ help("Your web host is where your galleries, client links, and studio page are published.") }}</label>
   <select id="f-gallery_type" name="gallery_type" data-be-select="gallery_">{% if not replace_ %}<option value="">No online galleries for now</option>{% endif %}
     {% for k_ in gallery_hosts %}{{ opt(k_, providers[k_].name, gt_) }}{% endfor %}
     {{ opt('local', 'A web server at home', gt_) }}
@@ -300,7 +300,7 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
     {% endcall %}
     {{ trustbox(p, cur) }}</div>
   {{ s3_fields(p, cur) }}
-  <div class="be" data-be="gallery_s3"><div class="hint">A static website: Lumen Aureum takes each gallery down on its last day, and clients send their picks by email. Galleries with a codeword, print orders and the inquiry form need a web host that runs PHP.{{ help("Every photo is sealed in this app before it goes up, so the bucket only ever holds files nobody can open without the client's link. What a static website can't do is run the small scripts that ask for the key before handing out a file, close a gallery on its own, or take picks, orders and inquiries back. A codeword is only safe behind those scripts: without them, someone holding the link could try codewords as fast as their computer allows, so a gallery with a codeword is refused here, with the reason on its client page.") }}</div>
+  <div class="be" data-be="gallery_s3"><div class="hint">A static website: Lumen Aureum takes each gallery down on its last day, and clients send their picks by email. Galleries with a codeword, print orders, and the inquiry form need a web host that runs PHP.{{ help("Every photo is sealed in this app before it goes up, so the bucket only ever holds files nobody can open without the client's link. What a static website can't do is run the small scripts that ask for the key before handing out a file, close a gallery on its own, or take picks, orders, and inquiries back. A codeword is only safe behind those scripts: without them, someone holding the link could try codewords as fast as their computer allows, so a gallery with a codeword is refused here, with the reason on its client page.") }}</div>
     {% if no_cw_check %}{{ sui.no_cw_check(no_cw_check, 'name="s3_codewords_off" value="1"', cw_confirm, choose_pick='gallery_type=sftp') }}{% endif %}</div>
   <div class="be" data-be="gallery_any">
     <label class="l" for="f-gallery_base_url">Where your galleries live online <b class="hardtag">hard to change later</b>{{ help("The web address of that folder. It must start with https://, so the web server needs a certificate. It is printed in every QR letter you mail. Letters already sent keep pointing at the old address.") }}</label><input id="f-gallery_base_url" name="gallery_base_url" placeholder="e.g. https://example.com/g/" value="{{ fv('gallery_base_url', '' if replace_ and request.method != 'POST' else get('gallery_base_url')) }}">
@@ -387,7 +387,7 @@ table.r td .pre { display: inline-block; width: 14px; color: var(--mute); text-a
   {% elif not (step == 'network' and complete) %}<div class="sbar">
     {% if not required and not complete %}<button name="skip" value="1" class="quiet" formnovalidate>Use the defaults</button>{% endif %}
     <span class="fill"></span>
-    {% if step in ('storage', 'galleries') and not (scard_ or gcard_) %}{{ help(("Each location" if step == 'storage' else "The web host") ~ " is tested first: a small file is written, read back and removed. Nothing is saved unless it works.") }}{% endif %}<button class="primary">{% if step in ('storage', 'galleries') and (scard_ or gcard_) %}Save{% elif step in ('storage', 'galleries') %}{{ 'Test and save' if complete else 'Test and continue' }}{% else %}{{ 'Save' if complete else ('Finish' if step == 'network' else 'Next') }}{% endif %}</button>
+    {% if step in ('storage', 'galleries') and not (scard_ or gcard_) %}{{ help(("Each location" if step == 'storage' else "The web host") ~ " is tested first: a small file is written, read back, and removed. Nothing is saved unless it works.") }}{% endif %}<button class="primary">{% if step in ('storage', 'galleries') and (scard_ or gcard_) %}Save{% elif step in ('storage', 'galleries') %}{{ 'Test and save' if complete else 'Test and continue' }}{% else %}{{ 'Save' if complete else ('Finish' if step == 'network' else 'Next') }}{% endif %}</button>
     
     {% if step == 'galleries' %}{{ sui.unsaved() }}{% endif %}
   </div>{% endif %}

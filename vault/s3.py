@@ -319,7 +319,7 @@ class Client:
             self.host = self._aws_host()
         addressing = (addressing or "auto").lower()
         if addressing not in ("auto", "path", "virtual"):
-            raise ValueError("Addressing is auto, path or virtual.")
+            raise ValueError("Addressing is auto, path, or virtual.")
         if addressing == "auto":
             addressing = "virtual" if (self.aws and _dns_bucket(self.bucket) and "." not in self.bucket) else "path"
         self.addressing = addressing

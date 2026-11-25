@@ -68,7 +68,7 @@ of 15 done") moves everything over:
 - A gallery not online (never uploaded, taken down, gone dark) just takes its new ID here. A gone-dark gallery's page
   stays at its old address and comes down with it.
 - Each gallery online gets a new folder beside its old one, on the same host: this version's page and scripts, its
-  photos and Download all pieces as they are online, its days, first-visit stamp, codeword and one-time download. The
+  photos and Download all pieces as they are online, its days, first-visit stamp, codeword, and one-time download. The
   app then opens it the way a client would; only if that works does the gallery take its new address. Its old folder
   then stops taking anything, gets a small page that sends the browser on to the new folder (the key in the client's
   link comes along), and what the client sent there (picks, a draft, a print order) is read and carried over before
@@ -87,7 +87,7 @@ update; restore the upgrade backup instead.
 Images are signed. To check one before running it:
 `cosign verify ghcr.io/lumenaureum/lumenaureum:<version> --certificate-identity-regexp 'https://github.com/lumenaureum/lumenaureum/' --certificate-oidc-issuer https://token.actions.githubusercontent.com`
 
-From 1.4.0, each image also carries two signed records made by the release build: how it was built (this repository, its release workflow and the exact commit) and a list of everything inside it (an SPDX software bill of materials). To check both with the GitHub command-line tool:
+From 1.4.0, each image also carries two signed records made by the release build: how it was built (this repository, its release workflow, and the exact commit) and a list of everything inside it (an SPDX software bill of materials). To check both with the GitHub command-line tool:
 `gh attestation verify oci://ghcr.io/lumenaureum/lumenaureum:<version> --owner lumenaureum`
 (add `--predicate-type https://spdx.dev/Document/v2.3` to check the list of contents).
 
@@ -120,14 +120,14 @@ check the clients list and the next invoice number.)
 
 Going back is always this restore because each version that changes the database updates it at the first sign-in (1.0.1 turned refunds recorded the 1.0.0 way into credits; 1.1 added the gallery draft fields; 1.1.1
 keeps a copy of each issued invoice and receipt; 1.2 marks the data as using download galleries; 1.3 keeps each payment's sales tax and each statement charge as recorded; 1.5 adds tables for client labels, End
-contact, replaced quotes and the studio page's kept files, and applies the new stage rules once; 1.6 adds tables and columns an earlier version would ignore), and an earlier
+contact, replaced quotes, and the studio page's kept files, and applies the new stage rules once; 1.6 adds tables and columns an earlier version would ignore), and an earlier
 version refuses the updated database or reads only part of it. Anything
 entered after the upgrade is not in that backup: before rolling back, look through each client's History and the
 audit log for what changed since, and note it. A rollback cannot undo a leak: if you rolled back because of a security
 problem, also follow "If you suspect a compromise".
 
 ## Restoring a backup
-Each nightly backup holds your data (the database, with clients, money and settings), the key that opens it, your
+Each nightly backup holds your data (the database, with clients, money, and settings), the key that opens it, your
 settings as a separate file, and your storage settings (where backups go and how to sign in there).
 Keep a copy of your `compose.yaml`. Uploaded photos are not in the nightly backup (they are large). Instead each one
 is mirrored, still encrypted, to your second backup location (or the vault when there is none): one copy, kept while
@@ -378,7 +378,7 @@ This template is one of the documents that come with Lumen Aureum: see the notic
 This template is one of the documents that come with Lumen Aureum: see the notice under
 [Example documents](../README.md#example-documents).
 
-> **How I keep your information.** I keep your contact details, session details, agreements and photos to do your
+> **How I keep your information.** I keep your contact details, session details, agreements, and photos to do your
 > session and deliver your photos. I keep them encrypted on equipment I own. No online service stores them. Your online
 > gallery is encrypted; only the link in your letter opens it, and it is removed [N] days after you first open it.
 > I keep your original photo files for one year after delivery, then delete them; you can ask me to delete them
@@ -389,5 +389,5 @@ This template is one of the documents that come with Lumen Aureum: see the notic
 > Contact: [your details].
 
 ## Who can do what
-Lumen Aureum has one owner account. Keep your master key, password manager and recovery codes where someone you trust
+Lumen Aureum has one owner account. Keep your master key, password manager, and recovery codes where someone you trust
 could reach them if you can't (an executor, a business partner), with instructions; there is no other way in.

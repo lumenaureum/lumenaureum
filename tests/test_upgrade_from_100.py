@@ -76,7 +76,7 @@ def test_the_fixture_is_a_1_0_0_database():
 
 def test_upgrade_takes_a_backup_and_reaches_the_current_version(upgraded):
     A, c, taken, _ = upgraded
-    assert A.SCHEMA_VERSION == 9
+    assert A.SCHEMA_VERSION == 10
     assert taken == ["upgrade"]
     assert _q(A, "PRAGMA user_version")[0][0] == A.SCHEMA_VERSION
 

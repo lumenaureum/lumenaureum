@@ -25,6 +25,7 @@ EXPECTED = json.loads((FIXTURE / "expected.json").read_text())
 SIDE_FILES = ("keyring.json", "deletions.json", "doc-numbers.json", "ntfy.json")
 E = {"REMOTE_ADDR": "127.0.0.1"}
 V150_SCHEMA = 9
+NOW = 10
 DIRS = ("galleries", "galleries-kept", "host", "web", "photos", "faces")
 HOST, EARLIER = EXPECTED["hosts"]["current"], EXPECTED["hosts"]["earlier"][0]
 BY = EXPECTED["sessions_by_name"]
@@ -200,7 +201,7 @@ def test_this_sqlcipher_opens_it_with_the_same_settings(upgraded):
     con.close()
     assert (tmp_path / "crm.db").read_bytes()[:16] != b"SQLite format 3\x00"
 
-def test_the_schema_stays_9_with_one_upgrade_backup(tmp_path, monkeypatch):
+def test_the_schema_moves_to_10_after_one_upgrade_backup(tmp_path, monkeypatch):
 
     import about
     now = about.version()
@@ -208,8 +209,8 @@ def test_the_schema_stays_9_with_one_upgrade_backup(tmp_path, monkeypatch):
         now = "1.6.0"
     _place(tmp_path)
     A, c, taken = _open(tmp_path, monkeypatch, version=now)
-    assert A.SCHEMA_VERSION == V150_SCHEMA
-    assert _q(A, "PRAGMA user_version")[0][0] == V150_SCHEMA
+    assert A.SCHEMA_VERSION == NOW
+    assert _q(A, "PRAGMA user_version")[0][0] == NOW
     assert taken == ["upgrade"] and SCHEMA_AT_BACKUP == [V150_SCHEMA]
 
 def test_today_says_once_that_it_was_updated(tmp_path, monkeypatch):
@@ -1054,7 +1055,7 @@ def _pinned_schema():
 
     import sqlite3
     import schema_pin
-    path = schema_pin.pinned_path(V150_SCHEMA)
+    path = schema_pin.pinned_path(NOW)
     con = sqlite3.connect(":memory:")
     try:
         indexes = {}
@@ -1082,7 +1083,7 @@ def test_the_database_has_every_table_and_column_of_a_fresh_install(upgraded):
     import re as _re
     import schema_pin
     A, c, taken, _ = upgraded
-    assert _q(A, "PRAGMA user_version")[0][0] == A.SCHEMA_VERSION == V150_SCHEMA
+    assert _q(A, "PRAGMA user_version")[0][0] == A.SCHEMA_VERSION == NOW
     assert schema_pin.pinned_path(A.SCHEMA_VERSION).exists()
     want_cols, want_idx = _pinned_schema()
     con = A.connect()

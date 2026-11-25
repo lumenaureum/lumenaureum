@@ -176,7 +176,7 @@ def test_dark_logo_upload_keeps_the_client_galleries_choices(env):
            for k in ("gallery_font", "gallery_bg", "proof_mark", "proof_mark_text", "proof_mark_strength", "logo_dark_png")}
     assert got["gallery_bg"] == "#262422" and got["gallery_font"] == "script" and got["proof_mark_text"] == "Sample"
     assert base64.b64decode(got["logo_dark_png"])[:4] == b"\x89PNG"
-    assert "Logo for dark backgrounds uploaded." in c.get("/settings", environ_base=E).get_data(as_text=True)
+    assert "Remove the dark logo" in c.get("/settings?tab=branding", environ_base=E).get_data(as_text=True)
 
 def test_today_card_keeps_the_name_and_puts_the_hint_on_its_own_line(env):
     A, c, G, tmp, src = env

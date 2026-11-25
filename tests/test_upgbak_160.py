@@ -37,9 +37,11 @@ def _watch_backups(monkeypatch, seen):
         return [NAME]
     monkeypatch.setattr(B, "sealed_backup", backup)
 
-def _open_154(tmp_path, monkeypatch, version):
+def _open_154(tmp_path, monkeypatch, version, schema=None):
     _env(tmp_path, monkeypatch, version)
     import app as A
+    if schema is not None:
+        monkeypatch.setattr(A, "SCHEMA_VERSION", schema)
     _same_places(monkeypatch, A, tmp_path)
     seen = []
     _watch_backups(monkeypatch, seen)
@@ -85,8 +87,9 @@ def test_backups_lists_it_as_upgrade_with_the_version_it_came_from(tmp_path, mon
     assert "<b>Before the update</b> from 1.5.4" in page
 
 def test_the_same_version_takes_none(tmp_path, monkeypatch):
+
     _place(tmp_path)
-    A, c, seen = _open_154(tmp_path, monkeypatch, "1.5.4")
+    A, c, seen = _open_154(tmp_path, monkeypatch, "1.5.4", schema=9)
     assert seen == []
 
 def test_a_fresh_install_takes_none_and_later_versions_one_each(tmp_path, monkeypatch):

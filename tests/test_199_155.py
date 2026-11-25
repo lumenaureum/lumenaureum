@@ -160,5 +160,5 @@ def test_the_check_shows_its_result_in_place(env):
     r = c.post("/client/1/check", data={"back": "/c/1?s=1"}, environ_base=E)
     assert r.status_code == 302
     p = c.get("/c/1?s=1", environ_base=E).get_data(as_text=True)
-    assert '<div class="clash toast" role="status">Checking now.' in p
+    assert '<div class="toast ui-said" role="status">Checking now.' in p
     assert re.search(r'id="from-client"><p class="ui-factrow-text">From the client, checked just now: ', p)

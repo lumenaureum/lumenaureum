@@ -3,8 +3,8 @@
 A small public website for your studio, made from what Lumen Aureum already has, in the same look as your client
 galleries. It is one fixed design, not a website builder: a home page with a few photos you pick, shown one after
 another; an About page; a Contact page with an inquiry form, which also tells clients their gallery opens from its private
-link; a "not found" page; and the small files search engines, modern search tools and browsers look for (robots.txt,
-sitemap.xml, llms.txt and an icon).
+link; a "not found" page; and the small files search engines, modern search tools, and browsers look for (robots.txt,
+sitemap.xml, llms.txt, and an icon).
 
 It is off until you switch it on in **Settings, Studio page**.
 
@@ -24,7 +24,7 @@ says so and nothing is uploaded.
    your About text. In the About text, a blank line starts a new paragraph (the first one is shown larger), a line
    starting with `## ` is a small heading, and `[words](https://example.com)` is a link. Leave it empty for no About
    page.
-3. **Contact**: your email, phone and mailing address come from Settings, Profile. You can leave the phone or the
+3. **Contact**: your email, phone, and mailing address come from Settings, Profile. You can leave the phone or the
    address off the site.
 4. **Look**: the font and colors follow your client galleries' look. The background can be the galleries' own or any
    of the four swatches. To use your own font (one you already use for your brand), add its file in Settings,
@@ -59,7 +59,7 @@ says so and nothing is uploaded.
    the site's pages with how to send an inquiry. It holds only what the site already shows, and never a gallery.
    Untick the box to leave it out; the next upload removes it.
 
-The site always has its "not found" page. robots.txt, sitemap.xml and llms.txt need the site's address, which comes
+The site always has its "not found" page. robots.txt, sitemap.xml, and llms.txt need the site's address, which comes
 from your gallery address (see What it needs, above).
 
 ## Every photo, every time
@@ -104,8 +104,8 @@ What it writes, and what it never touches:
   was changed there (your host recompressed it, say), Upload and Take the site down leave it, so Today keeps reminding
   until it is gone from the host, and the Studio page offers **Remove it anyway** for that file (through the same
   guard). Deleting it on the host yourself works too; the next upload notices it has gone.
-- When the web host settings change (another SFTP user name, port or root, the server's name written another way,
-  another path to the same folder), the app tells whether it is still the same place: the same server, port, user name
+- When the web host settings change (another SFTP user name, port, or root, the server's name written another way,
+  another path to the same folder), the app tells whether it is still the same place: the same server, port, user name,
   and folder written another way is the same host (a local folder is the same host at any path: its marker file keeps
   its id), and otherwise a small probe file written through the new settings
   and looked for through the earlier ones tells (it is removed right away). The same place keeps its list. Another
@@ -127,7 +127,7 @@ page keeps showing **Take the site down** and any photo a client no longer allow
 inquiries sent through the form still online are still collected and wait on Today.
 
 ## The inquiry form
-On the Contact page. A visitor gives a name, an email or a phone number, the kind of session, a preferred date and a
+On the Contact page. A visitor gives a name, an email or a phone number, the kind of session, a preferred date, and a
 message. What they type is sealed in their browser to your studio's own key ([Sealed format](sealed-format.md), purpose
 inquiry), so only this app can read it: the web
 host keeps a sealed file it can't open, until Lumen Aureum collects it (every 15 minutes, or **Check for inquiries**).
@@ -183,7 +183,7 @@ Details:
 - No captcha, nothing from other sites.
 
 ## The inquiry form on another website
-Made your main website elsewhere (Squarespace, WordPress, Showit and the like)? Under **Use the inquiry form on another
+Made your main website elsewhere (Squarespace, WordPress, Showit, and the like)? Under **Use the inquiry form on another
 website**, turn on **Show the inquiry form on another website**, list that website's address (up to 5; the www. version
 of each is allowed too; https:// only), press **Save the addresses**, then **Copy the code**. Paste it into that website where it takes HTML code
 (in Squarespace an Embed or Code block, in WordPress a Custom HTML block). It goes online with the next **Upload**.
@@ -206,4 +206,4 @@ file); each gallery page tells search engines not to index it.
 ## Building a draft by hand
 `build_site(out_dir, conf, photos)` in `plugins/studio_page.py` takes `draft=True` for a look before going live from
 any folder (for example `https://example.com/draft/`): every link is relative, every page says `noindex, nofollow`,
-there is no robots.txt, sitemap.xml, llms.txt, .htaccess or inquiry.php, and the form says sending is off.
+there is no robots.txt, sitemap.xml, llms.txt, .htaccess, or inquiry.php, and the form says sending is off.

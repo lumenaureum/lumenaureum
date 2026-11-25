@@ -213,8 +213,8 @@ def test_this_sqlcipher_opens_it_with_the_same_settings(upgraded):
 def test_the_schema_moves_to_9_after_its_backup(upgraded):
 
     A, c, taken, _ = upgraded
-    assert A.SCHEMA_VERSION == V15_SCHEMA > V141_SCHEMA
-    assert _q(A, "PRAGMA user_version")[0][0] == V15_SCHEMA
+    assert A.SCHEMA_VERSION >= V15_SCHEMA > V141_SCHEMA
+    assert _q(A, "PRAGMA user_version")[0][0] == A.SCHEMA_VERSION
     assert taken == ["upgrade"] and SCHEMA_AT_BACKUP == [V141_SCHEMA]
 
 def test_today_says_once_that_it_was_updated(tmp_path, monkeypatch):

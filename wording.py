@@ -4,7 +4,7 @@ from markupsafe import Markup, escape
 
 MAX_LEN = 20000
 
-DISCLAIMER = ("The agreement, release and other documents that come with Lumen Aureum are examples only. They are not legal advice, and the makers of Lumen Aureum make no promise that they suit your business or hold up where you work. Read them, change them for your business and the laws where you work, and have a lawyer review them before you use them. You are responsible for the documents you give your clients.")
+DISCLAIMER = ("The agreement, release, and other documents that come with Lumen Aureum are examples only. They are not legal advice, and the makers of Lumen Aureum make no promise that they suit your business or hold up where you work. Read them, change them for your business and the laws where you work, and have a lawyer review them before you use them. You are responsible for the documents you give your clients.")
 NUMBERED = re.compile(r"\d{1,3}\.\s+")
 FIELD = re.compile(r"\[([A-Z][A-Z ]{0,30}[A-Z])\]")
 
@@ -37,7 +37,7 @@ FIELDS = {
         ("PHOTOGRAPHER", "you"),
         ("OCCASION", "the session or event"),
         ("EVENT RIGHTS", "the event's ownership terms, for group events"),
-        ("HOW THE PHOTOS ARE USED", "delivery, ownership and portfolio use"),
+        ("HOW THE PHOTOS ARE USED", "delivery, ownership, and portfolio use"),
         ("GUARDIAN", "the parent-or-guardian sentence, when a minor is photographed"),
     ],
 }
@@ -49,7 +49,7 @@ TRANSFER_FIELDS = [
 LICENSE_FIELDS = [
     ("PHOTOGRAPHER", "you, or your studio"),
     ("WHAT THE LICENSE COVERS", "the license use set for the session type"),
-    ("LICENSE SCOPE", "term, territory and exclusivity, when the session sets them"),
+    ("LICENSE SCOPE", "term, territory, and exclusivity, when the session sets them"),
     ("PORTFOLIO", "your portfolio permission, by kind of session"),
     ("OTHER USES", "who else may use the photos and what needs your permission"),
     ("PRINT RELEASE", "a print release for personal sessions (empty for business licenses)"),

@@ -137,7 +137,7 @@ def test_the_schema_moves_to_the_current_version_after_a_sealed_backup(upgraded)
     assert A.SCHEMA_VERSION >= V120_SCHEMA
     assert _q(A, "PRAGMA user_version")[0][0] == A.SCHEMA_VERSION
     assert taken == (["upgrade"] if A.SCHEMA_VERSION > V120_SCHEMA else [])
-    assert A.SCHEMA_VERSION == 9 and taken == ["upgrade"]
+    assert A.SCHEMA_VERSION == 10 and taken == ["upgrade"]
     cols = {t: [r[1] for r in _q(A, f"PRAGMA table_info({t})")] for t in ("bill_snapshots", "sessions", "galleries")}
     assert "html" in cols["bill_snapshots"] and {"priced_on", "delivery_method"} <= set(cols["sessions"])
     assert set(NEW_GALLERY_COLS) | {"proof", "prune_due"} <= set(cols["galleries"])

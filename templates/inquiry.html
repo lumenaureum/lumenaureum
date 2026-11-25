@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% from "_macros.html" import avatar, seg, help with context %}
 {% block title %}New inquiry - Lumen Aureum{% endblock %}
 {% block body %}
-<div class="row"><h1 class="grow">New inquiry{% if h %} for {{ h.name }}{% endif %}</h1>{% if 'event' in C.TYPE_KIND.values() %}<a class="go" href="{{ url_for('events', contact=h.id if h else None) }}">A team, school or group day &rsaquo;</a>{% else %}<a class="go" href="{{ url_for('setup_step', step='shoot') }}" title="Turn on Group events in What you shoot">A team, school or group day? &rsaquo;</a>{% endif %}</div>
+<div class="row"><h1 class="grow">New inquiry{% if h %} for {{ h.name }}{% endif %}</h1>{% if 'event' in C.TYPE_KIND.values() %}<a class="go" href="{{ url_for('events', contact=h.id if h else None) }}">A team, school, or group day &rsaquo;</a>{% else %}<a class="go" href="{{ url_for('setup_step', step='shoot') }}" title="Turn on Group events in What you shoot">A team, school, or group day? &rsaquo;</a>{% endif %}</div>
 
 {% if not h %}
 <div class="card f" style="max-width:820px;margin-top:16px">
@@ -15,8 +15,7 @@
   {% set types_ = C.SESSION_TYPES.items()|selectattr(0, 'in', C.NEW_SESSION_TYPES)|list %}{% set types_ = types_|selectattr(0, 'equalto', last_type)|list + types_|rejectattr(0, 'equalto', last_type)|list %}
   <div class="row" style="flex-wrap:wrap;gap:8px">{% for k, v in types_ %}<a class="btn quiet" href="{{ url_for('inquiry', hid=h.id, type=k, msg=msg.id if msg else None) }}"{% if loop.first %} autofocus{% endif %}>{{ v }}</a>{% endfor %}</div>
   
-  <p class="ui-mute" style="margin:8px 0 0">Not listed? <a class="ui-go" href="{{ url_for('setup_step', step='shoot') }}#types">Add a session type in Settings</a></p>
-  <p class="sub" style="font-size:13px;margin-top:10px">Not listed? <a href="{{ url_for('setup_step', step='shoot') }}">Add a kind of shoot in Settings, What you shoot</a>.</p>
+  <p class="ui-mute" style="margin:8px 0 0">Not listed? <a class="ui-go" href="{{ url_for('setup_step', step='shoot') }}#types">Add a kind of shoot in Settings, What you shoot</a>.</p>
 </div>
 
 {% else %}

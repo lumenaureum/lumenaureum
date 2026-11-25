@@ -1,6 +1,8 @@
-<!doctype html><html lang="en" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<!doctype html><html lang="en" data-theme="{{ app_theme() if app_theme is defined else 'dark' }}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+{% include "_first_paint.html" %}
 <title>{% block title %}Lumen Aureum{% endblock %}</title><link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ static_v('style.css') }}">
 <style>.auth { max-width: 420px; margin: 9vh auto; padding: 0 16px; } .auth h1 { margin-bottom: 4px; } .auth .card { margin-top: 16px; }
+.auth .brand { width: fit-content; background: var(--brand-plate); padding: var(--brand-plate-pad); border-radius: 10px; }
 .auth input { margin-bottom: 10px; } .auth .err { color: var(--crit); font-size: 13px; margin-bottom: 8px; } .auth .brand { margin-bottom: 12px; }
 .qr { width: 220px; height: 220px; box-sizing: border-box; background: #fff; padding: 8px; border-radius: 6px; } .qr svg { display: block; width: 100%; height: 100%; }
 .mono { font: 600 14px/1.5 ui-monospace, Menlo, monospace; word-break: break-all; }

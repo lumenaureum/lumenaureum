@@ -142,10 +142,10 @@
 
 {% call ui.section('Facts you tap to change, waiting rows, a reason in the menu', id='demo-work', part=true) %}{% set try_ = url_for('dev_components_post') %}{% set here_ = url_for('dev_components') %}
   <p class="ui-status"><a class="ui-factlink" href="#demo-when" data-ui-open="demo-when" aria-controls="demo-when" aria-expanded="false">Shoot Sat Nov 21, 3:30 pm, Longwood Gardens</a></p>
-  {% call ui.inline_form('demo-when', 'Change the date, time or place') %}<form method="post" action="{{ try_ }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="what" value="ok"><input type="hidden" name="back" value="{{ here_ }}">
+  {% call ui.inline_form('demo-when', 'Change the date, time, or place') %}<form method="post" action="{{ try_ }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="what" value="ok"><input type="hidden" name="back" value="{{ here_ }}">
     <input type="date" name="shoot_date" aria-label="Shoot date" class="ui-input-date"><input type="time" name="start_time" aria-label="Start time" class="ui-input-date"><input name="where" value="Longwood Gardens" aria-label="Where" class="ui-grow"><label class="ui-check"><input type="checkbox" name="tentative" value="1">Date not final yet</label><button class="ui-btn ui-btn-primary">Set</button></form>{% endcall %}
   <ul class="ui-todos">
-    {% call ui.todo_row('Set the shoot date, time and place', icon='event', detail='No start time') %}{{ ui.opener('demo-when', 'Set date, time and place') }}{% endcall %}
+    {% call ui.todo_row('Set the shoot date, time, and place', icon='event', detail='No start time') %}{{ ui.opener('demo-when', 'Set date, time, and place') }}{% endcall %}
     {{ ui.step_row(dict(what='Morgan owes $318.00 · invoice 2026-014 sent Mon Nov 16', detail='Balance $318.00 of $318.00 (Family session, invoice 2026-014). The photos are released on payment.',
          verb='Record payment ($318.00)', post=try_, fields=dict(what='ok'), sym='payments', more_items=[dict(verb='Waive the balance', post=try_, fields=dict(what='ok'),
          ask='Why (required)', ask_name='note_why', confirm='Waive the balance? It is written off, not paid.')]), here_) }}
@@ -187,7 +187,7 @@
             sort=dict(name='ellis', phone='5550101234', email='ellis@example.com', stand='3|2026-11-02', owed='0.00', toinv='240.00')),
        dict(hid=0, name='Bright Meadow Realty', phone='', email='office@example.com', stand='Delivered · shoot Oct 3', owes='$318.00', late=true, to_invoice='', find='',
             sort=dict(name='bright meadow realty', phone='', email='office@example.com', stand='4|2026-10-03', owed='318.00', toinv='0.00'))],
-      'name', false, '', request.path, placeholder='Find a name, phone, email or label') }}
+      'name', false, '', request.path, placeholder='Find a name, phone, email, or label') }}
 {% endcall %}
 </div>
 <div class="vh" id="ui-live" role="status" aria-live="polite"></div>

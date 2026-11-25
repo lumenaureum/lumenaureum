@@ -3231,9 +3231,12 @@ def register(ctx):
         gr = q("SELECT key, ekey FROM galleries WHERE session_id=?", (sid,), one=True)
         if not gr:
             _fs["notice"] = "This session has no gallery, so there is nothing to check the email against."
+            _fs["notice_refused"] = True
             return redirect(ctx.safe_back(request.form.get("back")) or url_for("client_stage", hid=s["household_id"]))
         pk, same, msg = read_picks_email(request.form.get("text", ""), gr["ekey"] or gr["key"])
         _fs["notice"] = ("Picks recorded. " + msg) if same else msg
+        if not same:
+            _fs["notice_refused"] = "warn"
         if pk is None:
             _fs["notice_refused"] = True
         if pk is not None:
@@ -3496,7 +3499,7 @@ def register(ctx):
                           sid=sid, who="Lumen Aureum")
                 if old_:
                     ctx.audit("Adopted gallery brought up to date: the same link and key, now with this release's page, "
-                              "sealed format, credit, Download all and closing notice", sid=sid, who="Lumen Aureum")
+                              "sealed format, credit, Download all, and closing notice", sid=sid, who="Lumen Aureum")
         except Exception as e:
             app.logger.exception("gallery update")
             with app.app_context():
@@ -3757,7 +3760,7 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
 <section class="card" style="max-width:820px;margin-top:14px">
 <h3>On the earlier host</h3>
 {% if rows %}<ul>{% for r in rows %}<li>{{ r.client }}: {{ 'online' if r.upload_state == 'up' else 'gone dark' if r.removed_at else 'online, but its last upload failed: press Upload on its session' if r.uploaded_at else 'its upload failed partway: press Upload on its session' }}{% if r.upload_state == 'up' and not built(r.gallery_id) %} <span style="color:var(--red)">(no build here: press Rebuild on the session first)</span>{% endif %}</li>{% endfor %}</ul>
-{% if not clash %}<form method="post" action="{{ url_for('galleries_move_go') }}" data-confirm="Put {{ rows|length }} galler{{ 'y' if rows|length == 1 else 'ies' }} on the new web host, with their days, picks and links as they are?"><button class="primary">Put {{ rows|length }} galler{{ 'y' if rows|length == 1 else 'ies' }} on the new host</button></form>{% endif %}
+{% if not clash %}<form method="post" action="{{ url_for('galleries_move_go') }}" data-confirm="Put {{ rows|length }} galler{{ 'y' if rows|length == 1 else 'ies' }} on the new web host, with their days, picks, and links as they are?"><button class="primary">Put {{ rows|length }} galler{{ 'y' if rows|length == 1 else 'ies' }} on the new host</button></form>{% endif %}
 {% elif on %}<p class="mute">Nothing: every gallery is on the web host set up now.</p>{% else %}<p class="mute">Nothing moves while galleries are off.</p>{% endif %}
 </section>
 {% if on %}<section class="card" id="links" style="max-width:820px;margin-top:14px">
@@ -5127,11 +5130,11 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
         ctx.audit(f"Gallery closing day set to {ctx.nice(day.isoformat())}", sid=sid)
         try:
             window_changed(sid, strict=True)
-            _fs["notice"] = f"The gallery now closes after {ctx.nice(day.isoformat())}."
         except Exception as e:
             app.logger.exception("gallery closing day %s", sid)
             _fs["notice"] = (f"Saved: the gallery closes after {ctx.nice(day.isoformat())}. The web host could not be told "
                              f"yet ({errtext.words(e, 120)}); the app takes the gallery down that day all the same.")
+            _fs["notice_refused"] = "warn"
         return redirect(back)
 
     @app.post("/session/<int:sid>/gallery/close-now", endpoint="gallery_close_now")
@@ -5151,9 +5154,7 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
         except Exception:
             app.logger.exception("gallery close now %s", sid)
         g = gal(sid)
-        if g and g["upload_state"] == "removed":
-            _fs["notice"] = "The gallery is closed. Put back online can bring it back."
-        else:
+        if not (g and g["upload_state"] == "removed"):
             _g.refused = True
             _fs["notice"] = "The web host could not be reached to close it now. It comes down at the next check."
         return redirect(back)
@@ -5793,6 +5794,8 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
                                       stale_cw=codeword_changed(s, g),
 
                                       brand_rebuild=rebuild_fields(s, g) if details_changed(s, g) else None,
+
+                                      rebuild_from=rebuild_fields(s, g) if g and g["built_at"] else None,
 
                                       stale_mark=bool(g and g["built_at"] and not proof_built(s["id"]) and s["stage"] != "closed"
                                                       and not is_download(gid) and not wants_download(s) and not adopted_old(g)

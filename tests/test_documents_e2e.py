@@ -227,7 +227,7 @@ def test_document_text_is_whole(studio):
     import wording
     page = c.get(f"/session/{sids['family'][0]}/agreement", environ_base=E).get_data(as_text=True)
     assert "If no new date works for you, I refund everything you have paid." in page and "This is your only remedy against me." in page
-    assert wording.DISCLAIMER.startswith("The agreement, release and other documents that come with Lumen Aureum are examples only.")
+    assert wording.DISCLAIMER.startswith("The agreement, release, and other documents that come with Lumen Aureum are examples only.")
 
 def test_delivery_letters_are_editable_and_drafts_until_reviewed(studio):
 

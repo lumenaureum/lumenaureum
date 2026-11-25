@@ -485,7 +485,7 @@ STEP_WARNINGS = {
 }
 
 STEP_HELP = {
-    ("auto", "logged"): "Ticks itself once you log a call, email or message with the client, or build a quote.",
+    ("auto", "logged"): "Ticks itself once you log a call, email, or message with the client, or build a quote.",
     ("auto", "intake_done"): "Ticks itself once the client answers at least half of the intake questions.",
     ("auto", "quote_built"): "Ticks itself once the session's quote has a price on it.",
     ("auto", "date_set"): "Ticks itself once the session has a shoot date.",
@@ -498,7 +498,7 @@ STEP_HELP = {
                                 " Not needed once the client has opened the gallery."),
     ("auto", "balance_paid"): "Ticks itself once nothing is owed. Its due date follows your balance rule.",
     ("auto", "first_visit"): "Ticks itself the first time the client opens the gallery.",
-    ("auto", "favorites"): ("Ticks itself once the client sends picks from the gallery: favorites, retouch picks or"
+    ("auto", "favorites"): ("Ticks itself once the client sends picks from the gallery: favorites, retouch picks, or"
                             " photos not to show."),
     ("auto", "sd_shipped"): "Ticks itself when you mark the files delivered, by the type's delivery method.",
     ("do", "Send quote"): "Ticks itself when you mark a quote sent.",

@@ -26,7 +26,7 @@ def entries(types, url_for, help_words=None):
         out.append(dict(text=label, sub=f"Settings, {where}", link=link,
                         words=f"{label} {where} {extra} {help_words.get(anchor, '')}".lower()))
     for key, label in types.items():
-        out.append(dict(text=f"{label}: steps, intake and terms", sub="Settings, What you shoot",
+        out.append(dict(text=f"{label}: steps, intake, and terms", sub="Settings, What you shoot",
                         link=url_for("type_edit", key=key), words=f"{label} session type {TYPE_WORDS}".lower()))
         for flabel, words, anchor in TYPE_FIELDS:
             out.append(dict(text=f"{flabel}: {label}", sub="Settings, What you shoot",

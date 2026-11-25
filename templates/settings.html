@@ -64,7 +64,7 @@
 #gl-prev .cells i { aspect-ratio: 1; background: var(--cell); border-radius: 2px; }
 </style>
 {% call sui.section('Logo', id='logo-sec') %}
-  {% call sui.upload_slot('Logo on your documents', 'logo', url_for('logo_upload'), 'logo', setting('logo_png'), 'image/png,image/jpeg', 'Upload the logo', 'Remove the logo', none_words='No logo yet.', help_text="Printed at the top of quotes, invoices, receipts, agreements, releases, session sheets, statements and the price list. PNG or JPEG; it is resized to fit.",
+  {% call sui.upload_slot('Logo on your documents', 'logo', url_for('logo_upload'), 'logo', setting('logo_png'), 'image/png,image/jpeg', 'Upload the logo', 'Remove the logo', none_words='No logo yet.', help_text="Printed at the top of quotes, invoices, receipts, agreements, releases, session sheets, statements, and the price list. PNG or JPEG; it is resized to fit.",
                       save_first='#gallery-look', dirty='Save the look and upload the logo') %}
     <img src="{{ logo_src() }}" alt="Your logo" class="sui-logo">{% endcall %}
 {% endcall %}
@@ -73,7 +73,7 @@
   <div><label class="l" id="gl-font-l">Font{{ help("Script is used for the client's name only." ~ ((" " ~ own_font.name ~ " is your own font: used for all the text, in your galleries and on your studio page.") if own_font else "")) }}</label>
     <span class="seg gl-fonts" role="radiogroup" aria-labelledby="gl-font-l">{% for k_, l_ in (('classic', 'Classic'), ('elegant', 'Elegant'), ('script', 'Script')) + ((('own', own_font.name),) if own_font else ()) %}<label><input type="radio" name="gallery_font" value="{{ k_ }}"{{ ' checked' if look.gallery_font == k_ }}><span class="f-{{ k_ }}">{{ l_ }}</span></label>{% endfor %}</span></div>
   
-  <div class="sui-upload" id="own-font" data-ui-save-first="#gallery-look"><div class="l">{{ 'Your own font' }}{{ help("A font file (WOFF2, WOFF, TTF or OTF) whose license lets you put it on a website. It goes up with each gallery and your studio page, so visitors' browsers never fetch it from anywhere else.") }}</div>
+  <div class="sui-upload" id="own-font" data-ui-save-first="#gallery-look"><div class="l">{{ 'Your own font' }}{{ help("A font file (WOFF2, WOFF, TTF, or OTF) whose license lets you put it on a website. It goes up with each gallery and your studio page, so visitors' browsers never fetch it from anywhere else.") }}</div>
     <div class="sui-upload-now">{% if own_font %}<span id="own-font-have">Uploaded: {{ own_font.name }}, regular{% if own_font.light %} and light{% else %}. No light weight: light text uses the regular one{% endif %}.</span>{% else %}<span class="ui-mute">None uploaded.</span>{% endif %}</div>
     <div class="ui-form-row"><label><span>Regular</span><input type="file" name="regular" form="gl-font" accept=".woff2,.woff,.ttf,.otf" style="width:auto"></label>
       <label><span>Light (optional)</span><input type="file" name="light" form="gl-font" accept=".woff2,.woff,.ttf,.otf" style="width:auto"></label></div>
@@ -107,7 +107,7 @@
 
 <form method="post" class="sui-form f" id="credit" data-ui-autosave><input type="hidden" name="credit_posted" value="1"><input type="hidden" name="form_id" value="credit">
   {% call sui.section('Credit line') %}
-  {{ sui.switch('credit', 'Credit Lumen Aureum on quotes, invoices and galleries', setting('credit_off') != '1', 'One small line at the bottom: ' ~ C.CREDIT ~ '. Never on agreements or releases.', autosave=true) }}
+  {{ sui.switch('credit', 'Credit Lumen Aureum on quotes, invoices, and galleries', setting('credit_off') != '1', 'One small line at the bottom: ' ~ C.CREDIT ~ '. Never on agreements or releases.', autosave=true) }}
   {% endcall %}
   <noscript>{{ sui.save_bar('credit', 'Save the credit line', sticky=false) }}</noscript>
 </form>
@@ -183,8 +183,20 @@
   {% for r in reviews %}{{ ui.list_row(r.url, r.label, r.for_, ui.chip('Reviewed ' ~ r.when, 'done') if r.reviewed else ui.chip('SAMPLE', 'attention')) }}{% endfor %}
 </div>
 
+{% elif tab == 'appearance' %}
+
+<form method="post" action="{{ url_for('appearance_settings') }}" class="sui-form f" id="appearance-form">
+  {% call sui.section('Light or dark', id='f-app_theme') %}{% set th_ = app_theme() %}
+  <div class="sui-themes" role="radiogroup" aria-label="Light or dark">
+    {% for v_, l_, t_ in (('dark', 'Dark', ''), ('light', 'Light', ''), ('auto', 'Match this device', 'Light or dark, as the phone or computer is set.')) %}
+    <label class="sui-theme"><input type="radio" name="app_theme" value="{{ v_ }}"{{ ' checked' if th_ == v_ }}><i class="sui-theme-sw sui-theme-{{ v_ }}" aria-hidden="true"></i><span><b>{{ l_ }}</b>{% if t_ %}<small>{{ t_ }}</small>{% endif %}</span></label>
+    {% endfor %}</div>
+  {% endcall %}
+  {{ sui.save_bar('appearance-form', sticky=false) }}
+</form>
+
 {% elif tab == 'file' %}
-{% call sui.section('Settings file', id='settings-file', help_text="Your business details, terms, prices, tax, gallery address and storage locations, in one file: to set up another install, or to keep a copy. It never holds client records, passwords or secret keys. It does hold your tax ID and bank details if you set them.") %}
+{% call sui.section('Settings file', id='settings-file', help_text="Your business details, terms, prices, tax, gallery address, and storage locations, in one file: to set up another install, or to keep a copy. It never holds client records, passwords, or secret keys. It does hold your tax ID and bank details if you set them.") %}
   {% if plugin_errors %}<div class="err">Plugins that didn't load: {{ plugin_errors|join(', ') }}</div>{% endif %}
   <div class="ui-btnrow">
     {{ ui.button_link(url_for('settings_export'), 'Export settings') }}
@@ -198,7 +210,7 @@
 {% elif tab == 'notifications' %}
 {% set nt_ = ntfy if ntfy and ntfy.ntfy_server and ntfy.ntfy_topic else none %}
 
-{% call sui.section('Phone notices', id='notice', help_text="Optional messages to your phone, through ntfy: a free notice service with a phone app. You give the app the ntfy server's address, a topic (the channel name) and, if the server takes one, an access token (its password); the ntfy app on your phone listens to the same topic. Use a private ntfy server: one you run yourself (ntfy is also in the TrueNAS app catalog) or one you trust. On the public server, ntfy.sh, anyone who learns or guesses the topic can read the notices. While the studio is locked it can't read its encrypted settings, so the address, topic and token are also kept in a small plain file, ntfy.json in the data folder. Anyone who can read the data folder can read them: use a topic nobody could guess, and a token if your server takes one. The locked notice says only that the studio is locked and since when. The other notices you can tick say only what kind of thing happened, never how many. None ever carries a client's name, an email address, an amount, a date or a link.") %}
+{% call sui.section('Phone notices', id='notice', help_text="Optional messages to your phone, through ntfy: a free notice service with a phone app. You give the app the ntfy server's address, a topic (the channel name) and, if the server takes one, an access token (its password); the ntfy app on your phone listens to the same topic. Use a private ntfy server: one you run yourself (ntfy is also in the TrueNAS app catalog) or one you trust. On the public server, ntfy.sh, anyone who learns or guesses the topic can read the notices. While the studio is locked it can't read its encrypted settings, so the address, topic, and token are also kept in a small plain file, ntfy.json in the data folder. Anyone who can read the data folder can read them: use a topic nobody could guess, and a token if your server takes one. The locked notice says only that the studio is locked and since when. The other notices you can tick say only what kind of thing happened, never how many. None ever carries a client's name, an email address, an amount, a date, or a link.") %}
   
   {% set rep_ = nt_ and request.args.get('replace') == 'ntfy' %}
   {% if nt_ and not rep_ %}
@@ -208,7 +220,7 @@
                          remove=dict(label='Stop the notices', url=url_for('security_notice'), fields={'act': 'remove'}),
                          plain_http=(nt_.ntfy_server or '').lower().startswith('http://'),
                          warn=dict(text="This is the public ntfy server: anyone who learns the topic can read these notices.",
-                                   help="The notices say very little (never a name, an amount, a count, a date or a link), but a private ntfy server is safer: one you run yourself, or one you trust, with a topic nobody could guess and an access token. Replace switches to it once a test notice gets through.") if ntfy_public(nt_.ntfy_server) else none) }}
+                                   help="The notices say very little (never a name, an amount, a count, a date, or a link), but a private ntfy server is safer: one you run yourself, or one you trust, with a topic nobody could guess and an access token. Replace switches to it once a test notice gets through.") if ntfy_public(nt_.ntfy_server) else none) }}
   {% else %}
   {% if rep_ %}<div class="sui-replace-head"><b>Replace the notice service</b><a class="ui-go" href="{{ url_for('settings_view', tab='notifications') }}#notice">Cancel</a></div>
   <p class="sui-hint">The one in use now stays in use until a test notice to the new one goes through.</p>{% endif %}
@@ -217,7 +229,7 @@
     {{ sui.field('server', 'Notice service address', ty_.get('server', ''), type='url', placeholder='https://ntfy.example.com', id='ntfy-server', attrs='maxlength="300" required',
                  help="The address of your ntfy server, starting with https:// (http:// only for one on your own network). A private server of your own is safest; the public one is https://ntfy.sh.") }}
     {{ sui.field('topic', 'Your private channel name', ty_.get('topic', ''), id='ntfy-topic', attrs='maxlength="64" pattern="[A-Za-z0-9_\\-]{1,64}" required',
-                 help="The ntfy topic: a name you make up, with letters, digits, - and _ only. Subscribe to the same name in the ntfy app on your phone. Pick one nobody could guess: anyone who knows it can read the notices.") }}
+                 help="The ntfy topic: a name you make up, with letters, digits, -, and _ only. Subscribe to the same name in the ntfy app on your phone. Pick one nobody could guess: anyone who knows it can read the notices.") }}
     {{ sui.field('token', 'Password for the service (optional)', '', type='password', id='ntfy-token', attrs='maxlength="300" autocomplete="off"',
                  help="An ntfy access token, if your server asks for one. Leave it blank if it doesn't.") }}
     <div class="ui-btnrow"><button class="ui-btn ui-btn-primary" name="act" value="save">{{ 'Test and switch' if rep_ else 'Save the notice settings' }}</button>{% if not rep_ %}<button class="ui-btn ui-btn-quiet" name="act" value="test">Send a test notice</button>{% endif %}{{ sui.unsaved() }}</div></form>
@@ -229,13 +241,14 @@
     
     <label class="ui-check"><input type="checkbox"{{ ' checked' if live_ }} disabled>A new master key was asked for without the old one{{ help("Always on while notices are set up, with no way to turn it off: someone with your password and one code could otherwise untick it first. It says only that a new master key was asked for and takes effect in 48 hours, so you can sign in and cancel it if it wasn't you.") }}</label>
     {% for kind_, name_, on_, label_, help_ in [
-         ('inbox', 'inbox_on', inbox_notice_on(), 'Something new in the studio inbox', "A new website inquiry, a client's picks or a print order. The notice says only that something new came in, never what or how many. Several that come in together are one notice, and there is at most one every 30 minutes. It never says who, and never carries a link."),
-         ('backup', 'backup_on', backup_notice_on(), 'A backup failed or is late', "A notice when the last backup failed, or none has worked for over a day. It says only that, never the error itself, a folder or a server. While it lasts, at most one a day; once a backup works again, the next problem is told at once."),
+         ('inbox', 'inbox_on', inbox_notice_on(), 'Something new in the studio inbox', "A new website inquiry, a client's picks, or a print order. The notice says only that something new came in, never what or how many. Several that come in together are one notice, and there is at most one every 30 minutes. It never says who, and never carries a link."),
+         ('backup', 'backup_on', backup_notice_on(), 'A backup failed or is late', "A notice when the last backup failed, or none has worked for over a day. It says only that, never the error itself, a folder, or a server. While it lasts, at most one a day; once a backup works again, the next problem is told at once."),
          ('storage', 'storage_on', status_notice_on('storage'), 'Storage running low', "A notice when the disk that holds your studio's data or photos has less than " ~ storage_low_pct ~ "% of its space free. It says only that, never a folder or a disk name. While it lasts, at most one a day."),
          ('closing', 'closing_on', status_notice_on('closing'), 'A gallery closes tomorrow', "A notice in the morning when one or more galleries online close the next day. It says only that, never how many, which or whose."),
          ('update', 'update_on', status_notice_on('update'), 'An update was installed', "A notice when your studio is updated to a new version. Today says what changed."),
          ('served', 'served_on', status_notice_on('served'), 'A gallery page on your web host changed', "A notice when the regular check finds a gallery page or its scripts on your web host are not the ones your studio put there. It says only that, never how many or which. While it lasts, at most one a day."),
-         ('cred', 'cred_on', status_notice_on('cred'), 'Your password, master key or recovery codes changed', "A notice when a way into the studio changes: the password, the master key or the recovery codes. It says only that something changed, never which one, so a stranger reading your lock screen learns nothing. If it wasn't you, sign in and look at Account activity. This one is on unless you untick it.")] %}
+         ('cred', 'cred_on', status_notice_on('cred'), 'Your password, master key, or recovery codes changed', "A notice when a way into the studio changes: the password, the master key, or the recovery codes. It says only that something changed, never which one, so a stranger reading your lock screen learns nothing. If it wasn't you, sign in and look at Account activity. This one is on unless you untick it.")] + ([
+         ('calendar', 'calendar_on', status_notice_on('calendar'), "Sessions couldn't be sent to your calendar", "A notice when Send sessions to your calendar has failed for an hour or more. It says only that, never the reason, a session, or a calendar. While it lasts, at most one a day.")] if plugin_on('calendar_send') else []) %}
     {% if live_ %}<form method="post" action="{{ url_for('security_notice') }}" class="ui-action"><input type="hidden" name="act" value="{{ kind_ }}">
       <label class="ui-check"><input type="checkbox" name="{{ name_ }}" value="1" data-autosubmit{{ ' checked' if on_ }}>{{ label_ }}{{ help(help_) }}</label>
       <noscript><button class="ui-btn ui-btn-quiet">Save the notice choice</button></noscript></form>
@@ -246,10 +259,19 @@
 {% elif tab == 'calendar' %}
 
 {% set feed_ = calendar_feed_url() %}
-{% call sui.section('Calendar link', id='calendar-link', help_text="A private address your phone's calendar app subscribes to (Add calendar, then From URL or Subscribe). Each session shows as its type, day, start time and length, and nothing else: never a client's name, a place, a note or an amount. A penciled date shows as tentative. Entries show the session type name, so keep type names free of client names. The link reaches your studio only where the studio itself can be reached: on your home network, or a private network you set up for it (Tailscale, for example). Calendar services that fetch from their own servers, like Google Calendar on the web, can't reach it. After a restart the studio is locked until you sign in: the phone keeps what it had and fills in again after. The phone must trust the studio's certificate, as your browser does. Anyone who has the link sees when your sessions are, so keep it to yourself; if it got out, make a new one.") %}
+
+{% call sui.section('Your sessions in a calendar', id='calendar-choice', tip="Two ways, each optional. Use either, both, or neither.") %}
+  <div class="ui-form-row"><span class="ui-grow"><b>Send them to your calendar</b> at Google, Outlook, iCloud, and others.{{ help("Your studio adds each session to a calendar you choose and keeps it up to date. It connects to that calendar service to do it, and sends only each session's type, day, start time, and length.") }}
+    {%- if plugin_on('calendar_send') and setting('calsend_kind') %} {{ ui.chip('On', 'done') }}{% endif %}</span>
+    {%- if plugin_on('calendar_send') %}{{ ui.button_link(url_for('calendar_send_settings'), 'Open' if setting('calsend_kind') else 'Set up') }}
+    {%- else %}{{ ui.button_link(url_for('plugin_page', name='calendar_send'), 'Set up') }}{% endif %}</div>
+  <div class="ui-form-row"><span class="ui-grow"><b>Keep them at home</b> with a private link your phone subscribes to.{{ help("Nothing leaves your studio: your phone asks the studio for the calendar. Below.") }}
+    {%- if feed_ %} {{ ui.chip('On', 'done') }}{% endif %}</span></div>
+{% endcall %}
+{% call sui.section('Calendar link', id='calendar-link', help_text="A private address your phone's calendar app subscribes to (Add calendar, then From URL or Subscribe). Each session shows as its type, day, start time, and length, and nothing else: never a client's name, a place, a note, or an amount. A penciled date shows as tentative. Entries show the session type name, so keep type names free of client names. The link reaches your studio only where the studio itself can be reached: on your home network, or away from home through a private network you set up for it, such as Tailscale. Calendar services that fetch from their own servers, like Google Calendar on the web, can't reach it. On Android, the free app ICSx5 subscribes from the phone itself, and the sessions then show in the Google Calendar app. After a restart the studio is locked until you sign in: the phone keeps what it had and fills in again after. The phone must trust the studio's certificate, as your browser does. Anyone who has the link sees when your sessions are, so keep it to yourself; if it got out, make a new one.") %}
   {% if feed_ %}
   {{ ui.fact('Calendar link', 'On') }}
-  {{ ui.fact('Each session shows', 'Its type, day, start time and length') }}
+  {{ ui.fact('Each session shows', 'Its type, day, start time, and length') }}
   <p class="sui-hint" id="cal-feed-url">{{ feed_ }}</p>
   <div class="ui-btnrow"><button type="button" class="ui-btn ui-btn-quiet" data-copy="#cal-feed-url">Copy the link</button>
     {{- ui.button_link(calendar_feed_url('webcal'), 'Subscribe on this device') }}
@@ -264,13 +286,13 @@
 {% elif tab == 'system' %}
 <div class="ui-sec" style="max-width:560px">{{ ui.fact('Database', db_path) }}{{ ui.fact('Plugins', plugins|join(', ') or 'none') }}</div>
 {% call sui.danger_zone('Reset database', id='reset') %}
-  <p class="sui-tip">Deletes every client, person, session, event, payment and note.{{ help("Settings and the current price list stay. A copy of the database is saved first (sealed in the vault once a master key exists). If that fails, nothing is reset and no gallery comes down.") }}</p>
+  <p class="sui-tip">Deletes every client, person, session, event, payment, and note.{{ help("Settings and the current price list stay. A copy of the database is saved first (sealed in the vault once a master key exists). If that fails, nothing is reset and no gallery comes down.") }}</p>
   <p class="sui-tip">Uploaded photos are removed 30 days later.{{ help("They stay that long with the saved copy of the database, so the reset can be undone by restoring it. Then they are deleted, with their backup copies.") }}</p>
   {% if reset_online %}<p class="sui-tip"><b>{{ reset_online }} galler{{ 'y is' if reset_online == 1 else 'ies are' }} online on your web host.</b>{{ help("After a reset the app no longer knows them, so it can't take them down later or close them when their days are up. Taking them down first is usually right. One the web host won't let come down now is tried again at the regular check and listed on Today until it is gone.") }}</p>{% endif %}
   {% if request.args.get('reset') == 'done' %}<div class="sub"><b>Reset done.</b> The old database was saved as {{ request.args.get('saved') }}</div>
   {% elif request.args.get('reset') == 'nope' %}<div class="sub"><b>Not reset.</b> Type RESET exactly to confirm.</div>{% endif %}
   <form method="post" action="{{ url_for('settings_reset') }}" style="margin-top:10px"
-        data-confirm="Delete ALL clients, sessions and history? A backup copy is saved first.">
+        data-confirm="Delete ALL clients, sessions, and history? A backup copy is saved first.">
     {% if reset_online %}<p><label class="ui-check"><input type="checkbox" name="take_down" value="1" checked>Take the {{ reset_online }} galler{{ 'y' if reset_online == 1 else 'ies' }} down from the web host</label></p>{% endif %}
     <div class="ui-form-row"><input name="confirm" placeholder="Type RESET" aria-label="Type RESET to confirm" autocomplete="off" style="width:140px" required>
     <button class="ui-btn ui-btn-quiet">Reset database</button></div></form>

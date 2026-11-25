@@ -368,7 +368,7 @@ def check_ship(ship, phone=""):
         raise Refused("ship is not a ship-to")
     how = ship.get("how")
     if how not in ("me", "other", "pickup"):
-        raise Refused("ship.how is not me, other or pickup")
+        raise Refused("ship.how is not me, other, or pickup")
     if how == "pickup":
         if any(ship.get(k) not in (None, "") for k in SHIP_KEYS - {"how"}):
             raise Refused("pick up carries no address")

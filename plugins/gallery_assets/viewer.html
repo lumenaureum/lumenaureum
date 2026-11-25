@@ -800,7 +800,7 @@ function askCode(why, last) {
   });
 }
 async function cardOpen() {                     // the folder, then the code: the manifest's plain bytes, or null
-  if (!subtle) { fail("This browser can't open the photos", "Open the page in Chrome, Edge, Firefox or Safari on a computer."); return null; }
+  if (!subtle) { fail("This browser can't open the photos", "Open the page in Chrome, Edge, Firefox, or Safari on a computer."); return null; }
   for (let why = ""; ; ) {
     if (!(await pickFolder(why))) { why = "folder"; continue; }
     let mbuf;

@@ -130,7 +130,7 @@ def test_the_invoice_waits_for_shipping_then_takes_the_inv_run(e):
     assert inv["ship_cents"] == 812 and inv["total"] == inv["sub"] + 812
     html = e.c.get(f"/prints/order/{oid}/invoice", environ_base=E).data.decode()
     assert "Prints are made by our lab after this invoice is paid in full." in html and "a size or address you chose" not in html
-    assert "a crop, size or address you chose is a new order" in html
+    assert "a crop, size, or address you chose is a new order" in html
 
     with e.A.app.test_request_context():
         with e.A.app.app_context():

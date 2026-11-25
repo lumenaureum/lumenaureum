@@ -89,7 +89,7 @@ def test_the_feed_is_redacted_to_type_day_time_and_length(env):
 
     assert len(evs) == 3, evs
     summaries = sorted(re.search(r"SUMMARY:(.*?)\r\n", e_).group(1) for e_ in evs)
-    label = A.C.SESSION_TYPES["family"]
+    label = A.C.doc_label("family")
     assert summaries == sorted([label, label, label + " (penciled)"])
     pencil = next(e_ for e_ in evs if "(penciled)" in e_)
     assert "STATUS:TENTATIVE" in pencil

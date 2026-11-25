@@ -32,7 +32,7 @@ construction the `age` file format uses for its payload. The underlying AEAD is 
   `<file id>:<i>:more` for every other one. The file id is the photo's random 128-bit identifier in lowercase hex.
 
 STREAM carries the final-record flag in the nonce; here it is in the associated data, which authenticates it in the
-same way. Together, the counter, the flag and the file id mean that records cannot be reordered, dropped, repeated,
+same way. Together, the counter, the flag, and the file id mean that records cannot be reordered, dropped, repeated,
 moved between files, or cut short at a record boundary without decryption failing. A reader must also check that the
 total plaintext length equals the recorded file size.
 
@@ -78,9 +78,9 @@ decrypts the photos into a new folder. Any tool that implements this page and `a
 ## Test vectors
 
 `tests/vectors/photo-format.json` holds two vectors (one record, and two records crossing the 1 MiB boundary) with
-the key, file id, plaintext and the exact file bytes or their SHA-256. `tests/test_photo_format_vectors.py` checks
+the key, file id, plaintext, and the exact file bytes or their SHA-256. `tests/test_photo_format_vectors.py` checks
 that the app's writer produces exactly those files, that the app's reader opens them, and that an independent decoder
-written only from this page opens them and rejects reordered, swapped, truncated, extended and altered files.
+written only from this page opens them and rejects reordered, swapped, truncated, extended, and altered files.
 
 ## Client galleries
 

@@ -462,7 +462,7 @@ CREATE INDEX IF NOT EXISTS print_lab_costs_order ON print_lab_costs(order_id);
                 continue
             data["ship"] = P.reduce_ship(sh)
             x("UPDATE print_orders SET payload=?, reduced_at=? WHERE id=?", (json.dumps(data), date.today().isoformat(), r_["id"]))
-            ctx.audit("A print order's ship-to was reduced to city, state and ZIP (a year after the order closed)",
+            ctx.audit("A print order's ship-to was reduced to city, state, and ZIP (a year after the order closed)",
                       sid=r_["session_id"], who="Lumen Aureum")
 
     def held(sid):

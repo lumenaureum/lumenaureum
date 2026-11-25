@@ -92,7 +92,7 @@ def check(server, topic, resolve=True):
     if "?" in server or "#" in server:
         return "The server address is just the server, without a topic or anything after it."
     if not TOPIC_RE.match(topic):
-        return "The topic is letters, digits, - and _ only (up to 64)."
+        return "The topic is letters, digits, -, and _ only (up to 64)."
     return None
 
 def read_config():

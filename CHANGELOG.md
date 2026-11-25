@@ -2,6 +2,20 @@
 
 New features, behavior changes, security fixes, and other fixes in each release.
 
+## 1.6.2 (2026-11-24)
+
+### New
+- Send sessions to your Google, Outlook, or iCloud calendar (optional, off by default).
+- A light theme, in Settings, Appearance.
+
+### Changed
+- Fewer pop-up messages; when something can't be done, the page says so at the top.
+- The idle sign-out warning dims the page until you answer it or close it.
+- 1.6.1 can't open your data once 1.6.2 has updated it. The update makes a backup first.
+
+### Fixed
+- Restore on a new install no longer warns about a face photos file that was never made.
+
 ## 1.6.1 (2026-11-24)
 
 ### Changed

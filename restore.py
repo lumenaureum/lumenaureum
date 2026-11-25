@@ -173,6 +173,8 @@ def open_faces(name, secret, backend, stage, sha=None):
             return False
         with tarfile.open(raw) as tf:
             ms = tf.getmembers()
+            if any(m.name == "crm.db" for m in ms):
+                return None
             if not ms or any(not (m.name == "faces" or m.name.startswith("faces/")) or not (m.isfile() or m.isdir())
                              for m in ms):
                 return False
@@ -353,9 +355,17 @@ def check(source, secret, *, connect=None, schema_now, fresh, folder="", upload=
             if fname:
                 from vault import web as W
                 try:
-                    faces = "restored" if any(open_faces(f_, secret, backend or W.store_backends()[0], stage, sha=fsha)
-                                              for f_ in (fname, *more)) \
-                        else ("upload-unopened" if faces == "upload-chosen" else "unopened")
+                    tried = []
+                    for f_ in (fname, *more):
+                        tried.append(open_faces(f_, secret, backend or W.store_backends()[0], stage, sha=fsha))
+                        if tried[-1] is not False:
+                            break
+                    if tried[-1]:
+                        faces = "restored"
+                    elif faces == "upload-chosen":
+                        faces = "upload-unopened"
+                    else:
+                        faces = "unopened" if False in tried else "none"
                 except S.Mismatch:
                     if faces == "upload-chosen":
                         raise Refused("The face photos file you chose is not the one the app made with this backup: "

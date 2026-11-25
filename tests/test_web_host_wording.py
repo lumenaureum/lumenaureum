@@ -40,5 +40,5 @@ def test_no_gallery_host_as_a_name():
 def test_setup_names_the_web_host():
     page = (ROOT / "templates" / "setup.html").read_text()
     assert "Where are your galleries hosted?" in page
-    assert "Your web host is where your galleries, client links and studio page are published." in page
+    assert "Your web host is where your galleries, client links, and studio page are published." in page
     assert "Choosing a web host" in (ROOT / "docs" / "where-it-runs.md").read_text()

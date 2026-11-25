@@ -1,12 +1,12 @@
 # Writing your own plugins
 
 A plugin runs inside Lumen Aureum with full access: once you sign in, it can read and change every record, see your
-keys and reach the internet. Only load plugins you trust. A plugin can break the protections Lumen Aureum is built on,
+keys, and reach the internet. Only load plugins you trust. A plugin can break the protections Lumen Aureum is built on,
 which can lead to harm including, but not limited to, exposure or loss of data, including client data.
 
 A plugin is one Python file with a `register(ctx)` function. It can add pages, steps to a session's workflow,
 sections to the client screen, items on Today, search results, and more, without changing Lumen Aureum's own code.
-The plugins in this folder (galleries, letters, retention, the studio page, equipment, crew) are built the same way and are good examples.
+The plugins in this folder (galleries, letters, retention, the studio page, equipment, crew, sending sessions to a calendar) are built the same way and are good examples.
 
 ## Where your plugins live
 Keep your own plugins **outside** this code, in a folder of your own, so updates never touch them:
@@ -36,13 +36,14 @@ about=..., before_off=fn)` gets an on/off switch there, stored as the setting `p
 (no restart). The plugin stays loaded and checks `ctx.active()` wherever it acts; `before_off()` returns words to show
 (with "Turn off anyway") when turning it off needs a second thought, or "". Optional `when_on=fn` returns words shown
 under the switch while the plugin is on (where its work shows up, what to set up next), with `links=[(words,
-endpoint)]` beside them. `ctx.plugin_on(name)` tells any plugin
+endpoint)]` beside them. Optional `on_off=fn` runs in the same request once it is turned off (to forget a sign-in it
+kept, say). `ctx.plugin_on(name)` tells any plugin
 whether another is on. `CRM_PLUGINS_OFF` always wins: a plugin it names is not loaded, and its switch can't turn it on.
 Print orders (`prints`) are switchable and **off by default**: on a new install and after the 1.4 update.
 
 If a plugin needs a Python package the image doesn't have, build your own image on top of this one:
 ```dockerfile
-FROM ghcr.io/lumenaureum/lumenaureum:1.6.1     # the version you run
+FROM ghcr.io/lumenaureum/lumenaureum:1.6.2     # the version you run
 USER root
 RUN pip install some-package
 USER lumenaureum
@@ -107,6 +108,8 @@ def register(ctx):
 - `ctx.on_unlock(fn)` - run `fn()` once the database is open (also usable as `@ctx.on_unlock`).
 - `ctx.unlocked()` - False after a restart until the owner signs in. Background threads should wait while it is False.
 - `ctx.audit(text, sid=, hid=, who=)` - add a line to a client's history.
+- `ctx.calendar_entries()` - the sessions as the calendar link shows them; `calfeed.public(entry)` is everything
+  about one that may leave the studio.
 - `ctx.render`, `ctx.C` (the business rules), `ctx.nice(date)`, `ctx.money(amount)`, `ctx.advance(session_id)`.
 - `ctx.html_pdf(html, filename)` - turn HTML into a PDF download.
 - Scripts: inline handlers (`onclick=...`) are refused by the page's security policy. Put script in a
@@ -182,7 +185,7 @@ Through `ctx.app.config`:
 A plugin can talk to one print lab for the photographer. Core never contacts a lab: with no lab plugin every order is
 prepared for the lab by hand (Prepare for the lab), and that stays available whatever a plugin does. A lab plugin is
 off until the photographer connects it in its own settings, and "Where prints are made" (Settings, Print prices) lists
-it beside "By hand, at any lab" while its `ready()` is true. Core keeps each order's state, money and review rules; a
+it beside "By hand, at any lab" while its `ready()` is true. Core keeps each order's state, money, and review rules; a
 plugin only reports what happened at its lab, and core decides whether that move is allowed.
 
 Register a dict with `ctx.hooks.labs.append(lab)`. Only `id`, `name`, `ready` and `send` are required.

@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="en" data-theme="dark"><head><meta charset="utf-8">
+<html lang="en" data-theme="{{ app_theme() }}"><head><meta charset="utf-8">
+{% include "_first_paint.html" %}
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Lumen Aureum{% endblock %}</title>
 <link rel="stylesheet" href="/static/fonts/ms.css">
@@ -13,7 +14,7 @@
     <img src="{{ url_for('static', filename='brand/mark.svg') }}" alt="" style="width:40px;height:40px;display:block">
     Lumen Aureum</a>
   {% set core_keys_ = NAV|map('first')|list %}<nav class="sections" aria-label="Main">{% for key_, label_, ep_ in nav_ %}<a href="{{ url_for(ep_) }}"{% if key_ not in NAV_PHONE %} data-nav-wide data-more-key="{{ key_ }}"{% if key_ not in core_keys_ %} data-nav-plugin{% endif %}{% endif %}{% if sec_ == key_ %} class="on" aria-current="page"{% endif %}>{{ label_ }}</a>{% endfor %}</nav>
-  <form class="search ui-nav-wide" role="search" method="get" action="{{ url_for('search') }}"><input name="q" value="{{ request.args.get('q', '') if ep == 'search' }}" placeholder="Search" aria-label="Search clients, sessions, documents and settings"></form>
+  <form class="search ui-nav-wide" role="search" method="get" action="{{ url_for('search') }}"><input name="q" value="{{ request.args.get('q', '') if ep == 'search' }}" placeholder="Search" aria-label="Search clients, sessions, documents, and settings"></form>
   <a href="{{ url_for('search') }}" class="ui-nav-search{{ ' on' if ep == 'search' }}" aria-label="Search" title="Search"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></a>
   <span class="spacer"></span>
   {%- set inbox_ = inbox_count() %}{% if inbox_ %}<a href="{{ url_for('home') }}#inbox" class="ui-inbox" aria-label="{{ inbox_ }} new in the Inbox: see {{ 'it' if inbox_ == 1 else 'them' }} on Today" title="New in the Inbox"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 13l2.5-7.5A2 2 0 0 1 8.4 4h7.2a2 2 0 0 1 1.9 1.5L20 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M4 13h4l1.5 2.5h5L16 13h4"/></svg><span class="ui-inbox-n">{{ inbox_ }}</span></a>{% endif %}
@@ -36,11 +37,14 @@
 {% set jobs_ = jobs_visible() %}{% if jobs_ %}<aside class="jobs" aria-live="polite">{% for j in jobs_ %}
   <div class="job {{ j.state }}"><b>{{ j.label }}</b> <span{% if j.state == 'running' %} data-job-text="{{ j.key }}"{% endif %}>{% if j.state == 'running' %}{{ j.text }}{% elif j.state == 'error' %}{{ j.message }}{% else %}{{ j.message }}{% endif %}</span></div>{% endfor %}
   {% if jobs_|selectattr('state', 'equalto', 'running')|list %}<span hidden data-poll="{{ url_for('jobs_state') }}"></span>{% endif %}</aside>{% endif %}
-{% set notice = take_notice() %}{% if notice %}<div class="clash toast" role="status"{% if g.get("notice_refused") %} data-refused{% endif %}{% if take_refill() %} data-refill="{{ take_refill() }}"{% endif %}>{{ notice }}<button type="button" class="toast-x" aria-label="Dismiss this message" title="Dismiss" data-dismiss>&times;</button></div>{% endif %}{% set sp_ = ep in SETTINGS_ENDPOINTS %}{% if sp_ %}<div class="setwrap">{% include "_settings_nav.html" %}<div class="setmain">{% endif %}{% block body %}{% endblock %}{% if sp_ %}</div></div>{% endif %}</main>
 
-<div class="clash toast" role="alertdialog" aria-live="assertive" aria-label="Signing out soon" hidden data-idle-warn data-idle="{{ idle_hours() * 3600 }}" data-idle-left="{{ url_for('idle_left') }}">
-  <span>You will be signed out in about 2 minutes, after a while with no activity. Anything you typed stays on this page.</span>
-  <form method="post" action="{{ url_for('idle_stay') }}" class="ui-action"><button class="ui-btn ui-btn-primary">Stay signed in</button></form></div>
+{% set notice = take_notice() %}{% if notice %}{% if g.get("notice_refused") %}<div class="toast ui-refused" role="alert"{% if g.notice_refused != 'warn' %} data-refused{% else %} data-warn{% endif %}{% if take_refill() %} data-refill="{{ take_refill() }}"{% endif %}><span>{{ notice }}</span><button type="button" class="toast-x" aria-label="Dismiss this message" title="Dismiss" data-dismiss>&times;</button></div>
+{%- else %}<div class="toast ui-said" role="status">{{ notice }}</div>{% endif %}{% endif %}{% set sp_ = ep in SETTINGS_ENDPOINTS %}{% if sp_ %}<div class="setwrap">{% include "_settings_nav.html" %}<div class="setmain">{% endif %}{% block body %}{% endblock %}{% if sp_ %}</div></div>{% endif %}</main>
+
+<dialog class="ui-dialog" aria-labelledby="idle-warn-t" aria-describedby="idle-warn-d" data-idle-warn data-idle="{{ idle_hours() * 3600 }}" data-idle-left="{{ url_for('idle_left') }}">
+  <h2 id="idle-warn-t" class="ui-dialog-title">Signing out soon</h2>
+  <p id="idle-warn-d">You will be signed out in about 2 minutes, after a while with no activity. Anything you typed stays on this page.</p>
+  <form method="post" action="{{ url_for('idle_stay') }}" class="ui-action"><button class="ui-btn ui-btn-primary" autofocus>Stay signed in</button></form></dialog>
 <script src="{{ url_for('static', filename='ui.js', v=static_v('ui.js')) }}"></script>
 </body></html>
 

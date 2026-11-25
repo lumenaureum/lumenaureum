@@ -408,7 +408,7 @@ def _types(raw):
             raise ImportProblem(f"rules.TYPES[{i}]: not a session type")
         key = _text(t.get("key", ""), f"rules.TYPES[{i}].key", 30)
         if not re.fullmatch(r"[a-z0-9_]+", key) or key in keys:
-            raise ImportProblem(f"rules.TYPES[{i}].key: letters, digits and _ only, each once")
+            raise ImportProblem(f"rules.TYPES[{i}].key: letters, digits, and _ only, each once")
         keys.add(key)
         if t.get("kind") not in C.KINDS:
             raise ImportProblem(f"rules.TYPES[{i}].kind: one of {', '.join(C.KINDS)}")
@@ -553,7 +553,7 @@ def _fees(raw):
             raise ImportProblem(f"fees[{i}]: not a price")
         key = _text(it.get("key", ""), f"fees[{i}].key", 40)
         if not re.fullmatch(r"[a-z0-9_]+", key) or key in keys:
-            raise ImportProblem(f"fees[{i}].key: letters, digits and _ only, each once")
+            raise ImportProblem(f"fees[{i}].key: letters, digits, and _ only, each once")
         keys.add(key)
         amt = it.get("amount", 0)
         if not isinstance(amt, (int, float)) or isinstance(amt, bool) or not 0 <= amt <= 1000000:
@@ -595,7 +595,7 @@ def check_taxes(raw):
         name = _text(t_.get("name", ""), f"settings.taxes[{i}].name", 40).strip()
         rate = t_.get("rate")
         if not isinstance(key, str) or not re.fullmatch(r"[a-z0-9_]{1,20}", key) or key in keys:
-            raise ImportProblem(f"settings.taxes[{i}].key: letters, digits and _ only, each once")
+            raise ImportProblem(f"settings.taxes[{i}].key: letters, digits, and _ only, each once")
         if not name or name.lower() in names:
             raise ImportProblem(f"settings.taxes[{i}].name: a name, each once")
         if not isinstance(rate, (int, float)) or isinstance(rate, bool) or not 0 <= rate <= 25:
@@ -635,7 +635,7 @@ def _storage(raw, current):
             if why:
                 raise ImportProblem(f"storage.{part}.endpoint: {why}")
         if clean.get("type") == "s3" and clean.get("addressing", "auto") not in ("auto", "path", "virtual"):
-            raise ImportProblem(f"storage.{part}.addressing: auto, path or virtual")
+            raise ImportProblem(f"storage.{part}.addressing: auto, path, or virtual")
         if clean.get("type") == "sftp" and clean.get("auth", "password") != "password":
             raise ImportProblem(f"storage.{part}.auth: password, or left out for a key")
         if clean.get("auth") == "password" and part != "gallery_host":

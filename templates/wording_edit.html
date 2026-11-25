@@ -10,7 +10,7 @@
 {% set rs = review_state(doc, stype.key if stype else None) %}
 <form method="post" action="{{ url_for('doc_review', doc=doc) }}" class="reviewbox {{ 'ok' if rs.reviewed }}"><input type="hidden" name="type" value="{{ stype.key if stype else '' }}">
 {% if rs.reviewed %}<span class="grow"><b>Reviewed {{ rs.when }}.</b> {{ label }}s print without SAMPLE. Changes you make later keep it reviewed.</span>
-{% else %}<span class="grow"><b>This {{ label|lower }} prints as SAMPLE</b> until you review it here.{{ help("Saving does not count as a review. Read the wording, change what you need and save; then press Reviewed. Each document (agreement, release, copyright transfer, photo license, and each type's terms) is reviewed on its own.") }}</span><button class="ui-btn ui-btn-primary">Reviewed - remove SAMPLE</button>{% endif %}</form>
+{% else %}<span class="grow"><b>This {{ label|lower }} prints as SAMPLE</b> until you review it here.{{ help("Saving does not count as a review. Read the wording, change what you need, and save; then press Reviewed. Each document (agreement, release, copyright transfer, photo license, and each type's terms) is reviewed on its own.") }}</span><button class="ui-btn ui-btn-primary">Reviewed - remove SAMPLE</button>{% endif %}</form>
 <div class="wording">
 <form method="post" class="f">
   <label class="vh" for="w-text">{{ label }} wording</label><textarea id="w-text" name="text" rows="28" maxlength="20000" spellcheck="true" style="font:14px/1.5 ui-monospace,Menlo,monospace">{{ text }}</textarea>

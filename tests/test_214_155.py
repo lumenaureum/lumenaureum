@@ -98,8 +98,8 @@ def test_a_failed_send_is_tried_again_after_the_retry_time(db, monkeypatch):
 def test_every_title_is_its_own_and_listed(db):
     import inboxnotice as N
     assert N.TITLES == ("Studio backup", "Studio storage", "Gallery closing", "Studio updated", "Gallery page changed",
-                        "Studio sign-in changed", "Studio master key")
-    assert len(set(N.TITLES) | {N.TITLE}) == 8
+                        "Studio calendar", "Studio sign-in changed", "Studio master key")
+    assert len(set(N.TITLES) | {N.TITLE}) == 9
 
 def test_off_kinds_are_not_asked_locked_asks_nothing_and_a_failing_check_stops_nothing(db, sent, monkeypatch):
     import inboxnotice as N

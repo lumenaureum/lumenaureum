@@ -192,12 +192,18 @@ def _served(fact, now):
     return (",".join(ids), "One or more gallery pages on your web host are not the ones your studio put there. Sign in "
                            "to your studio to check them.")
 
+def _calendar(fact, now):
+
+    return ("failing", "Your studio couldn't send sessions to your calendar. Sign in to your studio to see why.") \
+        if fact else None
+
 STATUS = {
     "backup": (KEY_BACKUP_ON, KEY_BACKUP_STATE, BACKUP_TITLE, _backup, BACKUP_AGAIN),
     "storage": ("storage_notice", "storage_notice_state", "Studio storage", _storage, timedelta(days=1)),
     "closing": ("closing_notice", "closing_notice_state", "Gallery closing", _closing, None),
     "update": ("updated_notice", "updated_notice_state", "Studio updated", _update, None),
     "served": ("served_notice", "served_notice_state", "Gallery page changed", _served, timedelta(days=1)),
+    "calendar": ("calendar_notice", "calendar_notice_state", "Studio calendar", _calendar, timedelta(days=1)),
 }
 TITLES = tuple(v[2] for v in STATUS.values())
 

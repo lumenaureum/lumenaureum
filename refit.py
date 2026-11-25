@@ -238,7 +238,7 @@ def gate_seen(run, ok):
     now["gate"] = ok
     import hostcheck
     if ok is False:
-        now["features"] = [[k, lb, False, hostcheck.GATE_NOTE] if k == "codeword" and w else [k, lb, w, n]
+        now["features"] = [[k, lb, False, hostcheck.GATE_NOTE] if k in hostcheck.GATED and w else [k, lb, w, n]
                            for k, lb, w, n in (now.get("features") or [])]
     save_state(run.x, st, "gallery_host_caps")
 

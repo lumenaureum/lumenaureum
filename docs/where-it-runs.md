@@ -1,11 +1,11 @@
 # Where Lumen Aureum runs
 
-Lumen Aureum is a small web app that you run yourself and open in a browser on your computer, tablet or phone.
+Lumen Aureum is a small web app that you run yourself and open in a browser on your computer, tablet, or phone.
 
 ## The machine
-It needs a machine that is **always on**: the daily backup, gallery checks and scheduled deletions run in the
+It needs a machine that is **always on**: the daily backup, gallery checks, and scheduled deletions run in the
 background. Suitable machines:
-- **A NAS that runs containers** (Docker), with an Intel, AMD or 64-bit ARM processor. On a TrueNAS, install it from
+- **A NAS that runs containers** (Docker), with an Intel, AMD, or 64-bit ARM processor. On a TrueNAS, install it from
   the app catalog: see [The easiest way](#the-easiest-way-the-truenas-app-catalog).
 - **A home server or mini PC** running Linux with Docker.
 - **A Raspberry Pi 4 or 5** with a 64-bit operating system (Raspberry Pi OS 64-bit, or another 64-bit Linux) and
@@ -45,7 +45,7 @@ Docker Compose, below.
 5. Open the app at the address the Apps screen shows, or at the name on your certificate. Setup asks for a **setup
    code**: it is in the app's log (Apps, lumenaureum, Logs).
 
-You don't need Host IPs, IPv6 or `CRM_HOSTNAMES` for a catalog install on your home network. If a browser is refused,
+You don't need Host IPs, IPv6, or `CRM_HOSTNAMES` for a catalog install on your home network. If a browser is refused,
 see [Reaching the app](#reaching-the-app). To restore a backup on a catalog install, see
 [Restoring a backup](operations.md#on-a-truenas-catalog-install).
 
@@ -55,7 +55,7 @@ go in the app's Edit screen under Additional Environment Variables. ntfy, for th
 the same catalog.
 
 ## A server in the cloud
-It runs in Docker on any 64-bit Intel, AMD or ARM machine, including a rented server. We recommend a computer you own, for one reason.
+It runs in Docker on any 64-bit Intel, AMD, or ARM machine, including a rented server. We recommend a computer you own, for one reason.
 Everything Lumen Aureum stores is encrypted, so a disk image or a snapshot taken from a provider is useless on its
 own. But while the app is unlocked, the key that opens your data is in the server's memory, and on a rented server
 the provider controls that memory: its staff, its tools, and its snapshots of a running machine. On your own
@@ -88,9 +88,9 @@ Galleries live on a web host either way, encrypted, so the one part that must be
 
 ### S3 storage
 Backups, and galleries, can go to any S3-compatible storage: AWS, another online service, or the S3 service of a
-NAS at home. Give the bucket's name, its service address (the endpoint; blank for AWS), an access key and its secret
-key. Choosing Backblaze B2, Cloudflare R2, Wasabi or Amazon S3 by name says where that provider shows each one. Use a
-key that can reach only that bucket, and turn bucket versioning off. Region, folder prefix and **Bucket address** are
+NAS at home. Give the bucket's name, its service address (the endpoint; blank for AWS), an access key, and its secret
+key. Choosing Backblaze B2, Cloudflare R2, Wasabi, or Amazon S3 by name says where that provider shows each one. Use a
+key that can reach only that bucket, and turn bucket versioning off. Region, folder prefix, and **Bucket address** are
 under **Advanced**; Bucket address stays on Automatic unless your storage's instructions ask for path style or virtual
 host style.
 
@@ -282,5 +282,5 @@ TrueNAS's "Install via YAML" screen takes the compose file but has no `.env` fil
 never set and the app refuses to start. Write the address straight into the ports line:
 `- "192.168.1.10:8780:8780"` (your NAS's address on the network your computers use). Create datasets for the data,
 the vault and the photos, owned by the user in the compose file's `user` line (TrueNAS apps commonly run as 568:568).
-The app keeps its own data, backups and photos encrypted, so the datasets need nothing special; keep the photos
+The app keeps its own data, backups, and photos encrypted, so the datasets need nothing special; keep the photos
 dataset out of any share, since nothing there is meant to be opened by hand.

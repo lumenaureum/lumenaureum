@@ -10,7 +10,7 @@
 
 
 {% if n_rebuild and not rebuilding %}{% call ui.needs('Studio details changed', id='gal-rebuild') %}
-  <p>{{ n_rebuild }} galler{{ 'y was' if n_rebuild == 1 else 'ies were' }} built before the studio details in Settings changed.{{ help("A gallery's header and footer show the studio name, logo, photographer, email, phone and website it was built with, in the font and colors it was built with. Rebuilding keeps its link and codeword; one online is updated once its new build is complete, one not online yet waits for its Upload.") }}</p>
+  <p>{{ n_rebuild }} galler{{ 'y was' if n_rebuild == 1 else 'ies were' }} built before the studio details in Settings changed.{{ help("A gallery's header and footer show the studio name, logo, photographer, email, phone, and website it was built with, in the font and colors it was built with. Rebuilding keeps its link and codeword; one online is updated once its new build is complete, one not online yet waits for its Upload.") }}</p>
   <div class="ui-btnrow">{{ ui.action(url_for('galleries_rebuild_details'), 'Rebuild all with the new details', {}, None, 'primary', inplace=false,
        confirm='Rebuild ' ~ n_rebuild ~ ' galler' ~ ('y' if n_rebuild == 1 else 'ies') ~ ' with the studio details in Settings now? Each keeps its link. They are built one at a time; the ones online are updated as each finishes.') }}</div>
 {% endcall %}{% endif %}
@@ -20,7 +20,7 @@
 {{ uf.filter_bar('galleries', today_iso, status=false,
                  groups=[dict(key='phase', label='Phase', values=phases_), dict(key='kind', label='Kind', values=kinds_),
                          dict(key='look', label='Needs you', values=looks_)],
-                 placeholder='Find a client, title or gallery id', noun='galleries',
+                 placeholder='Find a client, title, or gallery id', noun='galleries',
                  sorts=[('closing', 'Closing soonest', 'closes', 'asc', false), ('newest', 'Newest', 'made', 'desc', false),
                         ('host', 'Largest on the web host', 'host', 'desc', true), ('here', 'Largest here', 'here', 'desc', true)],
                  sort='closing') }}

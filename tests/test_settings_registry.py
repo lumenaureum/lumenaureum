@@ -160,7 +160,7 @@ def test_one_search_groups_answers_by_kind(env):
     assert 'class="ui-nav-search' in bar.split('class="ui-more ui-nav-more"', 1)[0]
     assert 'name="q"' not in bar.split('class="ui-more ui-nav-more"', 1)[1]
     clients = _page(c, "/clients")
-    assert "Search everything" not in clients and 'placeholder="Filter by name, phone, email or label"' in clients
+    assert "Search everything" not in clients and 'placeholder="Filter by name, phone, email, or label"' in clients
 
 def _two_destinations(A, c, tmp):
     for d in ("v1", "v2"):

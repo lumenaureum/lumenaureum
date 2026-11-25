@@ -101,7 +101,7 @@
 {% endcall %}
 
 
-{% call ui.fold('Statement, export and delete', id='their-data', cls='ui-fold-more', always=true, open=request.args.get('delete') == 'nope') %}
+{% call ui.fold('Statement, export, and delete', id='their-data', cls='ui-fold-more', always=true, open=request.args.get('delete') == 'nope') %}
   <div class="ui-btnrow">
     {{ ui.go(url_for('statement', hid=h.id), 'Monthly statement', blank=true) }}
     {% if sessions %}{{ ui.go(url_for('client_stage', hid=h.id) ~ '#history', 'History') }}{% endif %}

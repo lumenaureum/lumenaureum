@@ -35,7 +35,7 @@ BLOCK = """
   <div class="ui-btnrow"><form method="post" action="{{ url_for('retention_set_date', sid=s.id) }}" class="ui-action"><input type="hidden" name="back" value="{{ back }}"><input type="date" name="until" required min="{{ tomorrow }}" aria-label="Delete on" class="ui-input-date"><button class="ui-btn ui-btn-quiet">Set the deletion date</button></form></div></div>{% endif %}
 {% if not (r and r.purged_at) %}<details class="early"><summary>Delete early</summary>
   <form method="post" action="{{ url_for('retention_early', sid=s.id) }}" class="row" style="flex-wrap:wrap;gap:6px;margin-top:6px"
-        data-confirm="Delete this client's RAWs, exports and gallery now, at home and on the web? This cannot be undone.">
+        data-confirm="Delete this client's RAWs, exports, and gallery now, at home and on the web? This cannot be undone.">
     <input type="hidden" name="back" value="{{ back }}">
     <input type="date" name="asked_on" required style="width:auto" title="Date of the written request">
     <span class="seg" role="radiogroup" aria-label="Request made by">{% for w in ['email', 'letter', 'text'] %}<label><input type="radio" name="asked_by" value="{{ w }}" required{{ ' checked' if loop.first }}><span>{{ w }}</span></label>{% endfor %}</span>

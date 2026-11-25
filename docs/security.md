@@ -1,6 +1,6 @@
 # Security and privacy
 
-Lumen Aureum holds names, addresses, children's details, payments and photos. It is built so that losing the
+Lumen Aureum holds names, addresses, children's details, payments, and photos. It is built so that losing the
 machine, a disk, or a copy of its data folder exposes no client records.
 
 ## What is encrypted
@@ -33,7 +33,7 @@ cannot tell an older, genuine copy of the keyring from the current one: see "Rot
 ## Signing in unlocks
 After any restart the app holds no key: it is **locked**, and every page asks you to sign in. Your password unwraps
 the data key; it stays in memory only after your two-factor code is accepted (a key waiting for the code is dropped
-after five minutes, and at once whenever the password, the master key or the recovery codes change, or you sign out
+after five minutes, and at once whenever the password, the master key, or the recovery codes change, or you sign out
 every other device, so a sign-in started before the change can't finish after it). Recovery codes stand in for the two-factor code only; they never unlock the data without your
 password. `/healthz` reports `"locked": true` so a NAS can show it.
 
@@ -86,7 +86,7 @@ one. A lost key matters two ways. Without it, the next forgotten password or bro
 the master key is the one way back. And whoever finds it can open any backup made before the replacement, and with the
 keyring inside one, your data as it is today, until you also rotate the data key (see below). The page asks for your password and a two-factor
 code (or a recovery code), since the new key opens everything, then shows the new key the way first setup does: copy
-it, print it, and type its last six characters back. Nothing changes until you do, and the key is never stored, logged
+it, print it, and type its last six characters back. Nothing changes until you do, and the key is never stored, logged,
 or shown again. Then the new key waits 48 hours (see "The 48-hour wait" below). When it takes effect, the data key in
 `keyring.json` is wrapped to the new key (your password's wrap stays as it was),
 each sealed session's key is replaced by a fresh one wrapped to the new key, the key kept beside each photo in the
@@ -104,9 +104,9 @@ new master key asked for without the old one does not take effect for 48 hours:
 - Only its public half waits, in the encrypted settings, with the time it was asked for and the time it takes effect.
   Both are kept in UTC, so changing the studio's time zone doesn't shorten or lengthen the 48 hours.
   The secret half was shown once and has left memory; nothing on disk can open anything with it.
-- Until then the current key keeps working: backups, sealed sessions and photo keys are still sealed to it, and it
+- Until then the current key keeps working: backups, sealed sessions, and photo keys are still sealed to it, and it
   still opens the keyring.
-- Settings > Security, the alert bell and Today show "A new master key takes effect on ..." with
+- Settings > Security, the alert bell, and Today show "A new master key takes effect on ..." with
   **Cancel the new master key**. Any signed-in device can cancel it, without the password, since canceling only keeps the key in use.
   Every sign-in says so too. When phone notices are set up, the phone gets "A new master key was asked for. It takes
   effect in 48 hours. If it wasn't you, sign in and cancel it in Settings, Security." (title "Studio master key"),
@@ -116,7 +116,7 @@ new master key asked for without the old one does not take effect for 48 hours:
   server removed or replaced keeps getting this one notice, and nothing else, as well as any server set up now.
 - A second request while one waits is refused, before a recovery code is used up; cancel the waiting one first. The
   first one keeps its time, so a request can't be swapped for another or pushed back quietly.
-- The app checks at each sign-in, on page loads and every few minutes. A restart during the wait changes nothing:
+- The app checks at each sign-in, on page loads, and every few minutes. A restart during the wait changes nothing:
   the wait is in the database, and if its time passed while the app was locked, it takes effect at the next sign-in.
   A wait found more than a week past its time (for example in a database restored from a backup made during a wait
   that was later canceled) is dropped, not applied, and Account activity says so.
@@ -176,7 +176,7 @@ first time the studio restarts locked without it, Today suggests it once.
 
 When the studio starts locked, the app sends a notice, then one a day until you sign in: "Your studio restarted and
 has been locked since <day and time>. Backups and gallery closings are waiting until you sign in." The notice never
-carries a link, a client's name, a count, an amount or anything else from your data. Sign in from the app's own
+carries a link, a client's name, a count, an amount, or anything else from your data. Sign in from the app's own
 address as usual. It goes over HTTPS only. A notice that fails is written to the app's log and tried again an hour
 later at the soonest. A restart while the studio is still locked keeps the time it first locked and sends nothing
 more than the one a day. When you sign in after 15 minutes or more locked, Today says once since when the studio was
@@ -185,9 +185,9 @@ locked; the backups and gallery closings that waited catch up then.
 ## The studio inbox notice
 Beside **Studio locked after a restart**, **Something new in the studio inbox** is a second, optional notice through
 the same ntfy server and topic. It is off until you tick it. When it is on, the app sends a notice when a new website
-inquiry, a client's picks or a print order comes in. The notice says only "Something new came in. Sign in to your
+inquiry, a client's picks, or a print order comes in. The notice says only "Something new came in. Sign in to your
 studio to see it." It never says what came in or how many, and never carries a name, an email address, a session
-title, an ID, an amount, a date or a link, because anyone who knows the topic can read it, and anyone near your phone
+title, an ID, an amount, a date, or a link, because anyone who knows the topic can read it, and anyone near your phone
 can read its lock screen.
 
 What comes in together is one notice, and there is at most one every 30 minutes; the next one carries everything that
@@ -195,11 +195,11 @@ came in meanwhile. Spam and form posts the app throws away never set it off. Wha
 the encrypted settings, so a restart neither loses nor repeats them, and turning the notice off or on starts afresh. It
 runs only while the studio is unlocked: while it is locked, the app can't read its settings, and the locked-studio
 notice covers that time. A notice that fails is written to the app's log and tried again ten minutes later at the
-soonest; counting never holds up or breaks taking in the inquiry, picks or order. The audit log records only that the
+soonest; counting never holds up or breaks taking in the inquiry, picks, or order. The audit log records only that the
 notice was turned on or off.
 
 **A backup failed or is late** is a third optional box, off until you tick it. It sends "The last backup failed" or
-"No backup has been made in over a day", with nothing else: never the error's own words, a folder or a server. It is
+"No backup has been made in over a day", with nothing else: never the error's own words, a folder, or a server. It is
 sent when backups go wrong, then at most once a day while they stay that way; once a backup works again, the next
 problem is told at once. Like the inbox notice, it runs only while the studio is unlocked.
 
@@ -208,9 +208,9 @@ are off until you tick them; the last one, sign-in changes, is on until you unti
 is set up (an install that turned it off keeps it off). What each one sends is the whole message; nothing from your data is ever added to it:
 
 - **Storage running low** ("Studio storage"): the disk that holds the studio's data or photos has less than 10%
-  free. Never a folder, a disk name or how much is used. At most once a day while it lasts.
+  free. Never a folder, a disk name, or how much is used. At most once a day while it lasts.
 - **A gallery closes tomorrow** ("Gallery closing"): "One or more galleries close tomorrow." Never how many, which
-  gallery or whose. Once a day, between 9 in the morning and 9 at night, never at midnight.
+  gallery or whose. Once a day, between 9 in the morning, and 9 at night, never at midnight.
 - **An update was installed** ("Studio updated"): the studio was updated to a new version. Not the version number:
   the topic is readable by anyone who knows it, and a version tells a stranger which known weaknesses to try. Today and
   About say which version and what changed. Ticking the box after an update doesn't send a notice for that update.
@@ -218,7 +218,7 @@ is set up (an install that turned it off keeps it off). What each one sends is t
   scripts on the web host differ from what the app put there, at two checks in a row. Never how many or which.
   Today and the gallery's panel say which, with Take down now. At most once a day while it lasts, and at once when
   another gallery is found.
-- **Your password, master key or recovery codes changed** ("Studio sign-in changed"): "A way into your studio was
+- **Your password, master key, or recovery codes changed** ("Studio sign-in changed"): "A way into your studio was
   changed. If it wasn't you, sign in and look at Account activity." Sent when the password is changed (in Settings, or
   with the master key after a forgotten password), the master key is replaced, or new recovery codes are made. Never
   which one, when or from where: someone who has just taken over the account learns nothing from your lock screen, and
@@ -235,10 +235,10 @@ server removed or replaced. See "The 48-hour wait".
 
 Each one's last notice is kept in the encrypted settings, so a restart doesn't repeat it, and turning a box off or on
 starts afresh. One notice that fails, or a check behind it that fails, is written to the app's log and never stops
-the others, the backups, the gallery checks or anything else the studio is doing. The audit log records only that a
+the others, the backups, the gallery checks, or anything else the studio is doing. The audit log records only that a
 notice was turned on or off.
 
-The app has no key while it is locked, so it can't read the server address, topic and token from the encrypted
+The app has no key while it is locked, so it can't read the server address, topic, and token from the encrypted
 database. It keeps a copy of them, with the studio's time zone, in a small plain file in the data folder,
 `ntfy.json`, and anyone who can read the data folder can read them. Use a topic nobody could guess, and an access
 token where the server takes one.
@@ -246,7 +246,7 @@ token where the server takes one.
 Use a private ntfy server: one you run yourself (it is also in the TrueNAS app catalog) or one you trust, with a
 private topic and a token. On the public server, ntfy.sh, a topic is open to anyone who learns or guesses its name, and
 the notices pass through a service you don't control. Settings, Notifications says so beside a saved ntfy.sh address.
-The notices are written so that even a stranger reading them learns little: no counts, names, amounts, dates or links,
+The notices are written so that even a stranger reading them learns little: no counts, names, amounts, dates, or links,
 only that something of a kind happened. With your own server, your phone must be able to reach it when you are away
 from home, over a VPN for example, or notices arrive only at home.
 
@@ -307,12 +307,12 @@ Deleting a session or client takes its gallery down from the host in use (the de
 earlier web host that still holds a copy. A copy that can't be removed then (the host can't be reached) is kept in
 a list of gallery folders still to come down, tried again by the regular check (an unreachable host once a day) and by
 Take the old copies down; Today mentions it until it is down. While a delete runs, the session's gallery can't be put
-back online, uploaded or rebuilt, and the delete checks once more, just before the records go, that it is down.
+back online, uploaded, or rebuilt, and the delete checks once more, just before the records go, that it is down.
 
 What a gallery link can and can't protect:
 - **The link is the key.** Anyone holding the full link (with what follows the `#`) can open the gallery, the same as
   the client. A codeword adds a second thing they must know. The files a codeword could be tested against (the
-  manifest, the print offer, the client's picks and draft) are kept on the web host under names made from the key,
+  manifest, the print offer, the client's picks, and draft) are kept on the web host under names made from the key,
   so someone holding only the link can't even find them, on any web server; on a host that runs PHP the gate also
   refuses them to anyone who can't prove they hold the key. Each guess at a codeword is one request through the gate,
   and after 10 wrong guesses in an hour at one gallery, every request must carry a small proof of work (about a second
@@ -377,7 +377,7 @@ gate runs. The photo and Download all files already have random names that only 
 a gallery's sealed files sits at a name anyone can guess. (Below, each is called by its plain name.)
 
 Galleries online before 1.4 had shorter folder names and sealed picks in an earlier form. The 1.4 update moves every
-gallery to its link ID and carries every pick, draft and order sent before over once (see
+gallery to its link ID and carries every pick, draft, and order sent before over once (see
 [Operations](operations.md#the-14-update)); the old folder keeps only a page that sends the browser on to the new one.
 1.4 reads only the new form.
 
@@ -395,8 +395,8 @@ ones running. What each does:
 | `seen.php` | Records the first visit in `seen-at.php` (before 1.4, `seen.txt`), once, and only for a visitor who sends the key proof. A stamp left empty is replaced. |
 | `gate.php` | Serves the encrypted photo files, `manifest.bin`, `offer.bin` and the client's picks and drafts (each device's own, and `picks.las` and `draft.las` from before 1.6), and only while the window is open. A missing or unreadable `limits.php` counts as closed. It asks for the key proof for every file, and finds the sealed files by the names the proof gives. A one-time download's list and end go in `once.php` and `done.php`. It never serves anything else. |
 | `picks.php` | Saves the client's picks or the picks still being made, each device's under its own name (`picks-<device>.las`, `draft-<device>.las`; a page before 1.6 writes `picks.las` and `draft.las`). It takes one form field holding a sealed envelope (LAS1, purpose picks or draft, bound to this gallery's folder name, its link ID), up to 256 KB, that doesn't look like readable text, from a visitor who sends the key proof, and only while the window is open, under the name the proof gives. Wrong proofs count toward the same limit as the gate's. A gallery holds at most 64 picks and draft files: past that a new device is refused (a device already there still saves), so whoever holds the link can't fill your web host with a new 256 KB file for every made-up device; the app reads and keeps no more than 64 either, whatever the host holds. On a copy marked moved it saves nothing and answers with your email. |
-| `orders.php` | Keeps a print order sent from a gallery that offers prints, as `orders/<hash>.las`, for the app to collect. It takes one sealed envelope (LAS1, purpose print-order: sealed to your studio key with the link key mixed in, bound to this gallery's folder name and the studio key's ID, at most 64 KB and padded to one of five sizes), with the key proof, a proof of work, and only while the window is open, more than 24 hours before the gallery closes, and prints are on (`offer-kid.php` is there). 5 orders an hour and 10 waiting from one sender (behind a proxy or CDN, where every client seems to share an address, only the gallery's own limits), 100 files and 6.5 MB waiting in all. Past the hourly limit it answers with Retry-After (when the oldest of the five is an hour old), so the gallery page tells the client when to try again. It never reads, lists or serves an order, and `orders/` holds an empty `index.html`, so a web server that lists folders shows nothing there. |
-| `offer.bin` | The print offer: your price list (prices only, never your cost), the shipping lines, your email and the studio's public key, sealed under the link key like `manifest.bin`, so the host can't swap the key the page seals to. Only on a gallery that offers prints. |
+| `orders.php` | Keeps a print order sent from a gallery that offers prints, as `orders/<hash>.las`, for the app to collect. It takes one sealed envelope (LAS1, purpose print-order: sealed to your studio key with the link key mixed in, bound to this gallery's folder name and the studio key's ID, at most 64 KB and padded to one of five sizes), with the key proof, a proof of work, and only while the window is open, more than 24 hours before the gallery closes, and prints are on (`offer-kid.php` is there). 5 orders an hour and 10 waiting from one sender (behind a proxy or CDN, where every client seems to share an address, only the gallery's own limits), 100 files and 6.5 MB waiting in all. Past the hourly limit it answers with Retry-After (when the oldest of the five is an hour old), so the gallery page tells the client when to try again. It never reads, lists, or serves an order, and `orders/` holds an empty `index.html`, so a web server that lists folders shows nothing there. |
+| `offer.bin` | The print offer: your price list (prices only, never your cost), the shipping lines, your email, and the studio's public key, sealed under the link key like `manifest.bin`, so the host can't swap the key the page seals to. Only on a gallery that offers prints. |
 | `offer-kid.php` | The studio key's ID `orders.php` checks. It starts with `<?php exit; ?>`, so fetching it shows nothing. |
 | `sealed.php` | The shape check `picks.php` and `inquiry.php` use (the sealed format's checks, steps 1 to 15). It holds no key and opens nothing; fetched on its own it prints nothing. |
 | `tries.php` | Written by the gate, `picks.php` and `orders.php`: the times of recent wrong key proofs at this gallery (no address, not even hashed). It starts with `<?php exit; ?>`, so fetching it shows nothing. |
@@ -461,8 +461,8 @@ yours to look after, under your lab's own terms.
   can read one back from the host, the client's own browser included; the client gets the details from you.
 - **How long a ship-to is kept in full.** Only two kinds of address are ever reduced: an address a client sent prints
   to for someone else ("ship to someone else"), and the address on a guest order whose orderer was never accepted as a
-  client. Each is kept in full until one year after its order closed (closed, canceled or expired), then reduced to
-  city, state and ZIP (the daily rules do it, and History says so). A client's own address is never reduced: that
+  client. Each is kept in full until one year after its order closed (closed, canceled, or expired), then reduced to
+  city, state, and ZIP (the daily rules do it, and History says so). A client's own address is never reduced: that
   includes an orderer matched to a client by email, added to the client's family, or made a client of their own from
   the review list. Issued invoices are never changed: they keep the address they were issued with.
 - **What an order does not prove** is who typed it. Links get forwarded, and anyone holding the link can order in any
@@ -491,10 +491,10 @@ Older entries are sealed (and the readable copy removed) the first time the gall
 An optional, private address a phone's calendar app subscribes to (Settings, Calendar link). One-way and read-only:
 the calendar app asks, the studio answers with a standard calendar file, and nothing comes back.
 
-- **What it carries.** Each session as its type, day, start time and length; a penciled date marked tentative; a
+- **What it carries.** Each session as its type, day, start time, and length; a penciled date marked tentative; a
   group event as one entry a day. Never a client's name, contact details, a place, a note, a session title, an event's
-  name, an amount or a link, and nothing to choose here that would add them: the file is built from those four facts
-  only. Entry ids are derived from the link's secret, so they carry no record number. Demo clients, lost sessions and
+  name, an amount, or a link, and nothing to choose here that would add them: the file is built from those four facts
+  only. Entry ids are derived from the link's secret, so they carry no record number. Demo clients, lost sessions, and
   leads not penciled are left out, and so is anything older than 90 days.
 - **Off by default.** Turning it on makes a random secret (256 bits) that is part of the address. It is kept only in
   the encrypted settings: never in a settings file, never in History (which records only that the link was turned on,
@@ -513,6 +513,45 @@ the calendar app asks, the studio answers with a standard calendar file, and not
   right link from a wrong one: every request gets "locked, try again later" (HTTP 503) and nothing about the link.
   Calendar apps keep what they last had. A copy kept for the locked time was considered and left out: even sealed, it
   would be data on disk the sign-in doesn't protect, for a calendar that is at most a few hours behind.
+
+## Sending sessions to your calendar
+Optional, and off by default (Settings, Sessions, Send to your calendar; Settings, Plugins). With it on, the studio
+also connects to the calendar service you chose (Google Calendar, Microsoft Outlook, or a CalDAV service such as iCloud
+or Fastmail), sending only each session's type, day, start time, and length. Off, it connects to nothing.
+
+- **What it carries.** Exactly what the calendar link carries, built by the same code from the same sessions: the
+  session type, the day, the start time, and the length, tentative for a penciled date, a group event as one entry a
+  day. Never a client's name, contact details, a place, a note, an amount, or a link. An inquiry appears only once its
+  date is penciled. Each event is marked private and carries an id derived from a secret salt kept in the studio, so
+  no record number leaves. The id starts with a mark of this studio's own, and the studio lists, changes, and removes
+  only events with its own mark: two studios sending to one calendar never touch each other's events.
+- **One calendar, one direction.** The studio writes events to the calendar you picked, and reads that calendar only
+  to find the events it wrote there (to change or remove them, and so that nothing is added twice). It never reads
+  what your other events say, and never changes an event it didn't write. (Outlook's list also gives each other
+  event's id and start time in that calendar; the studio drops them at once.)
+- **What the sign-in can reach.** A Google service account reaches only the calendars shared with it, and asks only
+  for permission to change events. Microsoft has no permission for a single calendar: the sign-in can reach every
+  calendar of that account, though the studio only writes to the one you picked. An iCloud app password reaches all
+  of that Apple Account's calendars and other iCloud data; Fastmail can limit an app password to calendars. Use a
+  calendar kept for sessions where you can.
+- **The sign-in.** The service account key, Microsoft's refresh token, or the app password is sealed under the data
+  key (AES-256-GCM, its own subkey) inside the encrypted database: never in a settings file, never in History, never
+  logged, never shown on a page. Microsoft's sign-in uses a code you enter on Microsoft's own site, so your Microsoft
+  password never reaches the studio. Stop sending deletes the sign-in, after asking whether the events it sent should
+  come out of your calendar too; switching the plugin off deletes it as well.
+- **How it connects.** HTTPS only (plain http is accepted for a CalDAV server on your own network), with a time limit
+  on every connection and every answer, an overall limit on each request, and answers of a sane size only. A redirect
+  is never followed to another host, so the sign-in is never sent anywhere but the service; a CalDAV server's own
+  addresses are followed only on its own host (for iCloud, also iCloud's own pNN-caldav.icloud.com hosts), over HTTPS.
+  A CalDAV server's XML answer is refused if it declares entities, whatever encoding it is in.
+- **A setup left unfinished.** A Microsoft sign-in or a CalDAV app password waiting for its calendar to be picked is
+  deleted 30 minutes after the setup started, or at once with Cancel.
+- **When it sends.** In the background, never inside a page: after a change is saved, every 15 minutes, and after the
+  studio is unlocked following a restart. Nothing is sent while the studio is locked. A failure shows on its settings
+  page in plain words, on Today after an hour, and as a phone notice if you tick that one. After a failure the studio
+  waits before trying again by itself: longer after each failure in a row, and at least as long as the service asks.
+  Send now tries at once. Setting up and Send a test event talk to the service while you wait, without holding up
+  saves anywhere else in the studio.
 
 ## The studio page
 The studio page is public and unencrypted, like any website; see [Studio page](studio-page.md). What it guards:
@@ -544,7 +583,7 @@ The studio page is public and unencrypted, like any website; see [Studio page](s
   its plugins, its analytics) runs scripts the photographer doesn't control; a form placed inside that page with a
   script tag would let every one of them read what visitors type, or swap the key the form seals to. The fix: the form
   is never put inside their page. The snippet is an `<iframe>` (or, for the button, a link to a tab of its own) of a
-  page served from the studio's own web host, so the form, its script and the visitor's typing belong to that host's
+  page served from the studio's own web host, so the form, its script, and the visitor's typing belong to that host's
   origin, which the other page's scripts can't reach. It is the Contact page's form: sealed in the browser, posted to
   the same `inquiry.php`. The page is sent with the site's content policy plus `frame-ancestors` naming only the
   websites listed in Settings (https only, each checked again before it goes into the header), and
@@ -593,7 +632,7 @@ The studio page is public and unencrypted, like any website; see [Studio page](s
   password and the two-factor code, the five-tries lock on its exact address still applies, and its wrong tries still
   count toward the /64. The browser keeps a random 32-byte token in a cookie that pages can't read, that is sent only
   over HTTPS and only by the app's own pages (HttpOnly, Secure, SameSite=Strict). This machine keeps only the token's
-  SHA-256 hash, its expiry date and a fingerprint of the keyring's password and master-key wraps, in
+  SHA-256 hash, its expiry date, and a fingerprint of the keyring's password and master-key wraps, in
   `known-browsers.json` in the data folder (no client data, and nothing in it is a token). So a token can't be forged,
   guessed or taken from that file; it stops working after 30 days, when the password or the master key changes
   (however it was changed, `vault.cli` included), and when every other device is signed out or new recovery codes are
@@ -637,9 +676,9 @@ The studio page is public and unencrypted, like any website; see [Studio page](s
   only once you confirm it, and only its key from then on; a new key stops backups there until you decide. Plain
   `http://` is accepted only to an address on your own network (checked against the address actually reached, on
   every connection), never to one on the internet. See [Where it runs](where-it-runs.md#s3-storage).
-- Connection errors: when a storage, backup or web host connection fails in a way the app has no plain words for, it
+- Connection errors: when a storage, backup, or web host connection fails in a way the app has no plain words for, it
   shows that error's own text and keeps it with the connection's last test. A library could put a login or a signed
-  address in such text, so before it is shown or kept, an address is cut to its host (its login, path and query
+  address in such text, so before it is shown or kept, an address is cut to its host (its login, path, and query
   string dropped), a `user:password@` login and any value named like a credential (key, token, secret, signature,
   password, an Authorization header) read `[hidden]`, and the text is cut short.
 
@@ -657,8 +696,8 @@ photos. Each way of reaching the host is judged by what it does with that sign-i
   network inside the SSH connection, encrypted, and only after the server has proved it holds the key you trusted
   in Setup (first contact shows its fingerprint; a changed key is refused until you trust it again), so it can't be
   handed to a server pretending to be yours. It is kept with your storage settings, encrypted with your data key,
-  never shown again (the field reads "saved"), never written to a log, a settings file or an error, and dropped from
-  memory when the studio locks. A saved password is only ever sent to the server, port and user it was typed for:
+  never shown again (the field reads "saved"), never written to a log, a settings file, or an error, and dropped from
+  memory when the studio locks. A saved password is only ever sent to the server, port, and user it was typed for:
   change any of them and it must be typed again. A settings file never carries the password.
   Nor does it carry, or bring, which server key to trust, for a password or a key sign-in alike (a file from someone
   else could otherwise say which server to believe, and point a saved password at theirs): the key you trusted on
@@ -719,14 +758,14 @@ signed with the current key. **Keep them** leaves the clients as they are and ma
 **Import clients from a file** treats the file as untrusted. It refuses a file over 2 MB, more than 5,000 rows or more
 than 60 columns, and anything that is not text. It reads UTF-8 (with or without the mark spreadsheets put first),
 UTF-16 with its mark, or else the Windows/Latin-1 encoding older spreadsheets save in. Every value has control and
-text-direction characters removed and is cut to a set length; nothing in the file is ever run, opened or followed.
+text-direction characters removed and is cut to a set length; nothing in the file is ever run, opened, or followed.
 The uploaded file is kept only in the app's memory while you check the columns and the preview (an hour at most,
 and gone at a restart): it is never written to disk outside the encrypted database. Nothing is written until you
 press Import, and a client already here is never merged on its own: you pick Skip or Update for each. On Update, a
 person in the file is the person here with the same email, else the same name, else the same phone; a phone a family
 shares never writes one partner's email or birth date over the other's (the new person is added instead), and notes
 are added to, never replaced. **Remove this import** takes back the clients an import added that you have not worked
-with since (a session, note, label or event among them); each one is recorded on the deletions list like any other
+with since (a session, note, label, or event among them); each one is recorded on the deletions list like any other
 deleted client.
 
 A file's **Minor** column never quietly turns a child into an adult. Minor status protects children (a parent or
@@ -741,7 +780,7 @@ Session, client, step (to-do), and event numbers are never handed out twice, eve
 page left open on a deleted session, client, step, or event can't save into a new, unrelated one: anything sent from it
 gets a page saying it was deleted, and nothing is changed. The highest number issued is kept in `doc-numbers.json` beside the
 database (it survives restoring an older backup) and in a small table inside it (the database alone is enough if that
-file is lost); at each sign-in both are raised to at least every number the database, its History and the deletions
+file is lost); at each sign-in both are raised to at least every number the database, its History, and the deletions
 list have seen.
 
 ## Rotating the data key
@@ -772,7 +811,7 @@ and a few more, because a page can be reached by anyone on your network while a 
   does), so only someone who can open the machine's folders can claim it with a backup. Once a studio exists, the
   new-install restore page is gone.
 - Before the setup code is typed, that page lists only the backups in the folder the app itself offers (`/vault`,
-  or a vault folder beside the data): the names, dates and sizes of the sealed files in its `db` folder, nothing
+  or a vault folder beside the data): the names, dates, and sizes of the sealed files in its `db` folder, nothing
   inside them. The threat: a folder typed into the address, such as the top of the disk, made the app read every
   folder under it, and show which backups lie where, for anyone on an allowed network. The fix: any other folder is
   listed only once the setup code is given with it, and only its own `db` folder is ever read, never anything under
@@ -794,7 +833,7 @@ and a few more, because a page can be reached by anyone on your network while a 
 Opening with the master key proves a backup was sealed to it, not who sealed it: `age` has no sender authenticity, and
 sealing takes only the master key's public half, which the app and its database hold. So when a backup is made, its
 fingerprint (SHA-256 of the sealed file) is recorded, and `restore` on this install refuses a backup whose bytes differ
-(swapped, rolled back or altered). Where there is no record to compare with (a new machine restoring with `--from`, a
+(swapped, rolled back, or altered). Where there is no record to compare with (a new machine restoring with `--from`, a
 backup the restored database never heard of, a file chosen from your computer in the app, or an archive opened with
 `open-orphan`), the command and the app's review screen say first that it was not checked; use it only if it came from your own vault folder, and check its date and contents.
 
@@ -812,7 +851,7 @@ processes would each need their own sign-in.
 ## What is in the image
 Only what the app runs on: Python, the libraries PDFs are drawn with (Pango and the fonts), and time zone data. Each
 extra system package is one more set of security fixes to keep up with. From 1.6.0 the image has no curl: it, and the
-LDAP, Kerberos, SSH and RTMP libraries it pulls in, carried every critical known vulnerability in the image. The health
+LDAP, Kerberos, SSH, and RTMP libraries it pulls in, carried every critical known vulnerability in the image. The health
 check is the app's own probe (`healthcheck.py`, standard library only), which asks `/healthz` on the container's own
 address and nothing else. Every image build takes the Debian security fixes published up to that day.
 

@@ -109,7 +109,7 @@ def test_new_inquiry_says_where_to_add_a_session_type(tmp_path, monkeypatch):
     import prints_env as PE
     e = PE.make(tmp_path, monkeypatch)
     page = e.c.get("/inquiry?hid=1", environ_base=PE.E).get_data(as_text=True)
-    assert 'Not listed? <a class="ui-go" href="/setup/shoot#types">Add a session type in Settings</a>' in page
+    assert 'Not listed? <a class="ui-go" href="/setup/shoot#types">Add a kind of shoot in Settings, What you shoot</a>' in page
     assert e.c.get("/setup/shoot", environ_base=PE.E).status_code == 200
 
 def test_the_menu_and_the_cards_line_agree_on_upload(tmp_path, monkeypatch):

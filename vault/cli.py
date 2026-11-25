@@ -7,7 +7,7 @@ USAGE = """Command line for the vault. The master key is read from the terminal 
                                                 vault folder and pass it with --from.
     python -m vault.cli new-master              replace the master key (it was lost or may have leaked): asks for the
                                                 password and the OLD master key, shows the new one once
-    python -m vault.cli rotate                  new data key: re-encrypt the database, faces and storage settings
+    python -m vault.cli rotate                  new data key: re-encrypt the database, faces, and storage settings
                                                 (stop the app first; asks for the password and the master key)
     python -m vault.cli backup                  seal a backup now
     python -m vault.cli init-store <dir>        mark a local/NAS folder as a vault root (refused until marked)

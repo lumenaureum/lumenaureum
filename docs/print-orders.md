@@ -16,7 +16,7 @@ Turning print orders **off** again (Settings, Plugins, Turn off):
 - If any order is still open, it asks first: "N print orders are still open. Finish them first, or turn off anyway
   (they're kept and come back when print orders are on again)."
 - The print pages, the review list, the print lines on Today and on each session, and the print choices on Settings, Taxes are
-  hidden. Nothing is deleted: every order, line, payment, invoice and lab cost stays exactly as it was, and comes back
+  hidden. Nothing is deleted: every order, line, payment, invoice, and lab cost stays exactly as it was, and comes back
   when you turn print orders on again (after a fresh check of your galleries, each gallery offers prints again as
   before).
 - At the next gallery check, every gallery stops offering prints: its offer comes off your web host (`offer.bin`,
@@ -28,7 +28,7 @@ Turning print orders **off** again (Settings, Plugins, Turn off):
   ever lost: orders are still collected at each gallery check and before any gallery folder is removed (the same core
   rule as picks and drafts), kept, and Today says "N print orders arrived while print orders are off". Turn print
   orders on to review them.
-- Print money always stays in Finances, client statements and the accountant export, on or off.
+- Print money always stays in Finances, client statements, and the accountant export, on or off.
 - The ship-to rule below (reducing an address a year after its order closed) keeps running.
 - An administrator can keep print orders off for the whole install with `CRM_PLUGINS_OFF=prints`; the switch can't
   turn them on then. The core part (`print_core`) still collects orders and keeps the money.
@@ -73,7 +73,7 @@ Print ordering needs a web host that runs PHP 7.4 or later (Setup checks it). On
 
 On a download gallery, or a proofing gallery that offers prints from its proofs, each photo has **Order prints**. Sizes that fit the whole photo come first; for any other
 shape, the client drags a frame over the photo to choose what prints, and can turn it. They choose how many, then
-**Your print order** collects them (on that device only: no name, address or price is stored there). Then **Ship
+**Your print order** collects them (on that device only: no name, address, or price is stored there). Then **Ship
 to**: their name, email, phone (optional), where the prints go (to me, to someone else, or pick up), a note, and one
 box: "I'll get an invoice. Nothing is printed until it's paid." Without the tick, the page shows "Tick 'I'll get an
 invoice' to continue." beside the box. **Is this right?** shows every print as it will be cut, then **Send to** (your studio's name).
@@ -107,16 +107,16 @@ Each order's page shows:
 - **Each print as it will print**: the photo cut to the crop at the size's exact shape. Mark each cropped line
   **Looks right**, or **Change crop**. A line that may look soft needs **Print it anyway**. Until the invoice is
   issued you can change quantities and prices, or remove a line.
-- **Money**: the client's prices, your lab cost and profit where known, the lab's shipping (type it) and what the
+- **Money**: the client's prices, your lab cost and profit where known, the lab's shipping (type it), and what the
   client is charged for it, tax, and payments.
 
 ## Invoice, payment, and the lab
 
 - **Make invoice** gives the order its own invoice in your usual run (INV-2026-0012), separate from the session's
   invoice: it never changes the session's balance. It cannot be issued while at-cost shipping has no amount. It says
-  prints are made after it is paid in full, and that prints damaged, lost or defective are remade by the lab at no
-  cost to the client while a crop, size or address the client chose is a new order. **Email it** opens a draft in your
-  mail app with the invoice's number, what it is for, the total (prints, shipping, tax), what is paid so far and how
+  prints are made after it is paid in full, and that prints damaged, lost, or defective are remade by the lab at no
+  cost to the client while a crop, size, or address the client chose is a new order. **Email it** opens a draft in your
+  mail app with the invoice's number, what it is for, the total (prints, shipping, tax), what is paid so far, and how
   to pay. It never says anything is attached; save the invoice as a PDF and attach it for their records, if you like.
 - **Change the order** (before it is paid) voids the invoice so lines can change; a new invoice gets a new number.
   Shipping is then worked out again from your shipping rules, unless you typed the client's shipping charge by hand:
@@ -133,22 +133,22 @@ Each order's page shows:
   (products, shipping, the lab's sales tax, other charges). **Mark shipped** (carrier, tracking; for pick up "Arrived
   at the studio"), **Tell** the client with a mail draft, **Mark delivered** (or Picked up), **Close**. A shipped order
   closes by itself 45 days after it shipped.
-- **Damaged, defective or lost**: Remake requested, with a note; ask your lab for a remake under its own policy and
+- **Damaged, defective, or lost**: Remake requested, with a note; ask your lab for a remake under its own policy and
   type the remake's order number and what it cost you (blank: a free remake, $0). The remake's cost is recorded on
   its own; the first order's cost stays as it was.
 - **Cancel order**: before ordering at the lab, at any time (record a refund separately if they paid). After ordering,
   it asks whether you canceled it at the lab too. Only "Canceled at the lab" takes the lab's cost back; otherwise the
   cost you paid stays recorded. If the lab cancels or refunds a lab order later, open the order and use **The lab
   canceled or refunded this** under its cost, with the day the money came back.
-- **Lab costs are recorded as paid and never rewritten.** Each lab order, remake and lab refund is its own line on the
+- **Lab costs are recorded as paid and never rewritten.** Each lab order, remake, and lab refund is its own line on the
   day it was paid (or refunded), and stays in that year: a later remake or refund never changes a past year.
 - **Order before payment** (a danger action, per order): lets you prepare and order before the invoice is paid. You
   carry the risk; History records it. Nothing automatic ever uses it.
 - **Unpaid**: Today reminds you after 7 days. At 30 days the order becomes **Expired unpaid**: its invoice is voided
   (the number is never reused), the photo files stop being held for it, and a mail draft to the client is offered.
   **Reopen** it if they pay later, while the gallery's files still exist. An order whose ship-to was already reduced
-  to city, state and ZIP (a year after it closed) reopens normally with a **Shipping address incomplete** box: type
-  the full address there. Until you do, Prepare for the lab, Ordered at the lab and any lab plugin hand-off wait.
+  to city, state, and ZIP (a year after it closed) reopens normally with a **Shipping address incomplete** box: type
+  the full address there. Until you do, Prepare for the lab, Ordered at the lab, and any lab plugin hand-off wait.
 
 ## What is kept, and for how long
 
@@ -160,10 +160,10 @@ Each order's page shows:
   voided.
 - Ship-to addresses: only an address a client sent prints to for someone else ("ship to someone else"), and the
   address on a guest order never accepted as a client, are reduced. Each is kept in full until one year after its
-  order closed (closed, canceled or expired), then reduced to city, state and ZIP. A client's own address is never
+  order closed (closed, canceled, or expired), then reduced to city, state, and ZIP. A client's own address is never
   reduced, including an orderer you added to the family or made a client of their own. Issued invoices stay as they
   were printed.
-- Finances shows print sales, shipping charged, tax collected on print invoices, the lab's cost and your
+- Finances shows print sales, shipping charged, tax collected on print invoices, the lab's cost, and your
   profit, kept apart from your sessions. For a year with print orders, the accountant export adds `prints.csv` and
   `print-lab-costs.csv` (one line per lab cost as paid: the date paid, the lab order, and whether it was a lab order,
   a remake or a lab refund).
@@ -171,5 +171,5 @@ Each order's page shows:
 ## Lab plugins
 
 A plugin can connect one lab (plugins/README.md, "The lab hook"). "Where prints are made" then lists it beside "By
-hand, at any lab". Core keeps the order's state, money and review rules either way; Prepare for the lab always stays
+hand, at any lab". Core keeps the order's state, money, and review rules either way; Prepare for the lab always stays
 available.
