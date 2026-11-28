@@ -54,8 +54,8 @@ def test_inquiry_actions_and_book_without_a_quote_under_more(env):
     needs = _needs(page)
     assert [b for b in ("Reply", "Build a quote", "Do not book") if b in needs] == ["Reply", "Build a quote", "Do not book"]
     assert "They said yes" not in page and ">Not a fit<" not in page
-    more = page.split('id="more"', 1)[1]
-    assert ">Book without a quote</button>" in more
+    more = page.split('id="more-session"', 1)[1].split("</details>", 1)[0]
+    assert ">Book without a quote</span></button>" in more
     c.post("/session/1/quick", data={"act": "book", "back": "/c/1?s=1"}, environ_base=E)
     assert _q(A, "SELECT stage FROM sessions WHERE id=1")[0][0] == "booked"
     assert any("Moved to Booked: booked without a quote" in h for h in _history(A))
@@ -212,7 +212,7 @@ def test_before_the_send_each_client_step_is_the_photographers_action(env):
         assert "waiting on the client" not in r_
     assert 'href="/session/1/agreement" target="_blank">Send the agreement</a>' in agr
     assert 'href="/session/1/invoice" target="_blank">Send the deposit invoice</a>' in dep
-    assert "Agreement signed" not in page.split('id="more"', 1)[0] and "Collect the deposit" not in page.split('id="more"', 1)[0]
+    assert "Agreement signed" not in page.split('id="notes"', 1)[0] and "Collect the deposit" not in page.split('id="notes"', 1)[0]
     with A.app.test_request_context():
         s = A.q("SELECT * FROM sessions WHERE id=1", one=True)
         rows = A.focus_rows([a for a in A.build_actions(only_sid=1) if a["who"]["link"] == "/session/1"], s, A.totals(1))
@@ -399,9 +399,8 @@ def test_the_quote_is_read_only_and_looks_it_from_booked_on(env, stage):
     _x(A, "UPDATE lines SET qty=2, unit=amount/1 WHERE kind='fee'")
     _x(A, "UPDATE sessions SET stage=? WHERE id=1", (stage,))
     _x(A, "INSERT INTO stage_log (session_id, stage) VALUES (1, 'quoted'), (1, 'booked')")
-    page = _page(c)
-    bill = page.split('id="billing"', 1)[1].split("</details>", 1)[0] if '<details class="ui-fold" id="billing"' in page else \
-        page.split('id="billing"', 1)[1].split("</section>", 1)[0]
+    page = c.get("/c/1?s=1&show=billing", environ_base=E).get_data(as_text=True)
+    bill = page.split('id="billing"', 1)[1].split("</section>", 1)[0]
     table = bill.split("<table", 1)[1].split("</table>", 1)[0]
     assert "<input" not in table and "ui-x" not in table and "<form" not in table
     assert "qnewf" not in bill and "/quote/fee" not in bill and "/quote/discount" not in bill
@@ -409,8 +408,8 @@ def test_the_quote_is_read_only_and_looks_it_from_booked_on(env, stage):
     assert re.search(r'Discount</span><span class="ui-fact-v">Friends and family, 20%<', bill)
     assert re.search(r'Portfolio</span><span class="ui-fact-v">Allowed<', bill)
 
-    more = page.split('id="more"', 1)[1]
-    assert ">Replace the quote</button>" in more and "agreed to $" in more and "kept in History" in more
+    more = page.split('id="more-payments"', 1)[1].split("</details>", 1)[0]
+    assert ">Replace the quote</span></button>" in more and "agreed to $" in more and "kept in History" in more
 
 def test_the_quote_is_built_at_inquiry_and_quoted(env):
     A, c = env

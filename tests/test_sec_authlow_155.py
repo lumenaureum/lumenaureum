@@ -68,6 +68,7 @@ def _db(tmp_path):
     path = tmp_path / "s.db"
     con = sqlite3.connect(path)
     con.execute("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)")
+    con.execute("INSERT INTO settings VALUES ('setup_complete', '1')")
     con.commit()
     con.close()
     return lambda: sqlite3.connect(path)
@@ -90,14 +91,14 @@ def test_scheduled_backup_failure_is_kept_scrubbed(tmp_path, monkeypatch):
     with pytest.raises(OSError):
         VW.run_if_due(connect, tmp_path / "crm.db", tmp_path / "faces", now=datetime(2026, 1, 2, 23, 0))
     kept = _kept(connect)
-    assert kept.startswith("OSError:") and "bucket.example" in kept
+    assert kept.startswith("PUT ") and "bucket.example" in kept and "OSError" not in kept
     for leak in ("hunter2", "abc123", "AKIAXXXX", "/obj"):
         assert leak not in kept
 
 def test_no_raw_exception_text_left_at_the_backup_error_sites():
     src = open(os.path.join(ROOT, "vault", "web.py"), encoding="utf-8").read()
     assert 'f"{type(e).__name__}: {e}"' not in src
-    assert src.count("_record_error(connect, errtext.named(e))") == 3
+    assert src.count("_record_error(connect, errtext.plain(e))") == 3
 
 def test_failed_job_message_is_scrubbed(monkeypatch):
     import time

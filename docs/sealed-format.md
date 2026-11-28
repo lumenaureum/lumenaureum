@@ -127,7 +127,7 @@ mode 02 studio:        key = HKDF-SHA256(ikm = Z,       salt = epk || rpk, info)
 mode 03 studio+link:   key = HKDF-SHA256(ikm = Z || K,  salt = epk || rpk, info)
 ```
 
-K is the link key (the 32 bytes in the client's link, or the key derived from the link and the codeword). rpk is the
+K is the link key (the 32 bytes in the client's link, or the key derived from the link and the passphrase). rpk is the
 recipient's public key (the studio's), epk the sender's one-time public key, made for that one envelope and then
 discarded; Z is their ECDH shared secret. An empty salt is the RFC 5869 default (32 zero bytes). Mode 03 feeds the
 key-agreement secret followed by the link key into HKDF, the "hybrid" input of NIST SP 800-56C rev. 2.
@@ -220,10 +220,10 @@ What a client's browser downloads from a link's folder: `manifest.bin` (what the
 prices and the studio key for print orders), the photo files and Download all pieces (`<24 hex>.bin`). Each is a
 12-byte nonce, then AES-256-GCM under the link key directly, with `lumen-aureum-gallery:<the file's own name>` as
 associated data (the word "gallery" there is historical, see above), so a host can't serve one file in place of
-another. The page itself and its scripts are public code, not sealed. A codeword gallery's link key is
-PBKDF2-SHA256(the codeword, salt = the link's 32-byte secret followed by the gallery's ID, 600000 rounds); a gallery
+another. The page itself and its scripts are public code, not sealed. A passphrase gallery's link key is
+PBKDF2-SHA256(the passphrase, salt = the link's 32-byte secret followed by the gallery's ID, 600000 rounds); a gallery
 that moved to its link ID in 1.4 keeps salting with the ID it had (its page names it, `data-cws`), so its link and
-codeword open the same key as before. `tests/vectors/gallery-codeword.json` has the vectors.
+passphrase open the same key as before. `tests/vectors/gallery-codeword.json` has the vectors.
 
 Expected later: the agreement a client reads before signing, video files, and a gallery delivered without a web host
 (the same sealed files on a USB key or as one download).

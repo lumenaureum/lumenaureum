@@ -47,8 +47,8 @@ def _studio(A):
     _x(A, "INSERT INTO sessions (id, household_id, type, stage, shoot_date, event_id) VALUES (5, 2, 'family', 'booked', ?, 1)", (_day(A, 185),))
     _sync(A, 1, 2, 3, 4, 5)
 
-def _today(c):
-    r = c.get("/", environ_base=E)
+def _today(c, url="/"):
+    r = c.get(url, environ_base=E)
     assert r.status_code == 200
     return r.get_data(as_text=True)
 
@@ -135,7 +135,7 @@ def test_people_who_sent_picks_come_before_money_and_work(env):
     assert 'id="line-s4"' in work and "Sent their picks: " in line and "soften the shadow" in line and ">New</span>" in line
     assert page.count('id="line-s4"') == 1 and 'id="wrote-in"' not in page
 
-def test_next_two_weeks_is_folded_without_empty_days_or_today(env):
+def test_next_two_weeks_shows_a_busy_day_short_without_empty_days_or_today(env):
     A, c = env
     _studio(A)
     for i in range(7):
@@ -146,9 +146,13 @@ def test_next_two_weeks_is_folded_without_empty_days_or_today(env):
     body = page.split('id="two-weeks"', 1)[1].split('</aside>', 1)[0]
     assert A.today().strftime("%a %b %-d") not in body
     day2 = (A.today() + timedelta(days=2)).strftime("%a %b %-d")
-    assert f'id="day-{_day(A, 2)}"' in body and f"{day2}: 7 steps" in body
-    days_shown = re.findall(r'<h3 class="ui-sub-title">([^<]+)</h3>', body)
-    assert len(days_shown) == len(set(days_shown)) and all("steps" not in d_ for d_ in days_shown)
+    assert f'id="day-{_day(A, 2)}"' in body and '<details' not in body
+    day_ = body.split(f'id="day-{_day(A, 2)}"', 1)[1].split('<h3', 1)[0]
+    n_ = len(re.findall(r'class="ui-row"', day_))
+    assert re.search(r"All \d+ steps that day", day_) and n_ <= 5 + day_.count("Shoot")
+    days_shown = re.findall(r'<h3 class="ui-sub-title"[^>]*>([^<]+)</h3>', body)
+    assert len(days_shown) == len(set(days_shown)) and day2 in days_shown and all("steps" not in d_ for d_ in days_shown)
+    assert len(re.findall(r'class="ui-row"', _today(c, f"/?show=day-{_day(A, 2)}").split(f'id="day-{_day(A, 2)}"', 1)[1].split('<h3', 1)[0])) > n_
     assert 'href="/calendar/year"' in body
 
 def test_the_header_badge_counts_only_the_unread_inbox(env):

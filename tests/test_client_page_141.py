@@ -75,7 +75,8 @@ def test_inquiry_shows_their_words_with_reply_build_a_quote_and_do_not_book(env)
     assert ">Do not book</button>" in needs and 'value="lost"' in needs
     assert ">Build a quote</a>" in needs and 'name="act" value="book"' not in needs
     assert _fold(page, "billing").startswith("<section")
-    assert _fold(page, "history").startswith("<details") and " open" in _fold(page, "history")
+
+    assert 'href="/history?client=1"' in page and not _fold(page, "history").startswith("<details")
     assert 'id="timeline"' not in page
 
 def test_quoted_leads_with_book_it(env):
@@ -85,7 +86,7 @@ def test_quoted_leads_with_book_it(env):
     needs = _needs(page)
     assert 'id="quote-now"' in needs and 'name="act" value="book"' in needs
     assert "ui-btn-primary\">Book it" in needs and ">Do not book</a>" in needs
-    assert _fold(page, "billing").startswith("<details")
+    assert _fold(page, "billing").startswith("<section")
 
 def test_booked_shows_the_shoot_and_folds_the_rest(env):
     A, c = env
@@ -96,9 +97,11 @@ def test_booked_shows_the_shoot_and_folds_the_rest(env):
     body = page.split("</header>", 1)[1]
 
     shown = re.sub(r'<div class="ui-inline" id="f-date_set-1".*?</form>', "", body, flags=re.S)
-    assert ">When</span>" not in shown and "Longwood Gardens" not in shown.split('id="more"', 1)[0]
+
+    facts_ = re.search(r'<section class="ui-sec[^"]*" id="session-facts".*?</section>', shown, re.S).group(0)
+    assert ">When</span>" not in shown and "Longwood Gardens" not in shown.replace(facts_, "")
     assert _fold(page, "timeline").startswith("<section")
-    assert "Paperwork</h2>" not in page and "Now: " not in page
+    assert "Now: " not in page and '<details class="ui-fold' not in page
 
 def test_shoot_day_offers_shoot_done_once_the_start_time_has_passed(env):
     A, c = env

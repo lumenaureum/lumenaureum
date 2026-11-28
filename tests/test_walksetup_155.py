@@ -12,7 +12,7 @@ from helpers import fresh_modules, signed_in_client
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
 S3 = dict(type="s3", bucket="galleries", access_key="AK", secret_key="SK", endpoint="https://s3.example.com")
-SAYS = "This web host can't check codewords. Galleries stay sealed, and anyone with the link can open them."
+SAYS = "This web host can't check passphrases. Galleries stay sealed, and anyone with the link can open them."
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):
@@ -74,8 +74,8 @@ def test_turning_codewords_off_clears_sessions_not_online_yet_and_keeps_the_rest
     assert w[5]
     assert not any(_codewords().values())
     page = html.unescape(c.get("/setup/galleries", environ_base=E).get_data(as_text=True))
-    assert ("Codewords are off for galleries here. Cleared the codeword on 2 sessions not online yet. 2 galleries "
-            "already online keep their codeword.") in page
+    assert ("Passphrases are off for galleries here. Cleared the passphrase on 2 sessions not online yet. 2 galleries "
+            "already online keep their passphrase.") in page
 
 def test_the_confirm_says_how_many_sessions_change(env):
     A, c = env
@@ -83,12 +83,12 @@ def test_the_confirm_says_how_many_sessions_change(env):
     _sessions(A)
     page = html.unescape(c.get("/setup/galleries", environ_base=E).get_data(as_text=True))
     m = re.search(r'formaction="/setup/galleries/codewords-off" formnovalidate data-confirm="([^"]*)"', page)
-    assert m and m.group(1) == ("Turn codewords off for every session type? 2 sessions lose their codeword, as their "
+    assert m and m.group(1) == ("Turn passphrases off for every session type? 2 sessions lose their passphrase, as their "
                                 "galleries are not online yet. Galleries already online keep theirs.")
     from plugins import gallery as G
-    assert G.codewords_off_confirm(1).startswith("Turn codewords off for every session type? 1 session loses its "
-                                                 "codeword, as its gallery is not online yet.")
-    assert G.codewords_off_confirm(0) == ("Turn codewords off for every session type? No session changes. Galleries "
+    assert G.codewords_off_confirm(1).startswith("Turn passphrases off for every session type? 1 session loses its "
+                                                 "passphrase, as its gallery is not online yet.")
+    assert G.codewords_off_confirm(0) == ("Turn passphrases off for every session type? No session changes. Galleries "
                                           "already online keep theirs.")
 
 def test_choosing_s3_in_setup_clears_them_too(env):
@@ -98,7 +98,7 @@ def test_choosing_s3_in_setup_clears_them_too(env):
              gallery_bucket="galleries", gallery_access_key="AK", gallery_secret_key="SK",
              gallery_endpoint="https://s3.example.com")
     page = html.unescape(c.get("/setup/galleries", environ_base=E).get_data(as_text=True))
-    assert 'name="s3_codewords_off" value="1" data-confirm="Turn codewords off for every session type? 2 sessions' in page
+    assert 'name="s3_codewords_off" value="1" data-confirm="Turn passphrases off for every session type? 2 sessions' in page
     c.post("/setup/galleries", data=dict(f, s3_codewords_off="1"), environ_base=E)
     w = _words(A)
     assert w[1] == "" and w[2] == "" and w[3]
@@ -121,10 +121,10 @@ def test_the_switch_says_it_with_the_two_choices_on_s3_only(env):
     assert 'id="no-cw-check" class="sui-cw" data-show-if="gallery_codeword=1"' in block
     assert SAYS in block
     assert re.search(r'<button type="submit" class="ui-btn ui-btn-quiet" name="cw_all_off" value="1" data-confirm="Turn '
-                     r'codewords off for every session type\? 2 sessions[^"]*">Turn codewords off for galleries here</button>',
+                     r'passphrases off for every session type\? 2 sessions[^"]*">Turn passphrases off for galleries here</button>',
                      block)
     assert re.search(r'<a class="ui-btn ui-btn-quiet" href="/setup/galleries\?replace=gallery#f">Choose a host that can '
-                     r'check codewords</a>', block)
+                     r'check passphrases</a>', block)
 
 def test_turning_a_type_codeword_back_on_while_on_s3_is_allowed(env):
     A, c = env
@@ -134,7 +134,7 @@ def test_turning_a_type_codeword_back_on_while_on_s3_is_allowed(env):
     r = c.post("/settings/type/family", data=_type_form(gallery_codeword="1"), environ_base=E)
     assert r.status_code == 302 and _codewords()["family"]
     page = html.unescape(c.get("/settings/type/family", environ_base=E).get_data(as_text=True))
-    assert SAYS in page and "Turn codewords off for galleries here" in page
+    assert SAYS in page and "Turn passphrases off for galleries here" in page
 
 def test_turn_off_at_the_switch_saves_the_type_first_then_turns_them_off(env):
     A, c = env

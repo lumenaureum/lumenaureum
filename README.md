@@ -38,7 +38,7 @@ laptop or a stolen drive exposes no client records.
   your accountant a one-page year summary as a PDF, with the details as CSV files.
 - **Proofing and delivery galleries**, encrypted in the browser; the key is in the link printed on the letter you mail. Galleries
   come down after the window you set: by themselves on a web host that runs PHP and keeps gallery files behind the
-  gallery's gate (Setup checks), otherwise the next time the app is unlocked. A session type can ask for a codeword the client chooses, so the link alone
+  gallery's gate (Setup checks), otherwise the next time the app is unlocked. A session type can ask for a passphrase the client chooses, so the link alone
   doesn't open the gallery. A gallery already on your web host can be adopted into a session and brought up to date.
   What a link can and can't protect is in [docs/security.md](docs/security.md).
 - **Photos**: drop RAWs and edited JPEGs onto the task row they belong to (or Browse for them). They are encrypted as they arrive and

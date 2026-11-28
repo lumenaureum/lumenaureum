@@ -225,12 +225,13 @@ def test_adding_a_note_is_in_plain_sight_on_the_session(tmp_path, monkeypatch):
     import prints_env as PE
     e = PE.make(tmp_path, monkeypatch)
     page = e.c.get("/c/1?s=1", environ_base=PE.E).get_data(as_text=True)
-    notes = page.split('id="notes"', 1)[1].split('id="more"', 1)[0]
+    notes = page.split('id="notes"', 1)[1].split("</section>", 1)[0]
     assert 'action="/client/1/note"' in notes and ">Save note</button>" in notes
-    hist = page.split('id="history"', 1)[1]
-    assert 'action="/client/1/note"' not in hist and "Search notes and history" in hist
+
+    assert 'href="/history?client=1"' in notes
+    assert "Find words in the history" in e.c.get("/history?client=1", environ_base=PE.E).get_data(as_text=True)
     e.c.post("/client/1/note", data={"session_id": "1", "text": "Prefers the lake at golden hour", "channel": "note",
                                      "back": "/c/1?s=1#notes"}, environ_base=PE.E)
     page = e.c.get("/c/1?s=1", environ_base=PE.E).get_data(as_text=True)
-    notes = page.split('id="notes"', 1)[1].split('id="more"', 1)[0]
+    notes = page.split('id="notes"', 1)[1].split("</section>", 1)[0]
     assert "Prefers the lake at golden hour" in notes and 'data-confirm="Delete this note?"' in notes

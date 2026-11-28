@@ -59,12 +59,23 @@ def key_trail(row):
 class UploadError(ValueError):
     pass
 
+_DIRECTION = re.compile("[\u200b-\u200f\u202a-\u202e\u2066-\u2069]")
+NAME_MAX = 200
+
 def clean_name(name):
 
-    name = re.sub(r"[\x00-\x1f\x7f/\\]", "_", (name or "").split("/")[-1].split("\\")[-1]).strip().lstrip(".")
+    name = _DIRECTION.sub("", (name or "").split("/")[-1].split("\\")[-1])
+    name = re.sub(r"[\x00-\x1f\x7f/\\]", "_", name).strip().lstrip(".")
     if not name:
         raise UploadError("A file needs a name.")
-    return name[:200]
+    if len(name) <= NAME_MAX:
+        return name
+
+    stem, ext = os.path.splitext(name)
+    if len(ext) > 10 or not ext[1:].isalnum():
+        stem, ext = name, ""
+    tag = "~" + hashlib.sha256(name.encode("utf-8", "surrogatepass")).hexdigest()[:10]
+    return stem[:NAME_MAX - len(tag) - len(ext)].rstrip() + tag + ext
 
 def path_of(fid):
     if not re.fullmatch(r"[0-9a-f]{32}", fid or ""):

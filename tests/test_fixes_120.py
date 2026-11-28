@@ -63,7 +63,7 @@ def test_delivery_method_is_chosen_on_the_shoot_form_from_the_quote_on(app_):
     A, c = app_
     sid = new_session(A, "family")
     p = page(c, f"/session/{sid}/edit")
-    assert '<span>Files delivered by</span><select name="delivery_method">' in p and '<option value="link"' in p
+    assert '<span>How the files go</span><select name="delivery_method" id="f-delivery_method-early">' in p and '<option value="link"' in p
     shoot_form(A, c, sid, delivery_method="link")
     assert q1(A, "SELECT delivery_method FROM sessions WHERE id=?", (sid,))[0] == "link"
     assert q1(A, "SELECT 1 FROM audit WHERE session_id=? AND action='Delivery changed from USB drive to Download link'", (sid,))

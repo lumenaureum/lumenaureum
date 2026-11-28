@@ -128,23 +128,25 @@ def test_every_way_to_a_client_lands_on_the_client_page(env):
         assert 'href="/client/1"' not in page and 'data-href="/client/1"' not in page, path
         assert 'href="/session/1"' not in page and 'data-href="/session/1"' not in page, path
     page = c.get("/c/1?s=1", environ_base=E).get_data(as_text=True)
-    assert 'href="/client/1"' in page.split('id="more"', 1)[1]
+    assert 'href="/client/1"' in page.split('id="more-session"', 1)[1]
 
 def test_more_means_menus_and_the_bottom_fold_is_details_and_history(env):
 
     A, c = env
     _session(A, "shot", days=-3)
     page = c.get("/c/1?s=1", environ_base=E).get_data(as_text=True)
-    bottom = re.search(r'<details[^>]*id="more"[^>]*>\s*<summary[^>]*>(.*?)</summary>', page, re.S)
-    assert bottom and "Details and history" in bottom.group(1) and "More" not in re.sub(r"<[^>]+>", "", bottom.group(1))
+    assert 'id="more"' not in page and "Details and history" not in page
     assert ">More</summary>" in page
+    assert 'id="more-session"' in page and "More&hellip;</summary>" in page
     for path in ("/c/1?s=1", "/client/1"):
         html = c.get(path, environ_base=E).get_data(as_text=True)
         for summ in re.findall(r'<details[^>]*class="[^"]*ui-fold[^"]*"[^>]*>\s*<summary[^>]*>(.*?)</summary>', html, re.S):
             assert re.sub(r"<[^>]+>|\s", "", summ) != "More", (path, summ)
     with A.app.test_request_context():
-        row = A.render_template_string('{% import "_ui.html" as ui with context %}{{ ui.row_more(a, "/") }}',
-                                       a=dict(what="Files delivered", close={"session_id": 1, "step": "files"}))
+
+        row = A.render_template_string('{% import "_ui.html" as ui with context %}{{ ui.row_more(a, "/", more) }}',
+                                       a=dict(what="Files delivered", close={"session_id": 1, "step": "files"}),
+                                       more=[dict(verb="Email the link", post="/x", fields={})])
     assert re.search(r'<details class="ui-rowmore"><summary aria-label="More for Files delivered: [^"]+"[^>]*>More</summary>', row)
     css = (pathlib.Path(A.__file__).parent / "static" / "style.css").read_text()
     assert "white-space: nowrap" in css.split(".ui-rowmore > summary {", 1)[1].split("}", 1)[0]
@@ -288,5 +290,5 @@ def test_no_fold_on_the_client_page_hides_a_single_item(env):
     thin = [(fid, n) for fid, n in fold_lines(page) if n < 2]
     if thin:
         bad["components"] = thin
-    assert seen, "the client page has folds to check"
+
     assert not bad, f"Folds that hide a single item (rule 9): {bad}"

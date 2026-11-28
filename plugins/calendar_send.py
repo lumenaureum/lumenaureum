@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import http.client
 import json
 import os
 import threading
@@ -665,6 +666,9 @@ def register(ctx):
         except S.SendError as e:
             return refuse(f"{named or 'The calendar service'} couldn't be reached: {e.words}. Nothing was saved.", back,
                           typed)
+        except (ValueError, http.client.InvalidURL):
+            return refuse(f"{named or 'The calendar service'} couldn't be reached: {S.BAD_ADDRESS}. Nothing was saved.",
+                          back, typed)
         secret_put("pending", dict(kind="caldav", url=conn.url, user=user, password=pw, calendars=cals[:50],
                                    account=user, service_name=named or S.origin(conn.url)[1]))
         return here()

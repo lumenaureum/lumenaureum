@@ -1,5 +1,6 @@
 (() => {
   const digits = t => (t || '').replace(/\D/g, '');
+  const fold = t => (t || '').normalize('NFKD').toLowerCase().replace(/\p{M}/gu, '').normalize('NFC');
   document.querySelectorAll('[data-ui-roster]').forEach(wrap => {
     const box = wrap.querySelector('[data-r-q]'), table = wrap.querySelector('table'), body = table.tBodies[0];
     const none = wrap.querySelector('[data-r-none]');
@@ -9,24 +10,24 @@
     if (form) form.addEventListener('submit', e => e.preventDefault());
     const phoneWord = w => /\d/.test(w) && !/[a-z]/.test(w);
     const match = (tr, words) => {
-      const text = (tr.dataset.rText || (tr.textContent + ' ' + (tr.dataset.rFind || ''))).toLowerCase().replace(/\s+/g, ' ');
+      const text = fold(tr.dataset.rText || (tr.textContent + ' ' + (tr.dataset.rFind || ''))).replace(/\s+/g, ' ');
       const phone = digits(tr.dataset.rPhone);
       return words.every(w => text.includes(w) || (phoneWord(w) && phone.includes(digits(w))));
     };
     const why = (tr, words) => {
       let src = [];
       try { src = JSON.parse(tr.dataset.rWhy || '[]'); } catch (e) { src = []; }
-      const name = ((tr.querySelector('.ui-roster-name') || {}).textContent || '').toLowerCase(), out = [];
+      const name = fold((tr.querySelector('.ui-roster-name') || {}).textContent), out = [];
       words.forEach(w => {
         if (name.includes(w)) return;
-        const hit = src.find(([lab, v]) => (v || '').toLowerCase().includes(w) || (phoneWord(w) && lab === 'Phone' && digits(v).includes(digits(w))));
+        const hit = src.find(([lab, v]) => fold(v).includes(w) || (phoneWord(w) && lab === 'Phone' && digits(v).includes(digits(w))));
         if (hit && !out.includes(`${hit[0]}: ${hit[1]}`)) out.push(`${hit[0]}: ${hit[1]}`);
       });
       return out;
     };
     const count = document.querySelector('[data-r-count]'), add = wrap.querySelector('[data-r-add]'), all = wrap.querySelector('[data-r-all]');
     const filter = () => {
-      const y = window.scrollY, typed = (box.value || '').trim(), words = typed.toLowerCase().split(/\s+/).filter(Boolean);
+      const y = window.scrollY, typed = (box.value || '').trim(), words = fold(typed).split(/\s+/).filter(Boolean);
       let shown = 0;
       rows().forEach(tr => {
         const ok = match(tr, words); tr.hidden = !ok; if (ok) shown++;
@@ -53,7 +54,7 @@
     let desc = !!wrap.querySelector('th[aria-sort="descending"]');
     const sortBy = (key, d, num) => {
       const name = k => k.replace(/-(\w)/g, (m, c) => c.toUpperCase());
-      const val = tr => { const v = tr.dataset['r' + name('-' + key)] || ''; return num ? (parseFloat(v) || 0) : v.toLowerCase(); };
+      const val = tr => { const v = tr.dataset['r' + name('-' + key)] || ''; return num ? (parseFloat(v) || 0) : fold(v); };
       rows().sort((a, b) => {
         const x = val(a), y = val(b);
         if (!num && (x === '') !== (y === '')) return x === '' ? 1 : -1;      // no value: always last

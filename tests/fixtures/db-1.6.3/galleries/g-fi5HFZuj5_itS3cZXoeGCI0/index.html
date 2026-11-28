@@ -1,0 +1,2052 @@
+<!DOCTYPE html>
+<html lang="en" data-gate="1" data-gid="g-fi5HFZuj5_itS3cZXoeGCI0">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-YewYJV2MAYMUE+bOXoBX04EngGwPT/gfIllXPMFBgm8='; style-src 'unsafe-inline'; img-src blob:; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<title>Photos</title>
+<style>
+:root { --bg: #f6f3ed; --ink: #1f1b16; --mute: #756b60; --line: #e2dbcf; --gold: #b8862f; --ring: #b5842e; --cell: #e9e3d8; --edge: #cfc5b4;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif; color-scheme: light; }
+/* the look the photographer chose (inside the manifest): Elegant swaps the serif, Script is for the title only */
+html.dark { color-scheme: dark; }
+html.f-elegant { --serif: "Gallery Serif", "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif; }
+html.f-script header h1 { font-family: "Gallery Script", var(--serif); font-size: clamp(40px, 6vw, 64px); line-height: 1.1; }
+html.f-own { --serif: "Gallery Own", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; }
+html.f-own, html.f-own body, html.f-own button, html.f-own input, html.f-own textarea { font-family: "Gallery Own", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+html.f-own.f-light body { font-weight: 300; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-text-size-adjust: 100%; }
+body { min-height: 100vh; display: flex; flex-direction: column; }
+body.tray { padding-bottom: 58px; }
+html:has(body.tray) { scroll-padding-bottom: 76px; }
+header { padding: 36px 20px 20px; max-width: 1100px; margin: 0 auto; text-align: center; }
+#brand { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 18px; }
+#logo { display: block; max-height: 120px; max-width: min(480px, 85vw); object-fit: contain; }   /* sized by its shape once loaded (sizeLogo) */
+#studio { font-size: 12px; letter-spacing: .22em; text-transform: uppercase; color: var(--mute); }
+#studio.word { font: 400 24px/1.2 var(--serif); letter-spacing: .04em; text-transform: none; color: var(--ink); }
+.rule { width: 56px; height: 1px; background: var(--gold); margin: 0 auto 16px; border: 0; }
+header h1 { margin: 0 0 10px; font: 400 clamp(30px, 4.4vw, 46px)/1.15 var(--serif); letter-spacing: .01em; }
+#meta { margin: 0; color: var(--mute); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; text-wrap: balance; }
+#how { margin: 12px auto 0; }
+#sunset { position: fixed; inset: 0; z-index: 25; background: rgba(20,16,12,.6); display: flex; align-items: center; justify-content: center; padding: 16px; }
+#sunset[hidden] { display: none; }
+#sunset .box { background: var(--bg); color: var(--ink); max-width: 440px; width: 100%; border-radius: 10px; padding: 28px 28px 22px; box-shadow: 0 12px 40px rgba(0,0,0,.3); font-size: 15px; line-height: 1.5; text-align: center; border-top: 3px solid var(--gold); }
+#sunset h2 { margin: 0 0 10px; font: 400 26px/1.2 var(--serif); }
+#sunset p { margin: 0 0 10px; }
+#sunset a { color: inherit; overflow-wrap: anywhere; }
+#ssdl #dlall { margin: 16px 0 6px; justify-content: center; } #ssdl #dlall button { width: 100%; padding: 14px 22px; font-size: 16px; }
+#ssdl #dlwait { margin: 0 0 8px; }
+#ssgo { margin-top: 8px; font: 600 14px/1 -apple-system, sans-serif; padding: 10px 22px; border-radius: 20px; cursor: pointer; border: 1px solid var(--edge); background: none; color: var(--ink); }
+#ssgo.primary { background: #e3aa48; border-color: #e3aa48; color: #1a1308; padding: 12px 28px; font-size: 15px; }
+body.ssopen { overflow: hidden; }
+/* gone dark: the Lumen Aureum mark on its own dark colors, centered, nothing else on the page */
+html.gonedark { --bg: #12100e; --ink: #efe3cc; --mute: #a99c86; color-scheme: dark; }
+html.gonedark header, html.gonedark footer, html.gonedark #filter, html.gonedark #grid { display: none !important; }
+html.gonedark #msg { min-height: 100vh; padding: 24px 16px; }
+#darkmark svg { display: block; width: min(220px, 60vw); height: auto; margin: 0 auto 28px; } #darkmark[hidden] { display: none; }
+html.gonedark #msg b { font-size: 30px; }
+#msgact .dark { margin-top: 6px; } #msgact .dark a { color: #e9b45c; overflow-wrap: anywhere; }
+#how button { background: none; border: 0; padding: 0; font: inherit; font-size: 14px; color: var(--mute); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+#how button:hover { color: var(--ink); }
+#welcome { position: fixed; inset: 0; z-index: 20; background: rgba(20,16,12,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
+#welcome[hidden] { display: none; }
+#welcome .box { background: var(--bg); color: var(--ink); max-width: 440px; width: 100%; border-radius: 10px; padding: 26px 28px 22px; box-shadow: 0 12px 40px rgba(0,0,0,.25); font-size: 15px; line-height: 1.5; }
+#welcome h2 { margin: 0 0 10px; font: 400 26px/1.2 var(--serif); }
+/* no one-word orphan ("about to / sunset."): balanced headings and short notices, tidier paragraphs where supported */
+#sunset h2, #welcome h2, #msg, #msgsay, header h1 { text-wrap: balance; }
+#sunset p, #welcome p, #msg p, #prline { text-wrap: pretty; }
+#welcome p { margin: 0 0 10px; color: var(--ink); }
+#welcome ul { margin: 0 0 12px; padding-left: 20px; } #welcome li { margin: 6px 0; }
+#wgo { display: block; margin: 16px 0 0 auto; font: 600 15px/1 -apple-system, sans-serif; padding: 11px 26px; border: 0; border-radius: 20px; background: #e3aa48; color: #1a1308; cursor: pointer; }
+body.welcomeopen { overflow: hidden; }
+#ask { position: fixed; inset: 0; z-index: 20; background: rgba(20,16,12,.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+#ask[hidden] { display: none; }
+#ask .box { background: var(--bg); color: var(--ink); max-width: 360px; width: 100%; border-radius: 10px; padding: 22px 24px 18px; box-shadow: 0 12px 40px rgba(0,0,0,.25); font-size: 15px; line-height: 1.5; }
+#ask p { margin: 0 0 16px; } #ask .row { display: flex; justify-content: flex-end; gap: 10px; }
+#ask button { font: 600 14px/1 -apple-system, sans-serif; padding: 10px 20px; border-radius: 20px; cursor: pointer; border: 1px solid var(--edge); background: none; color: var(--ink); }
+#ask #askgo { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.cell .tag i[data-k] { cursor: pointer; }
+.nw { white-space: nowrap; }
+#grid img, #lb img { -webkit-user-drag: none; user-select: none; -webkit-touch-callout: none; }   /* no drag-out or long-press save */
+/* two columns when there is a studio mark: [ logo | shoot details ], stacked again on a phone */
+header.two { display: grid; grid-template-columns: auto 1px minmax(0, 1fr); column-gap: 28px; align-items: center; max-width: 980px; text-align: left; }
+header.two #brand { grid-column: 1; grid-row: 1 / span 3; margin: 0; align-items: flex-end; }
+header.two .rule { grid-column: 2; grid-row: 1 / span 3; width: 1px; height: 100%; min-height: 90px; margin: 0; align-self: stretch; }
+header.two h1, header.two #meta, header.two #how, header.two #dlall { grid-column: 3; }
+#brand a { display: flex; flex-direction: column; align-items: inherit; gap: 12px; color: inherit; text-decoration: none; }
+#dlall { margin: 16px auto 0; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; } #dlall[hidden] { display: none; }
+header.two #dlall { margin: 14px 0 0; justify-content: flex-start; }
+#dlall button { font: 600 15px/1 -apple-system, sans-serif; padding: 11px 22px; border: 0; border-radius: 20px; background: #e3aa48; color: #1a1308; cursor: pointer; }
+#dlall button:disabled { opacity: .75; cursor: default; }
+#dlwait { margin: 10px auto 0; font-size: 13px; color: var(--mute); } #dlwait[hidden] { display: none; }
+header.two #dlwait { grid-column: 3; margin: 8px 0 0; }
+#lb #pickbar #dl { background: #e3aa48; border-color: #e3aa48; color: #1a1308; opacity: 1; }
+header.two #how { margin: 8px 0 0; }
+@media (max-width: 640px) { header.two { display: block; text-align: center; }
+  header.two #brand { align-items: center; margin-bottom: 18px; } header.two .rule { width: 56px; height: 1px; min-height: 0; margin: 0 auto 16px; }
+  header.two #how, header.two #dlall { margin: 14px auto 0; } header.two #dlall { justify-content: center; } }
+#filter { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 0 16px 18px; }
+#filter[hidden] { display: none; }
+#filter button { font: 600 15px/1 -apple-system, sans-serif; padding: 10px 18px; border: 1px solid var(--edge); border-radius: 20px; background: none; color: var(--ink); cursor: pointer; }
+#filter button.on { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+#filter button:disabled { opacity: .4; cursor: default; }
+.cell.out { display: none; }
+#grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; padding: 0 28px 64px;
+  max-width: 1600px; margin: 0 auto; width: 100%; flex: 1 0 auto; align-content: start; }
+@media (max-width: 520px) { #grid { grid-template-columns: repeat(2, 1fr); gap: 4px; padding: 0 4px 24px; } header { padding: 36px 14px 22px; } }
+.cell { position: relative; aspect-ratio: 1; background: var(--cell); overflow: hidden; cursor: zoom-in; border: 0; padding: 0; display: block; width: 100%; }
+.cell img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; transition: opacity .35s, transform .5s; }
+.cell:hover img.on { transform: scale(1.025); }
+.cell img.on { opacity: 1; }
+.cell:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+#msg { flex: 1 0 auto; display: grid; place-items: center; text-align: center; color: var(--mute); padding: 96px 24px; }
+#msg[hidden] { display: none; }
+#msg b { display: block; color: var(--ink); font: 400 28px/1.3 var(--serif); margin-bottom: 8px; }
+#msgact:empty { display: none; } #msgact { margin-top: 14px; } #msgact form[hidden] { display: none; }
+#msgact button { font: inherit; padding: 8px 16px; border: 0; border-radius: 18px; background: #e3aa48; color: #1a1308; cursor: pointer; }
+#msgact button.plain { background: none; color: var(--ink); text-decoration: underline; padding: 8px 10px; }
+#msgact input { font: inherit; padding: 8px 10px; border: 1px solid var(--edge); background: var(--bg); color: var(--ink); border-radius: 8px; margin-right: 8px; }
+#msgact #cardcode { width: min(19em, 100%); margin: 0 0 8px; font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: .06em; text-transform: uppercase; }
+footer { background: #141210; color: #b9ad9a; padding: 26px 20px 30px; text-align: center; font-size: 13px; margin-top: auto; }
+#contact { margin-bottom: 14px; color: #e9e1d2; } #contact a { color: #e9e1d2; text-decoration: none; border-bottom: 1px solid #4a4237; }
+#contact span + span::before { content: "\00b7"; margin: 0 10px; color: #6e6455; }
+#rights { margin: -6px 0 14px; font-size: 12px; color: #8f8474; }
+#la { display: inline-flex; align-items: center; gap: 10px; color: #b9ad9a; text-decoration: none; letter-spacing: .03em; }
+#la svg { width: 32px; height: 32px; } #la b { color: #f0dfb4; font-weight: 600; } #la:hover b { color: #f6dfa6; }
+#la small { display: block; font-size: 11px; color: #8f8472; letter-spacing: .08em; }
+#lb { position: fixed; inset: 0; background: #0b0a09; display: none; z-index: 10; touch-action: pan-y pinch-zoom; user-select: none; }
+#lb.open { display: flex; flex-direction: column; align-items: center; padding: 16px 72px 8px; }
+#lb img { display: block; flex: 1 1 0; min-height: 0; width: 100%; object-fit: contain; opacity: 0; transition: opacity .2s; }
+#lb img.on { opacity: 1; }
+#lb button { position: absolute; background: none; border: 0; color: var(--ink); opacity: .7; cursor: pointer; padding: 18px;
+  font: 300 44px/1 -apple-system, sans-serif; }
+#lb button:hover { opacity: 1; }
+#prev { left: 0; top: 50%; transform: translateY(-50%); }
+#next { right: 0; top: 50%; transform: translateY(-50%); }
+#close { right: 0; top: 0; font-size: 36px !important; }
+#count { flex: none; padding: 6px 0 2px; text-align: center; color: var(--mute); font-size: 13px; }
+@media (hover: none) { #prev, #next { display: none; } #lb.open { padding: 0 0 6px; } }
+.num { position: absolute; left: 7px; top: 6px; font-size: 11px; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.7); opacity: .85; }
+.tag { position: absolute; right: 8px; top: 7px; display: flex; gap: 5px; }
+.tag i { font-style: normal; font-size: 13px; font-weight: 700; padding: 3px 9px; border-radius: 11px; background: #e3aa48; color: #1a1308; }
+.tag i.heart { background: #d9667f; color: #fff; }
+.tag i.no { background: #3a3530; color: #f2ebe0; }
+.tag i[data-tip] { position: relative; cursor: default; }
+.tag i[data-tip]:hover::after { content: attr(data-tip); position: absolute; right: 0; top: calc(100% + 6px); z-index: 5;
+  width: max-content; max-width: 220px; padding: 6px 9px; border-radius: 6px; background: rgba(20,16,12,.92); color: #f2ebe0;
+  font-weight: 400; font-size: 12px; line-height: 1.4; white-space: normal; text-align: left; }
+#pickbar { flex: none; margin-top: 12px; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; align-items: center; z-index: 2; max-width: calc(100vw - 16px); }
+@media (max-width: 640px) { #note { order: -1; flex-basis: 100%; max-width: none !important; } }
+body.lbopen #tray { display: none; }
+#lb #pickbar button { position: static; font: 600 13px/1 -apple-system, sans-serif; padding: 8px 12px; border: 1px solid rgba(236,229,216,.45); border-radius: 18px; opacity: .85; }
+#lb #pickbar button.on { background: #e3aa48; border-color: #e3aa48; color: #1a1308; opacity: 1; }
+#lb #pickbar #pm.on { background: #d9667f; border-color: #d9667f; color: #fff; }
+#lb #pickbar #pv.on { background: #f2ebe0; border-color: #f2ebe0; color: #1a1308; }
+#bigtag { position: fixed; z-index: 3; gap: 6px; }
+#bigtag i { font-size: 15px; padding: 3px 10px; border-radius: 12px; }
+#lb #pickbar #done { border-color: transparent; text-decoration: underline; text-underline-offset: 3px; }
+#lb button { color: #ece5d8; }
+#count { color: #8f8678 !important; }
+#count.warn { color: #ece5d8 !important; font-size: 14px; }
+#lberr { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); max-width: 320px; text-align: center; color: #ece5d8; font-size: 15px; }
+#lberr[hidden] { display: none; }
+#lbload { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); padding: 8px 16px; border-radius: 18px;
+  background: rgba(11,10,9,.75); color: #ece5d8; font-size: 15px; pointer-events: none; }
+#lbload[hidden] { display: none; }
+#lb img.ph { filter: blur(6px); opacity: .7; }
+#lb #pickbar button:disabled, #note:disabled { opacity: .35; cursor: default; }
+#upd { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; gap: 12px; align-items: center;
+  max-width: calc(100vw - 20px); padding: 10px 14px; border-radius: 10px; background: rgba(20,18,16,.97); color: #ece5d8; font-size: 14px; }
+#upd[hidden] { display: none; }
+@media (max-width: 640px) { #upd { left: 8px; right: 8px; transform: none; max-width: none; flex-wrap: wrap; justify-content: center; text-align: center; } }
+#upd button, #lb #lberr button.reload { font: 600 14px/1 -apple-system, sans-serif; padding: 9px 18px; border: 0; border-radius: 18px; background: #e3aa48; color: #1a1308; cursor: pointer; }
+#lb #lberr button { position: static; font: 600 14px/1 -apple-system, sans-serif; padding: 9px 18px; margin-top: 12px; border: 1px solid rgba(236,229,216,.45); border-radius: 18px; }
+#note { width: 260px; max-width: 48vw; padding: 7px 10px; border-radius: 16px; border: 1px solid #26221e; background: #171513; color: #ece5d8; font-size: 13px; }
+/* a phone, upright or on its side: the photo takes the screen; the count and the pick buttons sit below it, compact */
+@media (max-width: 640px), (max-height: 500px) {
+  #lb.open { padding: 0 0 max(6px, env(safe-area-inset-bottom)); }
+  #count { padding: 4px 0 0; font-size: 12px; }
+  #pickbar { margin-top: 6px; gap: 6px; padding: 0 8px; max-width: 100vw; }
+  #lb #pickbar button { padding: 7px 10px; font-size: 12.5px; }
+  #lb #close { padding: 10px 14px; }
+}
+@media (max-width: 640px) { #note { width: 100%; } }
+@media (max-height: 500px) { #pickbar { margin-top: 4px; } }
+#tray { position: fixed; left: 0; right: 0; bottom: 0; display: none; justify-content: center; gap: 14px; align-items: center; padding: 10px; background: rgba(20,18,16,.97); color: #ece5d8; font-size: 14px; z-index: 5; }
+#trayn { white-space: pre; } #trayn .short { display: none; } #trayn .saved::before { content: "  \0000b7  "; }
+@media (max-width: 640px) { #tray { gap: 10px; font-size: 13px; padding: 8px 10px; } #trayn { text-align: center; }
+  #trayn .long { display: none; } #trayn .short { display: inline; }
+  #trayn .saved { display: block; color: #b9ad9a; } #trayn .saved::before { content: none; } }
+#sent:empty { display: none; } #send { white-space: nowrap; }
+@media (max-width: 640px) { #tray { flex-wrap: wrap; row-gap: 4px; } #sent { flex-basis: 100%; text-align: center; color: #f0dfb4; }
+  body.tray.sentline { padding-bottom: 96px; } }
+/* a long email, title or studio name with no spaces wraps instead of widening the page on a phone */
+header h1, #studio, #contact, #rights, #sunset .box, #welcome .box, #msg { overflow-wrap: anywhere; }
+#meta .nw { display: inline-block; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+#tray.on { display: flex; } #tray a { color: #1a1308; background: #e3aa48; padding: 8px 16px; border-radius: 18px; text-decoration: none; font-weight: 600; }
+/* print orders: one dialog for every step (sizes, the frame, the order, details, Is this right?, sent) */
+#prline { margin: 12px auto 0; color: var(--mute); font-size: 14px; } #prline[hidden], #prbar[hidden], #prd[hidden] { display: none; }
+#prline a { color: inherit; overflow-wrap: anywhere; }
+#prbar { margin: 12px auto 0; display: flex; justify-content: center; } header.two #prbar { justify-content: flex-start; grid-column: 3; }
+header.two #prline { grid-column: 3; }
+#prcart { font: 600 14px/1 -apple-system, sans-serif; padding: 10px 20px; border: 1px solid var(--edge); border-radius: 20px; background: none; color: var(--ink); cursor: pointer; }
+#prcart[hidden] { display: none; }
+#lb #pickbar #pp { background: #e3aa48; border-color: #e3aa48; color: #1a1308; opacity: 1; } #lb #pickbar #pp[hidden] { display: none; }
+#prd { position: fixed; inset: 0; z-index: 22; background: rgba(20,16,12,.55); display: flex; align-items: flex-start; justify-content: center; padding: 16px; overflow-y: auto; }
+#prd .box { background: var(--bg); color: var(--ink); max-width: 620px; width: 100%; border-radius: 10px; padding: 22px 22px 18px; box-shadow: 0 12px 40px rgba(0,0,0,.25); font-size: 15px; line-height: 1.5; margin: auto 0; }
+#prd h2 { margin: 0 0 12px; font: 400 24px/1.2 var(--serif); }
+#prd p { margin: 0 0 10px; } #prd p a { color: inherit; overflow-wrap: anywhere; } #prd .mute { color: var(--mute); font-size: 13px; } #prd .err, #prd .warnl { color: #a8321f; font-size: 13px; }
+#prd .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; } #prd .grow { flex: 1 1 auto; }
+#prd button { font: 600 14px/1 -apple-system, sans-serif; padding: 11px 18px; min-height: 44px; border-radius: 22px; cursor: pointer; border: 1px solid var(--edge); background: none; color: var(--ink); }
+#prd button.go { background: #e3aa48; border-color: #e3aa48; color: #1a1308; } #prd button.plain { border-color: transparent; text-decoration: underline; padding: 8px; }
+#prd button.size { display: flex; width: 100%; gap: 8px; align-items: baseline; text-align: left; margin: 6px 0; border-radius: 10px; }
+#prd button.size b { margin-left: auto; } #prd .soft { color: #8a5a10; font-size: 12px; }
+#prd .step { display: inline-flex; align-items: center; gap: 6px; } #prd .step button { min-width: 44px; padding: 8px 0; }
+#prd .step .n { min-width: 2ch; text-align: center; font-weight: 600; }
+#prd .crop { position: relative; display: inline-block; max-width: 100%; touch-action: none; user-select: none; }
+#prd .crop img { display: block; max-width: 100%; max-height: 56vh; }
+#prd .frame { position: absolute; border: 2px solid #e3aa48; box-shadow: 0 0 0 9999px rgba(0,0,0,.45); cursor: move; touch-action: none; }
+#prd .crop { overflow: hidden; } #prd input[type=range] { width: 160px; vertical-align: middle; }
+#prd .line { display: flex; gap: 10px; align-items: center; border-top: 1px solid var(--line); padding: 8px 0; flex-wrap: wrap; }
+#prd .line canvas { border-radius: 3px; background: var(--cell); } #prd .total { font-weight: 600; margin-top: 10px; }
+#prd .fld { margin: 8px 0; } #prd .fld label { display: block; font-size: 13px; color: var(--mute); margin-bottom: 3px; }
+#prd .fld input, #prd .fld select, #prd .fld textarea { width: 100%; font: inherit; padding: 9px 10px; border: 1px solid var(--edge); border-radius: 8px; background: var(--bg); color: var(--ink); }
+#prd .hows label, #prd .ack { display: block; margin: 6px 0; }
+#prd .ack.want { padding: 6px 8px; border: 2px solid #a8321f; border-radius: 6px; } #prd .ack.want + .err { margin-top: -2px; } #prd .addr { margin: 10px 0; padding: 8px 12px; border-left: 3px solid var(--gold); }
+#prd .marks { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 8px; }
+@media print { body > *:not(#prd) { display: none !important; } #prd { position: static; background: none; padding: 0; }
+  #prd .box { box-shadow: none; } #prd .noprint { display: none !important; } }
+</style>
+</head>
+<body>
+<header hidden><div id="brand"><img id="logo" alt="" hidden><div id="studio"></div></div><hr class="rule"><h1 id="title"></h1><p id="meta"></p><div id="how" hidden></div><div id="dlall" hidden><button id="dlallb" type="button">Download all</button></div><p id="prline" hidden></p><div id="prbar" hidden><button id="prcart" type="button" hidden>Your print order<span id="prcartn"></span></button></div><p id="dlwait" hidden>Keep this page open until the download finishes.</p></header>
+<nav id="filter" hidden aria-label="Show"></nav>
+<main id="grid"></main>
+<div id="msg" hidden><div><div id="darkmark" hidden><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 388 300" role="img" aria-label="Lumen Aureum"><defs><linearGradient id="la-gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6dfa6"/><stop offset=".55" stop-color="#e9b45c"/><stop offset="1" stop-color="#d0864e"/></linearGradient><linearGradient id="la-rose" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e3b3c0" stop-opacity=".2"/><stop offset=".5" stop-color="#ecd3da"/><stop offset="1" stop-color="#e3b3c0" stop-opacity=".2"/></linearGradient></defs><path d="M122,121.6 A72,72 0 0 1 266,121.6 Z M183.2,119.8 L187.5,92.8 A12.6,12.6 0 1 1 200.5,92.8 L204.8,119.8 Z" fill="url(#la-gold)" fill-rule="evenodd"/><rect x="114.8" y="130.6" width="158.4" height="10.8" rx="5.4" fill="url(#la-rose)"/><rect x="140" y="152.2" width="108" height="9" rx="4.5" fill="url(#la-rose)" opacity="0.6"/><path d="M36.2 223.2 33.9 223.5Q33.3 223.6 33.1 223.8Q32.8 224 32.8 224.3V260.3Q32.8 261 33.2 261.2Q33.5 261.5 34.2 261.5H39.8Q41.1 261.5 42.3 261Q43.6 260.4 44.8 259.1Q46 257.7 47.2 255.2L49.9 249.8Q50 249.7 50 249.6Q50.1 249.6 50.2 249.6Q50.3 249.6 50.3 249.7Q50.4 249.8 50.3 250L47.7 262.2Q47.6 262.6 47.6 262.7Q47.5 262.8 47.5 262.8Q47.3 262.8 46.9 262.6Q46.6 262.4 46 262.2Q45.4 262 44.5 262H21.9Q21.8 262 21.7 261.9Q21.7 261.9 21.7 261.8Q21.7 261.7 22 261.6L24.3 261.3Q24.9 261.2 25.1 261Q25.4 260.8 25.4 260.5V224.3Q25.4 224 25.1 223.8Q24.9 223.6 24.3 223.5L22 223.2Q21.7 223.1 21.7 223Q21.7 222.9 21.7 222.9Q21.8 222.8 21.9 222.8H36.3Q36.4 222.8 36.5 222.9Q36.5 222.9 36.5 223Q36.5 223.1 36.2 223.2Z M69.9 261.2V257.5V257.4V240.1Q69.9 239.9 69.8 239.8Q69.8 239.7 69.6 239.7H67.7Q67.5 239.7 67.5 239.7Q67.4 239.6 67.4 239.5Q67.4 239.4 67.5 239.4Q67.6 239.3 67.7 239.3L75.4 237.1Q75.7 237.1 75.8 237.1Q75.9 237 76 237Q76.1 237 76.2 237.1Q76.3 237.2 76.3 237.4V260.5Q76.3 260.8 76.4 261.1Q76.6 261.3 76.9 261.3L78.5 261.6Q78.7 261.6 78.7 261.7Q78.8 261.7 78.8 261.8Q78.8 261.9 78.7 262Q78.7 262 78.6 262H70.7Q70.3 262 70.1 261.8Q69.9 261.6 69.9 261.2ZM54.1 255.4V240.1Q54.1 239.9 54 239.8Q53.9 239.7 53.7 239.7H51.8Q51.7 239.7 51.6 239.7Q51.6 239.6 51.6 239.5Q51.6 239.4 51.6 239.4Q51.7 239.3 51.8 239.3L59.6 237.1Q59.8 237.1 59.9 237.1Q60 237 60.1 237Q60.3 237 60.3 237.1Q60.4 237.2 60.4 237.4V254.8Q60.4 257.3 61.6 258.5Q62.7 259.7 64.7 259.7Q65.9 259.7 67.1 259.1Q68.4 258.6 69.6 257.5L70.6 256.6L70.8 256.9L69.8 257.8Q67 260.4 64.7 261.4Q62.4 262.5 60.4 262.5Q57.7 262.5 55.9 260.8Q54.1 259 54.1 255.4Z M89.4 237.3V260.5Q89.4 260.8 89.5 261.1Q89.7 261.3 90.1 261.4L91.6 261.6Q91.9 261.7 91.9 261.8Q91.9 262 91.6 262H80.7Q80.6 262 80.5 261.9Q80.4 261.9 80.4 261.8Q80.4 261.8 80.5 261.7Q80.6 261.6 80.7 261.6L82.3 261.3Q82.7 261.3 82.9 261.1Q83 260.9 83 260.6V240.1Q83 239.9 82.9 239.8Q82.9 239.7 82.7 239.7H80.7Q80.6 239.7 80.6 239.6Q80.5 239.5 80.5 239.5Q80.5 239.4 80.6 239.3Q80.6 239.3 80.8 239.2L88.5 237.1Q88.7 237 88.8 237Q89 237 89.1 237Q89.2 237 89.3 237.1Q89.4 237.2 89.4 237.3ZM88.8 242.8 88.6 242.5 89.5 241.6Q92.3 239 94.6 237.9Q96.9 236.9 98.9 236.9Q101.6 236.9 103.4 238.6Q105.1 240.3 105.1 244V260.5Q105.1 260.9 105.3 261.1Q105.5 261.4 105.9 261.4L107.1 261.6Q107.3 261.7 107.3 261.8Q107.3 262 107 262H96.5Q96.3 262 96.3 261.8Q96.3 261.7 96.6 261.6L98 261.4Q98.6 261.3 98.7 261Q98.9 260.6 98.9 260.2V244.7Q98.9 242.2 97.7 241Q96.5 239.7 94.6 239.7Q93.3 239.7 92.2 240.2Q91 240.7 89.8 241.9ZM104.4 242.8 104.2 242.5 105 241.5Q107.2 239.1 109.2 238Q111.1 236.9 113.2 236.9Q115.8 236.9 117.4 238.6Q119.1 240.3 119.6 244L121.7 260.5Q121.7 260.9 121.9 261.1Q122.1 261.4 122.5 261.5L123.7 261.7Q123.8 261.7 123.8 261.7Q123.9 261.8 123.9 261.8Q123.9 261.9 123.8 262Q123.8 262 123.7 262H112.8Q112.6 262 112.6 261.8Q112.6 261.7 112.8 261.6L114.3 261.4Q114.8 261.3 115 261Q115.2 260.6 115.1 260.1L113.3 244.7Q113 242.2 112 241Q111.1 239.7 109.3 239.7Q108.3 239.7 107.3 240.2Q106.3 240.8 105.3 241.8Z M147.1 247.5Q147.1 247.7 146.9 247.8Q146.8 248 146.5 248H129.1V247.5H140.3Q140.7 247.5 140.7 247Q140.7 242.1 139.4 239.7Q138 237.3 136 237.3Q134.4 237.3 133.2 238.4Q132 239.5 131.3 241.8Q130.7 244 130.7 247.4Q130.7 253.2 133.1 256.1Q135.5 259 139.5 259Q142.3 259 144.3 257.4Q146.3 255.8 146.6 253Q146.6 252.9 146.6 252.9Q146.7 252.8 146.7 252.8Q146.8 252.8 146.9 252.9Q146.9 252.9 146.9 253.1Q146.7 255.8 145.3 257.9Q143.9 260.1 141.6 261.3Q139.2 262.6 136.3 262.6Q132.9 262.6 130.3 261Q127.7 259.5 126.3 256.7Q124.8 254 124.8 250.2Q124.8 246.3 126.3 243.3Q127.8 240.3 130.5 238.6Q133.2 236.9 136.8 236.9Q139.9 236.9 142.2 238.3Q144.5 239.6 145.8 242Q147.1 244.4 147.1 247.5Z M157.9 237.3V260.5Q157.9 260.8 158.1 261.1Q158.3 261.3 158.6 261.3L160.2 261.6Q160.5 261.7 160.5 261.8Q160.5 262 160.2 262H149.2Q149.1 262 149.1 262Q149 261.9 149 261.8Q149 261.8 149.1 261.7Q149.1 261.7 149.3 261.6L150.9 261.3Q151.3 261.3 151.4 261.1Q151.6 260.8 151.6 260.5V240Q151.6 239.8 151.5 239.7Q151.4 239.7 151.2 239.7H149.3Q149.2 239.7 149.2 239.6Q149.1 239.5 149.1 239.5Q149.1 239.4 149.2 239.3Q149.2 239.3 149.3 239.2L157.1 237.1Q157.3 237 157.4 237Q157.5 237 157.6 237Q157.8 237 157.9 237.1Q157.9 237.2 157.9 237.3ZM157.4 242.8 157.1 242.5 158.1 241.6Q160.9 239.1 162.9 238Q164.9 236.9 166.7 236.9Q169.2 236.9 170.7 238.5Q172.1 240.2 172.5 243.6L174.6 260.3Q174.7 260.8 174.9 261Q175.1 261.3 175.5 261.4L176.9 261.6Q177 261.7 177.1 261.7Q177.2 261.8 177.2 261.8Q177.2 261.9 177.1 262Q177 262 176.9 262H165.7Q165.5 262 165.5 261.8Q165.5 261.7 165.8 261.6L167.4 261.3Q167.9 261.3 168 261Q168.2 260.7 168.2 260.3L166.3 244.2Q166 241.9 165.2 240.8Q164.4 239.7 162.7 239.7Q161.7 239.7 160.6 240.3Q159.6 240.8 158.4 241.9Z M193.4 246.9H207.8L207.9 247.4H193.3ZM194.8 261.8Q194.8 261.9 194.7 261.9Q194.7 262 194.6 262H185.8Q185.7 262 185.7 261.9Q185.6 261.9 185.6 261.8Q185.6 261.7 185.7 261.7Q185.8 261.6 185.9 261.6L187 261.3Q187.8 261 188.7 260.1Q189.6 259.1 190.2 257.1L199.4 226Q199.7 225 199.4 224.3Q199 223.7 198.2 223.4Q197.9 223.2 197.7 223.1Q197.6 223 197.6 223Q197.6 222.9 197.6 222.8Q197.7 222.8 197.8 222.8H208.3Q208.4 222.8 208.5 222.8Q208.5 222.9 208.5 223Q208.5 223 208.4 223.1Q208.3 223.2 208 223.3Q207.3 223.4 207.1 223.7Q207 224 207.2 224.7L218.5 260.2Q218.8 260.8 219.2 261.2Q219.6 261.5 220.3 261.6Q220.5 261.6 220.5 261.7Q220.6 261.7 220.6 261.8Q220.6 261.9 220.5 261.9Q220.5 262 220.4 262H208.4Q208.3 262 208.2 261.9Q208.1 261.9 208.1 261.8Q208.1 261.7 208.2 261.7Q208.3 261.7 208.5 261.6L209.8 261.4Q210.5 261.2 210.7 260.9Q210.8 260.5 210.6 259.8L199.8 225.6L200.4 224.2L190.7 257.2Q190.4 258.3 190.7 259.1Q191 260 191.7 260.5Q192.5 261 193.6 261.4L194.5 261.6Q194.7 261.7 194.7 261.7Q194.8 261.7 194.8 261.8Z M239.9 261.2V257.5V257.4V240.1Q239.9 239.9 239.8 239.8Q239.7 239.7 239.5 239.7H237.6Q237.5 239.7 237.4 239.7Q237.4 239.6 237.4 239.5Q237.4 239.4 237.4 239.4Q237.5 239.3 237.6 239.3L245.4 237.1Q245.6 237.1 245.7 237.1Q245.8 237 245.9 237Q246 237 246.1 237.1Q246.2 237.2 246.2 237.4V260.5Q246.2 260.8 246.4 261.1Q246.5 261.3 246.9 261.3L248.4 261.6Q248.6 261.6 248.7 261.7Q248.7 261.7 248.7 261.8Q248.7 261.9 248.7 262Q248.6 262 248.5 262H240.6Q240.2 262 240 261.8Q239.9 261.6 239.9 261.2ZM224 255.4V240.1Q224 239.9 223.9 239.8Q223.8 239.7 223.6 239.7H221.7Q221.6 239.7 221.5 239.7Q221.5 239.6 221.5 239.5Q221.5 239.4 221.6 239.4Q221.6 239.3 221.7 239.3L229.5 237.1Q229.8 237.1 229.9 237.1Q230 237 230.1 237Q230.2 237 230.3 237.1Q230.4 237.2 230.4 237.4V254.8Q230.4 257.3 231.5 258.5Q232.7 259.7 234.6 259.7Q235.8 259.7 237 259.1Q238.3 258.6 239.5 257.5L240.5 256.6L240.8 256.9L239.8 257.8Q236.9 260.4 234.6 261.4Q232.3 262.5 230.4 262.5Q227.6 262.5 225.8 260.8Q224 259 224 255.4Z M259 248.1Q259 244.4 260.1 241.9Q261.1 239.4 262.8 238.2Q264.4 236.9 266.2 236.9Q268.3 236.9 269.4 238.2Q270.5 239.5 270.5 241.8Q270.5 243.8 269.6 244.8Q268.7 245.8 267.3 245.8Q266 245.8 265.3 245Q264.7 244.3 264.6 242.9L264.6 242Q264.6 241.1 264.2 240.7Q263.9 240.2 263 240.2Q262.1 240.2 261.3 241.1Q260.4 242 259.9 243.8Q259.3 245.6 259.3 248.3ZM259.3 237.5V246.8V260.3Q259.3 260.6 259.5 260.9Q259.7 261.1 260 261.2L262.8 261.6Q263 261.7 263 261.7Q263.1 261.7 263.1 261.8Q263.1 261.9 263 262Q262.9 262 262.8 262H250.7Q250.5 262 250.5 261.9Q250.4 261.9 250.4 261.8Q250.4 261.7 250.5 261.7Q250.6 261.6 250.7 261.6L252.3 261.3Q252.7 261.3 252.8 261.1Q253 260.9 253 260.6V239.9Q253 239.7 252.9 239.6Q252.8 239.5 252.6 239.5H250.7Q250.6 239.5 250.5 239.4Q250.5 239.4 250.5 239.3Q250.5 239.2 250.5 239.2Q250.6 239.1 250.7 239.1L258.5 237.2Q258.7 237.2 258.8 237.2Q258.9 237.1 259 237.1Q259.2 237.1 259.3 237.2Q259.3 237.4 259.3 237.5Z M294.2 247.5Q294.2 247.7 294 247.8Q293.9 248 293.6 248H276.2V247.5H287.4Q287.8 247.5 287.8 247Q287.8 242.1 286.5 239.7Q285.1 237.3 283.2 237.3Q281.5 237.3 280.3 238.4Q279.1 239.5 278.5 241.8Q277.8 244 277.8 247.4Q277.8 253.2 280.2 256.1Q282.6 259 286.6 259Q289.4 259 291.4 257.4Q293.4 255.8 293.7 253Q293.7 252.9 293.8 252.9Q293.8 252.8 293.8 252.8Q293.9 252.8 294 252.9Q294 252.9 294 253.1Q293.8 255.8 292.4 257.9Q291 260.1 288.7 261.3Q286.3 262.6 283.4 262.6Q280 262.6 277.4 261Q274.8 259.5 273.4 256.7Q271.9 254 271.9 250.2Q271.9 246.3 273.4 243.3Q274.9 240.3 277.6 238.6Q280.3 236.9 283.9 236.9Q287.1 236.9 289.3 238.3Q291.6 239.6 292.9 242Q294.2 244.4 294.2 247.5Z M314.4 261.2V257.5V257.4V240.1Q314.4 239.9 314.3 239.8Q314.2 239.7 314 239.7H312.1Q312 239.7 311.9 239.7Q311.9 239.6 311.9 239.5Q311.9 239.4 312 239.4Q312 239.3 312.1 239.3L319.9 237.1Q320.1 237.1 320.2 237.1Q320.3 237 320.4 237Q320.6 237 320.7 237.1Q320.7 237.2 320.7 237.4V260.5Q320.7 260.8 320.9 261.1Q321 261.3 321.4 261.3L323 261.6Q323.2 261.6 323.2 261.7Q323.3 261.7 323.3 261.8Q323.3 261.9 323.2 262Q323.2 262 323 262H315.1Q314.8 262 314.6 261.8Q314.4 261.6 314.4 261.2ZM298.5 255.4V240.1Q298.5 239.9 298.5 239.8Q298.4 239.7 298.2 239.7H296.3Q296.1 239.7 296.1 239.7Q296 239.6 296 239.5Q296 239.4 296.1 239.4Q296.2 239.3 296.3 239.3L304 237.1Q304.3 237.1 304.4 237.1Q304.5 237 304.6 237Q304.7 237 304.8 237.1Q304.9 237.2 304.9 237.4V254.8Q304.9 257.3 306 258.5Q307.2 259.7 309.1 259.7Q310.3 259.7 311.6 259.1Q312.8 258.6 314.1 257.5L315 256.6L315.3 256.9L314.3 257.8Q311.4 260.4 309.2 261.4Q306.9 262.5 304.9 262.5Q302.1 262.5 300.3 260.8Q298.5 259 298.5 255.4Z M333.8 237.3V260.5Q333.8 260.8 334 261.1Q334.2 261.3 334.5 261.4L336.1 261.6Q336.4 261.7 336.4 261.8Q336.4 262 336.1 262H325.1Q325 262 325 261.9Q324.9 261.9 324.9 261.8Q324.9 261.8 325 261.7Q325.1 261.6 325.2 261.6L326.8 261.3Q327.2 261.3 327.3 261.1Q327.5 260.9 327.5 260.6V240.1Q327.5 239.9 327.4 239.8Q327.3 239.7 327.1 239.7H325.2Q325.1 239.7 325 239.6Q325 239.5 325 239.5Q325 239.4 325 239.3Q325.1 239.3 325.2 239.2L333 237.1Q333.2 237 333.3 237Q333.4 237 333.5 237Q333.7 237 333.8 237.1Q333.8 237.2 333.8 237.3ZM333.3 242.8 333 242.5 334 241.6Q336.8 239 339.1 237.9Q341.4 236.9 343.3 236.9Q346.1 236.9 347.8 238.6Q349.6 240.3 349.6 244V260.5Q349.6 260.9 349.8 261.1Q350 261.4 350.4 261.4L351.5 261.6Q351.8 261.7 351.8 261.8Q351.8 262 351.5 262H341Q340.8 262 340.8 261.8Q340.8 261.7 341.1 261.6L342.5 261.4Q343 261.3 343.2 261Q343.4 260.6 343.4 260.2V244.7Q343.4 242.2 342.2 241Q341 239.7 339.1 239.7Q337.8 239.7 336.6 240.2Q335.5 240.7 334.2 241.9ZM348.9 242.8 348.6 242.5 349.5 241.5Q351.7 239.1 353.6 238Q355.6 236.9 357.7 236.9Q360.2 236.9 361.9 238.6Q363.6 240.3 364 244L366.1 260.5Q366.2 260.9 366.4 261.1Q366.6 261.4 367 261.5L368.1 261.7Q368.2 261.7 368.3 261.7Q368.3 261.8 368.3 261.8Q368.3 261.9 368.3 262Q368.2 262 368.1 262H357.3Q357 262 357 261.8Q357 261.7 357.3 261.6L358.8 261.4Q359.3 261.3 359.5 261Q359.7 260.6 359.6 260.1L357.8 244.7Q357.5 242.2 356.5 241Q355.5 239.7 353.8 239.7Q352.7 239.7 351.8 240.2Q350.8 240.8 349.8 241.8Z" fill="#efe3cc"/></svg></div><div id="msgsay" role="status" aria-live="polite" aria-atomic="true"></div><div id="msgerr" role="alert" aria-atomic="true"></div><div id="msgact"></div></div></div>
+<div id="tray"><span id="trayn"></span><a id="send" href="#" role="button">Send my picks</a><span id="sent" role="status" aria-live="polite"></span></div>
+<div id="live" class="sr" role="status" aria-live="polite" aria-atomic="true"></div>
+<div id="upd" role="status" hidden><span>These photos were just updated. Reload to see the new version.</span><button id="updgo" type="button">Reload</button></div>
+<div id="sunset" role="dialog" aria-modal="true" aria-labelledby="sstitle" hidden><div class="box">
+  <h2 id="sstitle">This gallery is about to sunset.</h2>
+  <p id="sswhen"></p>
+  <div id="ssdl"></div>
+  <p id="ssask"></p>
+  <button id="ssgo" type="button">See the photos</button>
+</div></div>
+<div id="welcome" role="dialog" aria-modal="true" aria-labelledby="wtitle" hidden><div class="box">
+  <h2 id="wtitle">Picking your photos</h2>
+  <p>Open a photo, then press:</p>
+  <ul id="wlist"></ul>
+  <p>When you're done, press <b>Send my picks</b>.</p>
+  <button id="wgo" type="button">Start</button>
+</div></div>
+<div id="ask" role="dialog" aria-modal="true" aria-labelledby="asktext" hidden><div class="box">
+  <p id="asktext"></p>
+  <div class="row"><button id="askkeep" type="button">Keep</button><button id="askgo" type="button">Remove</button></div>
+</div></div>
+<div id="prd" role="dialog" aria-modal="true" aria-labelledby="prdt" hidden><div class="box" id="prdbox" tabindex="-1"></div></div>
+<div id="lb" role="dialog" aria-modal="true">
+  <img id="big" alt="">
+  <div id="lbload" role="status" aria-live="polite" hidden>Loading photo...</div>
+  <div id="lberr" role="alert" hidden><div id="lbsay">This photo can't load right now. Check your connection.</div><button id="lbagain" type="button">Try again</button></div>
+  <button id="prev" aria-label="Previous">&lsaquo;</button>
+  <button id="next" aria-label="Next">&rsaquo;</button>
+  <button id="close" aria-label="Close">&times;</button>
+  <div id="count"></div>
+  <div id="bigtag" class="tag" aria-hidden="true"></div>
+  <div id="pickbar"><button id="pr" type="button">Retouch</button><input id="note" placeholder="What should be fixed?" aria-label="What should be fixed in this photo?" maxlength="200" hidden><button id="pm" type="button">Suggest for portfolio</button><button id="pv" type="button">Please don't show</button><button id="dl" type="button" hidden>Download</button><button id="pp" type="button" hidden>Order prints</button><button id="done" type="button">Done</button></div>
+</div>
+<script>
+"use strict";
+(() => {
+// sealed.js begin
+// The shared sealed format, LAS1 (docs/sealed-format.md): the one source; tools/sync_sealed.py copies it, byte for byte,
+// into the gallery page and the studio page's inquiry script. Seals in the browser with WebCrypto only; opens mode 1
+// (gallery) envelopes; checks any envelope's shape exactly as sealed.py and sealed.php do. Errors carry .code (E_...).
+const LAS = (() => {
+  "use strict";
+  const PURPOSES = Object.freeze({
+    picks: Object.freeze({ code: 1, mode: 1, max: 262144, kinds: "g" }),
+    draft: Object.freeze({ code: 2, mode: 1, max: 262144, kinds: "g" }),
+    inquiry: Object.freeze({ code: 3, mode: 2, max: 16384, kinds: "" }),
+    "print-order": Object.freeze({ code: 4, mode: 3, max: 65536, kinds: "g" }),
+  });
+  const LINK_LEN = 25;                                // kind letter, "-", 23 characters
+  const te = new TextEncoder();
+  const LABEL = te.encode("lumen-aureum sealed\0");
+  const MAGIC = Uint8Array.of(0x4c, 0x41, 0x53, 0x31);
+  const C = () => globalThis.crypto;
+  const fail = c => { const e = new Error(c); e.code = c; return e; };
+  const u8 = x => x instanceof Uint8Array ? x : new Uint8Array(x);
+  const cat = (...a) => { let n = 0; a.forEach(x => { n += x.length; }); const o = new Uint8Array(n); n = 0;
+    a.forEach(x => { o.set(x, n); n += x.length; }); return o; };
+  const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+  const gidByte = b => (b >= 48 && b <= 57) || (b >= 65 && b <= 90) || (b >= 97 && b <= 122) || b === 45 || b === 95;
+  const purpose = name => { const p = Object.prototype.hasOwnProperty.call(PURPOSES, name) ? PURPOSES[name] : null;
+    if (!p) throw fail("E_PURPOSE"); return p; };
+  function parse(env, name, gid, kid) {              // steps 1 to 15 of the check, in order: { mode, n, h }
+    const p = purpose(name), e = u8(env), len = e.length;
+    if (len < 4) throw fail("E_SHORT");
+    if (e[0] !== 0x4c || e[1] !== 0x41 || e[2] !== 0x53) throw fail("E_MAGIC");
+    if (e[3] !== 0x31) throw fail("E_VERSION");
+    if (len > p.max) throw fail("E_LONG");
+    if (len < 7) throw fail("E_SHORT");
+    const mode = e[4], n = e[6];
+    if (mode < 1 || mode > 3) throw fail("E_MODE");
+    if (e[5] !== p.code) throw fail("E_PURPOSE");
+    if (mode !== p.mode) throw fail("E_MODE");
+    if (mode === 2 ? n !== 0 : n !== LINK_LEN) throw fail("E_SCOPE");
+    if (len < 7 + n) throw fail("E_SHORT");
+    const got = e.subarray(7, 7 + n);
+    if (!got.every(gidByte) || (n && got[1] !== 45) || !same(got, te.encode(gid || ""))) throw fail("E_SCOPE");
+    if (n && p.kinds.indexOf(String.fromCharCode(got[0])) < 0) throw fail("E_KIND");
+    const h = mode === 1 ? 7 + n : 80 + n;
+    if (len < h + 12 + 17) throw fail("E_SHORT");
+    if (mode !== 1) {
+      if (e[15 + n] !== 0x04) throw fail("E_POINT");
+      if (kid && !same(e.subarray(7 + n, 15 + n), u8(kid))) throw fail("E_KID");
+    }
+    return { mode, n, h };
+  }
+  const gidOk = (gid, mode) => typeof gid === "string" && (mode === 2 ? gid === "" :
+    /^[gsect]-[A-Za-z0-9_-]{23}$/.test(gid));
+  const kindOk = (p, gid) => { if (gid && p.kinds.indexOf(gid[0]) < 0) throw fail("E_KIND"); };
+  async function aesKey(ikm, salt, binding) {
+    const s = C().subtle;
+    const base = await s.importKey("raw", ikm, "HKDF", false, ["deriveKey"]);
+    return s.deriveKey({ name: "HKDF", hash: "SHA-256", salt, info: cat(LABEL, binding) }, base,
+      { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  }
+  const binding = (p, gid) => { const g = te.encode(gid); return cat(MAGIC, Uint8Array.of(p.mode, p.code, g.length), g); };
+  async function kidOf(pub) { return new Uint8Array(await C().subtle.digest("SHA-256", u8(pub))).slice(0, 8); }
+  async function sealLink(name, gid, linkKey, plaintext) {
+    const p = purpose(name);
+    if (p.mode !== 1) throw fail("E_MODE");
+    if (!gidOk(gid, 1)) throw fail("E_SCOPE");
+    kindOk(p, gid);
+    const pt = u8(plaintext);
+    if (!pt.length || 7 + gid.length + 12 + pt.length + 16 > p.max) throw fail("E_LONG");
+    if (!linkKey || u8(linkKey).length !== 32) throw fail("E_KEY");
+    const b = binding(p, gid), nonce = C().getRandomValues(new Uint8Array(12));
+    const key = await aesKey(u8(linkKey), new Uint8Array(0), b);
+    const ct = new Uint8Array(await C().subtle.encrypt({ name: "AES-GCM", iv: nonce, additionalData: b }, key, pt));
+    return cat(b, nonce, ct);
+  }
+  async function openLink(name, gid, linkKey, envelope) {
+    const p = purpose(name);
+    if (p.mode !== 1) throw fail("E_MODE");
+    if (!linkKey || u8(linkKey).length !== 32) throw fail("E_KEY");
+    const e = u8(envelope), { h } = parse(e, name, gid, null), head = e.slice(0, h);
+    try {
+      const key = await aesKey(u8(linkKey), new Uint8Array(0), head);
+      return new Uint8Array(await C().subtle.decrypt({ name: "AES-GCM", iv: e.slice(h, h + 12), additionalData: head },
+        key, e.slice(h + 12)));
+    } catch (x) { throw fail("E_AUTH"); }
+  }
+  async function sealStudio(name, recipientPublic, plaintext, opt) {
+    const p = purpose(name), o = opt || {};
+    if (p.mode === 1) throw fail("E_MODE");
+    const gid = o.gid || "", gk = o.linkKey;
+    if (p.mode === 2 ? gid || gk != null : !gid || gk == null) throw fail("E_KEY");
+    if (!gidOk(gid, p.mode)) throw fail("E_SCOPE");
+    kindOk(p, gid);
+    const pt = u8(plaintext);
+    if (!pt.length || 80 + gid.length + 12 + pt.length + 16 > p.max) throw fail("E_LONG");
+    if (p.mode === 3 && u8(gk).length !== 32) throw fail("E_KEY");
+    const rpk = recipientPublic ? u8(recipientPublic) : new Uint8Array(0);
+    if (rpk.length !== 65 || rpk[0] !== 4) throw fail("E_KEY");
+    const s = C().subtle, alg = { name: "ECDH", namedCurve: "P-256" };
+    let point;
+    try { point = await s.importKey("raw", rpk, alg, false, []); } catch (x) { throw fail("E_KEY"); }
+    const eph = await s.generateKey(alg, false, ["deriveBits"]);
+    const epk = new Uint8Array(await s.exportKey("raw", eph.publicKey));
+    let z = new Uint8Array(await s.deriveBits({ name: "ECDH", public: point }, eph.privateKey, 256));
+    if (p.mode === 3) z = cat(z, u8(gk));
+    const b = binding(p, gid), head = cat(b, await kidOf(rpk), epk);
+    const nonce = C().getRandomValues(new Uint8Array(12));
+    const key = await aesKey(z, cat(epk, rpk), b);
+    const ct = new Uint8Array(await s.encrypt({ name: "AES-GCM", iv: nonce, additionalData: head }, key, pt));
+    return cat(head, nonce, ct);
+  }
+  function check(envelope, name, gid, kid) { parse(envelope, name, gid, kid || null); }
+  function encode(a) {
+    let s = ""; const b = u8(a);
+    for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000));
+    return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  function decode(d, name) {
+    if (name !== undefined && name !== null && typeof d === "string") {
+      const m = purpose(name).max;
+      if (d.length > Math.floor(m / 3) * 4 + [0, 2, 3][m % 3]) throw fail("E_LONG");
+    }
+    if (typeof d !== "string" || !/^[A-Za-z0-9_-]+$/.test(d) || d.length % 4 === 1) throw fail("E_ENCODING");
+    const s = atob(d.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((d.length + 3) % 4));
+    const out = new Uint8Array(s.length);
+    for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+    if (encode(out) !== d) throw fail("E_ENCODING");
+    return out;
+  }
+  return Object.freeze({ PURPOSES, sealLink, openLink, sealStudio, check, kidOf, encode, decode });
+})();
+// sealed.js end
+// prints.js begin
+// Print orders (1.4): the rules the page keeps, with nothing of the page around them (tests run this block in Node).
+// The app's printorders.py keeps the same rules: crop fractions of the full-size photo, four decimals; sizes that fit
+// the photo without cropping first; pixels per inch from the crop; the padded sizes; the label characters.
+const PRINTS = (() => {
+  const PAD = [4096, 8192, 16384, 32768, 65536];
+  const r4 = v => Math.round(v * 10000) / 10000;
+  const land = (ow, oh, turn) => (ow > oh) !== !!turn;
+  const aspect = (w, h, l) => { const s = Math.min(w, h), g = Math.max(w, h); return l ? g / s : s / g; };
+  function fits(ow, oh, w, h) {
+    if (!ow || !oh) return false;
+    const r = Math.max(ow, oh) / Math.min(ow, oh), s = Math.max(w, h) / Math.min(w, h);
+    return Math.abs(r - s) / s <= 0.01;
+  }
+  function fullCrop(ow, oh, w, h, turn) {      // the largest frame of the size's shape, centered: [x, y, w, h]
+    const a = aspect(w, h, land(ow, oh, turn));
+    if (ow / oh > a) { const cw = a * oh / ow; return [r4((1 - cw) / 2), 0, r4(cw), 1]; }
+    const ch = (ow / a) / oh; return [0, r4((1 - ch) / 2), 1, r4(ch)];
+  }
+  function scaled(c, s) {                      // the same frame, s times as large, about its center, kept in the photo
+    const cx = c[0] + c[2] / 2, cy = c[1] + c[3] / 2, w = c[2] * s, h = c[3] * s;
+    return clampC([cx - w / 2, cy - h / 2, w, h]);
+  }
+  function clampC(c) {
+    const w = Math.min(1, c[2]), h = Math.min(1, c[3]);
+    return [r4(Math.max(0, Math.min(1 - w, c[0]))), r4(Math.max(0, Math.min(1 - h, c[1]))), r4(w), r4(h)];
+  }
+  function ppi(c, ow, oh, w, h, turn) {
+    const l = land(ow, oh, turn), s = Math.min(w, h), g = Math.max(w, h);
+    const pw = l ? g : s, ph = l ? s : g;
+    return Math.floor(Math.min(c[2] * ow / pw, c[3] * oh / ph));
+  }
+  // the sizes for one photo: fits-without-cropping first, then the rest; each with its resolution at the full frame
+  function sizes(items, ow, oh) {
+    const out = items.map(it => {
+      const c = fullCrop(ow, oh, it.w, it.h, 0), p = ppi(c, ow, oh, it.w, it.h, 0);
+      return { item: it, fits: fits(ow, oh, it.w, it.h), ppi: p, hide: p < it.ppi_hide, soft: p < it.ppi_mark };
+    }).filter(s => !s.hide);
+    return out.filter(s => s.fits).concat(out.filter(s => !s.fits));
+  }
+  const minScale = (it, ppiFull) => Math.min(1, it.ppi_hide / Math.max(1, ppiFull));   // the slider stops here
+  const CTRL = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u2064\ufeff]/g;
+  const clean = s => String(s || "").replace(CTRL, "").replace(/\s+/g, " ").trim();
+  const CP1252 = "\u20ac\u201a\u0192\u201e\u2026\u2020\u2021\u02c6\u2030\u0160\u2039\u0152\u017d\u2018\u2019\u201c\u201d\u2022\u2013\u2014\u02dc\u2122\u0161\u203a\u0153\u017e\u0178";
+  function labelOk(s) {                        // every letter can print on a shipping label (Windows-1252)
+    for (const ch of String(s || "")) { const c = ch.codePointAt(0);
+      if (c < 32 || (c >= 0x7f && c <= 0x9f)) return false;
+      if (c > 0xff && !CP1252.includes(ch)) return false; }
+    return true;
+  }
+  const ZIP = { US: /^\d{5}(-\d{4})?$/, CA: /^[A-Za-z]\d[A-Za-z] ?\d[A-Za-z]\d$/ };
+  const EMAIL = /^[^\s"'<>\\=;&?#%]{1,64}@[^\s"'<>\\=;&?#%@]+\.[^\s"'<>\\=;&?#%@]+$/;
+  function padTo(n) { for (const s of PAD) if (n <= s) return s; return 0; }
+  // the payload as JSON bytes, padded so the envelope is exactly one of the sizes (0 length: too large)
+  function padded(payload, gidLen) {
+    const over = 80 + gidLen + 12 + 16;
+    const body = Object.assign({}, payload, { pad: "" });
+    const bytes = new TextEncoder().encode(JSON.stringify(body)).length;
+    const size = padTo(bytes + over);
+    if (!size) return null;
+    body.pad = " ".repeat(size - over - bytes);
+    return new TextEncoder().encode(JSON.stringify(body));
+  }
+  const money = c => "$" + Math.floor(c / 100).toLocaleString("en-US") + "." + String(c % 100).padStart(2, "0");
+  // a cart line still valid against this gallery and offer (else "No longer available")
+  function valid(line, photos, offer) {
+    return !!(line && photos[line.p] && offer.items.some(i => i.id === line.item) && Array.isArray(line.crop) && line.crop.length === 4
+      && line.qty >= 1 && line.qty <= offer.qty_max);
+  }
+  return Object.freeze({ fits, fullCrop, scaled, clampC, ppi, sizes, minScale, clean, labelOk, ZIP, EMAIL, padTo, padded, money,
+                         valid, land, aspect });
+})();
+// prints.js end
+const $ = id => document.getElementById(id);
+// The look the photographer chose (colors, font) rides in the encrypted manifest. The colors are remembered on this
+// device (sealed, see LS), so the next visit by the link alone opens in them before the manifest is read.
+const LOOK = "look:" + location.pathname;
+const fontSrc = n => CARD ? (CARDFONT[n] || new ArrayBuffer(0)) : "url(" + n + ")";   // a card: the bytes read from its folder
+let lookDone = false;
+function look(T, built) {
+  if (!T || typeof T !== "object") return;
+  const r = document.documentElement, C = T.colors || {}, ok = h => /^#[0-9a-f]{6}$/i.test(h || "");
+  ["bg", "ink", "mute", "line", "cell", "edge", "ring"].forEach(k => { if (ok(C[k])) r.style.setProperty("--" + k, C[k]); });
+  const sum = h => [1, 3, 5].reduce((a, i) => a + parseInt(h.slice(i, i + 2), 16), 0);
+  if (ok(C.bg) && ok(C.ink)) r.classList.toggle("dark", sum(C.bg) < sum(C.ink));
+  if (!built) return;
+  if ((T.font === "elegant" || T.font === "script") && window.FontFace && document.fonts) try {   // the file sits beside the page
+    const ff = new FontFace(T.font === "script" ? "Gallery Script" : "Gallery Serif", fontSrc("font.woff2"));
+    document.fonts.add(ff); ff.load().catch(() => {});
+    r.classList.add("f-" + T.font);
+  } catch (e) {}
+  if (T.font === "own" && window.FontFace && document.fonts) try {     // the studio's own font, beside the page
+    const W = (v, d) => /^\d{1,4} \d{1,4}$/.test(v || "") ? v : d;   // a variable font's weight range, from the manifest
+    const reg = new FontFace("Gallery Own", fontSrc("font.woff2"), { weight: W(T.wr, "400") });
+    document.fonts.add(reg); reg.load().catch(() => {});
+    if (T.light) { const lt = new FontFace("Gallery Own", fontSrc("font-light.woff2"), { weight: W(T.wl, "300") });
+      document.fonts.add(lt); lt.load().catch(() => {}); r.classList.add("f-light"); }
+    r.classList.add("f-own");
+  } catch (e) {}
+  lookDone = true;
+  LS.set(LOOK, JSON.stringify({ colors: C }));
+}
+
+const subtle = window.crypto && window.crypto.subtle;
+let ckey = null;
+// the key travels in the link's #fragment (never sent to any server)
+const HP = new URLSearchParams(location.hash.slice(1));
+const k = HP.get("k") || "";
+const NEEDS_WORD = HP.get("c") === "1";   // the gallery is protected by a codeword the client chose
+// A sealed card (SD card or USB drive, backlog 129): the page opens from the card itself, with no web host. Browsers
+// refuse fetch() of local files, so the client chooses the card's sealed folder once and the page reads the files from
+// it. The key is never on the card: it comes from the code in the card letter (cardOpen).
+const CARD = document.documentElement.dataset.card === "1";
+const CARD_DIR = "Sealed photos";
+const CARDF = new Map();                        // a file's name -> () => its File, from the folder the client chose
+const CARDFONT = {};                            // the gallery's font files from that folder, read once
+let raw = (() => {
+  try {
+    const s = k.replace(/-/g, "+").replace(/_/g, "/");
+    const b = atob(s + "===".slice((s.length + 3) % 4));
+    return b.length === 32 ? Uint8Array.from(b, c => c.charCodeAt(0)) : null;
+  } catch (e) { return null; }
+})();
+// What this page keeps on the device (localStorage; the order being sent, sessionStorage): the picks and notes, the
+// print cart and order markers, the colors. Every value is sealed (AES-GCM) under a key derived from the gallery key
+// (HKDF-SHA256, "lumen-aureum local storage"), with its own name as associated data, and stored under a keyed hash of
+// that name, so another page on the same web address sees neither what the client picked nor which galleries this
+// browser opened. Nothing new is stored to make that work: the key comes from the link (and the codeword) at every
+// visit. An entry an earlier page left readable is sealed the first time this gallery opens, and the readable one goes.
+// Values are read once the key is known (LS.load) and kept in memory; each write goes to memory at once and is sealed
+// in the background, in order.
+const LS = (() => {
+  const te = new TextEncoder(), mem = new Map(), names = new Map();
+  let ready = null, kid = "", ak = null, nk = null, chain = Promise.resolve();
+  const area = s => s ? sessionStorage : localStorage;
+  const hex = u8 => [...u8].map(b => b.toString(16).padStart(2, "0")).join("");
+  const b64 = u8 => { let t = ""; for (let i = 0; i < u8.length; i += 0x8000) t += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(t); };
+  const unb64 = t => Uint8Array.from(atob(t), c => c.charCodeAt(0));
+  const tag = (n, s) => (s ? "s|" : "l|") + n;
+  function init(key) {                          // the final gallery key (after the codeword, when there is one)
+    const id = hex(key);
+    if (ready && id === kid) return ready;
+    kid = id; mem.clear(); names.clear(); ak = nk = null;
+    return ready = (async () => {
+      const base = await subtle.importKey("raw", key, "HKDF", false, ["deriveBits"]);
+      const bits = new Uint8Array(await subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0),
+        info: te.encode("lumen-aureum local storage") }, base, 512));
+      ak = await subtle.importKey("raw", bits.slice(0, 32), "AES-GCM", false, ["encrypt", "decrypt"]);
+      nk = await subtle.importKey("raw", bits.slice(32), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    })();
+  }
+  async function nameOf(n) {
+    if (!names.has(n)) names.set(n, "la:" + hex(new Uint8Array(await subtle.sign("HMAC", nk, te.encode(n)))).slice(0, 32));
+    return names.get(n);
+  }
+  async function put(n, v, s) {
+    const hn = await nameOf(n);
+    if (v === null) { area(s).removeItem(hn); return; }
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv, additionalData: te.encode(n) }, ak, te.encode(v)));
+    const out = new Uint8Array(12 + ct.length); out.set(iv); out.set(ct, 12);
+    area(s).setItem(hn, b64(out));
+  }
+  async function load(list, s) {                // read these names (sealing a readable entry an earlier page left)
+    await ready;
+    for (const n of list) {
+      const st = area(s), hn = await nameOf(n);
+      let v = null;
+      const enc = st.getItem(hn);
+      if (enc !== null) try {
+        const b = unb64(enc);
+        v = new TextDecoder().decode(await subtle.decrypt({ name: "AES-GCM", iv: b.subarray(0, 12), additionalData: te.encode(n) },
+          ak, b.subarray(12)));
+      } catch (e) { v = null; }
+      const plain = st.getItem(n);
+      if (plain !== null) {
+        if (v === null) { v = plain; try { await put(n, plain, s); } catch (e) {} }
+        try { st.removeItem(n); } catch (e) {}
+      }
+      if (!mem.has(tag(n, s))) mem.set(tag(n, s), v);
+    }
+  }
+  const get = (n, s) => { const v = mem.get(tag(n, s)); return v === undefined ? null : v; };
+  const json = (n, d, s) => { try { return JSON.parse(get(n, s) || "null") || d; } catch (e) { return d; } };
+  function set(n, v, s) {                       // v: a string, or null to forget it
+    const val = v === null ? null : String(v);
+    mem.set(tag(n, s), val);
+    chain = chain.then(() => ready).then(() => put(n, val, s)).catch(() => {});
+    if (val === null) try { area(s).removeItem(n); } catch (e) {}
+  }
+  return Object.freeze({ init, load, get, json, set, remove: (n, s) => set(n, null, s), flushed: () => chain });
+})();
+// A gallery opened by its link alone: the colors this device remembered paint before the manifest is read (one with a
+// codeword paints them once the word has opened it: its key is not known before)
+if (raw && subtle && !NEEDS_WORD) LS.init(raw).then(() => LS.load([LOOK]))
+  .then(() => { if (!lookDone) look(LS.json(LOOK, null), false); }).catch(() => {});
+// the photographer's preview inside the app needs the app sign-in; a client gallery on the web sends no cookies
+const PREVIEW = location.pathname.startsWith("/gallery-preview/");
+
+async function open(buf, name) {
+  const data = new Uint8Array(buf);
+  if (subtle) {
+    if (!ckey) ckey = await subtle.importKey("raw", raw, "AES-GCM", false, ["decrypt"]);
+    return new Uint8Array(await subtle.decrypt({ name: "AES-GCM", iv: data.subarray(0, 12),
+      additionalData: new TextEncoder().encode("lumen-aureum-gallery:" + name) }, ckey, data.subarray(12)));
+  }
+  // WebCrypto exists only on secure (https) pages: a gallery opened any other way refuses to decrypt.
+  throw Object.assign(new Error("insecure"), { insecure: true });
+}
+// The picks email carries a fingerprint: HMAC-SHA256 over the exact list of picks, under a key derived from the gallery
+// key (HKDF-SHA256). The photographer's app recomputes it, so a list changed after it left the gallery shows up.
+async function fingerprint(lines) {
+  const text = lines.map(l => l.trim().replace(/\s+/g, " ")).filter(Boolean).join("\n");
+  const base = await subtle.importKey("raw", raw, "HKDF", false, ["deriveKey"]);
+  const hk = await subtle.deriveKey({ name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0),
+    info: new TextEncoder().encode("lumen-aureum picks fingerprint") }, base, { name: "HMAC", hash: "SHA-256", length: 256 }, false, ["sign"]);
+  const mac = new Uint8Array(await subtle.sign("HMAC", hk, new TextEncoder().encode(text))).slice(0, 10);
+  const A = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";             // no 0/O or 1/I to misread
+  let bits = 0, val = 0, out = "";
+  for (const b of mac) { val = (val << 8) | b; bits += 8; while (bits >= 5) { out += A[(val >>> (bits - 5)) & 31]; bits -= 5; } }
+  return out.match(/.{4}/g).join("-");
+}
+const GATE = document.documentElement.dataset.gate === "1";   // a PHP host: fetch through gate.php, which enforces expiry
+let proofFor = null, proofHex = "", sunset = "", once = "", onceDone = false, darkContact = "";
+let saved = null;                               // what the gate says the host keeps of the client's (X-Saved), or null: unknown
+let others = null;                              // the web host names of every device's picks and drafts (X-Picks), or null
+const EMAIL = /^[^\s"'<>\\=;&?#%]{1,64}@[^\s"'<>\\=;&?#%@]+\.[^\s"'<>\\=;&?#%@]+$/;
+function mailLink(e) { const a = document.createElement("a"); a.href = "mailto:" + e; a.textContent = e; return a; }
+// A closed gallery has gone dark. That need not mean the photos are gone for good: the photographer may still have
+// them, so the page offers their email (the one contact a closed gallery knows) when the gate sent it.
+function goneDark() {
+  document.documentElement.classList.add("gonedark");
+  fail("This gallery has gone dark.", "Your photographer may still be able to help.");
+  $("darkmark").hidden = false;
+  if (EMAIL.test(darkContact)) { const p = document.createElement("div"); p.className = "dark"; p.append(mailLink(darkContact)); $("msgact").append(p); }
+}
+async function keyProof() {                    // sha256(key), first 32 hex: what seen.php, picks.php and gate.php check
+  if (proofFor !== raw) { proofFor = raw;
+    proofHex = [...new Uint8Array(await subtle.digest("SHA-256", raw))].map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 32); }
+  return proofHex;
+}
+// A fetch that never arrived (offline, DNS, a dropped connection) is marked network, so it is never taken for a wrong key.
+async function reach(u, opts) {
+  try { return await fetch(u, opts); }
+  catch (e) { if (e && e.name === "AbortError") throw e; throw Object.assign(new Error("network"), { network: true }); }
+}
+// A proof of work: 8 bytes w so SHA-256(SHA-256(data) . w) starts with `bits` zero bits (orders.php asks 17 bits,
+// about a second on a phone; a gate after many wrong tries 16 to 20)
+const K32 = new Int32Array([0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+  0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786,
+  0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+  0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb,
+  0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f,
+  0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2]);
+const W32 = new Int32Array(64);
+function head32(mm) {
+  let t, a, b, c, d, e, g, hh, k, x, y, t1, t2;
+  for (t = 0; t < 16; t++) W32[t] = mm[t];
+  for (t = 16; t < 64; t++) { x = W32[t - 15]; y = W32[t - 2];
+    W32[t] = (W32[t - 16] + (((x >>> 7) | (x << 25)) ^ ((x >>> 18) | (x << 14)) ^ (x >>> 3)) + W32[t - 7]
+      + (((y >>> 17) | (y << 15)) ^ ((y >>> 19) | (y << 13)) ^ (y >>> 10))) | 0; }
+  a = 0x6a09e667 | 0; b = 0xbb67ae85 | 0; c = 0x3c6ef372 | 0; d = 0xa54ff53a | 0; e = 0x510e527f | 0; k = 0x9b05688c | 0; g = 0x1f83d9ab | 0; hh = 0x5be0cd19 | 0;
+  for (t = 0; t < 64; t++) {
+    t1 = (hh + (((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7))) + ((e & k) ^ (~e & g)) + K32[t] + W32[t]) | 0;
+    t2 = ((((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10))) + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+    hh = g; g = k; k = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0; }
+  return (a + 0x6a09e667) >>> 0;
+}
+const hex8 = n => ("0000000" + (n >>> 0).toString(16)).slice(-8);
+async function work(env, bits) {
+  const dg = new DataView(await subtle.digest("SHA-256", env)), mm = new Int32Array(16); let i, n = 0;
+  for (i = 0; i < 8; i++) mm[i] = dg.getInt32(i * 4);
+  mm[8] = crypto.getRandomValues(new Int32Array(1))[0]; mm[10] = 0x80000000 | 0; mm[15] = 320;
+  for (;;) { for (i = 0; i < 20000; i++, n++) { mm[9] = n; if (head32(mm) >>> (32 - bits) === 0) return hex8(mm[8]) + hex8(n); }
+    await new Promise(r => setTimeout(r, 0)); }
+}
+// The web host's name of a file sealed under the gallery key (manifest.bin, offer.bin, picks.las, draft.las): made from
+// the key proof (gate.php hname), so nobody without the key can fetch it by name, on any web server. On a PHP host the
+// gate works it out from the proof; the page needs it only where no gate runs.
+const SEALED_NAME = /^(manifest|offer)\.bin$|^(picks|draft)\.las$/;
+async function hostName(name) {
+  if (!SEALED_NAME.test(name) || !subtle) return name;
+  const d = await subtle.digest("SHA-256", new TextEncoder().encode("lumen-aureum file name\0" + name + "\0" + await keyProof()));
+  return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 24) + name.slice(-4);
+}
+// A request carrying the key proof. After many wrong tries at a codeword the gate asks each request for a proof of work
+// (429, X-Work: <bits> <hour>): it is worked out here once (about a second), kept for the hour, and the request sent
+// again. Nobody is ever locked out by what others sent.
+let workHdr = "";
+async function proved(u, opts) {
+  for (let t = 0; ; t++) {
+    const r = await reach(u, Object.assign({}, opts, { headers: Object.assign({ "X-Proof": await keyProof() }, workHdr ? { "X-Work": workHdr } : {}, opts.headers || {}) }));
+    const ask = r.status === 429 && /^(\d{1,2}) (\d{1,12})$/.exec(r.headers.get("X-Work") || "");
+    if (!ask || t >= 2) return r;
+    workHdr = ask[2] + "-" + await work(new TextEncoder().encode("lumen-aureum gate work\0" + await keyProof() + "\0" + ask[2]), +ask[1]);
+  }
+}
+async function fetchBin(name, fresh, signal) { // the encrypted bytes of one file, as the host sends them
+  if (CARD) return cardBin(name);
+  const opts = { credentials: PREVIEW ? "same-origin" : "omit", cache: fresh ? "no-store" : "default", signal };
+  let r = GATE && subtle ? await proved("gate.php?f=" + encodeURIComponent(name), opts)
+    : GATE ? await reach("gate.php?f=" + encodeURIComponent(name), opts) : null, direct = false;
+  if (r && !r.ok && r.status !== 404 && r.status !== 410 && r.status !== 403 && r.status !== 429) r = null;   // the gate isn't running here (no PHP)
+  if (r && r.ok && (r.headers.get("content-type") || "").includes("php")) r = null;
+  if (!r) { r = await reach(await hostName(name), opts); direct = true; }
+  if (!r.ok) {                                  // gone dark: the gate may name the photographer's email
+    if (r.status === 410) try { const j = await r.json(); if (j && typeof j.contact === "string") darkContact = j.contact; } catch (e) {}
+    // where no gate runs, a sealed file not found by its name may be a wrong codeword (the name comes from the key)
+    throw Object.assign(new Error("http"), { status: r.status, direct: direct && SEALED_NAME.test(name) });
+  }
+  if (name === "manifest.bin") {               // the gate's word that it closes soon, or is open for one download
+    sunset = r.headers.get("X-Sunset") || ""; once = r.headers.get("X-Once") || ""; onceDone = r.headers.get("X-Once-Done") === "1";
+    const sv = r.headers.get("X-Saved");        // a gate from before 1.3 doesn't say: then the page asks for each file
+    if (/^(none|draft|picks|draft,picks)$/.test(sv || "")) saved = sv.split(",");
+    const xp = r.headers.get("X-Picks") || "";  // every device's picks and draft by web host name (1.6); a gate before says nothing
+    if (/^(none|[0-9a-f]{24}\.las(,[0-9a-f]{24}\.las){0,63})$/.test(xp)) others = xp === "none" ? [] : xp.split(","); }
+  try { return await r.arrayBuffer(); }
+  catch (e) { if (e && e.name === "AbortError") throw e;
+    throw Object.assign(new Error("network"), { network: true }); }   // the connection dropped mid-file
+}
+async function get(name, signal) {
+  return open(await fetchBin(name, false, signal), name);
+}
+// ---- a sealed card. The page reads each sealed file from the folder the client chose; a file it can't read (the card
+// taken out) counts as a dropped connection, never as a wrong code.
+async function cardBin(name) {
+  const f = CARDF.get(name);
+  if (!f) throw Object.assign(new Error("missing"), { status: 404 });
+  try { return await (await f()).arrayBuffer(); }
+  catch (e) { throw Object.assign(new Error("network"), { network: true }); }
+}
+function cardFiles(fs) {                       // from a folder input: the files beside manifest.bin (the sealed folder)
+  CARDF.clear();
+  const dirOf = f => (f.webkitRelativePath || f.name).split("/").slice(0, -1).join("/");
+  const ms = fs.filter(f => f.name === "manifest.bin").sort((a, b) => dirOf(a).length - dirOf(b).length);
+  if (!ms.length) return false;
+  const at = dirOf(ms[0]);
+  fs.forEach(f => { if (dirOf(f) === at) CARDF.set(f.name, () => Promise.resolve(f)); });
+  return true;
+}
+async function cardDir(dir) {                  // from the folder picker: the sealed folder, or the card holding it
+  CARDF.clear();
+  let d = dir;
+  try { await d.getFileHandle("manifest.bin"); }
+  catch (e) { try { d = await dir.getDirectoryHandle(CARD_DIR); await d.getFileHandle("manifest.bin"); } catch (x) { return false; } }
+  for await (const [n, h] of d.entries()) if (h.kind === "file") CARDF.set(n, () => h.getFile());
+  return true;
+}
+function pickFolder(why) {
+  return new Promise(resolve => {
+    const ask = "Choose the folder named \u201c" + CARD_DIR + "\u201d on the card or drive.";
+    if (why === "folder") fail("That folder doesn't hold the photos", ask);
+    else if (why === "read") fail("The card couldn't be read", "Check it is still in the computer. " + ask);
+    else say("Your photos are sealed on this card", ask + " Your browser asks first. The photos stay on this computer.");
+    const go = document.createElement("button"), inp = document.createElement("input");
+    go.type = "button"; go.textContent = "Choose the folder";
+    inp.type = "file"; inp.multiple = true; inp.webkitdirectory = true; inp.hidden = true; inp.id = "cardpick";
+    inp.setAttribute("aria-label", "The sealed folder");
+    inp.onchange = () => { const fs = [...(inp.files || [])]; if (fs.length) resolve(cardFiles(fs)); };
+    go.onclick = async () => {
+      if (window.showDirectoryPicker) {         // Chrome and Edge: their own folder picker, which says "view files"
+        let dir;
+        try { dir = await window.showDirectoryPicker({ id: "lumen-aureum-card" }); }
+        catch (e) { if (e && e.name === "AbortError") return; inp.click(); return; }
+        try { resolve(await cardDir(dir)); } catch (e) { resolve(false); }
+        return;
+      }
+      inp.click();                              // Firefox and Safari: the folder input
+    };
+    $("msgact").append(go, inp); go.focus();
+  });
+}
+const CROCK = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";   // the code's letters: no I, L, O or U to misread
+async function codeBytes(text) {                // the code's 128 bits, or null when it is mistyped (its check character)
+  const t = String(text || "").replace(/[\s\-_.]+/g, "").toUpperCase().replace(/O/g, "0").replace(/[IL]/g, "1");
+  if (t.length !== 27 || [...t].some(c => CROCK.indexOf(c) < 0)) return null;
+  const h = new Uint8Array(await subtle.digest("SHA-256", new TextEncoder().encode(t.slice(0, 26))));
+  if (CROCK[h[0] & 31] !== t[26]) return null;
+  let n = 0n;
+  for (const c of t.slice(0, 26)) n = n * 32n + BigInt(CROCK.indexOf(c));
+  const out = new Uint8Array(16);
+  for (let i = 15; i >= 0; i--) { out[i] = Number(n & 255n); n >>= 8n; }
+  return out;
+}
+async function cardKey(bytes) {                 // the gallery key: HKDF-SHA256 of the code, as card_key() in the app
+  const base = await subtle.importKey("raw", bytes, "HKDF", false, ["deriveBits"]);
+  return new Uint8Array(await subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0),
+    info: new TextEncoder().encode("lumen-aureum card key") }, base, 256));
+}
+function askCode(why, last) {
+  return new Promise(resolve => {
+    const ask = "Type the code printed in your letter.";
+    if (why === "wrong") fail("That code doesn't open these photos", ask);
+    else if (why === "typo") fail("That code doesn't look right", "Check each letter and digit against your letter.");
+    else say("Enter your code", ask);
+    const f = document.createElement("form"), i = document.createElement("input"), go = document.createElement("button");
+    i.type = "text"; i.id = "cardcode"; i.autocomplete = "off"; i.spellcheck = false; i.setAttribute("autocapitalize", "characters");
+    i.setAttribute("aria-label", "Code from your letter"); i.value = why === "typo" ? last : "";
+    go.type = "submit"; go.textContent = "Open my photos";
+    f.append(i, go);
+    f.onsubmit = e => { e.preventDefault(); go.disabled = true; go.textContent = "Opening..."; resolve(i.value); };
+    $("msgact").append(f); i.focus();
+  });
+}
+async function cardOpen() {                     // the folder, then the code: the manifest's plain bytes, or null
+  if (!subtle) { fail("This browser can't open the photos", "Open the page in Chrome, Edge, Firefox, or Safari on a computer."); return null; }
+  for (let why = ""; ; ) {
+    if (!(await pickFolder(why))) { why = "folder"; continue; }
+    let mbuf;
+    try { mbuf = await cardBin("manifest.bin"); } catch (e) { why = "read"; continue; }
+    for (let w = "", code = ""; ; ) {
+      code = await askCode(w, code);
+      const b = await codeBytes(code);
+      if (!b) { w = "typo"; continue; }
+      raw = await cardKey(b); ckey = null;
+      say("", OPENING);
+      try { return await open(mbuf, "manifest.bin"); } catch (e) { w = "wrong"; }
+    }
+  }
+}
+// What the page sends to the host's small scripts goes as a form (proof, picks), never as text/plain or raw bytes:
+// web firewalls (ModSecurity's core rules) flag other content types on every visit.
+const b64u = u8 => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000));
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
+const form = (k, v) => new URLSearchParams([[k, v]]);
+// Why the manifest didn't open: the gallery closed, the key (or word) is wrong, or the host couldn't be reached.
+// A wrong key is a decryption failure, or the gate refusing the key's proof (403); anything else is the connection.
+const isClosed = e => e.status === 404 || e.status === 410;
+const isWrongKey = e => !e.network && !e.insecure && (!e.status || (GATE && e.status === 403) || (e.direct && e.status === 404 && NEEDS_WORD));
+// Big photos are kept as object URLs only near the one on screen (see keepNear): a phone that pages through hundreds
+// of photos would otherwise hold every one of them in memory.
+const blobs = new Map();
+async function url(name) {
+  if (!blobs.has(name)) blobs.set(name, get(name).then(b => URL.createObjectURL(new Blob([b], { type: "image/jpeg" })),
+    e => { blobs.delete(name); throw e; }));
+  return blobs.get(name);
+}
+function keepNear(names) {                     // release every big photo not in names
+  for (const [n, p] of blobs) if (!names.has(n)) { blobs.delete(n); p.then(u => URL.revokeObjectURL(u), () => {}); }
+}
+// Messages go to a live region, so a screen reader hears them: status (polite) for asking and opening, alert for
+// anything that went wrong. Both regions are in the page from the start; the one not in use is emptied.
+function say(head, line, error) {
+  const to = $(error ? "msgerr" : "msgsay"), other = $(error ? "msgsay" : "msgerr");
+  other.textContent = ""; to.textContent = "";
+  if (head) { const b = document.createElement("b"); b.textContent = head; to.append(b); }
+  if (line) { const d = document.createElement("div"); d.textContent = line; to.append(d); }
+  $("msgact").textContent = "";
+  $("msg").hidden = false;
+}
+const fail = (head, line) => say(head, line, true);
+
+// A codeword gallery's key: PBKDF2-SHA256(word, salt = the link's 32-byte secret + the gallery's ID, 600000 rounds), the
+// same as codeword_key() in the app. The word is normalized the same way (NFKC, trimmed, lowercase, single spaces).
+// The ID is data-cws when the page has one (a gallery that moved to its link ID in 1.4 keeps the ID its key was made
+// with), else the link ID.
+async function wordKey(word) {
+  const w = word.normalize("NFKC").replace(/[\u200b-\u200d\u2060\ufeff\u00ad]/g, "")
+    .replace(/[\x00-\x1f\x7f-\x9f\s\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/g, " ").trim().toLowerCase();
+  const gid = new TextEncoder().encode(document.documentElement.dataset.cws || document.documentElement.dataset.gid || "");
+  const salt = new Uint8Array(raw.length + gid.length); salt.set(raw); salt.set(gid, raw.length);
+  const base = await subtle.importKey("raw", new TextEncoder().encode(w), "PBKDF2", false, ["deriveBits"]);
+  return new Uint8Array(await subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: 600000 }, base, 256));
+}
+const UNREACHABLE = ["Could not reach the gallery", "Check your connection and try again."];
+const OPENING = "Opening your photos...";
+function askWord(why, last) {                  // why: "" (first ask), "wrong" (the word didn't open it), "reach" (no connection)
+  return new Promise(resolve => {
+    const ask = "Enter the word you chose with your photographer.";
+    if (why === "wrong") fail("That word doesn't open this gallery", ask);
+    else if (why === "reach") fail(...UNREACHABLE);          // the word wasn't the problem: don't ask for it as if it were
+    else say("This gallery is protected by a word", ask);
+    const act = $("msgact");
+    const f = document.createElement("form"), i = document.createElement("input"), go = document.createElement("button");
+    i.type = "password"; i.autocomplete = "off"; i.setAttribute("aria-label", "Gallery word");
+    go.type = "submit"; go.textContent = "Open the gallery";
+    f.append(i, go);
+    const opening = () => say("", OPENING);
+    f.onsubmit = e => { e.preventDefault(); go.disabled = true; go.textContent = "Opening..."; opening(); resolve(i.value); };
+    if (why === "reach") {                     // retry with the word already typed; it can still be changed
+      const again = document.createElement("button"), other = document.createElement("button");
+      again.type = "button"; again.textContent = "Try again";
+      other.type = "button"; other.className = "plain"; other.textContent = "Use a different word";
+      i.value = last || ""; f.hidden = true;
+      again.onclick = () => { again.disabled = true; opening(); resolve(last || ""); };
+      other.onclick = () => { again.remove(); other.remove(); f.hidden = false; i.value = ""; i.focus(); };
+      act.append(again, other, f);
+      again.focus();
+    } else {
+      act.append(f);
+      i.focus();
+    }
+  });
+}
+
+async function main() {
+  let mbuf = null, plain = null;
+  if (CARD) {                                   // a sealed card: the folder and the letter's code first
+    plain = await cardOpen();
+    if (!plain) return;
+    await Promise.all(["font.woff2", "font-light.woff2"].map(async n => {
+      if (CARDF.has(n)) try { CARDFONT[n] = await cardBin(n); } catch (e) {} }));
+  } else if (!raw) { fail("This gallery is locked", "Open it from the code in your letter."); return; }
+  // manifest.bin is fetched once: its bytes are kept and decrypted again with each word tried
+  const manifest = async () => { if (!mbuf) mbuf = await fetchBin("manifest.bin"); return open(mbuf, "manifest.bin"); };
+  if (NEEDS_WORD) {
+    if (!subtle) { fail("This gallery must be opened over https", "Check the address starts with https://."); return; }
+    const linkKey = raw;
+    for (let why = "", word = ""; ; ) {
+      word = await askWord(why, word);
+      raw = linkKey; raw = await wordKey(word); ckey = null;
+      try { plain = await manifest(); break; }
+      catch (e) {
+        if (isClosed(e) && !(e.direct && e.status === 404)) { goneDark(); return; }
+        why = isWrongKey(e) ? "wrong" : "reach";
+      }
+    }
+  }
+  let m, mText = "";
+  for (;;) {
+    if (!plain) say("", OPENING);
+    try { mText = new TextDecoder().decode(plain || await manifest()); m = JSON.parse(mText); break; }
+    catch (e) {
+      if (e.insecure) fail("This gallery must be opened over https", "Check the address starts with https://.");
+      else if (isClosed(e)) goneDark();
+      else if (isWrongKey(e)) fail("This gallery is locked", "Open it from the code in your letter.");
+      else {                                   // the connection: offer the same link again, nothing to retype
+        fail(...UNREACHABLE);
+        const again = document.createElement("button");
+        again.type = "button"; again.textContent = "Try again";
+        $("msgact").append(again); again.focus();
+        await new Promise(r => { again.onclick = () => { again.disabled = true; r(); }; });
+        continue;
+      }
+      return;
+    }
+  }
+  $("msg").remove();
+  // The final key: what this device keeps for the gallery opens with it. Read before any photo can be opened.
+  const PK = ["", ":sent", ":legacy", ":welcomed", ":dev", ":rp"], KEY = "picks:" + location.pathname;
+  let OLDS = [];                                // the picks' names at the address a gallery had before its 1.4 move
+  {
+    const was = document.documentElement.dataset.cws || "", now = document.documentElement.dataset.gid || "";
+    const seg = "/" + now + "/", at = location.pathname.lastIndexOf(seg);
+    if (was && now && was !== now && at >= 0) {
+      const base = location.pathname.slice(0, at) + "/" + was + "/";
+      OLDS = [base, base + "index.html"].map(x => "picks:" + x);
+    }
+  }
+  try { await LS.init(raw); await LS.load([KEY].concat(OLDS).flatMap(b => PK.map(t => b + t))); } catch (e) {}
+  // the visit counts only with proof of the key: sha256(key), first 32 hex, matched by seen.php
+  if (!location.pathname.startsWith("/gallery-preview/") && !CARD) try {
+    const proof = [...new Uint8Array(await subtle.digest("SHA-256", raw))].map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
+    fetch("seen.php", { method: "POST", credentials: "omit", cache: "no-store", body: form("p", proof) }).catch(() => {});
+  } catch (e) {}
+  const B = m.brand || {};
+  look(B.theme, true);
+  document.title = m.title + (B.studio ? " \u00b7 " + B.studio : "");
+  $("title").textContent = m.title;
+  $("meta").textContent = "";                   // each part stays whole; lines break only between parts
+  [B.what, B.date, m.items.length + (m.items.length === 1 ? " photo" : " photos")].filter(Boolean).forEach((t, j) => {
+    const sp = document.createElement("span"); sp.className = "nw"; sp.textContent = t;
+    $("meta").append(...(j ? ["  \u00b7  ", sp] : [sp])); });
+  // the studio logo sized by its shape: about the same area whatever its proportions, so a wide wordmark is not
+  // shrunk to a thin strip by a fixed height (1.5 walk w7 Q13); never wider than the screen allows, never too tall
+  function sizeLogo() {
+    const im = $("logo"), r = im.naturalWidth / im.naturalHeight;
+    if (!r || !isFinite(r)) return;
+    const phone = matchMedia("(max-width: 640px)").matches, area = phone ? 150 * 150 : 200 * 200;
+    let w = Math.sqrt(area * r), ht = w / r;
+    const maxW = Math.min(innerWidth * 0.85, 480), maxH = phone ? 120 : 140;
+    if (w > maxW) { w = maxW; ht = w / r; }
+    if (ht > maxH) { ht = maxH; w = ht * r; }
+    im.style.width = Math.round(w) + "px"; im.style.height = Math.round(ht) + "px";
+    im.style.maxWidth = "none"; im.style.maxHeight = "none";
+  }
+  if (B.logo) try {
+    const bin = atob(B.logo);
+    $("logo").src = URL.createObjectURL(new Blob([Uint8Array.from(bin, c => c.charCodeAt(0))], { type: "image/png" }));
+    $("logo").alt = B.studio || ""; $("logo").hidden = false;
+    $("logo").onload = sizeLogo; addEventListener("resize", sizeLogo);
+  } catch (e) {}
+  $("studio").textContent = B.logo ? "" : (B.studio || "");     // a logo already carries the name
+  $("studio").classList.toggle("word", !B.logo);
+  document.querySelector("header").classList.toggle("two", !!(B.logo || B.studio));
+  // the studio's own website (Settings, https only): the name or logo links to it, and the footer shows it
+  const SITE = /^https:\/\/[^\s"'<>\\]+$/.test(B.site || "") ? B.site : "";
+  if (SITE && (B.logo || B.studio)) { const a = document.createElement("a"); a.href = SITE; a.rel = "noopener"; a.target = "_blank";
+    a.id = "site"; a.append($("logo"), $("studio")); $("brand").append(a); }
+  const ct = $("contact");
+  if (B.email) { const sp = document.createElement("span"), a = document.createElement("a");
+    a.href = "mailto:" + B.email; a.textContent = B.email; sp.append(a); ct.append(sp); }
+  if (B.phone) { const sp = document.createElement("span"); sp.textContent = B.phone; ct.append(sp); }
+  if (SITE) { const sp = document.createElement("span"), a = document.createElement("a");
+    a.href = SITE; a.rel = "noopener"; a.target = "_blank"; a.textContent = SITE.replace(/^https:\/\/(www\.)?/, "").replace(/\/$/, "");
+    sp.append(a); ct.append(sp); }
+  if (B.studio || B.photographer) { const sp = document.createElement("span"); sp.textContent = B.photographer && B.photographer !== B.studio ? B.photographer + ", " + (B.studio || "") : (B.studio || B.photographer); ct.prepend(sp); }
+  // Copyright: the shoot's year (else this year) and the studio, in the footer and on every big photo. Only when the
+  // photographer keeps the copyright (brand.owns); otherwise it may be the client's, and the line names the photographer.
+  const owner = B.studio || B.photographer || "", yr = (String(B.date || "").match(/\b(\d{4})$/) || [])[1] || new Date().getFullYear();
+  const RIGHTS = !owner ? "" : B.owns === true ? "\u00a9 " + yr + " " + owner + ". All rights reserved." : "Photos by " + owner + ".";
+  if (RIGHTS) { $("rights").textContent = RIGHTS; $("rights").hidden = false; }
+  document.querySelector("header").hidden = false;
+  const grid = $("grid");
+  // Proofs are not for saving: no right-click menu and no dragging on the photos (a screenshot still works; this only
+  // stops the easy way, the way proofing galleries usually do)
+  const DL = m.dl === 1 && Array.isArray(m.zips);           // a download gallery: the final photos, to keep (nothing to pick)
+  const SHOP = !DL && m.pr === 1;    // proofs that sell prints: no Retouch, no portfolio picks; picks
+                                     // this device kept stay kept, for when the gallery is rebuilt without prints
+  // In its last days the gallery opens with a notice, on every visit, that it is about to sunset: when it closes, Download
+  // all for a download gallery, and how to reach the photographer
+  const onceAt = once ? new Date(once) : null;
+  const onceOn = !!(onceAt && !isNaN(onceAt) && onceAt > new Date() && !PREVIEW);
+  const closes = onceOn ? onceAt : sunset ? new Date(sunset) : null;
+  const sunsetOn = onceOn || !!(closes && !isNaN(closes) && closes > new Date() && !PREVIEW);
+  if (!DL) {
+    document.addEventListener("contextmenu", e => { if (e.target && e.target.tagName === "IMG") e.preventDefault(); });
+    document.addEventListener("dragstart", e => { if (e.target && e.target.tagName === "IMG") e.preventDefault(); });
+  }
+  // A file named in the manifest that the host no longer has (404): the photographer may have just updated the
+  // gallery and removed the old files. If the manifest on the host is now a different one, the page says so and offers
+  // a reload (picks are kept by file name, on this device and on the host, so nothing is lost).
+  let updP = null, stale = false;              // stale: the host has a newer build than this page
+  const updated = () => CARD ? Promise.resolve(false) : updP || (updP = fetchBin("manifest.bin", true).then(b => open(b, "manifest.bin"))
+    .then(b => new TextDecoder().decode(b) !== mText, () => false)
+    .then(yes => { if (yes) { stale = true; $("upd").hidden = false; } else updP = null; return yes; }));
+  $("updgo").onclick = () => location.reload();
+  // An open page looks for a newer build by itself: when it comes back into view, and every few minutes while shown.
+  if (!PREVIEW && !CARD) {
+    const look = () => { if (!stale && document.visibilityState === "visible") updated(); };
+    document.addEventListener("visibilitychange", look);
+    window.addEventListener("focus", look);
+    setInterval(look, 3 * 60000);
+  }
+  const thumbs = [];                            // each grid photo's thumbnail, once it has loaded
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if (!e.isIntersecting) return;
+    io.unobserve(e.target);
+    const img = e.target.firstChild, i = +e.target.dataset.i;
+    get(m.items[i].t).then(b => {
+      const u = URL.createObjectURL(new Blob([b], { type: "image/jpeg" }));
+      img.onload = () => { img.classList.add("on"); thumbs[i] = u; };
+      img.src = u;
+    }).catch(err => { if (err && err.status === 404) updated(); });
+  }), { rootMargin: "600px 0px" });
+  m.items.forEach((it, i) => {
+    const c = document.createElement("button");
+    c.className = "cell"; c.dataset.i = i; c.setAttribute("aria-label", "Photo " + (i + 1));
+    const img = document.createElement("img"); img.alt = "";
+    const num = document.createElement("span"); num.className = "num"; num.textContent = i + 1;
+    const tag = document.createElement("span"); tag.className = "tag";
+    c.append(img, num, tag); grid.append(c); io.observe(c);
+    c.onclick = e => { const b = e.target.closest && e.target.closest(".cell .tag i[data-k]");   // a badge: take that pick off?
+      if (b) return askRemove(i, b.dataset.k); show(i); };
+  });
+
+  // picks: retouch (with a note), portfolio suggestions, and photos never to be shown; kept on this device until sent
+  // Picks are kept by the photo's file name, not its place in the grid: a rebuild that adds or removes photos moves
+  // the places, and each pick must stay on its own photo. Two photos with the same name are told apart by their order.
+  const P = DL || SHOP ? {} : m.picks || {};
+  const KEYS = (() => { const seen = {};
+    return m.items.map((it, i) => { const n = it.n ? "n:" + it.n : "#" + i; seen[n] = (seen[n] || 0) + 1;
+      return seen[n] > 1 ? n + "#" + seen[n] : n; }); })();
+  const pk = i => KEYS[i];
+  const canon = p => { const c = {}; if (p.r) { c.r = true; if (p.n) c.n = String(p.n).slice(0, 200); }   // one spelling per pick
+    if (p.m) c.m = true; if (p.v) c.v = true; return c; };
+  const sigOf = (pp, ks) => JSON.stringify(ks.filter(k => pp[k] && (pp[k].r || pp[k].m || pp[k].v)).map(k => [k, canon(pp[k])]));
+  const resig = s => { try { const o = {}; JSON.parse(s || "[]").forEach(([k, p]) => { if (p && typeof p === "object") o[k] = p; });
+    return s ? sigOf(o, KEYS) : ""; } catch (e) { return ""; } };
+  // A pick list as the host holds it (draft.las or picks.las: entries with name, i, and from 1.1 k) -> this page's picks
+  function fromList(list) {
+    const got = {}, byName = {};
+    KEYS.forEach((k, i) => { const n = m.items[i].n; if (n && !(("n:" + n) in byName)) byName["n:" + n] = k; });
+    list.forEach(p => {
+      if (!p || typeof p !== "object") return;
+      const k = KEYS.includes(p.k) ? p.k : byName["n:" + (p.name || "")] || (Number.isInteger(p.i) && !p.name ? KEYS[p.i] : null);
+      if (!k || !(p.r || p.m || p.v)) return;
+      const q = {}; if (p.r) { q.r = true; if (p.note) q.n = String(p.note).slice(0, 200); } if (p.m) q.m = true; if (p.v) q.v = true;
+      got[k] = q; });
+    return got;
+  }
+  const DRAFTS = GATE && !!P.post && !PREVIEW && !!subtle;
+  // Each device keeps its own picks and draft on the host (picks-<id>.las, draft-<id>.las), so two people picking on
+  // two devices never overwrite each other: the photographer's app reads them all and puts them together. The ID is 16
+  // random hex, made the first time this device saves a pick, and says nothing about who is picking.
+  let DEV = /^[0-9a-f]{16}$/.test(LS.get(KEY + ":dev") || "") ? LS.get(KEY + ":dev") : "";
+  const devId = () => { if (!DEV) { DEV = Array.from(crypto.getRandomValues(new Uint8Array(8)), b => (b + 256).toString(16).slice(1)).join("");
+    LS.set(KEY + ":dev", DEV); } return DEV; };
+  const mine = n => n + "-" + DEV + ".las";
+  // The picks.las or draft.las a page before 1.6 kept (every device's at once) that this device carries on from: their
+  // item IDs go with its own, so the app no longer adds what this device has since taken off.
+  let rp = [];
+  try { rp = (JSON.parse(LS.get(KEY + ":rp") || "[]") || []).filter(v => /^[0-9a-f]{32}$/.test(v)).slice(-16); } catch (e) {}
+  const claim = id => { if (/^[0-9a-f]{32}$/.test(id || "") && !rp.includes(id)) { rp = rp.concat([id]).slice(-16); LS.set(KEY + ":rp", JSON.stringify(rp)); } };
+  // A device new to the gallery shows everyone's picks so far (startFromAll) but makes nothing of its own until the
+  // client changes or sends them: then it carries on from those files (their item IDs join rp), so what it takes off
+  // stays off. Until then nothing is kept here, and the next visit starts again from everyone's latest.
+  let seeded = null, fromAll = false;
+  const adopt = () => { if (!seeded) return; seeded.forEach(claim); seeded = null; fromAll = false; keep(); };
+  const FULL_NOTE = "This gallery has reached the most devices it can save picks from. Please ask your photographer.";
+  let hostOk = false, pending = false, timer = null, moved = false;   // moved: this copy refuses picks (picks.php 409)
+  let picks = {}, sentSig = "", changed = "";   // changed: when the picks on this device last changed (ISO time)
+  let legacySig = "";                           // picks carried over from a page before 1.1, which kept no record of sending
+  let sendNote = "";                            // a problem sending, shown until the picks change
+  const announce = t => { $("live").textContent = ""; setTimeout(() => { $("live").textContent = t; }, 50); };
+  // A gallery that moved to its link ID in 1.4 (data-cws: the ID it had): the picks this device kept at the old
+  // address (the browser keeps them per address) come along the first time it opens here
+  if (DL) PK.forEach(t => LS.remove(KEY + t));  // a download gallery: picks made on the proofs at this address are over
+  if (!DL && OLDS.length && LS.get(KEY) === null) {
+    const OLD = OLDS.find(k => LS.get(k) !== null);
+    if (OLD) PK.forEach(t => { const v = LS.get(OLD + t); if (v !== null) LS.set(KEY + t, v); });
+  }
+  if (!DL) try {
+    const st = JSON.parse(LS.get(KEY) || "{}") || {};
+    sentSig = LS.get(KEY + ":sent") || "";
+    legacySig = LS.get(KEY + ":legacy") || "";
+    if (st.v === 2) { picks = st.picks && typeof st.picks === "object" ? st.picks : {}; changed = typeof st.at === "string" ? st.at : "";
+      sentSig = resig(sentSig); legacySig = resig(legacySig); }
+    else if (Object.keys(st).length) {       // kept by place, by an older page: moved over only if every place is still here
+      const ix = Object.keys(st);
+      if (ix.every(i => /^\d+$/.test(i) && +i < m.items.length)) {
+        ix.forEach(i => { picks[pk(+i)] = st[i]; });
+        const was = {}; try { JSON.parse(sentSig || "[]").forEach(([i, p]) => { if (+i < m.items.length) was[pk(+i)] = p; }); } catch (e) {}
+        sentSig = sentSig ? sigOf(was, KEYS) : "";
+      } else sentSig = "";
+      if (!sentSig) legacySig = sigOf(picks, KEYS);   // sent or not, that page never said: see quietLegacy
+      LS.set(KEY, JSON.stringify({ v: 2, picks })); LS.set(KEY + ":sent", sentSig);
+      LS.set(KEY + ":legacy", legacySig);
+    }
+  } catch (e) {}
+  Object.keys(picks).forEach(k => { if (!KEYS.includes(k) || !picks[k] || typeof picks[k] !== "object") delete picks[k]; });   // gone in a rebuild
+  const nR = () => Object.values(picks).filter(p => p.r).length, nM = () => Object.values(picks).filter(p => p.m).length,
+        nV = () => Object.values(picks).filter(p => p.v).length;
+  const keep = () => LS.set(KEY, JSON.stringify({ v: 2, picks, at: changed }));
+  const save = () => { adopt(); changed = new Date().toISOString(); keep(); sendNote = ""; if (DRAFTS) hostOk = false; paint(); later(); };
+  // Unsent picks: what was last sent is remembered, and leaving the page with something newer asks first
+  // "Sent" is only ever what this device sent itself, or what picks.las on the host holds (verifySent): a draft from
+  // another device never says so on its own.
+  const sig = () => sigOf(picks, KEYS);
+  // picks from a page before 1.1 on a gallery picked by email: whether they were sent can't be known, so until the client
+  // changes them they read "Saved on this device", with no "Not sent yet" and no question on leaving
+  const quietLegacy = () => !P.post && !!legacySig && sig() === legacySig;
+  const isSent = () => sig() !== "[]" && sig() === sentSig;
+  const unsent = () => sig() !== "[]" && !isSent() && !quietLegacy();
+  const setSent = s => { sentSig = s; LS.set(KEY + ":sent", sentSig); };
+  const markSent = () => { setSent(sig()); paint(); };
+  window.addEventListener("beforeunload", e => { if (unsent()) { e.preventDefault(); e.returnValue = ""; } });
+  function marks(tag, p) {                      // the same badges on a grid photo and on the big photo
+    const mark = (t, cls) => { const i = document.createElement("i"); i.textContent = t; if (cls) i.className = cls; return i; };
+    const tip = (el, t) => { el.dataset.tip = t; el.setAttribute("aria-label", t); return el; };   // hover says what it means
+    tag.textContent = "";
+    const k = (el, x) => { el.dataset.k = x; return el; };
+    if (p.r) tag.append(k(tip(mark("R"), p.n ? "Retouch: " + p.n : "Retouch (no note yet)"), "r"));
+    if (p.m) tag.append(k(tip(mark("♥", "heart"), "Suggested for portfolio"), "m"));
+    if (p.v) tag.append(k(tip(mark("⊘", "no"), "Please don't show"), "v"));
+  }
+  function named(i, p) {                        // a grid photo's name says its picks, so a screen reader hears them
+    return ["Photo " + (i + 1)].concat(p.r ? ["Retouch" + (p.n ? ": " + p.n : "")] : [], p.m ? ["Suggested for portfolio"] : [],
+      p.v ? ["Please don't show"] : []).join(", ");
+  }
+  // Dialogs keep focus inside them: what is behind is inert while one is open, and Escape closes it from anywhere.
+  function modal(box, first, onClose) {
+    const was = behind().concat([lb]).filter(el => !el.inert);
+    was.forEach(el => el.inert = true);
+    const esc = e => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); done(); } };
+    function done() { document.removeEventListener("keydown", esc, true); was.forEach(el => el.inert = false); box.hidden = true; onClose(); }
+    document.addEventListener("keydown", esc, true);
+    box.hidden = false; first.focus();
+    return done;
+  }
+  function askRemove(i, k, after) {             // a badge (or Retouch with a note) was pressed: confirm, then take that pick off
+    const A = $("ask"), back = document.activeElement, n = i + 1;
+    $("asktext").textContent = k === "r" ? "Remove Retouch from photo " + n + "?" + ((picks[pk(i)] || {}).n ? " Your note goes too." : "")
+      : k === "m" ? "Remove photo " + n + " from your portfolio suggestions?" : "Remove Please don't show from photo " + n + "?";
+    const close = modal(A, $("askkeep"), () => { if (back && back.focus) back.focus(); });
+    $("askkeep").onclick = close;
+    $("askgo").onclick = () => { const p = picks[pk(i)] || {}; delete p[k]; if (k === "r") delete p.n;
+      if (!p.r && !p.m && !p.v) delete picks[pk(i)]; close(); save(); if (after) after(); };
+    A.onclick = e => { if (e.target === A) close(); };
+    A.onkeydown = e => { if (e.key === "Tab") { e.preventDefault();            // Keep and Remove only
+      (document.activeElement === $("askkeep") ? $("askgo") : $("askkeep")).focus(); } };
+  }
+  let show_ = "all";                            // quick filter above the grid: all, or one kind of pick
+  const KINDS = [["all", "All"], ["r", "Retouch"], ["m", "Suggested"], ["v", "Don't show"]];
+  function filterBar() {
+    const f = $("filter"); if (!(P.retouch || P.market)) return;
+    const had = f.contains && f.contains(document.activeElement) ? document.activeElement.dataset.k : null;
+    const n = { all: m.items.length, r: nR(), m: nM(), v: nV() };
+    if (show_ !== "all" && !n[show_]) show_ = "all";       // the last one in a view was taken off: back to all
+    f.hidden = !(n.r + n.m + n.v); f.textContent = "";
+    KINDS.filter(([k]) => k === "all" || k === "r" ? (k === "all" || P.retouch) : P.market).forEach(([k, label]) => {
+      const b = document.createElement("button"); b.type = "button"; b.textContent = label + " (" + n[k] + ")";
+      b.classList.toggle("on", show_ === k); b.setAttribute("aria-pressed", show_ === k); b.disabled = !n[k]; b.dataset.k = k;
+      b.onclick = () => { show_ = k; paint(); }; f.append(b);
+      if (had === k) b.focus(); });
+    document.querySelectorAll(".cell").forEach(c => { const p = picks[pk(+c.dataset.i)] || {};
+      c.classList.toggle("out", show_ !== "all" && !p[show_]); });
+  }
+  function paint() {
+    document.querySelectorAll(".cell").forEach(c => { const p = picks[pk(+c.dataset.i)] || {};
+      marks(c.querySelector(".tag"), p); c.setAttribute("aria-label", named(+c.dataset.i, p)); });
+    filterBar();
+    const r = nR(), mk = nM(), vt = nV();
+    $("tray").classList.toggle("on", !!(P.email || P.post) && (r + mk + vt) > 0);
+    document.body.classList.toggle("tray", $("tray").classList.contains("on"));
+    // the counts (shorter on a phone: only the kinds picked) and, until they are sent, where the picks are kept
+    const span = (cls, t) => { const s = document.createElement("span"); s.className = cls; s.textContent = t; return s; };
+    const short = ["Retouch " + r + "/" + (P.retouch || 0)].concat(mk ? ["Suggested " + mk] : [], vt ? ["Don't show " + vt] : []);
+    $("trayn").textContent = "";
+    $("trayn").append(span("long", "Retouch " + r + "/" + (P.retouch || 0) + "  \u00b7  Suggested " + mk + "  \u00b7  Don't show " + vt),
+                      span("short", short.join("  \u00b7  ")));
+    const state = typeof unsent !== "function" ? "" : unsent() ? (hostOk ? "Saved" : "Saved on this device") + "  \u00b7  Not sent yet"
+      : quietLegacy() ? "Saved on this device" : "";
+    if (state) $("trayn").append(span("saved", state));
+    if (state && state !== painted && painted !== null) announce(state.replace("  \u00b7  ", ". "));
+    painted = state;
+    const lines = [];
+    m.items.forEach((it, i) => { const p = picks[pk(i)]; if (!p) return;
+      const which = (it.n ? it.n + " (photo " + (+i + 1) + ")" : "photo " + (+i + 1));
+      if (p.r) lines.push("Retouch " + which + (p.n ? ": " + p.n : ""));
+      if (p.m) lines.push("Suggested for your portfolio: " + which);
+      if (p.v) lines.push("Please don't show: " + which); });
+    const mail = fp => "mailto:" + (P.email || "") + "?subject=" + encodeURIComponent("My photo picks (" + (P.ref || "") + ")") +
+      "&body=" + encodeURIComponent(lines.join("\n") + "\n" + (fp ? "\nFingerprint: " + fp + "\n" : ""));
+    $("send").href = mail("");
+    fingerprint(lines).then(fp => { $("send").href = mail(fp); }).catch(() => {});
+    const note = sendNote || (isSent() ? "Sent. Thank you! You can change them and send again." : "");
+    if ($("sent").textContent !== note) $("sent").textContent = note;
+    document.body.classList.toggle("sentline", !!note);
+  }
+  let painted = null;
+  // The picks as sent: one entry per photo with a pick, by file name (k: the key this page keeps it under)
+  const listOf = () => m.items.map((it, i) => [i, it, picks[pk(i)]]).filter(([, , p]) => p).map(([i, it, p]) => ({ i, name: it.n || "",
+    k: pk(i), r: !!p.r, note: p.n || "", m: !!p.m, v: !!p.v })).filter(p => p.r || p.m || p.v);
+  // Sealed in the shared format (LAS1, purpose picks or draft): a key derived from the link key for that purpose and
+  // this gallery's link ID, so a draft can never pass for sent picks, nor one gallery's picks for another's. Each sealing
+  // carries its own item ID (128 random bits), so the app takes it in once and never takes an older one back.
+  const GID = document.documentElement.dataset.gid || "";
+  const itemId = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), b => (b + 256).toString(16).slice(1)).join("");
+  async function sealPicks(purpose, at) {
+    return LAS.sealLink(purpose, GID, raw, new TextEncoder().encode(JSON.stringify({ v: 1, id: itemId(), at, d: devId(), rp, picks: listOf() })));
+  }
+  async function openPicks(purpose, bytes) {
+    return JSON.parse(new TextDecoder().decode(await LAS.openLink(purpose, GID, raw, bytes)));
+  }
+  // On a PHP host the picks are also kept on the host as this device's sealed draft, saved a moment after each change,
+  // so the photographer sees they are still picking (and this device finds them again if its own storage is cleared).
+  async function pushDraft(leaving) {
+    pending = false;
+    if (moved) return;                                    // this copy moved: drafts saved here would never be read
+    try {
+      const body = await sealPicks("draft", changed || new Date().toISOString());
+      if (stale) return;                                  // the gallery was replaced: nothing goes to the new one
+      const r = await proved("picks.php?kind=draft&dev=" + devId(), { method: "POST", credentials: "omit", cache: "no-store", body: form("d", b64u(body)),
+        keepalive: !!leaving && body.length < 60000 });
+      hostOk = r.ok;
+      if (r.status === 409) moved = true;
+      if (r.status === 507) sendNote = FULL_NOTE;         // picks.php: the gallery holds as many devices' picks as it takes
+    } catch (e) { hostOk = false; }
+    if (!leaving) paint();
+  }
+  function later() { if (!DRAFTS || moved) return; pending = true; clearTimeout(timer); timer = setTimeout(() => pushDraft(false), 1500); }
+  const flush = () => { if (pending) { clearTimeout(timer); pushDraft(true); } };
+  if (DRAFTS) {
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flush(); });
+  }
+  // What was really sent: this device's picks on the host (or, before it sent any, the picks.las a page before 1.6
+  // kept), read back through the gate with the key proof. When it can be read, it decides whether this device's picks
+  // count as sent; when it can't (no PHP, no connection), this device keeps its own record of what it sent.
+  async function sentOn(name) {                 // the picks in that file; "" none there; false unreadable; null unknown
+    const r = await proved("gate.php?f=" + encodeURIComponent(name), { credentials: "omit", cache: "no-store" });
+    if (r.status === 404) return "";
+    if (!r.ok || (r.headers.get("content-type") || "").includes("php")) return null;
+    let d = null;
+    try { d = await openPicks("picks", new Uint8Array(await r.arrayBuffer())); } catch (e) {}
+    return d && Array.isArray(d.picks) ? d : false;                            // unreadable: not what the app gets either
+  }
+  async function verifySent() {
+    if (!DRAFTS || fromAll) return;
+    let host = null;
+    try {
+      let d = DEV && sentSig ? await sentOn(mine("picks")) : "";              // only a device that sent has its own
+      if (d === "" && !(saved && !saved.includes("picks"))) {               // none from this device: a page before 1.6's
+        d = await sentOn("picks.las");
+        if (d && sigOf(fromList(d.picks), KEYS) === sig()) claim(d.id);      // this device holds just what was sent there
+      }
+      if (d === null) return;
+      host = d ? sigOf(fromList(d.picks), KEYS) : "";
+    } catch (e) { return; }
+    if (host !== sentSig) { setSent(host); paint(); }
+  }
+  // On opening: the host's draft and this device's picks, whichever changed last. A draft that is missing or can't be
+  // read changes nothing here, and neither does one dated more than 5 minutes ahead of this device's clock.
+  // A device new to this gallery (nothing picked here, no file of its own: another phone, or a gallery moved to a new
+  // address) starts from what everyone picked so far: each device's latest (its draft, or what it sent if newer) put
+  // together, a Please don't show from anyone winning over a suggestion. From then on it keeps its own file.
+  async function startFromAll() {
+    const opts = { credentials: "omit", cache: "no-store" }, by = {};
+    for (const n of others.slice(0, 64)) {
+      let b;
+      try { const r = await proved("gate.php?f=" + n, opts); if (!r.ok) continue; b = new Uint8Array(await r.arrayBuffer()); }
+      catch (e) { continue; }
+      for (const purpose of ["draft", "picks"]) {
+        let d = null;
+        try { d = await openPicks(purpose, b); } catch (e) { continue; }
+        if (!d || !Array.isArray(d.picks)) break;
+        const dev = typeof d.d === "string" && /^[0-9a-f]{16}$/.test(d.d) ? d.d : "";
+        const at = typeof d.at === "string" && !isNaN(Date.parse(d.at)) ? Date.parse(d.at) : 0;
+        if (at > Date.now() + 5 * 60000) break;                               // from the future: not trusted
+        (by[dev] = by[dev] || {})[purpose] = Object.assign(d, { t: at });
+        break;
+      }
+    }
+    const union = lists => { const out = {};
+      lists.forEach(l => Object.entries(fromList(l)).forEach(([k, p]) => { const o = out[k] = out[k] || {};
+        if (p.r) { o.r = true; if (p.n && p.n !== o.n) o.n = (o.n ? o.n + " / " + p.n : p.n).slice(0, 200); }
+        if (p.m) o.m = true; if (p.v) o.v = true; }));
+      Object.values(out).forEach(o => { if (o.v) delete o.m; });             // a don't show from anyone wins
+      return out; };
+    const latest = Object.values(by).map(x => x.draft && (!x.picks || x.draft.t >= x.picks.t) ? x.draft : x.picks).filter(Boolean);
+    if (!latest.length) return false;
+    picks = union(latest.map(x => x.picks));
+    if (sig() === "[]") return false;
+    seeded = latest.map(x => x.id);            // claimed (adopt) only once the client changes or sends them
+    const sent = Object.values(by).filter(x => x.picks).map(x => x.picks.picks);
+    if (sent.length && sigOf(union(sent), KEYS) === sig()) sentSig = sig();  // what everyone sent: nothing new to send
+    fromAll = true; hostOk = true;                                          // on the host, in each device's own file
+    if (cur >= 0) bar();
+    paint();
+    return true;
+  }
+  async function pullDraft() {
+    if (!DEV && sig() === "[]" && others && others.length && await startFromAll()) return;
+    let d = null, legacy = false;
+    try {
+      const opts = { credentials: "omit", cache: "no-store" };
+      let r = DEV ? await proved("gate.php?f=" + encodeURIComponent(mine("draft")), opts) : null;
+      if (!r || r.status === 404) {             // none of this device's own: the draft.las a page before 1.6 kept, if any
+        if (saved && !saved.includes("draft")) { if (sig() !== "[]") later(); return; }   // none (the gate said so)
+        r = await proved("gate.php?f=draft.las", opts); legacy = true;
+      }
+      if (r.status === 404) { if (sig() !== "[]") later(); return; }   // none yet: this device's picks go up
+      if (!r.ok) return;
+      d = await openPicks("draft", new Uint8Array(await r.arrayBuffer()));
+    } catch (e) { return; }
+    const at = d && typeof d.at === "string" && !isNaN(Date.parse(d.at)) ? d.at : "";
+    if (!at || !Array.isArray(d.picks)) return;
+    if (Date.parse(at) > Date.now() + 5 * 60000) { if (sig() !== "[]") later(); return; }   // from the future: not trusted
+    if (legacy) claim(d.id);                    // this device's own draft carries on from it (newer, or taken up here)
+    if (changed && Date.parse(changed) > Date.parse(at)) { later(); return; }     // this device is newer: it goes up
+    picks = fromList(d.picks); changed = at; keep(); hostOk = true;                // its "sent", if any, is never read
+    if (cur >= 0) bar();
+    paint();
+  }
+  // Send my picks: on a host that runs the small picks script, the picks go back encrypted with the gallery key
+  // (never readable on the host) and the photographer's app collects them; otherwise the email draft opens.
+  $("send").onclick = async e => {
+    const notNow = () => { sendNote = "These photos were just updated. Reload the page before you send."; paint(); };
+    if (stale) { e.preventDefault(); notNow(); return; }
+    if (!P.post || PREVIEW) { if (!PREVIEW) markSent(); return; }   // the mailto link does its job (counted as sent)
+    e.preventDefault();
+    if (await updated()) { notNow(); return; }       // a newer build (the download gallery, say): its picks are not these
+    try {
+      let body;
+      adopt();                                  // sent as shown: it carries on from everyone's picks it started from
+      try { body = await sealPicks("picks", new Date().toISOString()); }
+      catch (e2) {
+        if (!e2 || e2.code !== "E_LONG") throw e2;                     // the same limit picks.php and the app use
+        sendNote = "That is too many picks to send at once. Please send fewer, or tell your photographer."; paint(); return; }
+      const r = await proved("picks.php?dev=" + devId(), { method: "POST", credentials: "omit", cache: "no-store", body: form("d", b64u(body)) });
+      if (r.status === 410) { sendNote = "This gallery has gone dark, so picks can't be sent now. Please tell your photographer."; paint(); return; }
+      if (r.status === 503) { sendNote = "This gallery is being updated. Please try again in a minute."; paint(); return; }
+      if (r.status === 507) { sendNote = FULL_NOTE; paint(); return; }
+      if (r.status === 409) {                  // moved to another host: picks sent to this copy would never be read
+        moved = true;
+        let c = ""; try { const j = await r.json(); if (j && EMAIL.test(j.contact || "")) c = j.contact; } catch (e2) {}
+        c = c || (EMAIL.test(B.email || "") ? B.email : "");
+        sendNote = "This gallery has moved to a new address, so picks can't be sent from this page. Please ask your photographer for the new link" +
+          (c ? ": " + c : ".");
+        paint(); return; }
+      if (!r.ok) throw new Error("http " + r.status);
+      sendNote = ""; markSent();                                     // Sent shows until the picks change
+      if (DRAFTS) { clearTimeout(timer); pushDraft(false); verifySent(); }   // the draft follows; the picks are read back
+    } catch (err) {
+      if (P.email) location.href = $("send").href;    // the script isn't there: the email draft instead
+      else { sendNote = "Couldn't send. Please tell your photographer."; paint(); }
+    }
+  };
+  $("send").onkeydown = e => { if (e.key === " ") { e.preventDefault(); $("send").click(); } };   // a button: Space presses it
+  if (DL) {                                     // Download on the big photo; Download all builds nothing here: the zip
+    ["pr", "pm", "pv", "note"].forEach(id => { $(id).hidden = true; });   // was made at home, sealed in parts
+    $("dl").hidden = false;
+    downloads();
+  } else if (SHOP) ["pr", "pm", "pv", "note"].forEach(id => { $(id).hidden = true; });   // Order prints and Done stay
+  else if (!P.email && !P.post) $("pickbar").style.display = "none";
+  if (!P.market) { $("pm").hidden = true; $("pv").hidden = true; }      // the client declined portfolio use: nothing to suggest
+  if ((P.retouch || P.market) && (P.email || P.post)) {   // a welcome box says how to pick; "How to pick" opens it again
+    const W = $("welcome"), wl = $("wlist"), seenKey = KEY + ":welcomed";
+    const bold = t => { const b = document.createElement("b"); b.textContent = t; return b; };
+    const li = (...xs) => { const l = document.createElement("li"); l.append(...xs); wl.append(l); };
+    wl.textContent = "";
+    if (P.retouch) li(bold("Retouch"), " for the ones you want edited, up to " + P.retouch + ". Add a note on what to fix.");
+    if (P.market) { li(bold("Suggest for portfolio"), " for your favorites to show in the portfolio. Up to " + P.market + " are used.");
+                    li(bold("Please don't show"), " for ones you don't want shown anywhere."); }
+    li("Your picks show as small badges on the photos. To take one off, tap its badge, or open the photo and press the button again.");
+    let back = null;
+    const openW = () => { back = document.activeElement; W.hidden = false; document.body.classList.add("welcomeopen"); $("wgo").focus(); };
+    const closeW = () => { W.hidden = true; document.body.classList.remove("welcomeopen");
+      LS.set(seenKey, "1");
+      if (!back || back === document.body || !back.focus) back = document.querySelector(".cell");   // the first visit: the first photo
+      if (back && back.focus) back.focus(); };
+    $("wgo").onclick = closeW;
+    W.onclick = e => { if (e.target === W) closeW(); };
+    W.onkeydown = e => { if (e.key === "Escape") closeW(); if (e.key === "Tab") { e.preventDefault(); $("wgo").focus(); } };
+    const how = $("how"); how.hidden = false; how.textContent = "";
+    const hb = document.createElement("button"); hb.type = "button"; hb.textContent = "How to pick"; hb.onclick = openW; how.append(hb);
+    const seen = !!LS.get(seenKey);
+    if (!seen && !PREVIEW) openW();
+  }
+  if (sunsetOn) {
+    const SS = $("sunset"), go = $("ssgo"), dlOn = DL && !$("dlall").hidden;
+    const when = closes.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }) +
+      " at " + closes.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    // put back online for one download: Download all once, then it goes dark. Only Download all counts as the
+    // download: saving single photos doesn't close the gallery.
+    if (onceOn && onceDone) {                   // already made (on this device or another): it goes dark within the hour
+      $("sstitle").textContent = "This gallery's one download has been made.";
+      $("sswhen").textContent = "It goes dark on " + when + ". If the download didn't finish, press Download all again " +
+        "before then and keep this page open until it finishes.";
+    } else if (onceOn) {
+      $("sstitle").textContent = "This gallery is open for one download.";
+      $("sswhen").textContent = "Press Download all and keep this page open until it finishes. An hour later, the gallery " +
+        "goes dark (saving single photos doesn't count). If Download all isn't used, it closes on " + when + ".";
+    } else
+      $("sswhen").textContent = "It closes on " + when + "." + (dlOn ? " Download your photos before then." : "");
+    $("ssask").textContent = "";
+    if (EMAIL.test(B.email || "")) $("ssask").append("Questions? ", mailLink(B.email));
+    if (dlOn) $("ssdl").append($("dlall"), $("dlwait"));   // Download all moves into the notice while it is open
+    go.classList.toggle("primary", !dlOn);
+    let back = null;
+    const first = () => (dlOn ? $("dlallb") : go);
+    // Like the viewer's other dialogs: the page behind is inert while the notice is open, focus stays inside it, and
+    // Escape closes it from anywhere. Escape here only closes the notice: a Download all already running carries on
+    // (with the notice closed, Escape stops it, as before).
+    const behindSS = [document.querySelector("header"), document.querySelector("footer"), $("filter"), $("grid"), $("tray"),
+      $("welcome")].filter(el => el && !el.inert);
+    const keys = e => {
+      if (SS.hidden) return;
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeSS(); }
+      else if (e.key === "Tab") {               // focus stays in the notice while it is open
+        const f = [...SS.querySelectorAll("a, button")].filter(x => !x.hidden && !x.disabled);
+        const i = f.indexOf(document.activeElement);
+        e.preventDefault(); e.stopPropagation(); (f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length] || go).focus();
+      }
+    };
+    const stray = e => { if (!SS.hidden && !SS.contains(e.target)) first().focus(); };   // focus never leaves it
+    const closeSS = () => {
+      document.removeEventListener("keydown", keys, true); document.removeEventListener("focusin", stray);
+      behindSS.forEach(el => el.inert = false);
+      SS.hidden = true; document.body.classList.remove("ssopen");
+      if (dlOn) $("how").after($("dlall"), $("dlwait"));        // back under the title, still running if it was started
+      if (!$("welcome").hidden) $("wgo").focus();
+      else { if (!back || back === document.body || !back.focus) back = document.querySelector(".cell"); if (back && back.focus) back.focus(); }
+    };
+    go.onclick = closeSS;
+    SS.onclick = e => { if (e.target === SS) closeSS(); };
+    back = document.activeElement; SS.hidden = false; document.body.classList.add("ssopen");
+    behindSS.forEach(el => el.inert = true);
+    document.addEventListener("keydown", keys, true); document.addEventListener("focusin", stray);
+    first().focus();
+  }
+  // ---- print orders (1.4). On a download gallery, or a proofing one built to offer prints (m.pr: its full-size files
+  // stay with the studio, never online), whose host offers prints (offer.bin, sealed under the gallery key like
+  // the manifest): each photo has Order prints; the order is put together on this device only (cart:<gid>: photos,
+  // sizes, quantities, crops; no names, no address, no prices); on Send it is sealed here to the studio's key with the
+  // gallery key mixed in, so only the studio's app can open it, and nobody can read it back from the host, this page
+  // included. The sent screen shows it from this page's memory, to print or save; then only a small marker stays.
+  async function startPrints() {
+    if (!(DL || m.pr === 1) || PREVIEW) return;
+    let offer = null;
+    try { offer = JSON.parse(new TextDecoder().decode(await get("offer.bin"))); } catch (e) { return; }
+    if (!offer || offer.v !== 1) return;
+    if (offer.email_only) {                       // a host without PHP: no ordering here
+      if (!EMAIL.test(offer.contact || "")) return;
+      const p = $("prline"); p.textContent = "For prints, email "; p.append(mailLink(offer.contact)); p.hidden = false;
+      return;
+    }
+    if (!GATE || !subtle || !Array.isArray(offer.items) || !offer.items.length || !/^[A-Za-z0-9_-]{87}$/.test(offer.spk || "")) return;
+    const studio = offer.studio || B.studio || "the studio", contact = EMAIL.test(offer.contact || "") ? offer.contact : (B.email || "");
+    const S = offer.ship || {}, PR = PRINTS;
+    // Ordering prints closes 24 hours before the gallery does (1.5): from then the order button is gone and this line
+    // says why, with the way to ask for more time. orders.php refuses an order sent after that time too.
+    const cutAt = closes && !isNaN(closes) ? closes.getTime() - 86400000 : null;
+    const fmt = t => new Date(t).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }) + " at " +
+      new Date(t).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    const closedWords = () => { const p = $("prline");
+      p.textContent = "Ordering prints has closed because this gallery closes within 24 hours. To order prints, ";
+      if (EMAIL.test(contact)) p.append("email ", mailLink(contact), " to ask for the gallery to be extended.");
+      else p.append("contact your photographer to ask for the gallery to be extended.");
+      p.hidden = false; };
+    const printsClosed = () => cutAt !== null && Date.now() >= cutAt;
+    if (printsClosed()) { closedWords(); return; }
+    if (cutAt !== null && sunsetOn && !onceOn) $("sswhen").append(" Order prints by " + fmt(cutAt) + ".");
+    const photos = {};
+    m.items.forEach((it, i) => { if (it.o && it.ow && it.oh) photos[it.o] = { i, it }; });
+    const itemOf = id => offer.items.find(x => x.id === id);
+    const CART = "cart:" + GID, ORD = "orders:" + GID, PEND = "order-pending:" + GID;
+    try { await LS.load([CART, ORD]); await LS.load([PEND], true); } catch (e) {}
+    const load = (k, d) => LS.json(k, d);
+    const store = (k, v) => LS.set(k, JSON.stringify(v));
+    let cart = load(CART, { v: 1, lines: [] });
+    if (cart.v !== 1 || !Array.isArray(cart.lines)) cart = { v: 1, lines: [] };
+    const good = () => cart.lines.filter(l => PR.valid(l, photos, offer));
+    const keepCart = () => { store(CART, { v: 1, lines: cart.lines.map(l => ({ p: l.p, item: l.item, qty: l.qty, crop: l.crop, turn: l.turn })) }); count(); };
+    const h = (tag, props, ...kids) => { const el = document.createElement(tag);
+      Object.entries(props || {}).forEach(([k, v]) => { if (k === "cls") el.className = v; else if (k.startsWith("on")) el[k] = v;
+        else if (k === "text") el.textContent = v; else el.setAttribute(k, v); });
+      kids.flat().forEach(k => { if (k !== null && k !== undefined && k !== false) el.append(k); }); return el; };
+    const D = $("prd"), box = $("prdbox");
+    let closeD = null;
+    const open = (title) => { box.textContent = ""; box.append(h("h2", { id: "prdt", text: title }));
+      if (D.hidden) { if (cur >= 0) hide(); closeD = modal(D, box, () => { closeD = null; }); } return box; };
+    const close = () => { if (closeD) closeD(); };
+    const btn = (text, fn, cls) => h("button", { type: "button", cls: cls || "", text, onclick: fn });
+    const prints = () => good().reduce((n, l) => n + l.qty, 0);
+    const total = () => good().reduce((t, l) => t + itemOf(l.item).each * l.qty, 0);
+    function count() { const n = prints(); $("prcartn").textContent = n ? " (" + n + ")" : ""; $("prcart").hidden = !n && !load(ORD, []).length; }
+    // the bar: the cart, and on each photo Order prints
+    $("prbar").hidden = false; $("pp").hidden = false;
+    $("prcart").onclick = () => showCart();
+    $("pp").onclick = e => { e.stopPropagation(); const i = cur; choose(i); };
+    count();
+    function stepper(get, set, max) {
+      const n = h("span", { cls: "n", text: String(get()), "aria-live": "polite" });
+      const upd = v => { set(v); n.textContent = String(get()); };
+      return h("span", { cls: "step" }, btn("\u2212", () => upd(Math.max(1, get() - 1))), n, btn("+", () => upd(Math.min(max, get() + 1))));
+    }
+    function choose(i) {
+      const it = m.items[i], list = PR.sizes(offer.items, it.ow, it.oh);
+      const b = open("Order prints: photo " + (i + 1));
+      if (!list.length) { b.append(h("p", { text: "This photo doesn't have enough detail for the print sizes offered. Please email " + studio + "." })); }
+      list.forEach(s => b.append(h("button", { type: "button", cls: "size", onclick: () => frame(i, s.item) },
+        h("span", { text: s.item.label }), h("span", { cls: "mute", text: s.fits ? "  fits without cropping" : "  cropped to fit" }),
+        s.soft ? h("span", { cls: "soft", text: "  May look soft at this size" }) : null, h("b", { text: PR.money(s.item.each) }))));
+      b.append(h("div", { cls: "row" }, btn("Close", close)));
+    }
+    function frame(i, item, line) {
+      const it = m.items[i];
+      let turn = line ? line.turn : 0, qty = line ? line.qty : 1;
+      let full = PR.fullCrop(it.ow, it.oh, item.w, item.h, turn), c = line ? line.crop.slice() : full.slice();
+      const b = open(item.label + ": photo " + (i + 1));
+      const fits = PR.fits(it.ow, it.oh, item.w, item.h);
+      const wrap = h("div", { cls: "crop" }), img = h("img", { alt: "Photo " + (i + 1) }), fr = h("div", { cls: "frame" });
+      wrap.append(img, fr);
+      url(it.f).then(u => { img.src = u; }).catch(() => {});
+      const info = h("p", { cls: "mute" }), slider = h("input", { type: "range", min: "0", max: "100", value: "100", "aria-label": "Frame size" });
+      const ppiFull = () => PR.ppi(full, it.ow, it.oh, item.w, item.h, turn);
+      const lo = () => PR.minScale(item, ppiFull());
+      function draw() {
+        fr.style.left = c[0] * 100 + "%"; fr.style.top = c[1] * 100 + "%"; fr.style.width = c[2] * 100 + "%"; fr.style.height = c[3] * 100 + "%";
+        const p = PR.ppi(c, it.ow, it.oh, item.w, item.h, turn);
+        info.textContent = (fits && c[2] >= 0.9999 && c[3] >= 0.9999 ? "The whole photo fits this size." : "Drag the frame to choose what prints.")
+          + (p < item.ppi_mark ? " May look soft at this size." : "");
+      }
+      slider.oninput = () => { const s = lo() + (1 - lo()) * (+slider.value / 100), cx = c[0] + c[2] / 2, cy = c[1] + c[3] / 2;
+        c = PR.clampC([cx - full[2] * s / 2, cy - full[3] * s / 2, full[2] * s, full[3] * s]); draw(); };
+      let drag = null;
+      fr.addEventListener("pointerdown", e => { drag = [e.clientX, e.clientY, c[0], c[1]]; if (fr.setPointerCapture) fr.setPointerCapture(e.pointerId); e.preventDefault(); });
+      fr.addEventListener("pointermove", e => { if (!drag) return; const r = img.getBoundingClientRect();
+        c = PR.clampC([drag[2] + (e.clientX - drag[0]) / r.width, drag[3] + (e.clientY - drag[1]) / r.height, c[2], c[3]]); draw(); });
+      fr.addEventListener("pointerup", () => { drag = null; });
+      const turnB = btn("Turn the frame", () => { turn = 1 - turn; full = PR.fullCrop(it.ow, it.oh, item.w, item.h, turn); c = full.slice(); slider.value = "100";
+        if (PR.ppi(full, it.ow, it.oh, item.w, item.h, turn) < item.ppi_hide) { turn = 1 - turn; full = PR.fullCrop(it.ow, it.oh, item.w, item.h, turn); c = full.slice(); }
+        draw(); });
+      b.append(wrap, info);
+      if (!fits) b.append(h("div", { cls: "row" }, h("label", {}, "Size of the frame ", slider), turnB));
+      b.append(h("div", { cls: "row" }, h("span", { text: "How many " }), stepper(() => qty, v => { qty = v; }, offer.qty_max || 25),
+        h("span", { cls: "grow" }), h("b", { text: PR.money(item.each) + " each" })));
+      b.append(h("div", { cls: "row" }, btn("Back", () => choose(i)), btn(line ? "Save" : "Add to my order", () => {
+        const l = { p: it.o, item: item.id, qty, crop: c.map(v => Math.round(v * 10000) / 10000), turn };
+        if (line) Object.assign(line, l); else {
+          if (cart.lines.length >= (offer.lines_max || 50)) { info.textContent = "That is as many lines as one order can have."; return; }
+          cart.lines.push(l); }
+        keepCart(); showCart(); }, "go")));
+      draw();
+    }
+    function thumb(line, edge) {                  // the line as it will print: the photo cut to the crop
+      const p = photos[line.p], c = line.crop, it = p.it;
+      const cw = c[2] * it.ow, ch = c[3] * it.oh, s = edge / Math.max(cw, ch);
+      const cv = h("canvas", { width: String(Math.max(1, Math.round(cw * s))), height: String(Math.max(1, Math.round(ch * s))),
+        "aria-label": "Photo " + (p.i + 1) + " as it will print", role: "img" });
+      get(it.t).then(bytes => { const im = new Image(); const u = URL.createObjectURL(new Blob([bytes], { type: "image/jpeg" }));
+        im.onload = () => { const g = cv.getContext && cv.getContext("2d");
+          if (g) g.drawImage(im, c[0] * im.naturalWidth, c[1] * im.naturalHeight, c[2] * im.naturalWidth, c[3] * im.naturalHeight, 0, 0, cv.width, cv.height);
+          URL.revokeObjectURL(u); }; im.src = u; }).catch(() => {});
+      return cv;
+    }
+    function markers() {
+      const list = load(ORD, []).filter(o => o && /^[0-9a-f]{32}$/.test(o.oid || ""));
+      if (!list.length) return null;
+      const d = h("div", { cls: "marks" }, h("p", { cls: "mute", text: "Orders sent from this device:" }));
+      list.forEach(o => d.append(h("div", { cls: "row" }, h("span", { cls: "grow", text: day(o.at) + ", " + o.n + " print" + (o.n === 1 ? "" : "s") }),
+        btn("Remove from this device", () => { store(ORD, load(ORD, []).filter(x => x.oid !== o.oid)); count(); showCart(); }, "plain"))));
+      return d;
+    }
+    const day = iso => { const d_ = new Date(iso); return isNaN(d_) ? "" : d_.toLocaleDateString("en-US", { month: "short", day: "numeric" }); };
+    function showCart() {
+      const b = open("Your print order");
+      b.append(h("p", { cls: "mute", text: "Your order is put together on this device." }));
+      cart.lines.forEach((l, k) => {
+        if (!PR.valid(l, photos, offer)) { b.append(h("div", { cls: "line gone" }, h("span", { text: "No longer available" }),
+          btn("Remove", () => { cart.lines.splice(k, 1); keepCart(); showCart(); }, "plain"))); return; }
+        const item = itemOf(l.item), p = photos[l.p];
+        b.append(h("div", { cls: "line" }, thumb(l, 64), h("span", { cls: "grow" }, item.label, h("br"), h("span", { cls: "mute", text: "Photo " + (p.i + 1) })),
+          stepper(() => l.qty, v => { l.qty = v; keepCart(); tot.textContent = totWords(); }, offer.qty_max || 25),
+          btn("Change", () => frame(p.i, item, l), "plain"), btn("Remove", () => { cart.lines.splice(k, 1); keepCart(); showCart(); }, "plain")));
+      });
+      const tot = h("p", { cls: "total", text: totWords() });
+      if (good().length) b.append(tot);
+      else b.append(h("p", { text: "Nothing yet. Open a photo and press Order prints." }));
+      const mk = markers(); if (mk) b.append(mk);
+      b.append(h("div", { cls: "row" }, btn("Close", close), good().length ? btn("Continue", () => details(), "go") : null));
+    }
+    const totWords = () => prints() + " print" + (prints() === 1 ? "" : "s") + ": " + PR.money(total()) + ", plus shipping and tax, on your invoice";
+    const det = { name: "", email: "", phone: "", how: "", rname: "", addr1: "", addr2: "", city: "", state: "", zip: "", country: "US", note: "", ack: false };
+    const hows = [["me", "To me"], ["other", "To someone else"], ["pickup", "Pick up from " + studio]].filter(([k]) => k === "pickup" ? S.pickup && S.pickup.on : (S.us && S.us.on) || (S.akhi && S.akhi.on) || (S.ca && S.ca.on));
+    function field(label, key, attrs) {
+      const a = Object.assign({ id: "pf-" + key, name: key }, attrs || {}), tag = a.tag === "textarea" ? "textarea" : "input";
+      delete a.tag;
+      const id = a.id, inp = h(tag, a);
+      inp.value = det[key] || "";
+      const warn = h("div", { cls: "warnl", role: "status" });
+      inp.oninput = () => { det[key] = inp.value; warn.textContent = /^(rname|addr1|addr2|city|name)$/.test(key) && !PR.labelOk(inp.value) ?
+        "This letter may not print on the label; please type it without accents" : ""; };
+      inp.oninput();
+      return h("div", { cls: "fld" }, h("label", { for: id, text: label }), inp, warn);
+    }
+    const ACK_WHY = "Tick \u2018I\u2019ll get an invoice\u2019 to continue.";
+    function details(err) {
+      const b = open("Ship to");
+      const atAck = err === ACK_WHY;           // a refusal about the checkbox sits at the checkbox, not at the top
+      const errP = err ? h("p", { cls: "err", role: "alert", tabindex: "-1", text: err }) : null;
+      if (errP && !atAck) b.append(errP);
+      b.append(field("Your name", "name", { maxlength: "60", autocomplete: "name", required: "" }),
+               field("Your email", "email", { maxlength: "254", autocomplete: "email", type: "email", required: "" }),
+               field("Phone (optional)", "phone", { maxlength: "25", autocomplete: "tel", type: "tel" }));
+      const how = h("div", { cls: "hows", role: "radiogroup", "aria-label": "Ship to" });
+      hows.forEach(([k, lab]) => { const r = h("input", { type: "radio", name: "how", value: k, onchange: () => { det.how = k; details(); } });
+        if (det.how === k) r.checked = true; how.append(h("label", {}, r, " " + lab)); });
+      b.append(h("p", { text: "Where should the prints go?" }), how);
+      const say = shipSay();
+      if (det.how && det.how !== "pickup") {
+        if (det.how === "other") b.append(field("Who receives them", "rname", { maxlength: "60" }));
+        b.append(field("Street", "addr1", { maxlength: "60", autocomplete: "address-line1" }), field("Apartment or suite (optional)", "addr2", { maxlength: "60", autocomplete: "address-line2" }),
+                 field("City", "city", { maxlength: "40", autocomplete: "address-level2" }));
+        if (S.ca && S.ca.on) { const cs = h("select", { id: "pf-country", autocomplete: "country", onchange: () => { det.country = cs.value; det.state = ""; details(); } },
+            h("option", { value: "US", text: "United States" }), h("option", { value: "CA", text: "Canada" })); cs.value = det.country;
+          b.append(h("div", { cls: "fld" }, h("label", { for: "pf-country", text: "Country" }), cs)); }
+        const states = det.country === "CA" ? ((offer.states || {}).ca || []) : [].concat(S.us && S.us.on ? (offer.states || {}).us || [] : [], S.akhi && S.akhi.on ? (offer.states || {}).akhi || [] : []).sort();
+        const st = h("select", { id: "pf-state", autocomplete: "address-level1", onchange: () => { det.state = st.value; } }, h("option", { value: "", text: "Choose" }), states.map(s => h("option", { value: s, text: s })));
+        st.value = det.state;
+        b.append(h("div", { cls: "fld" }, h("label", { for: "pf-state", text: det.country === "CA" ? "Province or territory" : "State" }), st),
+                 field(det.country === "CA" ? "Postal code" : "ZIP", "zip", { maxlength: "10", autocomplete: "postal-code" }));
+        if (det.country === "CA") b.append(h("p", { cls: "mute", text: "A phone number is needed for Canada (carriers ask for it)." }));
+      }
+      if (det.how && say) b.append(h("p", { cls: "mute", text: say }));
+      if (offer.arrive && det.how && det.how !== "pickup") b.append(h("p", { cls: "mute", text: offer.arrive }));
+      b.append(field("Note to " + studio + " (optional)", "note", { tag: "textarea", maxlength: "500", rows: "3" }));
+      const ack = h("input", { type: "checkbox", id: "pf-ack", onchange: () => { det.ack = ack.checked; } }); ack.checked = det.ack;
+      const ackL = h("label", { cls: "ack" + (atAck ? " want" : ""), for: "pf-ack" }, ack, " I\u2019ll get an invoice. Nothing is printed until it\u2019s paid.");
+      if (atAck) { ack.setAttribute("aria-invalid", "true"); ack.setAttribute("aria-describedby", "pf-ack-why"); errP.id = "pf-ack-why"; }
+      b.append(ackL);
+      if (atAck) b.append(errP);
+      b.append(h("div", { cls: "row" }, btn("Back", () => showCart()), btn("Continue", () => {
+        const why = problem(); if (why) { details(why); return; } review(); }, "go")));
+      if (atAck) { if (ackL.scrollIntoView) ackL.scrollIntoView({ block: "center" }); ack.focus(); }
+      else if (errP) { if (errP.scrollIntoView) errP.scrollIntoView({ block: "center" }); errP.focus(); }
+    }
+    function problem() {
+      ["name", "email", "phone", "rname", "addr1", "addr2", "city", "zip", "note"].forEach(k => { det[k] = k === "note" ? String(det[k] || "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "").trim() : PR.clean(det[k]); });
+      if (!det.name) return "Please add your name.";
+      if (!PR.EMAIL.test(det.email)) return "Please add your email address: the invoice goes there.";
+      if (!det.how) return "Please choose where the prints go.";
+      if (det.how !== "pickup") {
+        if (det.how === "other" && !det.rname) return "Please add who receives the prints.";
+        if (!det.addr1 || !det.city) return "Please add the street and the city.";
+        if (!det.state) return "Please choose the " + (det.country === "CA" ? "province or territory." : "state.");
+        if (!PR.ZIP[det.country].test(det.zip)) return det.country === "CA" ? "Please check the postal code (like K1A 0B1)." : "Please check the ZIP (like 62704).";
+        if (det.country === "CA" && !det.phone) return "A phone number is needed for Canada.";
+      }
+      if (!det.ack) return ACK_WHY;
+      return "";
+    }
+    // what the photographer's page says for the chosen destination ("" for pick-up when it only repeats the choice)
+    function shipSay() {
+      if (!det.how) return "";
+      if (det.how === "pickup") { const s = ((S.pickup || {}).say || "").trim(); return s === "Pick up from " + studio ? "" : s; }
+      return (det.country === "CA" ? (S.ca || {}).say : ["AK", "HI"].includes(det.state) ? (S.akhi || {}).say : (S.us || {}).say) || "";
+    }
+    const labelLines = () => det.how === "pickup" ? ["Pick up from " + studio] : [det.how === "other" ? det.rname : det.name, det.addr1, det.addr2,
+      det.city + ", " + det.state + " " + det.zip, det.country === "CA" ? "Canada" : ""].filter(Boolean);
+    function summary(target) {
+      good().forEach(l => { const item = itemOf(l.item), p = photos[l.p];
+        target.append(h("div", { cls: "line" }, thumb(l, 72), h("span", { cls: "grow" }, item.label + " \u00d7 " + l.qty, h("br"),
+          h("span", { cls: "mute", text: "Photo " + (p.i + 1) + (p.it.n ? " (" + String(p.it.n).slice(0, 80) + ")" : "") })), h("b", { text: PR.money(item.each * l.qty) }))); });
+      target.append(h("p", { cls: "total", text: "Prints: " + PR.money(total()) }));
+      const say = shipSay();
+      if (say) target.append(h("p", { text: say }));
+      target.append(h("p", { text: det.how === "pickup" || say ? "Plus tax, on your invoice." : "Plus shipping and tax, on your invoice." }),
+        h("div", { cls: "addr" }, labelLines().map(t => h("div", { text: t }))),
+        h("p", { text: "Invoice to: " + det.name + ", " + det.email }));
+    }
+    function review() {
+      const b = open("Is this right?");
+      summary(b);
+      b.append(h("div", { cls: "row" }, btn("Change", () => details()), btn("Send to " + studio, () => send(), "go")));
+    }
+    const unb64u = t => { const s = atob(t.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((t.length + 3) % 4)); return Uint8Array.from(s, ch => ch.charCodeAt(0)); };
+    function relAsk() {                           // a second order from this device: new, or a change to the last one?
+      const list = load(ORD, []);
+      if (!list.length) return Promise.resolve({ kind: "new", prev: null });
+      const last = list[list.length - 1];
+      return new Promise(res => { const b = open("A new order?");
+        b.append(h("p", { text: "You sent an order on " + day(last.at) + ". Is this a new order, or a change to that one?" }),
+          h("div", { cls: "row" }, btn("A new order", () => res({ kind: "new", prev: last.oid }), "go"), btn("A change to that one", () => res({ kind: "change", prev: last.oid })))); });
+    }
+    // The order being sent, kept in this tab only (sessionStorage) so Try again, or a reload, sends the same bytes: the
+    // sealed envelope (unreadable here) and a hash of the cart and the details, never the name or address typed.
+    // Forgotten once sent, refused, or closed.
+    const forget = () => LS.remove(PEND, true);
+    const digest = async t => b64u(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t))));
+    function shut() {                                 // the 24 hours began while this page was open
+      $("prbar").hidden = true; $("pp").hidden = true; closedWords();
+      const b = open("Your order was not sent");      // said first: nothing went to the studio (web host test 1.5, #8)
+      b.append(h("p", { role: "alert", text: "Ordering prints has closed because this gallery closes within 24 hours, so this order was not sent." }));
+      const ask = h("p", {});
+      if (EMAIL.test(contact)) ask.append("To order prints, email ", mailLink(contact), " to ask for the gallery to be extended.");
+      else ask.append("To order prints, contact your photographer to ask for the gallery to be extended.");
+      b.append(ask, h("div", { cls: "row" }, btn("Close", close, "go")));
+    }
+    if (cutAt !== null) setTimeout(() => { if (printsClosed()) { $("prbar").hidden = true; $("pp").hidden = true; closedWords(); } },
+                                   Math.min(2147483000, Math.max(0, cutAt - Date.now())));
+    async function send() {
+      if (printsClosed()) { forget(); shut(); return; }
+      let pend = LS.json(PEND, null, true);
+      const sig = await digest(JSON.stringify([good(), det]));
+      if (!pend || pend.sig !== sig) {
+        const rel = await relAsk();
+        const b = open("Sending...");
+        b.append(h("p", { cls: "mute", role: "status", text: "Sending privately to " + studio + "..." }));
+        const oid = [...crypto.getRandomValues(new Uint8Array(16))].map(x => x.toString(16).padStart(2, "0")).join("");
+        const sh = det.how === "pickup" ? { how: "pickup" } : { how: det.how, name: det.how === "other" ? det.rname : "", addr1: det.addr1, addr2: det.addr2,
+          city: det.city, state: det.state, zip: det.country === "CA" ? det.zip.toUpperCase() : det.zip, country: det.country, phone: det.country === "CA" ? det.phone : "" };
+        const lines = good().map(l => { const item = itemOf(l.item), it = photos[l.p].it;
+          return { p: l.p, n: String(it.n || "photo " + (photos[l.p].i + 1)).replace(/[\u0000-\u001f\u007f-\u009f]/g, "").slice(0, 200) || "photo",
+            item: l.item, qty: l.qty, crop: l.crop, turn: l.turn, each: item.each, ppi: PR.ppi(l.crop, it.ow, it.oh, item.w, item.h, l.turn) }; });
+        const payload = { v: 1, oid, at: new Date().toISOString(), plv: offer.plv, cur: offer.cur || "USD",
+          who: { name: det.name, email: det.email, phone: det.phone }, ship: sh, lines, sub: lines.reduce((t, l) => t + l.each * l.qty, 0),
+          ack: true, rel, note: det.note };
+        const pt = PR.padded(payload, new TextEncoder().encode(GID).length);
+        if (!pt) { failed("This order is too large to send at once; please split it."); return; }
+        let env;
+        try { env = await LAS.sealStudio("print-order", unb64u(offer.spk), pt, { gid: GID, linkKey: raw }); }
+        catch (e) { failed("This order is too large to send at once; please split it."); return; }
+        pend = { sig, d: b64u(env), w: await work(env, 17), oid, n: lines.reduce((t, l) => t + l.qty, 0), total: payload.sub };
+        LS.set(PEND, JSON.stringify(pend), true);
+      }
+      let r = null;
+      for (let t = 0; t < 4 && !r; t++) {         // a network error: three more tries over about a minute, the same bytes
+        try { r = await proved("orders.php", { method: "POST", credentials: "omit", cache: "no-store",
+          body: new URLSearchParams([["d", pend.d], ["w", pend.w]]) }); }
+        catch (e) { if (t < 3) await new Promise(res => setTimeout(res, 20000)); }
+      }
+      if (!r) { failed("We could not take your order right now. Please email " + (contact || studio) + ".", true); return; }
+      if (r.status === 204) { sent(pend); return; }
+      if (r.status === 423) { forget(); shut(); return; }     // the host: within 24 hours of closing
+      if (r.status === 409 || r.status === 410) { forget(); failed("Please email " + (contact || studio) + "."); return; }
+      if (r.status === 429 && !r.headers.get("X-Work")) {   // the limit on orders from one sender, not an outage
+        const wait = parseInt(r.headers.get("Retry-After") || "", 10);
+        failed(wait > 0 ? "You've sent several orders in the last hour. Please try again after "
+          + new Date(Date.now() + wait * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + "."
+          : "You've sent several orders in a short time. Please try again later.", true);
+        return;
+      }
+      failed("We could not take your order right now. Please email " + (contact || studio) + ".", true);
+    }
+    function failed(words, again) {
+      const b = open("Your order was not sent");
+      b.append(h("p", { role: "alert", text: words }));
+      if (EMAIL.test(contact)) b.append(h("p", {}, mailLink(contact)));
+      b.append(h("div", { cls: "row" }, btn("Close", () => { forget(); close(); }), again ? btn("Try again", () => send(), "go") : null));
+    }
+    function sent(pend) {
+      const b = open("Sent to " + studio);
+      b.classList.add("sent");
+      b.append(h("p", { text: "Sent to " + studio + ". You will get an invoice by email, usually within " + (offer.invoice_days || 3) +
+        " days. Nothing is printed until it is paid. To change anything, write to " + (contact || studio) + "." }));
+      summary(b);
+      b.append(h("div", { cls: "row noprint" }, btn("Print", () => window.print()), btn("Save as PDF", () => window.print()), btn("Close", close, "go")));
+      const list = load(ORD, []).concat([{ oid: pend.oid, at: new Date().toISOString(), n: pend.n, total: pend.total }]).slice(-20);
+      store(ORD, list);
+      cart = { v: 1, lines: [] }; keepCart();
+      forget();
+    }
+  }
+  startPrints().catch(() => {});
+  paint();
+  if (DRAFTS) pullDraft().then(verifySent);
+  $("pr").onclick = e => { e.stopPropagation(); const p = picks[pk(cur)] = picks[pk(cur)] || {};
+    if (p.r && p.n) { askRemove(cur, "r", bar); return; }
+    if (!p.r && nR() >= (P.retouch || 0)) { const t = "You've picked " + (P.retouch || 0) + " to retouch already. Remove one to pick this one.";
+      $("count").textContent = t; $("count").classList.add("warn"); announce(t); return; }
+    p.r = !p.r; if (!p.r) delete p.n; save(); bar(); };
+  $("pm").onclick = e => { e.stopPropagation(); const p = picks[pk(cur)] = picks[pk(cur)] || {};
+    p.m = !p.m; if (p.m) delete p.v; save(); bar(); };
+  $("pv").onclick = e => { e.stopPropagation(); const p = picks[pk(cur)] = picks[pk(cur)] || {};
+    p.v = !p.v; if (p.v) delete p.m; save(); bar(); };
+  $("note").onclick = e => e.stopPropagation();
+  $("note").oninput = () => { (picks[pk(cur)] = picks[pk(cur)] || {}).n = $("note").value.slice(0, 200); save(); bar(); };
+  $("note").onkeydown = e => { if (e.key === "Enter") e.preventDefault(); };   // the note is saved as it is typed: Enter keeps the photo open
+  $("done").onclick = e => { e.stopPropagation(); hide(); };
+  function bar() { const p = picks[pk(cur)] || {};
+    $("pr").classList.toggle("on", !!p.r); $("pm").classList.toggle("on", !!p.m); $("pv").classList.toggle("on", !!p.v);
+    $("pr").setAttribute("aria-pressed", !!p.r); $("pm").setAttribute("aria-pressed", !!p.m); $("pv").setAttribute("aria-pressed", !!p.v);
+    $("note").hidden = !p.r; if (document.activeElement !== $("note")) $("note").value = p.n || "";
+    marks($("bigtag"), p); placeTag();                                    // picks save as they are made; Done goes back to the grid
+    $("count").classList.remove("warn");
+    if (cur >= 0) $("count").textContent = (cur + 1) + " / " + m.items.length + (RIGHTS ? "  \u00b7  " + RIGHTS.replace(" All rights reserved.", "").replace(/\.$/, "") : ""); }
+  const lb = $("lb"), big = $("big");
+  function drawn() {                            // where the photo itself is drawn inside its box (object-fit: contain)
+    const r = big.getBoundingClientRect(), nw = big.naturalWidth, nh = big.naturalHeight;
+    if (!nw || !nh || !r.width) return r;
+    const k = Math.min(r.width / nw, r.height / nh), w = nw * k, h = nh * k;
+    return { left: r.left + (r.width - w) / 2, top: r.top + (r.height - h) / 2, right: r.left + (r.width + w) / 2, bottom: r.top + (r.height + h) / 2, width: w }; }
+  function placeTag() {                         // top right corner of the big photo, wherever it sits
+    const r = drawn(), t = $("bigtag");
+    t.hidden = !r.width; t.style.top = (r.top + 10) + "px"; t.style.right = (window.innerWidth - r.right + 10) + "px"; }
+  big.addEventListener("click", e => { const r = drawn();      // a click beside the photo closes, as before
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) hide(); });
+  window.addEventListener("resize", () => { if (lb.classList.contains("open")) placeTag(); });
+  let cur = -1;
+  let opener = null;
+  const behind = () => ["grid", "msg", "tray"].map($).concat([document.querySelector("header"), document.querySelector("footer")]).filter(Boolean);
+  function step(d) {                            // next or previous photo within the quick filter
+    const n = m.items.length;
+    for (let k = 1; k <= n; k++) { const j = ((cur + d * k) % n + n) % n, p = picks[pk(j)] || {};
+      if (show_ === "all" || p[show_]) return show(j); } }
+  async function show(i) {
+    const n = m.items.length;
+    if (!lb.classList.contains("open")) {                 // focus moves into the photo view; what's behind is inert
+      opener = document.activeElement;
+      behind().forEach(el => el.inert = true);
+      document.body.classList.add("lbopen");
+      setTimeout(() => $("close").focus(), 0);
+    }
+    cur = (i + n) % n;
+    lb.classList.add("open");
+    document.body.style.overflow = "hidden";
+    $("count").textContent = (cur + 1) + " / " + n; bar();
+    lb.setAttribute("aria-label", "Photo " + (cur + 1) + " of " + n);
+    // Until the photo itself is here: its thumbnail (when already loaded) stands in, "Loading photo..." shows, and the
+    // pick buttons wait, so nothing is picked for a photo the client can't see yet.
+    const want = cur, th = thumbs[cur];
+    big.onload = big.onerror = null;
+    $("lberr").hidden = true; picking(false);
+    if (DL && !$("dl").disabled) $("dl").textContent = "Download";
+    prefetchFull(cur);
+    if (th) { big.src = th; big.classList.add("on", "ph"); } else { big.removeAttribute("src"); big.classList.remove("on", "ph"); }
+    $("lbload").hidden = false;
+    const near = new Set([-2, -1, 0, 1, 2].map(d => m.items[((cur + d) % n + n) % n].f));
+    keepNear(near);
+    let u = null, err = null;
+    try { u = await url(m.items[cur].f); } catch (e) { err = e; }
+    if (want !== cur) return;
+    if (!u) { lbFail(err); return; }
+    const arrived = () => {
+      if (want !== cur || big.getAttribute("src") !== u) return;
+      big.classList.remove("ph"); big.classList.add("on"); $("lbload").hidden = true; picking(true); placeTag();
+      [cur + 1, cur - 1].forEach(j => url(m.items[(j + n) % n].f).catch(() => {}));   // the neighbors, now the photo is here
+    };
+    big.onload = arrived;
+    big.onerror = () => { if (want === cur) lbFail({}); };
+    big.src = u;
+  }
+  function picking(on) {                        // the pick buttons and the note, for the photo on screen
+    ["pr", "pm", "pv", "note"].forEach(id => { $(id).disabled = !on; });
+  }
+  // ---- a download gallery. Each photo's full-size file opens here and is handed to the browser to save. Download all
+  // fetches the zip prepared at home, sealed in parts: four parts at a time, each decrypted as it arrives and kept in
+  // order as a Blob (never joined into one buffer), then saved as one file named after the gallery.
+  // iPhone Safari: no rel=noopener on the link (Safari then opens the file where the blob can't be read: WebKitBlobResource
+  // error 1), and the blob stays until the page goes away, so a slow "Download?" prompt still finds it.
+  const savedUrls = [];
+  function saveFile(blob, name) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = name; savedUrls.push(a.href);
+    document.body.append(a); a.click(); a.remove();
+  }
+  if (DL) window.addEventListener("pagehide", () => savedUrls.forEach(u => URL.revokeObjectURL(u)));
+  // On iPhone and iPad one photo goes through the share sheet, where Save Image puts it in Photos (a zip still goes to
+  // Files). The photo on screen is fetched ahead, so the sheet opens inside the tap.
+  let canShareFiles = false;
+  try {
+    const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    canShareFiles = IOS && !!(navigator.canShare && navigator.canShare({ files: [new File([""], "x.jpg", { type: "image/jpeg" })] }));
+  } catch (e) {}
+  const fullFiles = new Map();                  // the photo on screen only: a phone never holds more than one
+  const fullName = i => m.items[i].on || m.items[i].n || "photo-" + (i + 1) + ".jpg";
+  function fullFile(i) {
+    if (!fullFiles.has(i)) {
+      fullFiles.clear();
+      fullFiles.set(i, get(m.items[i].o || m.items[i].f).then(b => new File([b], fullName(i), { type: "image/jpeg" }),
+        e => { fullFiles.delete(i); throw e; }));
+    }
+    return fullFiles.get(i);
+  }
+  function prefetchFull(i) { if (DL && canShareFiles) fullFile(i).catch(() => {}); }
+  function downloads() {
+    const zs = m.zips.filter(z => z && Array.isArray(z.parts));
+    zs.forEach((z, j) => zipButton(z, zs.length > 1 ? [j + 1, zs.length] : null, j));
+    $("dlall").hidden = !zs.length;
+    // Esc (with no photo open) or leaving the page stops every Download all that is running
+    document.addEventListener("keydown", e => { if (e.key === "Escape" && cur < 0) running.forEach(c => c.abort()); });
+    window.addEventListener("pagehide", () => running.forEach(c => c.abort()));
+    singleDownload();
+  }
+  const running = new Set();                    // the AbortController of each Download all in progress
+  const PHONE = !!(window.matchMedia && matchMedia("(pointer: coarse)").matches);
+  const waitLine = () => { $("dlwait").hidden = !(PHONE && running.size); };
+  function timeLeft(bytes, total, t0) {         // once the speed is known: "about 4 min left"
+    const secs = (performance.now() - t0) / 1000;
+    if (secs < 3 || !bytes) return "";
+    const left = (total - bytes) / (bytes / secs);
+    return left < 60 ? "less than a minute left" : "about " + Math.round(left / 60) + " min left";
+  }
+  function zipButton(Z, part, j) {             // one zip: its own button, progress, Cancel, and Try again
+    const b = j ? $("dlallb").cloneNode(false) : $("dlallb"), parts = Z.parts, total = +Z.size || 0;
+    if (j) { b.id = ""; $("dlall").append(b); }
+    const mb = total >= 1e9 ? (total / 1e9).toFixed(1) + " GB" : Math.max(1, Math.round(total / 1e6)) + " MB";
+    const label = (part ? "Download all, part " + part[0] + " of " + part[1] : "Download all") + " (" + mb + ")";
+    const zipName = String(Z.name || "").replace(/[\\/:*?"<>|\x00-\x1f\x7f]+/g, "").trim() || "Photos.zip";
+    b.textContent = label;
+    let ctl = null, busy = false;
+    b.onclick = async () => {
+      if (ctl) { ctl.abort(); return; }          // pressed while it runs: Cancel
+      if (busy) return;
+      // a moment's check for a newer build first; the button stays enabled (and focused) meanwhile, so a keyboard
+      // user's focus never drops to the page
+      busy = true; b.setAttribute("aria-busy", "true");
+      const newer = stale || await updated();
+      busy = false; b.removeAttribute("aria-busy");
+      if (newer) return;                         // never a zip of an older build: the notice says reload
+      const me = ctl = new AbortController();
+      running.add(me); waitLine();
+      const got = new Array(parts.length), t0 = performance.now();
+      let next = 0, bytes = 0;
+      const show = () => {
+        const pct = Math.min(99, Math.floor(100 * bytes / Math.max(1, total))) + "%", left = timeLeft(bytes, total, t0);
+        b.textContent = (part ? "Part " + part[0] + " of " + part[1] + ": " : "Downloading ") + pct
+          + (left ? " \u00b7 " + left : "") + " \u00b7 Cancel";
+      };
+      show();
+      const worker = async () => {
+        while (next < parts.length && !me.signal.aborted) {
+          const i = next++, d = await get(parts[i], me.signal);
+          got[i] = new Blob([d]); bytes += d.length; show();
+        }
+      };
+      try {
+        await Promise.all([0, 1, 2, 3].map(worker));
+        if (me.signal.aborted) throw Object.assign(new Error("stopped"), { name: "AbortError" });
+        saveFile(new Blob(got, { type: "application/zip" }), zipName);
+        b.textContent = label;
+      } catch (e) {
+        next = parts.length;
+        b.textContent = me.signal.aborted ? label : "Try again";      // stopped: back to the start, nothing kept
+        if (!me.signal.aborted && e && e.status === 404) updated();   // rebuilt meanwhile: the notice offers a reload
+        me.abort();
+      }
+      got.fill(undefined);
+      ctl = null; running.delete(me); waitLine();
+    };
+  }
+  function singleDownload() {
+    $("dl").onclick = async e => {
+      e.stopPropagation();
+      const d = $("dl"), i = cur;
+      if (!m.items[i] || d.disabled) return;
+      if (stale) { $("upd").hidden = false; return; }
+      d.disabled = true; d.textContent = "Downloading";
+      try {
+        if (!canShareFiles && await updated()) { d.textContent = "Download"; d.disabled = false; return; }
+        const f = await fullFile(i);
+        if (canShareFiles) {
+          try { await navigator.share({ files: [f] }); }
+          catch (err) { if (err.name !== "AbortError") saveFile(f, fullName(i)); }   // closed the sheet: nothing more
+        } else saveFile(f, fullName(i));
+        if (!canShareFiles) fullFiles.delete(i);
+        d.textContent = "Download";
+      } catch (err) { d.textContent = "Try again"; if (err && err.status === 404) updated(); }
+      d.disabled = false;
+    };
+  }
+  async function lbFail(e) {                    // the big photo didn't come: say why, as far as the page can tell
+    const want = cur;
+    big.removeAttribute("src"); big.classList.remove("on", "ph"); $("lbload").hidden = true;
+    const again = $("lbagain");
+    let text = "This photo can't load right now.", label = "Try again", reload = false;
+    if (e && e.network) text += " Check your connection.";
+    else if (e && e.status === 410) { text = "This gallery has gone dark."; label = ""; }
+    else if (e && e.status === 404 && await updated()) { text = "These photos were just updated. Reload to see the new version.";
+      label = "Reload"; reload = true; }
+    if (want !== cur) return;
+    $("lbsay").textContent = text;
+    again.textContent = label; again.hidden = !label; again.classList.toggle("reload", reload); again.dataset.reload = reload ? "1" : "";
+    $("lberr").hidden = false;
+  }
+  function hide() { const cell = document.querySelector('.cell[data-i="' + cur + '"]') || opener;   // back to the photo last seen
+    lb.classList.remove("open"); document.body.style.overflow = ""; big.onload = big.onerror = null; big.removeAttribute("src");
+    big.classList.remove("on", "ph"); $("lbload").hidden = true; cur = -1;
+    behind().forEach(el => el.inert = false); document.body.classList.remove("lbopen");
+    if (cell && cell.focus) cell.focus(); opener = null; }
+  $("prev").onclick = e => { e.stopPropagation(); step(-1); };
+  $("next").onclick = e => { e.stopPropagation(); step(1); };
+  $("close").onclick = e => { e.stopPropagation(); hide(); };
+  $("lbagain").onclick = e => { e.stopPropagation(); if ($("lbagain").dataset.reload === "1") location.reload(); else if (cur >= 0) show(cur); };
+  lb.onclick = e => { if (e.target === lb) hide(); };
+  document.addEventListener("keydown", e => {
+    if (cur < 0 || !$("ask").hidden) return;                       // the ask box has its own keys
+    if (e.target.closest && e.target.closest("input, textarea") && e.key !== "Escape") return;   // typing a note
+    if (e.key === "ArrowLeft") step(-1);
+    else if (e.key === "ArrowRight") step(1);
+    else if (e.key === "Escape") hide();
+  });
+  let sx = null, sy = null, multi = false;
+  const zoomed = () => !!(window.visualViewport && window.visualViewport.scale > 1.01);
+  lb.addEventListener("touchstart", e => {
+    if (e.touches.length > 1) { multi = true; sx = null; return; }
+    if (!multi) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; } }, { passive: true });
+  lb.addEventListener("touchend", e => {
+    if (!e.touches || !e.touches.length) { if (multi) { multi = false; sx = null; return; } }
+    if (sx === null || zoomed()) { sx = null; return; }
+    const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+    sx = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) step(dx < 0 ? 1 : -1);
+    else if (dy > 90 && Math.abs(dy) > Math.abs(dx)) hide();
+  }, { passive: true });
+}
+main();
+})();
+</script>
+<footer><div id="contact"></div><div id="rights" hidden></div><a id="la" href="https://lumenaureum.org" target="_blank" rel="noopener noreferrer"><svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"><defs><linearGradient id="las-gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6dfa6"/><stop offset=".55" stop-color="#e9b45c"/><stop offset="1" stop-color="#d0864e"/></linearGradient><linearGradient id="las-rose" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e3b3c0" stop-opacity=".5"/><stop offset=".5" stop-color="#ecd3da"/><stop offset="1" stop-color="#e3b3c0" stop-opacity=".5"/></linearGradient></defs><path d="M3,20 A13,13 0 0 1 29,20 Z M14,20 L14.8,15.2 A2.4,2.4 0 1 1 17.2,15.2 L18,20 Z" fill="url(#las-gold)" fill-rule="evenodd"/><rect x="2" y="22" width="28" height="2" rx="1" fill="url(#las-rose)"/><rect x="7" y="26" width="18" height="2" rx="1" fill="url(#las-rose)" opacity=".6"/></svg><span>Gallery by <b>Lumen Aureum</b><small>lumenaureum.org</small></span></a></footer>
+</body>
+</html>

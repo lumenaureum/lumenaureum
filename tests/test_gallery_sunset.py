@@ -348,7 +348,7 @@ def test_a_gallery_taken_down_early_reads_closed_not_its_old_days_left(env):
     assert one(A, "SELECT removed_at FROM galleries WHERE session_id=1")[0]
     page = c.get("/c/1?s=1", environ_base=E).get_data(as_text=True)
     assert "days left" not in page
-    assert re.search(r"Gallery: closed [A-Z][a-z]{2} [A-Z][a-z]{2} \d+", page), "the fold heading says closed"
+    assert re.search(r"Closed [A-Z][a-z]{2} [A-Z][a-z]{2} \d+, off the web", page), "the Gallery section says closed"
     assert "Gallery closed " in page
 
     con = A.connect()

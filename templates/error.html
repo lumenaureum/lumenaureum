@@ -1,0 +1,6 @@
+{% extends "auth_base.html" %}{% import "_ui.html" as ui %}{% block title %}{{ head }} - Lumen Aureum{% endblock %}{% block body %}
+<h1>{{ head }}</h1>
+<div class="card f" role="alert" data-error-page="{{ code }}"><p style="margin:0">{{ words }}</p>
+  <div class="row" style="gap:12px;margin-top:14px;flex-wrap:wrap">{% if back %}{{ ui.button_link(back[1], back[0], 'primary') }}{% endif %}{{ ui.button_link(url_for('home'), 'Back to Today', 'quiet' if back else 'primary') }}</div></div>
+{% endblock %}
+

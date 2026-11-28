@@ -138,7 +138,7 @@ def test_findable_from_search_and_a_clients_history_not_the_top_bar(env):
     assert "/history" not in _page(c, "/search?q=zzzz-nothing")
     assert c.get("/search?q=Reyes", environ_base=E).status_code == 302
     client = _page(c, "/c/1")
-    hist = client.split('id="history"', 1)[1].split("</details>", 1)[0]
+    hist = client.split('id="more-notes"', 1)[1].split("</details>", 1)[0]
     assert 'href="/history"' in hist and "Studio history, all clients" in hist
     top = _page(c, "/").split('<main id="main"', 1)[0]
     assert "/history" not in top

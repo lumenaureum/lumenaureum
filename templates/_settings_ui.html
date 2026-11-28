@@ -114,10 +114,10 @@
 
 
 {% macro no_cw_check(words, off, confirm, choose_href='', choose_pick='', id='no-cw-check', attrs='') -%}
-<div id="{{ id }}" class="sui-cw"{{ attrs|safe }}><p class="sui-hint sui-conn-warn">{{ words }}{{ help("A codeword is a word the client types after opening their link. Checking it takes a small script on the web host that stops anyone guessing codewords quickly, and a static website runs no scripts. Turning codewords off changes every session type, and clears the codeword on sessions whose gallery is not online yet. Galleries already online keep theirs. Each type can ask again later, in its own settings, once your web host can check codewords.") }}</p>
-  <div class="ui-btnrow"><button type="submit" class="ui-btn ui-btn-quiet" {{ off|safe }} data-confirm="{{ confirm }}">Turn codewords off for galleries here</button>
-  {%- if choose_href %}{{ ui.button_link(choose_href, 'Choose a host that can check codewords') }}
-  {%- else %}<button type="button" class="ui-btn ui-btn-quiet" data-be-pick="{{ choose_pick }}">Choose a host that can check codewords</button>{% endif %}</div></div>
+<div id="{{ id }}" class="sui-cw"{{ attrs|safe }}><p class="sui-hint sui-conn-warn">{{ words }}{{ help("A passphrase is a word the client types after opening their link. Checking it takes a small script on the web host that stops anyone guessing passphrases quickly, and a static website runs no scripts. Turning passphrases off changes every session type, and clears the passphrase on sessions whose gallery is not online yet. Galleries already online keep theirs. Each type can ask again later, in its own settings, once your web host can check passphrases.") }}</p>
+  <div class="ui-btnrow"><button type="submit" class="ui-btn ui-btn-quiet" {{ off|safe }} data-confirm="{{ confirm }}">Turn passphrases off for galleries here</button>
+  {%- if choose_href %}{{ ui.button_link(choose_href, 'Choose a host that can check passphrases') }}
+  {%- else %}<button type="button" class="ui-btn ui-btn-quiet" data-be-pick="{{ choose_pick }}">Choose a host that can check passphrases</button>{% endif %}</div></div>
 {%- endmacro %}
 
 

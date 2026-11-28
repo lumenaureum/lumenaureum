@@ -87,13 +87,29 @@ def one_event(e, uid_, now=None, prodid="-//Lumen Aureum//Send to calendar//EN")
         ["END:VCALENDAR"]
     return "".join(fold(ln) + "\r\n" for ln in lines)
 
-def entry(key, summary, day, hm, minutes, tz, tentative=False):
+def _wall(day, hm, tz):
 
     d_ = date.fromisoformat(day[:10])
     try:
         h_, m_ = (int(v) for v in (hm or "").split(":")[:2])
         start = datetime(d_.year, d_.month, d_.day, h_, m_, tzinfo=tz)
     except ValueError:
+        return None
+    return start.astimezone(timezone.utc).astimezone(tz)
+
+def skipped_time(day, hm, tz):
+
+    try:
+        start = _wall(day, hm, tz)
+    except (TypeError, ValueError):
+        return False
+    return start is not None and (start.hour, start.minute) != tuple(int(v) for v in hm.split(":")[:2])
+
+def entry(key, summary, day, hm, minutes, tz, tentative=False):
+
+    start = _wall(day, hm, tz)
+    if start is None:
+        d_ = date.fromisoformat(day[:10])
         return dict(key=key, summary=summary, start=d_, end=d_ + timedelta(days=1), tentative=tentative)
-    return dict(key=key, summary=summary, start=start, end=start + timedelta(minutes=max(int(minutes or 0), 15)),
-                tentative=tentative)
+    end = (start.astimezone(timezone.utc) + timedelta(minutes=max(int(minutes or 0), 15))).astimezone(tz)
+    return dict(key=key, summary=summary, start=start, end=end, tentative=tentative)

@@ -1,9 +1,13 @@
 {% from "_doc_bar.html" import doc_bar, draft with context %}{% import "_ui.html" as ui with context %}<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Session agreement - {{ a.client }}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 {% include "_doc_style.html" %}</head><body>
-{% if not pdf %}{% set sign_ %}{% if pending %}{% for d_ in pending %}{% set who_ = d_.name or '' %}{% set many_ = who_ and pending|length + signed_n > 1 %}{{ ui.action(url_for('quick', sid=a.sid), 'Mark signed' ~ (': ' ~ who_ if many_ else ''), dict(act='sign', kind='agreement', did=d_.did), request.path, inplace=false,
-    confirm='Mark this agreement signed' ~ (' by ' ~ who_ if many_ else '') ~ '? Do this once you have the signed copy back. (To undo it, clear the signing date under Paperwork.)') }} {% endfor %}{% if signed_n %}<span class="ui-chip">{{ signed_n }} of {{ pending|length + signed_n }} signed</span> {% endif %}{% elif a.unsigned %}{{ ui.action(url_for('quick', sid=a.sid), 'Mark signed', dict(act='sign', kind='agreement'), request.path, inplace=false,
-    confirm='Mark this agreement signed? Do this once you have the signed copy back. (To undo it, clear the signing date under Paperwork.)') }} {% else %}<span class="ui-chip">Signed</span> {% endif %}{% endset %}{{ doc_bar(url_for('agreement_pdf', sid=a.sid), a.back, send, a.review if not a.reviewed, approve=a.approve, after=sign_) }}{% endif %}
+
+{% set guard_in_ %}{% if a.guardian_for %}<input name="guardian" maxlength="120" placeholder="Parent or guardian's name" aria-label="Name of the parent or guardian who signed" class="ui-input">{% endif %}{% endset %}
+{% set guard_ask_ = (' The parent or guardian of ' ~ a.guardian_for ~ ' signs it for them.') if a.guardian_for else '' %}
+{% if not pdf %}{% set sign_ %}{% if pending %}{% for d_ in pending %}{% set who_ = d_.name or '' %}{% set many_ = who_ and pending|length + signed_n > 1 %}{{ ui.action(url_for('quick', sid=a.sid), 'Mark signed' ~ (': ' ~ who_ if many_ else ''), dict(act='sign', kind='agreement', did=d_.did), request.path, inplace=false, extra=guard_in_,
+    confirm='Mark this agreement signed' ~ (' by ' ~ who_ if many_ else '') ~ '?' ~ guard_ask_ ~ ' Do this once you have the signed copy back. (To undo it, clear the signing date under Paperwork.)') }} {% endfor %}{% if signed_n %}<span class="ui-chip">{{ signed_n }} of {{ pending|length + signed_n }} signed</span> {% endif %}{% elif a.unsigned %}{{ ui.action(url_for('quick', sid=a.sid), 'Mark signed', dict(act='sign', kind='agreement'), request.path, inplace=false, extra=guard_in_,
+    confirm='Mark this agreement signed?' ~ guard_ask_ ~ ' Do this once you have the signed copy back. (To undo it, clear the signing date under Paperwork.)') }} {% else %}<span class="ui-chip">Signed</span> {{ ui.action(url_for('agreement_unsign', sid=a.sid), 'Mark not signed', {}, request.path, 'quiet', inplace=false,
+    confirm='Mark the agreement not signed? It stays marked sent, and its signed copy is kept. Mark it signed again once the new signed copy is back.') }} {% endif %}{% endset %}{{ doc_bar(url_for('agreement_pdf', sid=a.sid), a.back, send, a.review if not a.reviewed, approve=a.approve, after=sign_) }}{% endif %}
 <div class="page">
   {% include "_doc_logo.html" %}
 {% if a.legacy_signed %}<div class="draft"><b>Signed before Lumen Aureum kept a copy of what was signed. This copy shows today's wording; the copy the client signed is the record.</b></div>{% endif %}
@@ -11,7 +15,7 @@
   <h1>Session agreement</h1>
   <p class="sub">{{ a.photographer }}{% if a.business %}, {{ a.business }}{% endif %}</p>
   <table class="facts" style="margin-top:14px">
-    <tr><td>Client</td><td>{{ a.company or a.signer or a.client }}{% if a.company and a.signer %}<br>Signed for by {{ a.signer }}{% endif %}</td></tr>
+    <tr><td>Client</td><td>{% if a.guardian_for %}{{ a.guardian_for }} (under {{ majority_age() }}){% set gn_ = a.guardian_names|select|list %}<br>Signed for by {{ gn_|join(' and ') if gn_ else 'a parent or legal guardian' }}{% else %}{{ a.company or a.signer or a.client }}{% if a.company and a.signer %}<br>Signed for by {{ a.signer }}{% endif %}{% endif %}</td></tr>
     {% if a.job_address %}<tr><td>Where</td><td>{{ a.job_address }}</td></tr>{% endif %}
     {% if a.people %}<tr><td>Photographed</td><td>{{ a.people }}</td></tr>{% endif %}
     {% if a.plan %}<tr><td>Sessions</td><td>{% for p_ in a.plan %}{{ p_.label }}{% if p_.when %}, {{ p_.when }}{% endif %}: {{ money(p_.price) }}{% if p_.quote_id %} (quote {{ quote_no(p_.quote_id) }}){% endif %}{% if not loop.last %}<br>{% endif %}{% endfor %}<br><span style="font-size:12px">This agreement covers every session listed.</span></td></tr>
@@ -28,6 +32,8 @@
 
 {{ a.custom }}
 
-  <div class="sig"><div>{{ a.photographer }}{% if a.business %}, for {{ a.business }}{% endif %}<br><br>Date</div>{% for n_ in a.signers or ['Client'] %}<div>{{ n_ }}{% if a.company %}, for {{ a.company }}{% endif %}{% if a.minor %} (parent or guardian){% endif %}<br><br>{{ (('Signed ' ~ signed_on ~ ' on an earlier version. This copy is not the signed document.') if a.legacy_signed else ('Signed copy received ' ~ signed_on)) if signed_on else 'Date' }}</div>{% endfor %}</div>
+  <div class="sig"><div>{{ a.photographer }}{% if a.business %}, for {{ a.business }}{% endif %}<br><br>Date</div>{% set on_ = (('Signed ' ~ signed_on ~ ' on an earlier version. This copy is not the signed document.') if a.legacy_signed else ('Signed copy received ' ~ signed_on)) if signed_on else 'Date' %}
+  {%- if a.guardian_for %}{% for n_ in a.guardian_names or [''] %}<div>{{ (n_ ~ ', p') if n_ else 'P' }}arent or legal guardian of {{ a.guardian_for }}, signing for them{% if not n_ %}<br><br>Printed name: ______________________{% endif %}<br><br>{{ on_ }}</div>{% endfor %}
+  {%- else %}{% for n_ in a.signers or ['Client'] %}<div>{{ n_ }}{% if a.company %}, for {{ a.company }}{% endif %}{% if a.minor %} (parent or guardian){% endif %}<br><br>{{ on_ }}</div>{% endfor %}{% endif %}</div>
 </div>{% if not pdf %}<script src="{{ url_for('static', filename='ui.js', v=static_v('ui.js')) }}"></script>{% endif %}</body></html>
 

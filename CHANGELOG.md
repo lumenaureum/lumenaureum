@@ -2,6 +2,42 @@
 
 New features, behavior changes, security fixes, and other fixes in each release.
 
+## 1.6.4 (2026-11-27)
+
+### New
+- Share a gallery from any stage, even a closed session, in three taps, on top of a USB drive or card.
+- Offer retouching, in Settings, Prices, and No retouching for this session in its Tasks menu. Quote, agreement and balance follow.
+- Steps for this session: switch off steps that don't fit, skip any step in one tap, and reopen earlier ones.
+- One More... menu per topic on the client page, with the reason beside anything not possible yet.
+- Undo the handover of a drive, card or disc, at any stage.
+- Mark shot before the shoot date, from the session's tasks.
+- A new inquiry can be delivered more than one way: an online gallery, a drive, card or disc, or both.
+- Agreements for clients under 18 are signed by a parent or guardian, and quotes and emails go to them.
+- Mark the agreement not signed, from the client page.
+- Restart now, in Settings, Plugins, when a restart is needed.
+
+### Changed
+- The gallery codeword is called a passphrase everywhere you and your clients read it.
+- Owner pages show the current state, open, with no folds.
+- A session reaches Delivered when the photos are delivered as planned.
+- Changing how the files go updates the agreement and steps, and says when a sent quote no longer matches.
+- Retouching paid for and then dropped shows as a credit, with Record refund.
+- Settings, Calendar starts with the calendar link for your phone or computer.
+- A quote changed after you sent it is sent again before booking, so the agreement shows the price the client saw.
+- An unpaid deposit is its own line on the invoice, due now.
+- Gallery upload progress counts photos.
+- PNG photos go into galleries as JPEGs, and any file left out is named.
+
+### Fixed
+- Agreements and quotes for drive-only jobs mention a gallery only when one is planned.
+- A session marked shot early shows the day it was marked.
+- What you typed is kept when the studio restarts, and a damaged backup says so.
+- A refused plugin keeps your two-factor code and is not a failed sign-in.
+- Undoing a restore keeps galleries online.
+- Installments, session lengths, accented names, CSV import, long names and error pages: several fixes.
+- A new contact's age marks them as a minor when they are under 18.
+- Client gallery, Gallery panel and Paperwork panel: several display fixes.
+
 ## 1.6.3 (2026-11-25)
 
 ### New

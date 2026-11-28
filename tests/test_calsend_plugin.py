@@ -58,7 +58,8 @@ def test_off_by_default_and_settings_offers_the_two_ways(env):
     r = c.get("/settings/calendar-send", environ_base=E)
     assert r.status_code == 302 and "/settings/plugin/calendar_send" in r.location
     page = _page(c, "/settings?tab=calendar")
-    assert 'id="calendar-choice"' in page and "Send them to your calendar" in page and "Keep them at home" in page
+    assert 'id="calendar-send"' in page and "Send sessions to your calendar right away" in page
+    assert page.index('id="calendar-link"') < page.index('id="calendar-send"')
     assert "ICSx5" in page and "Tailscale" in page
     assert "Send sessions to your calendar is off." in _page(c, "/settings/plugin/calendar_send")
     assert c.post("/settings/calendar-send/now", environ_base=E).status_code == 404
@@ -358,8 +359,8 @@ def test_the_setup_reads_on_a_phone_and_turns_on_in_one_tap(env):
             ctx, p = _tab(browser, c, width=width)
             try:
                 p.goto(BASE + "/settings?tab=calendar")
-                choice = p.locator("#calendar-choice")
-                assert choice.is_visible() and "Send them to your calendar" in choice.inner_text()
+                choice = p.locator("#calendar-send")
+                assert choice.is_visible() and "right away" in choice.inner_text().lower()
                 assert p.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1")
                 if width == 390:
                     choice.get_by_role("link", name="Set up").click()

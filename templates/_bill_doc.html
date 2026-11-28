@@ -29,7 +29,7 @@
     {% elif v.deposit_due %}{% if v.after_deposit > 0.005 %}<tr><td>{{ 'Balance after the deposit'|dep }}, due {{ v.after_deposit_when }}</td><td class="n">{{ money(v.after_deposit) }}</td></tr>{% endif %}
     <tr><td><b>{{ 'Deposit due now'|dep }}</b></td><td class="n"><b>{{ money(v.deposit_due) }}</b></td></tr>
     {% else %}<tr><td><b>Balance due</b></td><td class="n"><b>{{ money(v.balance) }}</b></td></tr>{% endif %}
-    {% if not v.receipt %}{% for r_ in v.schedule or [] %}<tr><td>Payment {{ r_.n }} of {{ r_.of }}, due {{ r_.due }}{% if r_.paid %} (paid){% endif %}</td><td class="n">{{ money(r_.amount) }}</td></tr>{% endfor %}{% endif %}
+    {% if not v.receipt %}{% for r_ in v.schedule or [] %}<tr><td>{% if r_.deposit %}{{ 'Deposit'|dep }}, due now{% else %}Payment {{ r_.n }} of {{ r_.of }}, due {{ r_.due }}{% if r_.paid %} (paid){% endif %}{% endif %}</td><td class="n">{{ money(r_.amount) }}</td></tr>{% endfor %}{% endif %}
     {% if v.credit %}<tr><td>Credit due to you (paid beyond the total)</td><td class="n">{{ money(v.credit) }}</td></tr>{% endif %}</table>
   {% if v.receipt %}
   <div class="promise"><b>Thank you.</b> {% if v.event_family %}Your photos are yours to print, share, and post for personal use.{% elif v.license %}{% if v.get('agreement_signed', True) %}Your license to use the photos is set out in your agreement.{% endif %}{% else %}With this payment, the copyright in your delivered photos is yours.{% endif %}</div>

@@ -22,10 +22,8 @@ def test_rule_14_the_fold_shows_its_count_in_its_title(env):
 def test_rule_14_the_list_folds_pass_their_count(env):
 
     root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "templates")
-    want = {"today.html": ["'Waiting on the client or nothing to do now'"],
-            "client_stage.html": ["'Details and history'", "'History'", "'People'"],
-            "money.html": ["'By session type'", "'Sessions started this year'"],
-            "pipeline.html": ["stage_label[st]"], "auth_security.html": ["'Account activity'"],
+
+    want = {"pipeline.html": ["stage_label[st]"], "auth_security.html": ["'Account activity'"],
             "setup.html": ["'Addresses that can connect'"]}
     for name, folds in want.items():
         src = open(os.path.join(root, name)).read()

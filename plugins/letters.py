@@ -124,7 +124,7 @@ def register(ctx):
                   lines=lines, today=date.today().strftime("%B %-d, %Y"), greeting=greeting(s, adults),
                   who=who_shot(s, subjects, adults), when=when, qr=qr_svg(link) if link else None, days=ctx.C.gallery_days(s["type"]) * (2 if s["extension_used"] else 1),
                   sd=any(st == ("auto", "sd_shipped") for steps in ctx.C.WORKFLOW[s["type"]].values() for st in steps),
-                  license=ctx.licensed(sid), delivery=ctx.C.delivery_text(s["type"], s["delivery_method"]),
+                  license=ctx.licensed(sid), delivery=ctx.C.delivery_text(s["type"], s["delivery_method"], gallery=True),
                   credit="" if setting("credit_off") == "1" else ctx.C.CREDIT, logo=__import__("app").logo_src(),
                   codeword=bool(link and "&c=1" in link), event_family=bool(s["event_id"]),
                   proofs=bool(app.config.get("gallery_proofs") and app.config["gallery_proofs"](sid)),
@@ -258,7 +258,9 @@ def register(ctx):
 
         ask_ = bool(card_ and card_.get("saved"))
         handed = dict(post=url_for("delivery_another", sid=s["id"]), fields=dict(how="card", step="sd_shipped")) if ask_ else None
-        return dict(what="Card handed over?" if ask_ else f"Get the photos to {client_first(s)}", verb="Mark delivered",
+
+        thing_ = {"sd": "SD card", "usb": "USB drive", "disc": "CD or DVD", "card": "sealed card"}.get(key_, "photos")
+        return dict(what="Card handed over?" if ask_ else f"Get the {thing_} to {client_first(s)}", verb="Mark delivered",
                     post=url_for("quick", sid=s["id"]), handed=handed,
                     fields=dict(act="mark", field="sd_shipped"), note=note_,
                     close=dict(sid=s["id"], step="sd_shipped"),
@@ -324,7 +326,7 @@ body { margin: 0; font: 12.5pt/17.5pt "Times New Roman", Times, serif; color: #0
 <div class="body">
   <p>{{ greeting }}</p>
   <p>Thank you for letting me photograph {{ who }}{{ when }}. {% if download %}Your photos are finished and ready to download.{% elif proofs %}Your proofs are ready to pick from.{% else %}Your photos are finished, and I think you are going to love them.{% endif %}</p>
-  <p>Scan the code below with your phone's camera to open your private gallery{% if download %}, where you can download each photo or all of them at once{% endif %}. The code on this letter is the key to it, so keep the letter somewhere safe.{% if codeword %} When the gallery asks, enter the word you chose with {{ studio or photographer or 'your photographer' }}.{% endif %}</p>
+  <p>Scan the code below with your phone's camera to open your private gallery{% if download %}, where you can download each photo or all of them at once{% endif %}. The code on this letter is the key to it, so keep the letter somewhere safe.{% if codeword %} When the gallery asks, enter the passphrase you chose with {{ studio or photographer or 'your photographer' }}.{% endif %}</p>
   {% if qr %}<div class="qr">{{ qr|safe }}</div>{% else %}<div class="qr noqr">QR code goes here<br>(gallery not linked yet)</div>{% endif %}
   <div class="cap">{{ 'Scan to download your photos' if download else 'Scan to open your proofs' if proofs else 'Scan to open your photos' }}</div>
   <p>The gallery is available for {{ days }} days after you first open it, so open it when you have some quiet time to enjoy them.</p>

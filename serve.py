@@ -24,6 +24,7 @@ if __name__ == "__main__":
               " Until then, backups and gallery checks wait.", file=sys.stderr, flush=True)
     args = ["gunicorn", "--bind", f"0.0.0.0:{port}", "--workers", "1", "--threads", os.environ.get("CRM_THREADS", "8"),
             "--worker-class", "gthread", "--timeout", "120", "--graceful-timeout", "30",
+            "--limit-request-line", "8190",
             "--no-control-socket"]
     if netsec.tls_mode() == "on":
         cert, key = netsec.ensure_cert()

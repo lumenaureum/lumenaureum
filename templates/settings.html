@@ -143,17 +143,25 @@
 </form>{% endcall %}{% endif %}
 
 {% elif tab == 'prices' %}
+
+<form method="post" action="{{ url_for('settings_retouch') }}" class="ui-sec" id="retouch" style="max-width:760px" data-ui-autosave data-ui-autosave-reload data-no-keep>
+  <h2 class="ui-sec-title">Retouching</h2>
+  <label class="ui-check"><input type="checkbox" id="f-offer_retouch" name="offer_retouch" value="1"{{ ' checked' if C.OFFER_RETOUCH }}>Offer retouching{{ help("On: clients pick up to " ~ C.RETOUCH_PICKS ~ " favorites in their gallery for light retouching, and your agreement and price list say so. Off: no picking and no retouching step. Galleries go straight to the photos to keep, and the agreement and price list say nothing about retouching. A client who already sent retouch picks keeps them.") }}</label>
+  
+  {% if not C.OFFER_RETOUCH %}{% set ow_ = retouch_owed() %}{% if ow_ %}<p class="ui-mute" id="retouch-owed">Retouching is off for new work. {{ ow_|length }} session{{ 's' if ow_|length != 1 }} already asked for it and keep{{ 's' if ow_|length == 1 }} it: {% for o_ in ow_ %}<a href="{{ o_.link }}">{{ o_.name }}</a>{{ ', ' if not loop.last }}{% endfor %}. To drop it for one, open it and choose Tasks, More&hellip;, No retouching for this session.</p>{% endif %}{% endif %}
+  <noscript><button class="ui-btn ui-btn-quiet">Save the retouching choice</button></noscript></form>
 <form method="post" class="ui-sec f" style="max-width:760px" id="fees-form"><input type="hidden" name="fees_posted" value="1"><input type="hidden" name="form_id" value="fees-form">
   <h2 class="ui-sec-title" id="fees">Price list<span class="sui-nocaps">{{ help("Saving a change makes a new version of your price list. Quotes already made keep the prices they were built from. Travel at $0.00 uses the mileage rate.") }}</span></h2>
   <div class="ui-btnrow">{{ ui.button_link(url_for('fee_sheet'), 'Price list for clients', blank=true) }}{{ ui.button_link(url_for('fee_sheet_pdf'), 'Download the price list (PDF)') }}</div>
   
   <table class="data fees"><thead><tr><th>Fee</th><th>Price ($)</th><th>Charged</th>{% for t_ in taxes_ or [none] %}<th>{{ t_.name if t_ else 'Sales tax' }}</th>{% endfor %}<th>Remove</th></tr></thead><tbody>
-  {% for it in fees['items'] %}<tr><td><input name="fee_label_{{ loop.index0 }}" value="{{ it.label }}" aria-label="Fee name"></td>
+  
+  {% for it in fees['items'] %}{% if not (it.key == 'retouch' and not C.OFFER_RETOUCH) %}<tr><td><input name="fee_label_{{ loop.index0 }}" value="{{ it.label }}" aria-label="Fee name"></td>
     <td style="width:110px"><input type="number" step="0.01" name="fee_amt_{{ loop.index0 }}" value="{{ '%g' % it.amount }}" aria-label="Price of {{ it.label }}"></td>
     <td class="mute" style="width:80px">{{ {'flat':'flat fee','hour':'per hour','mile':'per mile','each':'each'}[it.unit] }}</td>
     {% set i_ = loop.index0 %}{% if taxes_|length > 1 %}{% for t_ in taxes_ %}<td style="width:90px"><label class="ui-check"><input type="checkbox" name="fee_tax_{{ i_ }}_{{ t_.key }}" value="1" {{ 'checked' if it.get('taxable', True) and t_.key not in (it.get('untaxed') or []) }}><span class="vh">{{ t_.name }} on {{ it.label }}</span></label></td>{% endfor %}
     {% else %}<td style="width:90px"><label class="ui-check"><input type="checkbox" name="fee_tax_{{ i_ }}" value="1" {{ 'checked' if it.get('taxable', True) }}><span class="vh">{{ taxes_[0].name if taxes_ else 'Sales tax' }} on {{ it.label }}</span></label></td>{% endif %}
-    <td style="width:80px"><label class="ui-check"><input type="checkbox" name="fee_del_{{ loop.index0 }}" value="1"><span class="vh">Remove</span></label></td></tr>{% endfor %}
+    <td style="width:80px"><label class="ui-check"><input type="checkbox" name="fee_del_{{ loop.index0 }}" value="1"><span class="vh">Remove</span></label></td></tr>{% endif %}{% endfor %}
   <tr><td><input name="new_label" placeholder="New fee" aria-label="New fee"></td><td><input type="number" step="0.01" name="new_amount" placeholder="$" aria-label="New fee's price"></td>
     <td colspan="{{ 1 + ((taxes_|length) if taxes_|length > 1 else 1) }}">{{ seg('new_unit', [('flat','flat'),('hour','per hr'),('each','each'),('mile','per mi')], 'flat', label='New fee charged') }}</td>
     <td style="white-space:nowrap">{% if taxes_|length > 1 %}{% for t_ in taxes_ %}<label class="ui-check"><input type="checkbox" name="new_tax_{{ t_.key }}" value="1" checked>{{ t_.name }}</label>{% endfor %}{% else %}<label class="ui-check"><input type="checkbox" name="new_taxable" value="1" checked>{{ taxes_[0].name if taxes_ else 'Sales tax' }}</label>{% endif %}</td></tr>
@@ -259,16 +267,7 @@
 {% elif tab == 'calendar' %}
 
 {% set feed_ = calendar_feed_url() %}
-
-{% call sui.section('Your sessions in a calendar', id='calendar-choice', tip="Two ways, each optional. Use either, both, or neither.") %}
-  <div class="ui-form-row"><span class="ui-grow"><b>Send them to your calendar</b> at Google, Outlook, iCloud, and others.{{ help("Your studio adds each session to a calendar you choose and keeps it up to date. It connects to that calendar service to do it, and sends only each session's type, day, start time, and length.") }}
-    {%- if plugin_on('calendar_send') and setting('calsend_kind') %} {{ ui.chip('On', 'done') }}{% endif %}</span>
-    {%- if plugin_on('calendar_send') %}{{ ui.button_link(url_for('calendar_send_settings'), 'Open' if setting('calsend_kind') else 'Set up') }}
-    {%- else %}{{ ui.button_link(url_for('plugin_page', name='calendar_send'), 'Set up') }}{% endif %}</div>
-  <div class="ui-form-row"><span class="ui-grow"><b>Keep them at home</b> with a private link your phone subscribes to.{{ help("Nothing leaves your studio: your phone asks the studio for the calendar. Below.") }}
-    {%- if feed_ %} {{ ui.chip('On', 'done') }}{% endif %}</span></div>
-{% endcall %}
-{% call sui.section('Calendar link', id='calendar-link', help_text="A private address your phone's calendar app subscribes to (Add calendar, then From URL or Subscribe). Each session shows as its type, day, start time, and length, and nothing else: never a client's name, a place, a note, or an amount. A penciled date shows as tentative. Entries show the session type name, so keep type names free of client names. The link reaches your studio only where the studio itself can be reached: on your home network, or away from home through a private network you set up for it, such as Tailscale. Calendar services that fetch from their own servers, like Google Calendar on the web, can't reach it. On Android, the free app ICSx5 subscribes from the phone itself, and the sessions then show in the Google Calendar app. After a restart the studio is locked until you sign in: the phone keeps what it had and fills in again after. The phone must trust the studio's certificate, as your browser does. Anyone who has the link sees when your sessions are, so keep it to yourself; if it got out, make a new one.") %}
+{% call sui.section('Calendar link', id='calendar-link', tip="Add this link to the calendar on your phone or computer (Apple Calendar, Outlook, or the free ICSx5 app on Android); it updates on its own every few hours. Nothing leaves your studio: your calendar asks the studio for it.", help_text="A private address your phone's calendar app subscribes to (Add calendar, then From URL or Subscribe). Each session shows as its type, day, start time, and length, and nothing else: never a client's name, a place, a note, or an amount. A penciled date shows as tentative. Entries show the session type name, so keep type names free of client names. The link reaches your studio only where the studio itself can be reached: on your home network, or away from home through a private network you set up for it, such as Tailscale. Calendar services that fetch from their own servers, like Google Calendar on the web, can't reach it. On Android, the free app ICSx5 subscribes from the phone itself, and the sessions then show in the Google Calendar app. After a restart the studio is locked until you sign in: the phone keeps what it had and fills in again after. The phone must trust the studio's certificate, as your browser does. Anyone who has the link sees when your sessions are, so keep it to yourself; if it got out, make a new one.") %}
   {% if feed_ %}
   {{ ui.fact('Calendar link', 'On') }}
   {{ ui.fact('Each session shows', 'Its type, day, start time, and length') }}
@@ -281,6 +280,12 @@
   {{ ui.fact('Calendar link', 'Off') }}
   <div class="ui-btnrow">{{ ui.action(url_for('calendar_link_settings'), 'Turn on the calendar link', fields={'act': 'on'}, kind='primary', inplace=false) }}</div>
   {% endif %}
+{% endcall %}
+{% call sui.section('Send sessions to your calendar right away', id='calendar-send', tip="Optional, beside the link or instead of it.") %}
+  <div class="ui-form-row"><span class="ui-grow">Your studio adds each session to your Google, Outlook, or iCloud calendar as soon as you book or change it.{{ help("Your studio adds each session to a calendar you choose and keeps it up to date. It connects to that calendar service to do it, and sends only each session's type, day, start time, and length.") }}
+    {%- if plugin_on('calendar_send') and setting('calsend_kind') %} {{ ui.chip('On', 'done') }}{% endif %}</span>
+    {%- if plugin_on('calendar_send') %}{{ ui.button_link(url_for('calendar_send_settings'), 'Open' if setting('calsend_kind') else 'Set up') }}
+    {%- else %}{{ ui.button_link(url_for('plugin_page', name='calendar_send'), 'Set up') }}{% endif %}</div>
 {% endcall %}
 
 {% elif tab == 'system' %}

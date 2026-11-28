@@ -36,7 +36,7 @@ ADDR = EXPECTED["web_cert"]["address"]
 S3 = EXPECTED["s3"]
 LICENSE_LINE = "Your license to use the photos is set out in your agreement"
 
-PICKS_IN_AT_SHOT = {str(BY["reyes"]), str(BY["yates"])}
+PICKS_IN_AT_SHOT = {str(BY["reyes"])}
 
 def _stage_15(sid, stage):
     return "delivered" if str(sid) in PICKS_IN_AT_SHOT and stage == "shot" else stage
@@ -831,15 +831,15 @@ def test_the_1_5_stage_rules_move_the_picks_in_sessions_once_with_a_note_and_no_
     notes = {n: [r[0] for r in _q(A, "SELECT action FROM audit WHERE session_id=? AND action LIKE 'Updated to the 1.5 stage rules.%'",
                                   (BY[n],))] for n in ("reyes", "yates")}
     assert notes == {"reyes": ["Updated to the 1.5 stage rules. Moved to Delivered: the files were delivered."],
-                     "yates": ["Updated to the 1.5 stage rules. Moved to Delivered: the client's picks came in."]}
+                     "yates": []}
     moved = {str(r[0]) for r in _q(A, "SELECT DISTINCT session_id FROM audit WHERE action LIKE 'Updated to the 1.5 stage rules.%'")}
     assert moved == PICKS_IN_AT_SHOT
     for n in ("reyes", "yates"):
         assert EXPECTED["sessions"][str(BY[n])]["stage"] == "shot"
-        assert _q(A, "SELECT stage FROM sessions WHERE id=?", (BY[n],))[0][0] == "delivered"
+        assert _q(A, "SELECT stage FROM sessions WHERE id=?", (BY[n],))[0][0] == ("delivered" if n == "reyes" else "shot")
         assert _due(A, BY[n]) is None
     upd = json.loads(_q(A, "SELECT value FROM settings WHERE key='update_notice'")[0][0])
-    assert "Reyes" in upd["stages"] and "Yates" in upd["stages"]
+    assert "Reyes" in upd["stages"] and "Yates" not in upd["stages"]
     n_audit = _q(A, "SELECT COUNT(*) FROM audit")[0][0]
     A2, c2, _ = _open(tmp_path, monkeypatch)
     assert _q(A2, "SELECT COUNT(*) FROM audit")[0][0] == n_audit

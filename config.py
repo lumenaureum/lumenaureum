@@ -262,7 +262,13 @@ def delivery_method(stype, chosen=None):
         return d
     return "link" if stype and TYPE_KIND.get(stype) == "property" else "usb"
 
-def delivery_text(stype, method=None):
+def gallery_planned(stype, method=None):
+
+    if delivery_method(stype, method) == "link":
+        return True
+    return any(st[0] == "auto" and st[1] == "favorites" for steps in WORKFLOW[stype].values() for st in steps)
+
+def delivery_text(stype, method=None, gallery=None):
 
     text = fill(stype, "delivery")
     try:
@@ -275,7 +281,9 @@ def delivery_text(stype, method=None):
     if medium.split(" ", 2)[-1] in core or core.startswith("["):
         medium = ""
     out = core + (("," if "," in core else "") + " " + medium if medium else "")
-    if m and on:
+    if gallery is None:
+        gallery = gallery_planned(stype, method)
+    if m and on and gallery:
         out += m.group(0) if m.group(0).startswith(",") else ", " + m.group(0).strip()
     return out
 
@@ -569,6 +577,10 @@ def with_family_money(flow):
 MONEY_STEPS = {("auto", "quote_built"), ("do", "Send quote"), ("do", "Client said yes"), ("auto", "deposit_paid"),
                ("do", "Send invoice"), ("auto", "balance_paid")}
 
+def without_retouch(flow):
+
+    return {k: [st for st in v if (st[0], st[1]) not in RETOUCH_STEPS] for k, v in flow.items()}
+
 def without_money(flow):
 
     return {k: [st for st in v if (st[0], st[1]) not in MONEY_STEPS] for k, v in flow.items()}
@@ -585,7 +597,10 @@ def build_types():
         types = preset_types(BASIC_PRESETS)
     g["SESSION_TYPES"] = _ByType({t["key"]: t["label"] for t in types}, "Session")
     g["TYPE_KIND"] = _ByType({t["key"]: t["kind"] for t in types}, "portrait")
-    g["WORKFLOW"] = _ByType({t["key"]: type_flow(t) for t in types}, PORTRAIT_FLOW)
+
+    g["WORKFLOW_RETOUCH"] = _ByType({t["key"]: type_flow(t) for t in types}, PORTRAIT_FLOW)
+    g["WORKFLOW"] = g["WORKFLOW_RETOUCH"] if g.get("OFFER_RETOUCH", True) else _ByType(
+        {k_: without_retouch(v_) for k_, v_ in g["WORKFLOW_RETOUCH"].items()}, without_retouch(PORTRAIT_FLOW))
     g["POLICY"] = _ByType({t["key"]: {**DEFAULT_POLICY, **(t.get("policy") or {})} for t in types}, dict(DEFAULT_POLICY))
     g["INTAKE"] = _ByType({t["key"]: type_questions(t) for t in types}, _PORTRAIT_INTAKE)
     g["NEEDS_AGREEMENT"] = {t["key"] for t in types if KINDS[t["kind"]]["agreement"]}
@@ -627,6 +642,9 @@ QUOTE_TERM_DAYS = 14
 DELIVERY_DAYS = 14
 RESCHEDULE_FEE = 50
 RETOUCH_PICKS = 5
+
+OFFER_RETOUCH = True
+RETOUCH_STEPS = {("auto", "favorites"), ("do", "Send retouched photos")}
 MARKETING_PICKS = 2
 
 EXTRA_PERSON_FEE = 25
@@ -649,7 +667,8 @@ NET_TERMS_TYPES = tuple(t["key"] for t in TYPES if t["kind"] == "property")
 LICENSE_TYPES = tuple(t["key"] for t in TYPES if t["kind"] == "property")
 OFFERED_TYPES = tuple(SESSION_TYPES)
 
-def build_editing(stype=None):
+def build_editing(stype=None, retouch=True):
+
     if stype and TYPE_KIND.get(stype) == "property":
         return [
             ("Editing (every delivered image)", [
@@ -661,12 +680,17 @@ def build_editing(stype=None):
                               + ", unless quoted."]),
             ("More editing", ["At the per-image price on the price list. Anything heavier gets a quote first."]),
         ]
+    basics = ("Editing (every delivered image)", [
+        "Culling: the best frames only, no near-duplicates, blinks or missed focus.",
+        "Exposure, white balance, color and contrast, matched across the whole set.",
+        "Cropping and straightening.",
+    ])
+    if not OFFER_RETOUCH or not retouch:
+        return [basics, ("Not included", [
+            "Removing people or objects from the scene, composites, replacing backgrounds.",
+        ])]
     return [
-        ("Editing (every delivered image)", [
-            "Culling: the best frames only, no near-duplicates, blinks or missed focus.",
-            "Exposure, white balance, color and contrast, matched across the whole set.",
-            "Cropping and straightening.",
-        ]),
+        basics,
         (f"Light retouching (up to {RETOUCH_PICKS} favorites the client picks)", [
             "Stray fur, eye discharge, a leash or lead where it is simple to remove.",
             "The aim is that they still look like themselves.",
@@ -863,7 +887,8 @@ TERMS = build_terms()
 RULE_KEYS = ("DEPOSIT_AMOUNT", "EVENT_DEPOSIT_PCT", "BALANCE_NET_DAYS", "NET_TERMS_TYPES", "LICENSE_TYPES",
              "RESCHEDULE_FEE", "PAYMENT_METHODS", "DELIVERY_DAYS", "EVENT_DELIVERY_DAYS", "GALLERY_DAYS",
              "GALLERY_UNOPENED_DAYS", "RETOUCH_PICKS", "MARKETING_PICKS", "EXTRA_PERSON_FEE", "RETOUCH_FEE",
-             "TRAVEL_FREE_MILES", "OFFERED_TYPES", "TYPES", "DISCOUNTS", "BALANCE_BEFORE_DAYS", "BEFORE_TYPES")
+             "TRAVEL_FREE_MILES", "OFFERED_TYPES", "TYPES", "DISCOUNTS", "BALANCE_BEFORE_DAYS", "BEFORE_TYPES",
+             "OFFER_RETOUCH")
 _DEFAULTS = {}
 
 def apply(rules):
@@ -886,6 +911,8 @@ def apply(rules):
             g[k] = copy.deepcopy(list(v))
         elif k == "DISCOUNTS":
             g[k] = [("", "No discount", 0)] + [tuple(d) for d in v if d and d[0]]
+        elif k == "OFFER_RETOUCH":
+            g[k] = bool(v)
         else:
             g[k] = v
     build_types()

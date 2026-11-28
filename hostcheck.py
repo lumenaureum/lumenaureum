@@ -280,7 +280,7 @@ FEATURES = (("expiry", "Galleries close on their last day, even with Lumen Aureu
             ("picks", "Clients' picks come back by themselves (sealed)"),
             ("inquiry", "The studio page's inquiry form"),
             ("prints", "Print ordering from download galleries"),
-            ("codeword", "Galleries with a codeword"))
+            ("codeword", "Galleries with a passphrase"))
 GATE_NOTE = "its web server hands out gallery files without asking for the key"
 
 GATED = ("expiry", "codeword")
@@ -336,7 +336,7 @@ def worse(was, now):
     if was.get("gate") is not False and now.get("gate") is False and was.get("kind") == "ok":
         return ("Your web host now hands out gallery files without asking for the key, so galleries there no longer "
                 "close on their last day by themselves (Lumen Aureum still takes each one down on its last day), and no "
-                "new gallery with a codeword can go there. Someone with the link of a gallery with a codeword already "
-                "there could now try codewords much faster: take those galleries down, or move to a web host that "
+                "new gallery with a passphrase can go there. Someone with the link of a gallery with a passphrase already "
+                "there could now try passphrases much faster: take those galleries down, or move to a web host that "
                 "passes the check in Setup, Online galleries.")
     return ""

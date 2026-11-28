@@ -67,6 +67,8 @@ def _is_lan(host):
     addrs = {ipaddress.ip_address(i[4][0].split("%")[0]) for i in infos}
     return bool(addrs) and all(a.is_private or a.is_loopback or a.is_link_local for a in addrs)
 
+BAD_ADDRESS = "the server address isn't a web address this can use (check it for typos)"
+
 def origin(url):
     u = urllib.parse.urlsplit(url)
     return (u.scheme.lower(), (u.hostname or "").lower(), u.port or (443 if u.scheme.lower() == "https" else 80))
@@ -92,18 +94,21 @@ def fetch(method, url, headers=None, body=None, lan_http=False, *, max_body=None
           too_big="the answer was far larger than a calendar's should be"):
 
     max_body = MAX_BODY if max_body is None else max_body
-    u = urllib.parse.urlsplit(url)
-    scheme, host, port = origin(url)
-    if not host:
-        raise SendError("the address is not complete")
-    if scheme == "https":
-        conn = http.client.HTTPSConnection(host, port, timeout=TIMEOUT, context=_context())
-    elif scheme == "http" and lan_http and _is_lan(host):
-        conn = http.client.HTTPConnection(host, port, timeout=TIMEOUT)
-    elif scheme == "http":
-        raise SendError("the address must start with https:// (plain http is accepted only on your own network)")
-    else:
-        raise SendError("the address must start with https://")
+    try:
+        u = urllib.parse.urlsplit(url)
+        scheme, host, port = origin(url)
+        if not host:
+            raise SendError("the address is not complete")
+        if scheme == "https":
+            conn = http.client.HTTPSConnection(host, port, timeout=TIMEOUT, context=_context())
+        elif scheme == "http" and lan_http and _is_lan(host):
+            conn = http.client.HTTPConnection(host, port, timeout=TIMEOUT)
+        elif scheme == "http":
+            raise SendError("the address must start with https:// (plain http is accepted only on your own network)")
+        else:
+            raise SendError("the address must start with https://")
+    except (ValueError, http.client.InvalidURL):
+        raise SendError(BAD_ADDRESS) from None
     path = (u.path or "/") + (("?" + u.query) if u.query else "")
     hdrs = {"User-Agent": USER_AGENT, "Accept-Encoding": "identity"}
     hdrs.update(headers or {})
@@ -136,6 +141,8 @@ def fetch(method, url, headers=None, body=None, lan_http=False, *, max_body=None
         return r.status, {k.lower(): v for k, v in r.getheaders()}, b"".join(chunks)
     except SendError:
         raise
+    except (ValueError, http.client.InvalidURL):
+        raise SendError(BAD_ADDRESS) from None
     except ssl.SSLCertVerificationError:
         raise SendError("its security certificate isn't one this studio can trust") from None
     except (socket.timeout, TimeoutError):
@@ -367,8 +374,11 @@ class CalDAVConnection(Connection):
         url = (url or "").strip()
         if url and "://" not in url:
             url = "https://" + url
-        if not url or not origin(url)[1]:
-            raise SendError("enter the server's address")
+        try:
+            if not url or not origin(url)[1]:
+                raise SendError("enter the server's address")
+        except ValueError:
+            raise SendError(BAD_ADDRESS) from None
         self.url, self.user, self.password = url, (user or "").strip(), password or ""
         self.base = origin(url)
 

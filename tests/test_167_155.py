@@ -331,7 +331,7 @@ def test_a_session_sealed_with_the_lost_key_says_so_plainly(venv):
     from vault import keys as K
     new, _ = replace(c)
     import html
-    page = html.unescape(c.get("/c/1?s=1", environ_base=E).get_data(as_text=True))
+    page = html.unescape(c.get("/c/1?s=1&show=storage", environ_base=E).get_data(as_text=True))
     assert K.LOST_TEXT in page and "Open for a reprint" not in page
     j = reprint(A, c, new)
     assert j.get("state") == "error" and j.get("message") == K.LOST_TEXT

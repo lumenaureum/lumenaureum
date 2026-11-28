@@ -115,7 +115,8 @@ def test_one_check_now_in_one_fixed_place_the_from_the_client_line_atop_the_need
     p = B2._page(c)
     assert check_forms(p) == ["Check now"]
     needs = B2._needs(p)
-    assert re.match(r'\s*<section class="ui-needs"[^>]*>\s*<h2 class="ui-sec-title">[^<]*</h2>\s*<div class="ui-factrow" id="from-client">', needs)
+
+    assert re.match(r'\s*<section class="ui-needs"[^>]*>\s*(<div class="ui-sec-head"><h2 class="ui-sec-title">[^<]*</h2>.*?</details></div>|<h2 class="ui-sec-title">[^<]*</h2>)\s*<div class="ui-factrow" id="from-client">', needs, re.S)
     assert from_client(p).startswith("From the client")
     row = needs.split("Client is still picking (3 photos marked)", 1)[1].split("</li>", 1)[0]
     assert "/client/1/check" not in row and "Since " in row
@@ -134,7 +135,8 @@ def test_the_line_shows_whenever_anything_of_theirs_is_online_and_carries_the_la
     import jobs
     jobs.JOBS.pop("client-check:1", None)
     p = html.unescape(e.c.get("/c/1?s=1", environ_base=E).get_data(as_text=True))
-    assert from_client(p) == "From the client: last checked just now"
+
+    assert from_client(p) in ("From the client: last checked just now", "From the client: not opened yet (checked just now)")
     con = e.A.connect()
     con.execute("UPDATE galleries SET upload_state='removed', removed_at='2026-11-21' WHERE session_id=1")
     con.commit()

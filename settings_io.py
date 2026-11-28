@@ -388,6 +388,11 @@ def _rules(raw):
         if k == "DISCOUNTS":
             out[k] = _discounts(v)
             continue
+        if k == "OFFER_RETOUCH":
+            if not isinstance(v, bool):
+                raise ImportProblem(f"rules.{k}: expected true or false")
+            out[k] = v
+            continue
         if k in ("NET_TERMS_TYPES", "LICENSE_TYPES", "OFFERED_TYPES", "PAYMENT_METHODS", "BEFORE_TYPES"):
             if not isinstance(v, list) or not all(isinstance(x, str) and len(x) <= 60 for x in v) or len(v) > 50:
                 raise ImportProblem(f"rules.{k}: expected a short list of names")
@@ -662,6 +667,11 @@ def _inside_private(path):
     under = lambda d: real == d or real.startswith(d.rstrip("/") + "/")
     return real == data or under(prog) or any(under(p_) for p_ in private)
 
+FONT_TEXT_MAX = 3_000_000
+LOGO_TEXT_MAX = 600_000
+
+FILE_MAX = 2 * FONT_TEXT_MAX + 2 * LOGO_TEXT_MAX + 4_000_000
+
 def parse(text, current_storage):
 
     try:
@@ -673,8 +683,8 @@ def parse(text, current_storage):
     raw = data.get("settings") or {}
     if not isinstance(raw, dict):
         raise ImportProblem("settings: not a list of settings")
-    settings = {k: _text(v, k, 20000 if k.endswith("_text") else 600000 if k in ("logo_png", "logo_dark_png")
-                     else 3000000 if k in ("brand_font_400", "brand_font_300") else MAX_TEXT)
+    settings = {k: _text(v, k, 20000 if k.endswith("_text") else LOGO_TEXT_MAX if k in ("logo_png", "logo_dark_png")
+                     else FONT_TEXT_MAX if k in ("brand_font_400", "brand_font_300") else MAX_TEXT)
                 for k, v in raw.items() if k in SETTING_KEYS}
     for k_ in ("sales_tax_pct", "local_tax_pct", "mileage_rate", "home_lat", "home_lon", "quote_term_days", "age_majority"):
         v_ = (settings.get(k_) or "").strip()

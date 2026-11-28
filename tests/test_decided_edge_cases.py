@@ -244,7 +244,8 @@ def test_e14_price_list_quantity_and_discount_after_booking(env):
     assert any("Set the discount to 10%" in h for h in hist)
     assert any(h.startswith("Booked the new quote") and "$720" in h for h in hist)
 
-def test_e15_date_move_reopens_details_and_counts_reschedules(env):
+def test_e15_date_move_keeps_closed_steps_closed_and_counts_reschedules(env):
+
     A, c = env
     run(A, """INSERT INTO sessions (id, household_id, type, stage, shoot_date, start_time, stops)
               VALUES (1, 1, 'portrait', 'booked', '2026-12-05', '16:00', 'Riverside park')""")
@@ -255,7 +256,7 @@ def test_e15_date_move_reopens_details_and_counts_reschedules(env):
     run(A, "UPDATE tasks SET done='2026-11-10', outcome='done' WHERE session_id=1 AND title IN (?, ?)", titles)
     c.post("/session/1/quick", data={"act": "date", "shoot_date": "2026-12-13", "start_time": "16:00"}, environ_base=E)
     con = A.connect()
-    assert [r[0] for r in con.execute("SELECT done FROM tasks WHERE session_id=1 AND title IN (?, ?)", titles)] == [None, None]
+    assert [r[0] for r in con.execute("SELECT done FROM tasks WHERE session_id=1 AND title IN (?, ?)", titles)] == ["2026-11-10", "2026-11-10"]
     con.close()
     run(A, "UPDATE tasks SET done='2026-11-12', outcome='done' WHERE session_id=1 AND title IN (?, ?)", titles)
     s = c.get("/session/1/edit", environ_base=E).get_data(as_text=True)
@@ -263,7 +264,7 @@ def test_e15_date_move_reopens_details_and_counts_reschedules(env):
     c.post("/session/1", data={"title": "", "type": "portrait", "shoot_date": "2026-12-20", "start_time": "16:00",
                                "stops": "Riverside park", "seen": stamp}, environ_base=E)
     assert one(A, "SELECT shoot_date FROM sessions WHERE id=1")[0] == "2026-12-20"
-    assert one(A, "SELECT COUNT(*) FROM tasks WHERE session_id=1 AND done IS NULL AND title IN (?, ?)", titles)[0] == 2
+    assert one(A, "SELECT COUNT(*) FROM tasks WHERE session_id=1 AND done IS NULL AND title IN (?, ?)", titles)[0] == 0
     with A.app.test_request_context():
         assert A.reschedules(1) == 2
     assert "Rescheduled 2 times" in c.get("/c/1", environ_base=E).get_data(as_text=True)

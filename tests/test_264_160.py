@@ -70,6 +70,28 @@ def test_off_by_default_and_the_page_says_so(env):
     assert "/calendar-feed/" not in page
     assert _feed(A, "x" * 43).status_code == 404
 
+def test_the_link_is_the_first_thing_on_the_page_in_plain_words(env):
+
+    import html as html_
+    import re as re_
+    A, c = env
+    for state in ("off", "on"):
+        if state == "on":
+            _turn(c, "on")
+        page = c.get("/settings?tab=calendar", environ_base=E).get_data(as_text=True)
+        main = page[page.index('id="calendar-link"'):]
+        main = main[:main.index("</section>", main.index('id="calendar-send"'))]
+        assert page.count("<section", page.index('id="ui-head"'), page.index('id="calendar-link"')) == 1
+        assert "Add this link to the calendar on your phone or computer" in html_.unescape(main)
+        assert "updates on its own every few hours" in main
+        assert main.index('id="calendar-link"') < main.index('id="calendar-send"')
+        assert "Send sessions to your calendar right away" in main
+        btn = ">Turn on the calendar link</button>" if state == "off" else ">Copy the link</button>"
+        assert btn in main and main.index(btn) < main.index('id="calendar-send"')
+        words = html_.unescape(re_.sub(r"<[^>]+>", " ", main)).lower()
+        for jargon in ("oauth", "client id", "scope", "service account", "api key", "token"):
+            assert jargon not in words, jargon
+
 def test_the_feed_is_redacted_to_type_day_time_and_length(env):
     A, c = env
     _studio(A)

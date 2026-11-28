@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% block title %}Use this codeword? - Lumen Aureum{% endblock %}
+{% block title %}Use this passphrase? - Lumen Aureum{% endblock %}
 {% block body %}
 <section class="clash" role="alert" id="confirm" style="margin:10px 0;padding:12px 16px">
-  <h1 style="margin:0 0 6px;font-size:20px">Use "{{ word }}" as the codeword?</h1>
+  <h1 style="margin:0 0 6px;font-size:20px">Use "{{ word }}" as the passphrase?</h1>
   <p style="margin:0">It is easy to guess. Anyone with the gallery link could try words until one opens it.</p>
   <form method="post" action="{{ action }}" class="row" style="margin-top:10px;gap:10px">
     {% for k, v in fields %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}

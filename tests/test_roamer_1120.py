@@ -11,16 +11,18 @@ def _page(c, sid=1):
     return c.get(f"/c/1?s={sid}", environ_base=E).get_data(as_text=True)
 
 def _moves(page):
-    return page.split('id="stage-moves"', 1)[1].split("</div>", 1)[0]
+
+    return page.split('id="more-tasks"', 1)[1].split("</details>", 1)[0]
 
 def test_skip_to_shot_says_why_before_the_shoot_date(env):
     A, c = env
     _session(A, "booked", days=6)
     page = _page(c)
-    assert '<div class="ui-btnrow" id="stage-moves" data-ui-part>' in page
+    assert '<section class="ui-needs" id="needs" data-ui-part>' in page
     row = _moves(page)
-    assert re.search(r'<button type="button" class="ui-btn ui-btn-quiet" disabled aria-describedby="skip-why">Skip to Shot</button>', row)
-    assert "Not before the shoot date, " in row and "If the shoot already happened, set its real date." in row
+    assert re.search(r'aria-disabled="true"><span class="ui-topic-label">Skip to Shot</span>', row)
+    assert "Not before the shoot date, " in row and "Shot already? Use Mark shot." in row
+    assert '<span class="ui-topic-label">Mark shot</span></button>' in row
     _sql(A, "UPDATE sessions SET shoot_date=NULL WHERE id=1")
     assert "Set the shoot date first." in _moves(_page(c))
     _sql(A, "UPDATE sessions SET shoot_date=?, date_tentative=1 WHERE id=1", (A.today().isoformat(),))
@@ -30,8 +32,7 @@ def test_skip_to_shot_is_offered_once_the_date_has_come(env):
     A, c = env
     _session(A, "booked", days=-1)
     row = _moves(_page(c))
-    assert "skip-why" not in row and "disabled" not in row
-    assert ">Skip to Shot</button>" in row
+    assert "Skip to Shot</span></button>" in row and "Not before the shoot date" not in row
 
 def test_a_step_the_edited_photos_ticked_says_why(env):
     A, c = env

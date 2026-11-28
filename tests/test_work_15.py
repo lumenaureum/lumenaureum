@@ -73,6 +73,9 @@ def test_length_comes_from_the_quote_in_words_and_is_read_only(env):
     assert 'name="duration_min"' in page
     _price(A, c, "400")
     page = c.get("/session/1/edit", environ_base=E).get_data(as_text=True)
+    assert 'name="duration_min"' in page
+    _sql(A, "INSERT INTO lines (session_id, label, amount, kind, fee_key) VALUES (1, 'Family session (1 hr)', 300, 'fee', 'family')")
+    page = c.get("/session/1/edit", environ_base=E).get_data(as_text=True)
     assert 'name="duration_min"' not in page and "Length" in page and "1 hour</span>" in page
     stamp = page.split('name="seen" value="')[1].split('"')[0]
     c.post("/session/1", data={"title": "", "type": "family", "shoot_date": _day(A, 30), "start_time": "", "stops": "",
@@ -108,7 +111,8 @@ def test_license_terms_sit_with_the_quote_and_lock_at_book_it(biz):
     assert _stage(A) == "booked"
     r = c.post("/session/1/quote/license", data={"lic_term": "forever", "lic_present": "1"}, environ_base=E)
     assert r.status_code == 302 and _sql(A, "SELECT lic_term FROM sessions WHERE id=1")[0][0] == "2 years"
-    bill = _page(c).split('id="billing"', 1)[1]
+
+    bill = c.get("/c/1?s=1&show=billing", environ_base=E).get_data(as_text=True).split('id="billing"', 1)[1]
     assert 'action="/session/1/quote/license"' not in bill and "2 years, United States, exclusive" in bill
     edit = c.get("/session/1/edit", environ_base=E).get_data(as_text=True)
     stamp = edit.split('name="seen" value="')[1].split('"')[0]
@@ -126,8 +130,9 @@ def test_shot_follows_the_work_and_never_stacks_parentheticals(env, monkeypatch)
     words = _words(_page(c))
     first = [w for w in words if "From Booked" in w]
     assert first and all(words.index(w) < words.index(next(x for x in words if x.startswith("Upload original photos"))) for w in first)
-    order = ["Upload original photos", "Cull", "Upload edited photos", "Gallery", "Invoice ($400.00 balance, Family session)",
-             "Mail QR letter once paid"]
+
+    assert not [w for w in words if w.startswith("Mail QR letter once paid")]
+    order = ["Upload original photos", "Cull", "Upload edited photos", "Gallery", "Invoice ($400.00 balance, Family session)"]
     at = [next((i for i, w in enumerate(words) if w.startswith(o)), o) for o in order]
     assert all(isinstance(i, int) for i in at), (at, words)
     assert at == sorted(at), words
@@ -184,8 +189,8 @@ def test_replace_the_quote_cancels_and_keeps_it_and_book_it_clears_it(env):
     _pay(A, c, str(dep), kind="deposit")
     _page(c)
     assert _sql(A, "SELECT COUNT(*) FROM doc_snapshots WHERE kind='agreement' AND ref=1")[0][0] == 1
-    more = _page(c).split('id="more"', 1)[1]
-    assert ">Replace the quote</button>" in more and "agreed to $400" in more and "fresh signature on the agreement" in more
+    more = _page(c).split('id="more-payments"', 1)[1].split("</details>", 1)[0]
+    assert ">Replace the quote</span></button>" in more and "agreed to $400" in more and "fresh signature on the agreement" in more
 
     c.post("/session/1/quote/fee", data={"fee_key": "custom", "label": "Album", "amount": "300", "qty": "1"}, environ_base=E)
     assert not _sql(A, "SELECT 1 FROM lines WHERE label='Album'")

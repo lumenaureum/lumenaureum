@@ -198,13 +198,14 @@ class _Clock:
                 return real(day.year, day.month, day.day, hh, 0, tzinfo=tz)
         monkeypatch.setattr(A, "datetime", Fixed)
 
-def test_shoot_done_hidden_before_start_time(env, monkeypatch):
+def test_shoot_done_from_the_shoot_dates_morning(env, monkeypatch):
+
     A, c = env
     _Clock.install(A, monkeypatch, 10)
     _session(A, "booked", days=0, start="11:00")
-    assert not [a for a in _acts(A) if a.get("shoot_done")]
+    assert [a for a in _acts(A) if a.get("shoot_done")]
     page = c.get("/c/1?s=1", environ_base=E).get_data(as_text=True)
-    assert ">Shoot done</button>" not in page
+    assert ">Shoot done</button>" in page
     _sql(A, "UPDATE sessions SET start_time='09:30'")
     assert [a for a in _acts(A) if a.get("shoot_done")]
     page = c.get("/c/1?s=1", environ_base=E).get_data(as_text=True)
@@ -246,7 +247,11 @@ def test_forward_move_carries_open_steps_and_lists_them_in_history(env):
     assert {"Upload original photos", "Cull"} <= {a["what"] for a in acts}
 
     c.post("/session/1/quick", data={"act": "favorites", "retouch_picks": "IMG_0001", "favorites": "", "veto": ""}, environ_base=E)
-    assert _stage(A) == "delivered"
+    assert _stage(A) == "shot"
+    _sql(A, "UPDATE tasks SET done=?, outcome='done' WHERE session_id=1 AND stage IN ('shot','delivered') AND done IS NULL",
+         (_day(A, 0),))
+    c.post("/session/1/quick", data={"act": "mark", "field": "sd_shipped"}, environ_base=E)
+    assert _stage(A) in ("delivered", "closed")
 
 def test_shot_entry_closes_preshoot_steps_as_not_needed(env):
     A, c = env
@@ -293,37 +298,38 @@ def test_new_step_in_past_stage_inserted_not_needed(env):
     assert t[1] and t[2] == "na"
     assert not [a for a in _acts(A) if a["what"].startswith("Cull")]
 
-def test_picks_move_shot_to_delivered_from_sync_paste_and_form(env):
+def test_picks_alone_never_move_shot_to_delivered_from_sync_paste_and_form(env):
+
     A, c = env
 
     _session(A, "shot", days=-5, sid=1)
     c.post("/session/1/quick", data={"act": "favorites", "retouch_picks": "IMG_0002", "favorites": "IMG_0003", "veto": ""}, environ_base=E)
-    assert _stage(A, 1) == "delivered"
-    assert _history(A, 1)[-1].startswith("Moved to Delivered: the client's picks came in.")
+    assert _stage(A, 1) == "shot"
+    assert not [h for h in _history(A, 1) if h.startswith("Moved to Delivered")]
 
     _session(A, "shot", days=-5, sid=2)
     c.post("/session/2/delivery", data={"retouch_picks": "IMG_0009", "favorites": "", "veto": ""}, environ_base=E)
-    assert _stage(A, 2) == "delivered"
+    assert _stage(A, 2) == "shot"
 
     _session(A, "shot", days=-5, sid=3)
     _sql(A, "UPDATE sessions SET favorites='IMG_0004' WHERE id=3")
     with A.app.app_context():
         A.advance(3)
-    assert _stage(A, 3) == "delivered"
-    assert any(h.startswith("Moved to Delivered: the client's picks came in.") for h in _history(A, 3))
+    assert _stage(A, 3) == "shot"
 
     _session(A, "booked", days=-3, sid=4)
     _sql(A, "UPDATE sessions SET favorites='IMG_0005' WHERE id=4")
     with A.app.app_context():
         A.advance(4)
-    assert _stage(A, 4) == "delivered"
-    assert [r[0] for r in _sql(A, "SELECT stage FROM stage_log WHERE session_id=4 ORDER BY id")] == ["booked", "shot", "delivered"]
+    assert _stage(A, 4) == "shot"
+    assert [r[0] for r in _sql(A, "SELECT stage FROM stage_log WHERE session_id=4 ORDER BY id")] == ["booked", "shot"]
 
 def test_picks_never_move_a_session_moved_back_by_hand(env):
     A, c = env
     _session(A, "shot", days=-5)
     c.post("/session/1/quick", data={"act": "favorites", "retouch_picks": "IMG_0002", "favorites": "", "veto": ""}, environ_base=E)
-    assert _stage(A) == "delivered"
+    assert _stage(A) == "shot"
+    c.post("/session/1/stage", data={"stage": "delivered"}, environ_base=E)
     c.post("/session/1/stage", data={"stage": "shot"}, environ_base=E)
     _in(A, lambda: A.advance(1))
     _in(A, lambda: A.advance(1))
@@ -335,6 +341,7 @@ def test_picks_move_does_not_start_raw_clock(env):
     due = A.app.config["retention_due"]
     _session(A, "shot", days=-5)
     c.post("/session/1/quick", data={"act": "favorites", "retouch_picks": "IMG_0002", "favorites": "", "veto": ""}, environ_base=E)
+    c.post("/session/1/stage", data={"stage": "delivered"}, environ_base=E)
     assert _stage(A) == "delivered" and _sql(A, "SELECT 1 FROM stage_log WHERE session_id=1 AND stage='delivered'")
     with A.app.app_context():
         assert due(1) is None
@@ -383,7 +390,7 @@ def test_delivered_and_paid_auto_closes(env):
     h = _history(A)
     assert h[-1] == "Moved to Closed: delivered and paid in full." and h[-2].startswith("Recorded a $")
     page = c.get("/c/1?s=1", environ_base=E).get_data(as_text=True)
-    assert ">Reopen at Delivered</button>" in page and "+ New session for Morgan" in page
+    assert ">Reopen at Delivered</span></button>" in page and "+ New session for Morgan" in page
     assert "closes by itself" not in page
 
 def test_closed_reopen_holds(env):

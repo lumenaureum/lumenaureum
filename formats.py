@@ -41,7 +41,7 @@ def money_before_15(v):
     a = abs(v)
     return ("-" if v < 0 else "") + (f"${a:,.0f}" if a.is_integer() else f"${a:,.2f}")
 
-CODEWORD_LEFT_OUT = "(the gallery codeword you chose with me)"
+CODEWORD_LEFT_OUT = "(the gallery passphrase you chose with me)"
 
 def drop_codewords(text, words):
 

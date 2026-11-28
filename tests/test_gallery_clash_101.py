@@ -39,11 +39,11 @@ def viewer_runs():
 def test_unreachable_does_not_ask_for_the_word_and_retries_with_it(viewer_runs):
     r = viewer_runs["word_network_retry"]
     first, retry = r["seen"][0], r["seen"][1]
-    assert "protected by a word" in first["say"] and first["form"] and not first["err"]
+    assert "protected by a passphrase" in first["say"] and first["form"] and not first["err"]
     assert retry["what"] == "retry"
     assert retry["err"].startswith("Could not reach the gallery") and "Check your connection and try again." in retry["err"]
     assert "Enter the word" not in retry["err"] + retry["say"]
-    assert retry["buttons"] == ["Try again", "Use a different word"] and retry["focus"] == "Try again"
+    assert retry["buttons"] == ["Try again", "Use a different passphrase"] and retry["focus"] == "Try again"
     assert not retry["form"] and retry["prefill"] == "blue river stone"
 
     assert r["title"] == "Lane" and r["fetches"] == 3
@@ -51,7 +51,7 @@ def test_unreachable_does_not_ask_for_the_word_and_retries_with_it(viewer_runs):
 def test_wrong_word_is_an_alert_and_asks_again(viewer_runs):
     r = viewer_runs["word_wrong_then_right"]
     wrong = r["seen"][1]
-    assert wrong["err"].startswith("That word doesn't open this gallery") and "Enter the word" in wrong["err"]
+    assert wrong["err"].startswith("That passphrase doesn't open this gallery") and "Enter the passphrase" in wrong["err"]
     assert wrong["form"] and wrong["prefill"] == "" and not wrong["say"]
     assert r["title"] == "Lane"
 
@@ -105,7 +105,7 @@ def test_a_weak_codeword_asks_once_then_saves(tmp_path, monkeypatch):
     assert _delivery(c, sid, "spruce otter raven").status_code == 302
     r = _delivery(c, sid, "blue")
     page = r.get_data(as_text=True)
-    assert r.status_code == 200 and 'Use "blue" as the codeword?' in page and "Use it anyway" in page
+    assert r.status_code == 200 and 'Use "blue" as the passphrase?' in page and "Use it anyway" in page
     assert "Anyone with the gallery link could try words until one opens it." in page
     assert _q(A, "SELECT gallery_codeword FROM sessions WHERE id=?", (sid,))[0][0] == "spruce otter raven"
     assert c.post(f"/session/{sid}/delivery", data={"gallery_codeword": "blue", "cw_ok": "1"}, environ_base=E).status_code == 302
@@ -116,7 +116,7 @@ def test_a_weak_codeword_at_intake_asks_and_keeps_the_form(tmp_path, monkeypatch
     before = _q(A, "SELECT COUNT(*) FROM sessions")[0][0]
     r = c.post("/inquiry", data={"gallery_codeword": "blue  sky", "type": "family"}, environ_base=E)
     page = r.get_data(as_text=True)
-    assert r.status_code == 200 and 'Use "blue sky" as the codeword?' in page
+    assert r.status_code == 200 and 'Use "blue sky" as the passphrase?' in page
     assert 'name="type" value="family"' in page
     assert _q(A, "SELECT COUNT(*) FROM sessions")[0][0] == before
 
@@ -131,7 +131,7 @@ def test_make_one_for_me_saves_a_generated_codeword(tmp_path, monkeypatch):
     from plugins import gallery as G
     assert len(w.split()) == 5 and all(p_ in G.CODEWORD_WORDS for p_ in w.split()) and G.codeword_strong(w)
     page = c.get(f"/session/{sid}/edit", environ_base=E).get_data(as_text=True)
-    assert "Saved the gallery codeword, but" not in page
+    assert "Saved the gallery passphrase, but" not in page
 
 def _stale_session(tmp_path, monkeypatch):
     A, c = _app(tmp_path, monkeypatch)

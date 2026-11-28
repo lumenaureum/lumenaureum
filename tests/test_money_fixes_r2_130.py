@@ -224,6 +224,8 @@ def test_negative_expenses_and_payments_dated_ahead_are_refused(env):
     assert one(A, "SELECT COUNT(*) FROM payments")[0] == 0
     pay(c, 1, "deposit", 100, "2026-06-02")
     assert one(A, "SELECT COUNT(*) FROM payments")[0] == 1
+    post(c, "/session/1/quote/fee", fee_key="custom", label="Session", amount="200", qty="1", taxable="1",
+         taxable_shown="1")
     post(c, "/session/1/quote/fee", fee_key="custom", label="Loyalty discount", amount="-50", qty="1", taxable="0",
          taxable_shown="1")
     assert one(A, "SELECT amount FROM lines WHERE label='Loyalty discount'")[0] == -50

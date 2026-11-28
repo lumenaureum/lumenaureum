@@ -70,9 +70,11 @@
     {% elif it.link %}{{ ui.list_row(it.link, it.text, it.sub or '', ui.chip('Late', 'late') if it.late else '') }}
     {% else %}<p>{{ it.text }}{% if it.help %}{{ help(it.help) }}{% endif %}{% if it.sub %} <span class="ui-mute">{{ it.sub }}</span>{% endif %}</p>{% endif %}</div>{% endfor %}{% endif %}
   
-  {% if B.quiet %}{% call ui.fold('Waiting on the client or nothing to do now', id='quiet', count=B.quiet|length) %}
-    {% for l in B.quiet %}<div {{ uf.item(l.f.status, l.f.due, dict(label=l.f.labels)) }}>{{ ui.list_row(l.href, l.name, l.kind ~ ', ' ~ stage_label[l.stage] ~ ('. ' ~ l.note if l.note else '')) }}</div>{% endfor %}
-  {% endcall %}{% endif %}
+  
+  {% if B.quiet %}{% set all_q_ = request.args.get('show') == 'quiet' %}<div id="quiet"><h3 class="ui-sub-title">Waiting on the client or nothing to do now ({{ B.quiet|length }})</h3>
+    {% for l in (B.quiet if all_q_ else B.quiet[:5]) %}<div {{ uf.item(l.f.status, l.f.due, dict(label=l.f.labels)) }}>{{ ui.list_row(l.href, l.name, l.kind ~ ', ' ~ stage_label[l.stage] ~ ('. ' ~ l.note if l.note else '')) }}</div>{% endfor %}
+    {% if B.quiet|length > 5 and not all_q_ %}<p class="ui-shortlist-more">{{ ui.go(url_for('home', show='quiet') ~ '#quiet', 'All ' ~ B.quiet|length ~ ' waiting') }}</p>{% endif %}
+  </div>{% endif %}
 {% endcall %}{% endif %}
 
 {% if raw_held %}{% set ns.first = false %}{% call ui.dismissible(url_for('retention_held_hide'), back, title='Deletion dates', id='raw-held', part=true, label='Hide this list', inplace=false) %}
@@ -98,9 +100,11 @@
   {% for d in days %}{% set label_ = d.date.strftime('%a %b %-d') %}
     {% set rows_ %}{% for sh in d.shoots %}{{ ui.list_row(url_for('event_view', eid=sh.eid) if sh.event else url_for('client_stage', hid=sh.hid, s=sh.sid), ('Penciled in: ' if sh.penciled else 'Not penciled: ' if sh.lead else 'Shoot: ') ~ sh.name,
         (clock(sh.time) if sh.time else ('%d families' % sh.n if sh.event else 'no start time yet')) ~ (', sunset ' ~ sh.light.sunset if sh.light else ''), '' if sh.lead else ui.chip('Shoot', 'attention')) }}{% endfor %}
-      {% for x in d.due %}{{ ui.list_row(url_for('event_view', eid=x.eid) if x.eid else (url_for('client_stage', hid=x.hid) if x.hid else x.who), x.name, x.what) }}{% endfor %}{% endset %}
-    {% set firm_ = d.shoots|rejectattr('lead')|list|length %}{% if d.due|length > 5 %}{% call ui.fold(label_ ~ ': ' ~ (firm_ ~ ' shoot' ~ ('' if firm_ == 1 else 's') ~ ', ' if firm_ else '') ~ d.due|length ~ ' steps', id='day-' ~ d.iso) %}{{ rows_ }}{% endcall %}
-    {% else %}<h3 class="ui-sub-title">{{ label_ }}</h3>{{ rows_ }}{% endif %}
+      {%- set all_d_ = request.args.get('show') == 'day-' ~ d.iso %}
+      {% for x in (d.due if all_d_ else d.due[:5]) %}{{ ui.list_row(url_for('event_view', eid=x.eid) if x.eid else (url_for('client_stage', hid=x.hid) if x.hid else x.who), x.name, x.what) }}{% endfor %}
+      {% if d.due|length > 5 and not all_d_ %}<p class="ui-shortlist-more">{{ ui.go(url_for('home', show='day-' ~ d.iso) ~ '#day-' ~ d.iso, 'All ' ~ d.due|length ~ ' steps that day') }}</p>{% endif %}{% endset %}
+    
+    <h3 class="ui-sub-title" id="day-{{ d.iso }}">{{ label_ }}</h3>{{ rows_ }}
   {% endfor %}
   <div class="ui-btnrow">{{ ui.go(url_for('month_view'), 'Month calendar') }}{{ ui.go(url_for('year_view'), 'Year calendar') }}</div>
 {% endcall %}

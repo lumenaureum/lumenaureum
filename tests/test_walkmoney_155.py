@@ -185,9 +185,13 @@ def test_the_quote_and_the_invoice_print_the_schedule(env):
     assert "comes with this quote" in qd["balance_rule"]
     assert [r["n"] for r in qd["schedule"]] == [1, 2, 3] and "paid" not in qd["schedule"][0]
     assert qd["schedule"][-1]["due"] == _ctx(A, A.long_date, rows[-1]["due"])
-    assert [r["amount"] for r in bill["schedule"]] == [r["amount"] for r in rows]
+
+    dep_ = [r for r in bill["schedule"] if r.get("deposit")]
+    assert [r["amount"] for r in bill["schedule"] if not r.get("deposit")] == [r["amount"] for r in rows]
     with A.app.test_request_context():
+        assert round(sum(r["amount"] for r in bill["schedule"]), 2) == round(A.totals(1)["due"], 2)
         doc = _text(A.render_template("_bill_doc.html", v=bill))
+    assert not dep_ or "Deposit, due now" in doc
     assert f"Payment 1 of 3, due {_ctx(A, A.long_date, rows[0]['due'])}" in doc
 
 def test_a_quote_before_booking_says_the_dates_follow_the_booking(env):

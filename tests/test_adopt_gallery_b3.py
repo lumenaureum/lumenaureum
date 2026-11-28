@@ -182,7 +182,9 @@ def test_adopting_records_the_gallery_and_changes_nothing_on_the_host(env, monke
                for h in history(A))
     page = c.get("/c/1?s=1", environ_base=E).get_data(as_text=True)
     assert ">Bring this gallery up to date<" in page and "can download 3 photos" in page
-    assert "Replace this link" not in page and "Offer prints from this gallery" not in page
+
+    assert ">Replace this link</button>" not in page and "Offer prints from this gallery" not in page
+    assert "Bring this gallery up to date first" in page
     assert "Adopt a gallery already online" not in page
 
     (host / GID / "seen.txt").write_text((datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT01:02:03Z"))
@@ -226,7 +228,7 @@ def test_refused_when_the_key_does_not_open_it(env):
     adopt(c, f"{BASE}{GID}/")
     assert "has no key" in notice(c) and nothing_adopted(A)
     adopt(c, f"{BASE}{GID}/#k={key}&c=1")
-    assert "codeword" in notice(c) and nothing_adopted(A)
+    assert "passphrase" in notice(c) and nothing_adopted(A)
 
 def test_adopting_sets_the_closing_day_from_today_not_from_an_old_first_visit(env):
     A, c, G, host, key, photos, m = env

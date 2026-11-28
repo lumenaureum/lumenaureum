@@ -91,12 +91,10 @@ def test_viewer_uses_the_own_font_from_beside_the_page():
     assert '"url(" + n + ")"' in page
     assert "fonts.googleapis" not in page and "font-src 'self'" in page
 
-def test_studio_page_build_uses_the_own_font():
+def test_studio_page_build_uses_the_own_font(tmp_path):
     from plugins import studio_page as SP
     import settings_io
-    import tempfile
-    from pathlib import Path
-    out = Path(tempfile.mkdtemp()) / "site"
+    out = tmp_path / "site"
     conf = dict(name="Studio", owner="Studio", tagline="", intro="", description="", about="", email="", phone="",
                 address="", site_url="", site_path="/", logo=None, palette=settings_io.palette("#0d0c0b"), dark=True,
                 font="own", credit=False, favicon=None, year=2026, htaccess=False, php=False, inquiry=None,

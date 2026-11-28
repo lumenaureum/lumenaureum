@@ -345,7 +345,7 @@ def test_a_codeword_gallery_is_refused_on_an_s3_host_before_any_check(tmp_path, 
     st, err = con.execute("SELECT upload_state, upload_error FROM galleries WHERE session_id=1").fetchone()
     con.close()
     assert st == "error" and err == G["WORD_REFUSED_STATIC"] and not started
-    assert "static website" in err and "remove the codeword" in err
+    assert "static website" in err and "remove the passphrase" in err
     monkeypatch.setitem(G, "host_check_now", lambda: dict(kind="ok", gate=True))
     assert G["word_refused"]() == G["WORD_REFUSED_STATIC"]
     VW.write_config(dict(VW.config(), gallery_host=dict(type="sftp", host="h.example.com", user="u", root="g")))
@@ -355,7 +355,7 @@ def test_setup_says_what_a_static_host_cannot_do(env):
     A, c, tmp = env
     page = c.get("/setup/galleries", environ_base=E).get_data(as_text=True)
     m = re.search(r'<div class="be" data-be="gallery_s3"><div class="hint">([^<]*)', page)
-    assert m and "Galleries with a codeword, print orders, and the inquiry form need a web host that runs PHP" in m.group(1)
+    assert m and "Galleries with a passphrase, print orders, and the inquiry form need a web host that runs PHP" in m.group(1)
 
 def test_security_doc_names_every_method_and_why():
     text = open(os.path.join(ROOT, "docs", "security.md")).read()

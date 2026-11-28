@@ -136,10 +136,10 @@ def steps_for(t):
                                                  _pol(t).get("wear") or C.DEFAULT_WEAR)),
                     preview=lambda: "You plan the look: " + (_pol(t).get("wear") or C.DEFAULT_WEAR) + "."
                                     + (" Outfits and props get their own lines." if _pol(t).get("outfits") else "")))
-    out.append(dict(id="codeword", title="Ask for a gallery codeword",
+    out.append(dict(id="codeword", title="Ask for a gallery passphrase",
                     why=("The client picks three words at booking, in person or on the phone. The gallery opens only with"
                          " the link and the words together."),
-                    field=("check", "gallery_codeword", "Ask for a codeword"),
+                    field=("check", "gallery_codeword", "Ask for a passphrase"),
                     get=lambda: bool(_pol(t).get("gallery_codeword", True)),
                     put=lambda f: _keep_default(t, "gallery_codeword", bool(f.get("gallery_codeword")),
                                                 _pol(t).get("gallery_codeword", True)),

@@ -103,6 +103,8 @@
 {%- set usual_ = d_.usual if d_.usual is defined and d_.usual else ('letter' if letter_ else 'usb') -%}
 {%- set card_ = d_.card if d_.card is defined else none -%}
 {%- set ways_ = (['letter', 'email', 'person'] if usual_ == 'letter' else (['card', 'person', 'email'] if card_ else ['person', 'email', 'letter'])) -%}
+
+{%- if usual_ in ('usb', 'sd', 'disc', 'card') and not online_ %}{% set ways_ = ways_|reject('in', ['email', 'letter'])|list %}{% endif -%}
 {%- set wait_ = "Put the gallery online first: the letter's QR code is its link." -%}
 {% call ui.inline_form('f-deliver-' ~ d_.sid, 'Choose how to deliver') %}
 {%- for w_ in ways_ %}
@@ -123,7 +125,7 @@
   {% else %}{% if letter_.printed %}<p class="ui-mute">Printed {{ nice(letter_.printed) }}.</p>{% endif %}
   <div class="ui-btnrow">{{ ui.button_link(letter_.doc, 'Print the QR letter' if not letter_.printed else 'Print it again', 'quiet', blank=true) }}{{ ui.action(a.post, 'Mark mailed', a.fields or {}, back, 'quiet') }}</div>{% endif %}</div>
   {%- elif w_ == 'email' and (d_.mail or not online_) %}<div class="ui-deliver-way{{ ' ui-deliver-wait' if not online_ }}" data-way="email">
-  <h3 class="ui-sub-title">Email the link{{ help("An emailed link is only as safe as their inbox." ~ (" The codeword still guards the gallery." if d_.codeword else "")) }}</h3>
+  <h3 class="ui-sub-title">Email the link{{ help("An emailed link is only as safe as their inbox." ~ (" The passphrase still guards the gallery." if d_.codeword else "")) }}</h3>
   {% if not online_ or not d_.mail %}<p class="ui-mute" id="dw-email-{{ d_.sid }}">Put the gallery online first: the email carries its link.</p>
   <div class="ui-btnrow"><button type="button" class="ui-btn ui-btn-quiet" disabled aria-describedby="dw-email-{{ d_.sid }}">Email the link</button></div>
   {% else %}<div class="ui-btnrow">{{ uim.mail_action(url_for('delivery_another', sid=d_.sid), d_.mail, 'Email the link', back, 'quiet', fields=dict(how='email', step=d_.step)) }}</div>{% endif %}</div>
@@ -146,9 +148,11 @@
 {%- set kind_ = 'primary' if lead else 'quiet' -%}
 {% call ui.todo_row(a.what, icon=a.sym or 'task_alt', status=st_, when=nice(a.when) if a.when else '', when_late=(a.group == 'overdue'),
                     detail=a.detail or '', note=a.note or '', theirs=a.theirs, id=ui.step_row_id(a), tip=a.tip or '') %}
-  {%- if a.drop_main %}{{ chooser(zid_, a.drop_verb, kind_) }}{{ ui.row_more(a, back, [a.alt] if a.alt else []) }}
-  {%- elif a.deliver and a.handed %}{{ ui.action(a.handed.post, 'Card handed over', a.handed.fields, back, kind_) }}{{ ui.opener('f-deliver-' ~ a.deliver.sid, 'Choose how to deliver', 'quiet') }}{{ ui.row_more(a, back, [a.alt] if a.alt else []) }}
-  {%- elif a.deliver %}{{ ui.opener('f-deliver-' ~ a.deliver.sid, 'Choose how to deliver', kind_) }}{{ ui.row_more(a, back, [a.alt] if a.alt else []) }}
+  {%- if a.drop_main %}{{ chooser(zid_, a.drop_verb, kind_) }}{{ ui.skip_button(a, back) }}{{ ui.row_more(a, back, [a.alt] if a.alt else []) }}
+  {%- elif a.deliver and a.handed %}{{ ui.action(a.handed.post, 'Card handed over', a.handed.fields, back, kind_) }}{{ ui.opener('f-deliver-' ~ a.deliver.sid, 'Choose how to deliver', 'quiet') }}{{ ui.skip_button(a, back) }}{{ ui.row_more(a, back, [a.alt] if a.alt else []) }}
+  {%- elif a.deliver and a.deliver.usual in ('usb', 'sd', 'disc') %}
+    {{- ui.action(url_for('delivery_another', sid=a.deliver.sid), 'Record the handover', dict(how=a.deliver.usual, step=a.deliver.step, on=iso_today()), back, kind_) }}{{ ui.opener('f-deliver-' ~ a.deliver.sid, 'Another way', 'quiet') }}{{ ui.skip_button(a, back) }}{{ ui.row_more(a, back, [a.alt] if a.alt else []) }}
+  {%- elif a.deliver %}{{ ui.opener('f-deliver-' ~ a.deliver.sid, 'Choose how to deliver', kind_) }}{{ ui.skip_button(a, back) }}{{ ui.row_more(a, back, [a.alt] if a.alt else []) }}
   {%- else %}{{ ui.step_action(a, back, kind_) }}{% endif -%}
 {% endcall %}
 {%- if a.form or a.preview %}{{ ui.step_form(a, back, s) }}{% endif -%}

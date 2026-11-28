@@ -116,8 +116,9 @@ def test_transfer_release_points_to_the_agreement(env):
     assert ("When the balance is paid in full, I transfer to you all copyright in the final edited photos I deliver. "
             + PROOFS) in a_
 
-def test_proofs_privacy_and_minor_wording_in_the_agreement(env):
+def test_proofs_privacy_and_minor_wording_in_the_agreement(env, monkeypatch):
     A, c = env
+    monkeypatch.setattr(A.C, "galleries_on", lambda: True)
     sid = session(A, 1, "family", subjects=(2,))
     a_ = agreement(A, sid)
     assert ("Before delivery I may show you proofs in a private gallery so you can choose favorites. Proofs are for choosing"

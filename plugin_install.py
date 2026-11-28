@@ -489,7 +489,7 @@ def after_restore(key, aside=None):
     finally:
         con.close()
 
-def restart_soon():
+def can_restart():
 
     if "gunicorn" not in sys.modules or os.environ.get("CRM_TESTING"):
         return False
@@ -498,8 +498,13 @@ def restart_soon():
         cmd = Path(f"/proc/{ppid}/cmdline").read_bytes()
     except OSError:
         return False
-    if ppid <= 0 or b"gunicorn" not in cmd:
+    return ppid > 0 and b"gunicorn" in cmd
+
+def restart_soon():
+
+    if not can_restart():
         return False
+    ppid = os.getppid()
 
     def later():
         time.sleep(1.5)

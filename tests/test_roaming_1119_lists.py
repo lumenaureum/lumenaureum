@@ -85,7 +85,7 @@ def test_the_inquiry_hints_where_to_add_a_kind_of_shoot_and_ticks_the_contact(tm
     pid = _q(A, "SELECT id FROM people WHERE name='Priya Garcia'")[0][0]
     assert re.search(rf'name="subjects" value="{pid}" checked', form)
     assert not re.search(r'type="date"[^>]*autofocus', form)
-    assert re.search(r'<details[^>]*><summary[^>]*>Gallery codeword</summary>', form)
+    assert re.search(r'<details[^>]*><summary[^>]*>Gallery passphrase</summary>', form)
     _x(A, "INSERT INTO people (household_id, name, role, is_minor) VALUES (2, 'Ava Garcia', 'child', 1)")
     form = _page(c, "/inquiry?hid=2&type=family")
     assert not re.search(rf'name="subjects" value="{pid}" checked', form)

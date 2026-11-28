@@ -46,7 +46,7 @@ def test_filed_under_an_existing_client_the_message_keeps_its_real_sender(env):
     hist = [r_[0] for r_ in q(A, "SELECT action FROM audit WHERE household_id=51")]
     assert "Inquiry from Riley Carter, filed under Grant Family" in hist
     assert "Added Riley Carter to Grant Family as a contact" in hist
-    assert "Inquiry from Riley Carter, filed under Grant Family" in page
+    assert "Inquiry from Riley Carter, filed under Grant Family" in c.get("/history?client=51", environ_base=E).get_data(as_text=True)
 
     assert "mailto:riley@example.org" in page and "mailto:grant@example.org?subject=Re" not in page
 
@@ -73,7 +73,8 @@ def test_move_to_another_client_takes_the_session_message_and_contact_with_histo
     _file(c, ids["Riley Blake"], "Carter Family #61", add_contact="1")
     sid = _sid(A, 61)
     page = _page(c, 61, sid)
-    assert "Filed under the wrong client?" in page and ">Move to another client</a>" in page and ">Make it a new client</button>" in page
+
+    assert ">Move to another client</span></a>" in page and ">Make it a new client</span></button>" in page
     r = c.post(f"/session/{sid}/refile", data={"do": "move", "client": "Blake Family #62"}, environ_base=E)
     assert r.status_code == 302 and f"/c/62" in r.headers["Location"]
     assert q(A, "SELECT household_id FROM sessions WHERE id=?", (sid,))[0][0] == 62
@@ -122,7 +123,7 @@ def test_refused_with_the_reason_once_something_has_gone_out_or_it_is_booked(env
     finally:
         con.close()
     page = _page(c, 81, sid)
-    assert "It can't move now: a payment is recorded on it." in page and ">Move to another client</a>" not in page
+    assert "It cannot move now: a payment is recorded on it" in page and ">Move to another client</span></a>" not in page
     c.post(f"/session/{sid}/refile", data={"do": "new"}, environ_base=E)
     assert q(A, "SELECT household_id FROM sessions WHERE id=?", (sid,))[0][0] == 81
     con = A.connect()
@@ -132,7 +133,7 @@ def test_refused_with_the_reason_once_something_has_gone_out_or_it_is_booked(env
         con.commit()
     finally:
         con.close()
-    assert "It can't move now: it is Booked now" in _page(c, 81, sid)
+    assert "It cannot move now: it is Booked now" in _page(c, 81, sid)
     c.post(f"/session/{sid}/refile", data={"do": "move", "client": "Grant Family #81"}, environ_base=E)
     assert q(A, "SELECT household_id FROM sessions WHERE id=?", (sid,))[0][0] == 81
 

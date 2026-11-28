@@ -29,6 +29,7 @@
   <p>{% if n_add %}Adds {{ n_add }} client{{ '' if n_add == 1 else 's' }}.{% else %}No new clients in this file.{% endif %}
     {%- if plan.match %} {{ plan.match|length }} {{ 'is' if plan.match|length == 1 else 'are' }} already here: Skip or Update each below.{% endif %}
     {%- if plan.problems %} {{ plan.problems|length }} row{{ ' has a problem' if plan.problems|length == 1 else 's have problems' }} and {{ 'is' if plan.problems|length == 1 else 'are' }} left out.{% endif %}</p>
+  {% if d.extra %}<p class="ui-note" id="import-extra-cells">{{ d.extra }}</p>{% endif %}
   <form method="post" action="{{ url_for('clients_import_confirm', token=token) }}" id="confirm-import">
     <input type="hidden" name="sig" value="{{ sig }}">
   </form>

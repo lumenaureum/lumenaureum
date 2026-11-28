@@ -29,7 +29,7 @@
   {% include "_edit_clash.html" %}
   <form method="post" action="{{ url_for('client_save', hid=h.id) }}"><input type="hidden" name="seen" value="{{ edit_stamp('households', h.id) }}">
     <div class="ui-form-grid">
-      <label><span>Name</span><input name="name" maxlength="200" value="{{ h.name }}"></label>
+      <label><span>Name</span><input name="name" maxlength="200" required value="{{ h.name }}"></label>
       <label><span>Company{{ help("Only if they bill as a company. A company is listed and sorted by its own name, and gets business options such as a PO number.") }}</span><input name="company" maxlength="200" value="{{ h.company or '' }}"></label>
       <label><span>Mailing address</span><textarea name="address" rows="3">{{ h.address }}</textarea></label>
       <label><span>Source</span><input name="source" value="{{ h.source }}"></label>
@@ -49,7 +49,7 @@
 {% macro person_fields(p, fid) -%}
   <div class="ui-form-grid">
     {%- set opt_ = '' if p else ' (optional)' %}
-    <label><span>Name</span><input name="name" maxlength="200" value="{{ p.name if p else '' }}"{% if not p %} required{% endif %}></label>
+    <label><span>Name</span><input name="name" maxlength="200" value="{{ p.name if p else '' }}" required></label>
     <label><span>Relationship{{ opt_ }}</span><input name="relation" list="rels" autocomplete="off" value="{{ (p.relation or '') if p else '' }}" placeholder="mother, son, owner"></label>
     <label><span>Email{{ opt_ }}</span><input type="email" name="email" maxlength="200" value="{{ p.email if p else '' }}"></label>
     <label><span>Phone{{ opt_ }}</span><input type="tel" name="phone" maxlength="200" value="{{ p.phone if p else '' }}"></label>

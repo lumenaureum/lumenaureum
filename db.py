@@ -4,6 +4,7 @@ import sqlite3 as _plain
 from pathlib import Path
 
 import threading
+import unicodedata
 from sqlcipher3 import dbapi2 as sqlite3
 
 import datakey
@@ -12,6 +13,13 @@ DB_PATH = Path(os.environ.get("CRM_DB", Path(__file__).resolve().parent / "data"
 PLAIN_HEADER = b"SQLite format 3\x00"
 Row = sqlite3.Row
 BUSY_TIMEOUT = 30
+
+def fold(text):
+
+    if text is None:
+        return None
+    t_ = unicodedata.normalize("NFKD", str(text).casefold())
+    return unicodedata.normalize("NFC", "".join(ch for ch in t_ if not unicodedata.combining(ch)))
 
 _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _DECL = re.compile(r"[A-Z][A-Z ]*(?: DEFAULT (?:'[A-Za-z0-9_{}\[\]]*'|-?\d+(?:\.\d+)?|NULL|\(date\('now','localtime'\)\)))?"
@@ -85,6 +93,7 @@ def connect(path=None, key=None):
         try:
             _key(con, key_hex)
             con.row_factory = sqlite3.Row
+            con.create_function("fold", 1, fold, deterministic=True)
             con.execute("PRAGMA foreign_keys = ON")
             con.execute("PRAGMA journal_mode = WAL")
             con.execute("PRAGMA secure_delete = ON")

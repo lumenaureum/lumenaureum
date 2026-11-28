@@ -305,7 +305,7 @@ def test_today_says_plainly_what_a_failing_host_means_for_codeword_galleries_alr
     import hostcheck
     was = dict(kind="ok", gate=True)
     msg = hostcheck.worse(was, dict(kind="ok", gate=False))
-    assert "could now try codewords much faster" in msg and "take those galleries down" in msg
+    assert "could now try passphrases much faster" in msg and "take those galleries down" in msg
     assert "stay sealed" not in msg
     assert hostcheck.worse(was, dict(kind="ok", gate=None)) == ""
 
@@ -347,7 +347,7 @@ def test_a_gallery_with_a_codeword_is_refused_on_a_host_that_hands_files_out(tmp
     st, err = con.execute("SELECT upload_state, upload_error FROM galleries WHERE session_id=1").fetchone()
     con.close()
     assert st == "error" and err == G["WORD_REFUSED"] and not started
-    assert "try codewords as fast as their computer allows" in err
+    assert "try passphrases as fast as their computer allows" in err
 
     monkeypatch.setitem(G, "host_check_now", lambda: dict(kind="ok", gate=True))
     c.post("/session/1/gallery/upload", environ_base={"REMOTE_ADDR": "127.0.0.1"})

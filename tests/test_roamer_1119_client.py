@@ -99,8 +99,10 @@ def test_the_line_picker_keeps_other_types_in_their_own_fold_and_labels_how_many
         items = A.current_schedule()["items"]
     others = [it["label"] for it in items if it.get("type") and it["type"] != "family"]
     if others and any(it.get("type") == "family" for it in items):
-        assert not any(f">{o.split(',')[0]}" in main for o in others)
-        assert 'id="other-lines"' in page and "Lines from other session types" in page
+
+        before_ = main.split('<optgroup label="Other session types">', 1)
+        assert len(before_) == 2 and not any(f">{o.split(',')[0]}" in before_[0] for o in others)
+        assert 'id="other-lines"' not in page
 
 def test_a_draft_invoice_asks_before_email_issues_it(env):
     A, c = env
@@ -128,11 +130,12 @@ def test_finances_marks_an_overdue_balance_and_offers_remind_them(env):
 def test_history_is_first_and_open_and_cancel_stands_apart(env):
     A, c = env
     _booked(A)
-    more = _page(c).split('id="more"', 1)[1]
-    hist = re.search(r'<details class="ui-fold [^"]*" id="history"[^>]*>', more)
-    assert hist and " open" in hist.group(0)
-    assert more.index('id="history"') < more.index("New session for")
-    assert 'class="ui-btnrow ui-danger-row"><a class="ui-btn ui-btn-danger" href="#cancel-booking"' in more
+
+    page = _page(c)
+    assert 'href="/history?client=1"' in page and 'id="more"' not in page
+    menu = page.split('id="more-session"', 1)[1].split("</details>", 1)[0]
+    assert 'data-ui-open="cancel-booking"' in menu and ">New session for " in menu
+    assert '<button class="ui-btn ui-btn-danger">Cancel the booking</button>' in page.split('id="cancel-booking"', 1)[1]
 
 def test_reply_by_email_or_text_and_mark_how_it_went(env):
 

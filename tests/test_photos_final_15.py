@@ -29,7 +29,7 @@ def test_the_photos_section_shows_the_latest_upload_and_never_everything(env):
     page = _page(c)
     sec = _photos(page)
     assert '<section class="ui-sec' in page[page.rindex("<", 0, page.index('id="photos-sec"')):page.index('id="photos-sec"')]
-    assert "<details" not in sec
+    assert '<details class="ui-fold' not in sec
     assert re.search(r"<b>RAWs</b> <span[^>]*>18 files, [\d.]+ KB, sealed</span>", sec), sec[:600]
     shown = re.findall(r'<li class="ui-thumb" data-size="\d+" data-kind="raw">.*?alt="([^"]+)"', sec, re.S)
     assert shown == [f"NEW_{n:02d}.jpg" for n in range(15, 3, -1)]
@@ -59,7 +59,7 @@ def test_the_photos_section_is_shown_at_every_stage_with_photos(env):
     _session(A, "delivered")
     upload(c, 1, "A_1.jpg", jpeg())
     page = _page(c)
-    assert 'id="photos-sec"' in page and "<details" not in _photos(page)
+    assert 'id="photos-sec"' in page and '<details class="ui-fold' not in _photos(page)
 
 def _deliver_page(A, c, online):
     from test_photos_b2 import _needs

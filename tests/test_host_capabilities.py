@@ -127,7 +127,7 @@ def test_setup_shows_what_the_host_can_do_and_today_flags_a_change(app_env, monk
     page = c.get("/setup/galleries", environ_base=E).get_data(as_text=True)
     assert "What this host can do" in page and "Galleries close on their last day" in page and "Works" in page
     assert "It hands out gallery files without asking for the key" in page
-    assert "Galleries with a codeword" in page
+    assert "Galleries with a passphrase" in page
 
     import hostcheck
     con = A.connect()

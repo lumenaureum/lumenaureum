@@ -45,7 +45,7 @@
     {% if tips %}{% call ui.money_row(money(tips), 'ui-money-sub') %}Tips{{ help("Counted in Received. No tax is figured on tips.") }}{% endcall %}{% endif %}
     {% if written_off %}{% call ui.money_row(money(written_off), 'ui-money-sub') %}Balances waived{{ help("Never received, so not in Received." ~ (" A balance written off earlier was paid this year." if written_off < 0 else "")) }}{% endcall %}{% endif %}
   {% endcall %}{% endif %}
-  {% if fixes %}{% call ui.fold('Corrections to closed years', id='fixes', count=fixes|length) %}
+  {% if fixes %}{% call ui.section('Corrections to closed years (' ~ fixes|length ~ ')', id='fixes') %}
     {% call ui.money_table('Corrections to closed years') %}{% for r in fixes %}{% call ui.money_row(money(r.amount)) %}<span class="ui-mute">{{ nice(r.day) }}</span> <span class="ui-money-name">{{ r.words }}</span>{% endcall %}{% endfor %}{% endcall %}
   {% endcall %}{% endif %}
   
@@ -61,7 +61,7 @@
   {% else %}<p class="ui-mute">Nothing received.</p>{% endif %}
 {% endcall %}
 
-{% call ui.fold('By session type', id='by-type', count=received|length) %}
+{% call ui.section('By session type', id='by-type') %}
   {% call ui.money_table('Received by session type') %}{% for r in received %}{% call ui.money_row(money(r.v)) %}{{ type_label[r.type] }}{% endcall %}{% else %}{% call ui.money_row('') %}<span class="ui-mute">Nothing yet</span>{% endcall %}{% endfor %}{% endcall %}
 {% endcall %}
 
@@ -76,29 +76,35 @@
 {% endcall %}{% endif %}
 
 {% set ox_ = overhead|map(attribute='amount')|map('float')|sum %}{% set om_ = overhead|selectattr('session_id', 'none')|map(attribute='miles')|map('float')|sum %}
-{% call ui.fold('Business expenses: ' ~ money(ox_) ~ (', ' ~ (om_|round|int) ~ ' miles' if om_ else ''), id='overhead', part=true, always=true, count=overhead|length) %}
-  {% call ui.money_table('Business expenses') %}{% for e in overhead %}
+
+{% set all_ox_ = request.args.get('show') == 'overhead' %}
+{% call ui.section('Business expenses: ' ~ money(ox_) ~ (', ' ~ (om_|round|int) ~ ' miles' if om_ else ''), id='overhead', part=true) %}
+  {% call ui.money_table('Business expenses') %}{% for e in (overhead if all_ox_ else overhead[:5]) %}
     {% call ui.money_row(money(e.amount) if e.amount else ((e.miles|round(1)) ~ ' mi')) %}<span class="ui-mute">{{ nice(e.date) }}</span> <span class="ui-money-name">{{ e.label }}</span>{% if e.client %} <small class="ui-mute">{{ e.client }}</small>{% elif e.amount and e.miles %} <small class="ui-mute">{{ e.miles|round(1) }} mi</small>{% endif %}{% set cw_ = correction_words('expenses', e) %}{% if cw_ %} <small class="ui-mute">{{ cw_ }}</small>{% endif %}
       {% if books.closed %}{{ ui.opener('fix-e' ~ e.id, 'Correct') }}{% else %}<form method="post" action="{{ url_for('money_delete', what='expense', rid=e.id) }}" class="ui-action" data-ui-inplace><button class="ui-x" aria-label="Remove expense {{ e.label }}" title="Remove this expense">&times;</button></form>{% endif %}{% endcall %}
   {% else %}{% call ui.money_row('') %}<span class="ui-mute">None</span>{% endcall %}{% endfor %}{% endcall %}
   {% if books.closed %}{% for e in overhead %}{{ ui.correct_form('fix-e' ~ e.id, url_for('money_correct', what='expense', rid=e.id), url_for('money_view', year=year) ~ '#overhead', year ~ ' expense ' ~ e.label, money(e.amount or 0), e.miles if e.miles else none) }}{% endfor %}{% endif %}
+  {% if overhead|length > 5 and not all_ox_ %}<p class="ui-shortlist-more">{{ ui.go(url_for('money_view', year=year, show='overhead') ~ '#overhead', 'All ' ~ overhead|length ~ ' expenses') }}</p>{% endif %}
+  <div class="ui-btnrow">{{ ui.opener('add-expense', 'Add a late expense' if books.closed else 'Add an expense', 'quiet') }}</div>
   
-  <form method="post" action="{{ url_for('overhead_add') }}" class="ui-form-grid" data-ui-inplace><input type="hidden" name="once" value="{{ form_once() }}">{% if books.closed %}<input type="hidden" name="late" value="1"><input type="hidden" name="back" value="{{ url_for('money_view', year=year) }}#overhead">{% endif %}
+  {% call ui.inline_form('add-expense', 'Add an expense') %}<form method="post" action="{{ url_for('overhead_add') }}" class="ui-form-grid" data-ui-inplace><input type="hidden" name="once" value="{{ form_once() }}">{% if books.closed %}<input type="hidden" name="late" value="1"><input type="hidden" name="back" value="{{ url_for('money_view', year=year) }}#overhead">{% endif %}
     <label><span>{{ 'Spent on' if books.closed else 'Date' }}</span><input type="date" name="date" value="{{ (year ~ '-12-31') if books.closed else today_iso }}"{% if books.closed %} min="{{ year }}-01-01" max="{{ year }}-12-31"{% endif %} class="ui-input-date"></label>
     <label><span>What</span><input name="label" maxlength="200" required></label>
     <label><span>Amount</span><input type="number" step="0.01" name="amount" placeholder="$" class="ui-input-money"></label>
     <label><span>Miles</span><input type="number" step="0.1" name="miles" class="ui-input-short"></label>
-    <div><button class="ui-btn ui-btn-quiet">{{ 'Add a late expense' if books.closed else 'Add the expense' }}</button>{% if books.closed %}{{ help(year ~ " is closed, so an expense from " ~ year ~ " found now is recorded today, in " ~ today_iso[:4] ~ ", marked as from " ~ year ~ ". " ~ year ~ "'s figures stay as they are.") }}{% endif %}</div></form>
+    <div><button class="ui-btn ui-btn-quiet">{{ 'Add a late expense' if books.closed else 'Add the expense' }}</button>{% if books.closed %}{{ help(year ~ " is closed, so an expense from " ~ year ~ " found now is recorded today, in " ~ today_iso[:4] ~ ", marked as from " ~ year ~ ". " ~ year ~ "'s figures stay as they are.") }}{% endif %}</div></form>{% endcall %}
 {% endcall %}
 
 {% if trips %}{% set tm_ = trips|map(attribute='miles')|map('float')|sum %}{% set tc_ = trips|map(attribute='mc_')|map('float')|sum %}
-{% call ui.fold('Driven for sessions: ' ~ (tm_|round(1)|string)|replace('.0', '') ~ ' mi \u00b7 ' ~ money(tc_) ~ ' at your rate', id='driven', always=true, count=trips|length) %}
-  {% call ui.money_table('Driven for sessions') %}{% for e in trips %}
+{% set all_tr_ = request.args.get('show') == 'driven' %}
+{% call ui.section('Driven for sessions: ' ~ (tm_|round(1)|string)|replace('.0', '') ~ ' mi \u00b7 ' ~ money(tc_) ~ ' at your rate', id='driven') %}
+  {% call ui.money_table('Driven for sessions') %}{% for e in (trips if all_tr_ else trips[:5]) %}
     {% call ui.money_row(money(e.mc_)) %}<span class="ui-mute">{{ nice(e.date) }}</span> <a class="ui-money-name" href="{{ url_for('client_stage', hid=e.hid, s=e.session_id) }}">{{ e.client }}</a> <small class="ui-mute">{{ e.stitle or type_label.get(e.stype, '') }} &middot; {{ (e.miles|round(1)|string)|replace('.0', '') }} mi</small>{% endcall %}
   {% endfor %}{{ ui.money_total((tm_|round(1)|string)|replace('.0', '') ~ ' mi', money(tc_)) }}{% endcall %}
+  {% if trips|length > 5 and not all_tr_ %}<p class="ui-shortlist-more">{{ ui.go(url_for('money_view', year=year, show='driven') ~ '#driven', 'All ' ~ trips|length ~ ' trips') }}</p>{% endif %}
 {% endcall %}{% endif %}
 
-{% if prints and prints.any %}{% call ui.fold('Print orders: ' ~ money(prints.profit / 100) ~ ' profit', id='prints') %}
+{% if prints and prints.any %}{% call ui.section('Print orders: ' ~ money(prints.profit / 100) ~ ' profit', id='prints') %}
   {% call ui.money_table('Print orders') %}
     {% call ui.money_row(money(prints.received / 100)) %}Received for prints{% endcall %}
     {% call ui.money_row(money(prints.sales / 100)) %}Print sales{% endcall %}
@@ -111,14 +117,14 @@
 {% endcall %}{% endif %}
 
 {% set n_all = funnel.values()|sum %}
-{% call ui.fold('Sessions started this year', id='funnel', count=n_all) %}
+{% call ui.section('Sessions started this year (' ~ n_all ~ ')', id='funnel') %}
   {% call ui.money_table('Sessions started this year, by stage') %}{% for st in C.STAGES + C.OFF_PIPELINE %}{% if funnel.get(st) %}{% call ui.money_row(funnel[st]) %}{{ stage_label[st] }}{% endcall %}{% endif %}{% endfor %}
     {{ ui.money_total('Total', n_all) }}{% endcall %}
   {% if lost %}<h3 class="ui-sub-title">Lost, by reason</h3>
   {% call ui.money_table('Lost, by reason') %}{% for r in lost %}{% call ui.money_row(r.n) %}{{ r.r }}{% endcall %}{% endfor %}{% endcall %}{% endif %}
 {% endcall %}
 
-{% call ui.fold('For your accountant', id='accountant', always=true) %}
+{% call ui.section('For your accountant', id='accountant') %}
   <form method="get" action="{{ url_for('money_summary_pdf') }}" class="ui-form-row"><label class="ui-check">Year <select name="year" class="ui-input-date">{% for y in export_years %}<option value="{{ y }}"{% if y == year %} selected{% endif %}>{{ y }}</option>{% endfor %}</select></label><button class="ui-btn ui-btn-primary">Year summary for your accountant</button>
     <button class="ui-btn ui-btn-quiet" formaction="{{ url_for('money_accounts') }}">Details (CSV)</button></form>
 {% endcall %}

@@ -239,7 +239,8 @@ def test_retouch_row_leads_with_each_pick_its_note_and_the_finals_drop_zone(env)
     assert rows[0].strip() == "Retouch 2 photos", rows
     assert "<b>img1.jpg</b>: warmer skin" in needs and "<b>img2.jpg</b>: crop tighter" in needs
     assert re.search(r'id="dz-final-1"[^>]*data-kind="final"', needs) and "Browse retouched photos" in needs
-    assert "Send retouched photos" not in needs
+    rows_ = needs.split('<ul class="ui-todos">', 1)[1].split("</ul>", 1)[0]
+    assert "Send retouched photos" not in rows_
 
 def test_send_retouched_photos_is_done_only_with_a_final_for_every_pick(env):
     A, c, tmp = env
@@ -267,9 +268,9 @@ def test_progress_counts_only_steps_truly_done_and_names_the_rest(env):
     c.post("/close", data={"task": tid, "outcome": "na", "back": "/c/1?s=1"}, environ_base=E)
     assert _task(A, "Send retouched photos")[1] == "na"
     page = _page(c)
-    summary = re.search(r'id="done-steps"[^>]*>\s*(?:<summary><span class="ui-fold-sum">|<h3 class="ui-sub-title">)([^<]+)', page)
-    assert summary and re.match(r"\d+ of \d+ done, 1 not needed$", summary.group(1).strip()), summary.group(1)
-    assert "Send retouched photos (not needed)" in page
+
+    line = page.split('id="no-retouch"', 1)[1].split("</p>", 1)[0]
+    assert "No retouching for this session." in line and ">Bring retouching back</button>" in line
 
 def test_the_gallery_check_never_closes_the_retouch_step_without_the_finals(env):
     A, c, tmp = env
@@ -340,7 +341,7 @@ def test_email_the_link_instead_drafts_it_without_the_codeword_and_closes_the_st
     page = _page(c)
     needs = _needs(page)
     assert "Email the link<" in needs and "only as safe as their inbox" in needs
-    assert "The codeword still guards the gallery." in needs
+    assert "The passphrase still guards the gallery." in needs
 
     assert re.search(r'Email the link<span class="qh"[^>]*>\?<span class="qh-pop"[^>]*>An emailed link is only as safe', needs)
     assert re.search(r'data-ui-mail="mailto:rosa@example.com[^"]*"[^>]*>(?:(?!</form>).)*Email the link<', needs, re.S)
@@ -358,7 +359,8 @@ def test_a_stale_letter_row_settles_itself_once_the_client_used_the_gallery(env)
     assert "Mark mailed" not in needs and "Print the QR letter" not in needs and "Mail QR letter" not in needs
     with A.app.test_request_context():
         letter = [st for g_ in A.workflow(1)["stages"] for st in g_["steps"] if st.get("key") == "letter_mailed"][0]
-    assert letter["done"] and letter["outcome"] == "na"
+
+    assert letter["done"] and not letter["outcome"] and letter["na_why"] == "gallery opened" and not letter["undo"]
 
 def _gallery(A, tmp, dl=True, opened_days_ago=None, uploaded_days_ago=10, state="up", **cols):
     from plugins import gallery as G
@@ -441,7 +443,7 @@ def test_readable_copies_are_named_for_what_they_are(env):
     A, c, tmp = env
     _session(A, "delivered", days=-20, sd_shipped=(date.today() - timedelta(days=2)).isoformat())
     upload(c, 1, "img1.jpg", jpeg(), kind="export")
-    page = _page(c)
+    page = c.get("/c/1?s=1&show=storage", environ_base=E).get_data(as_text=True)
     on = A.nice((date.today() + timedelta(days=5)).isoformat())
     assert f"Readable copies for editing: encrypted and removed {on}" in page and "Encrypt them now" in page
     assert "Seal now" not in page and "Seals " not in page

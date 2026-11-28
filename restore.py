@@ -227,13 +227,24 @@ def summary(con):
 
     def day(v):
         return str(v)[:10] if v else ""
+    zone = _one(con, "SELECT value FROM settings WHERE key='timezone'", "settings") or os.environ.get("TZ") or "UTC"
+
+    def utc_day(v):
+
+        from datetime import timezone
+        from zoneinfo import ZoneInfo
+        try:
+            t_ = datetime.strptime(str(v)[:19], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+            return t_.astimezone(ZoneInfo(zone)).date().isoformat()
+        except Exception:
+            return day(v)
     return dict(
         clients=_one(con, "SELECT COUNT(*) FROM households WHERE COALESCE(demo, 0)=0", "households"),
         sessions=_one(con, "SELECT COUNT(*) FROM sessions s JOIN households h ON h.id=s.household_id "
                            "WHERE COALESCE(h.demo, 0)=0", "sessions"),
         galleries=len(online(con)),
         payments=_one(con, "SELECT COUNT(*) FROM payments", "payments"),
-        newest_client=day(_one(con, "SELECT MAX(created) FROM households WHERE COALESCE(demo, 0)=0", "households")),
+        newest_client=utc_day(_one(con, "SELECT MAX(created) FROM households WHERE COALESCE(demo, 0)=0", "households")),
         newest_session=day(_one(con, "SELECT MAX(created) FROM sessions", "sessions")),
         last_change=str(_one(con, "SELECT MAX(at) FROM audit", "audit") or "")[:16],
         photos=_one(con, "SELECT COUNT(*) FROM photo_files WHERE session_id IS NOT NULL", "photo_files"),
@@ -350,8 +361,9 @@ def check(source, secret, *, connect=None, schema_now, fresh, folder="", upload=
                 if "integrity" in words:
                     raise Refused("That backup opened, but its database is damaged. Choose another backup.")
                 raise Refused(_key_words())
-            except Exception:
-                raise Refused(_key_words())
+            except Exception as e:
+
+                raise Refused(_key_words() if _wrong_key(e) else _damaged_words())
             for f_ in ("settings.json",):
                 (stage / f_).unlink(missing_ok=True)
             if fname:
@@ -446,6 +458,14 @@ def _no_master_waiting(connect):
         raise Refused(f"A new master key is waiting to take effect on {p_['when']}. Restore after it takes effect, or "
                       "cancel it first in Settings, Security. Nothing was changed.")
 
+def _wrong_key(e):
+
+    return "no matching keys" in str(e).lower()
+
+def _damaged_words():
+    return ("That file is damaged or isn't a Lumen Aureum backup, so it can't be opened. Choose another backup file. "
+            "Nothing was changed.")
+
 def _key_words():
     return ("That master key doesn't open this backup. A backup made before a master key change needs the key the "
             "studio had then.")
@@ -476,10 +496,17 @@ def _reconcile(p_, connect):
                     if was and was != gid:
                         con.execute("INSERT OR IGNORE INTO gallery_leftovers (gallery_id, host_fp, added) VALUES (?,?,?)",
                                     (was, fp, today))
+
+            pending = {(r[0], r[1]) for r in left}
+
+            def waiting(gid, fp):
+                return any(g_ == gid and (not fp or f_ == fp) for g_, f_ in pending)
             for r in left:
+                if r[0] in then_online and then_online[r[0]][1] in ("", r[1]):
+                    continue
                 con.execute("INSERT OR IGNORE INTO gallery_leftovers (gallery_id, host_fp, added) VALUES (?,?,?)", tuple(r))
             for gid, (sid, fp, was) in then_online.items():
-                if gid not in now_online:
+                if gid not in now_online and not waiting(gid, fp):
                     try:
                         con.execute("UPDATE galleries SET removed_at=?, upload_state='removed', close_on=NULL "
                                     "WHERE session_id=?", (today, sid))
@@ -730,6 +757,10 @@ def register(app, connect, audit, *, schema_now, soft_restart, end_sessions):
             return choose(fresh, str(e), 400)
         session["restore_tok"] = tok
         if not fresh:
+
+            import auth as auth_
+            if th is not None and auth_.master_key_opens(secret):
+                th.ok(ip_)
             audit("Checked a backup to restore")
         return redirect(url_for("setup_restore" if fresh else "vault_restore", step="review"))
 

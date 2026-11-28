@@ -12,7 +12,7 @@ from helpers import fresh_modules, signed_in_client
 
 E = {"REMOTE_ADDR": "127.0.0.1"}
 S3 = dict(type="s3", bucket="galleries", access_key="AK", secret_key="SK", endpoint="https://s3.example.com")
-SAYS = "This web host can't check codewords. Galleries stay sealed, and anyone with the link can open them."
+SAYS = "This web host can't check passphrases. Galleries stay sealed, and anyone with the link can open them."
 
 def _app(tmp_path, monkeypatch, setup_done=True):
     monkeypatch.setenv("CRM_DB", str(tmp_path / "crm.db"))
@@ -68,9 +68,9 @@ def test_the_s3_option_says_so_and_offers_the_two_choices_while_codewords_are_on
         'data-be="gallery_any"', 1)[0]
     assert SAYS in block and 'id="no-cw-check"' in block
     assert re.search(r'<button type="submit" class="ui-btn ui-btn-quiet" name="s3_codewords_off" value="1" data-confirm="'
-                     r'[^"]*">Turn codewords off for galleries here</button>', block)
+                     r'[^"]*">Turn passphrases off for galleries here</button>', block)
     assert re.search(r'<button type="button" class="ui-btn ui-btn-quiet" data-be-pick="gallery_type=sftp">Choose a host that '
-                     r'can check codewords</button>', block)
+                     r'can check passphrases</button>', block)
     assert "data-be-pick" in open(os.path.join(ROOT, "static", "setup.js")).read()
 
 def test_s3_without_a_choice_is_not_saved_and_nothing_is_switched(env):
@@ -87,7 +87,7 @@ def test_turn_codewords_off_saves_the_host_and_turns_them_off_for_every_type(env
     assert r.status_code == 302
     assert _host().get("type") == "s3" and tested
     assert not any(_codewords().values())
-    assert any("Turned gallery codewords off for every session type" in h for h in _history(A))
+    assert any("Turned gallery passphrases off for every session type" in h for h in _history(A))
     page = c.get("/setup/galleries", environ_base=E).get_data(as_text=True)
     assert 'id="no-cw-check"' not in page
 
@@ -140,10 +140,10 @@ def test_a_studio_already_on_s3_is_told_on_online_galleries_and_in_the_alerts(en
     page = html.unescape(c.get("/setup/galleries", environ_base=E).get_data(as_text=True))
     block = page.split('id="no-cw-check"', 1)[1].split("</div></div>", 1)[0]
     assert SAYS in block
-    assert re.search(r'formaction="/setup/galleries/codewords-off" formnovalidate data-confirm="[^"]*">Turn codewords off '
+    assert re.search(r'formaction="/setup/galleries/codewords-off" formnovalidate data-confirm="[^"]*">Turn passphrases off '
                      r'for galleries here</button>', block)
     assert re.search(r'<a class="ui-btn ui-btn-quiet" href="[^"]*replace=gallery[^"]*">Choose a host that can check '
-                     r'codewords</a>', block)
+                     r'passphrases</a>', block)
     with A.app.test_request_context():
         texts = [a["text"] for a in A.system_alerts()]
     assert any(t.startswith(SAYS) for t in texts)
@@ -162,11 +162,11 @@ def test_turning_codewords_off_there_clears_the_notice_and_the_alert(env):
     assert not any(_codewords().values())
     page = c.get("/setup/galleries", environ_base=E).get_data(as_text=True)
     assert 'id="no-cw-check"' not in page
-    assert "Codewords are off for galleries here. Cleared the codeword on 1 session not online yet." in page
+    assert "Passphrases are off for galleries here. Cleared the passphrase on 1 session not online yet." in page
     with A.app.test_request_context():
         assert not any(a["text"].startswith(SAYS) for a in A.system_alerts())
     h = _history(A)
-    assert sum("Turned gallery codewords off" in x for x in h) == 1
+    assert sum("Turned gallery passphrases off" in x for x in h) == 1
 
 def test_codewords_off_endpoint_refuses_when_the_host_is_not_s3(env):
     A, c, _t = env
@@ -222,7 +222,7 @@ def test_move_galleries_leaves_a_codeword_gallery_where_its_codeword_is_checked(
     monkeypatch.setattr(jobs, "start", _start)
     c.post("/galleries/move", environ_base=E)
     assert ran and not uploaded
-    assert "Left on the earlier host, as this web host can't check codewords: Lane." in ran[0]
+    assert "Left on the earlier host, as this web host can't check passphrases: Lane." in ran[0]
     con = A.connect()
     fp = con.execute("SELECT host_fp FROM galleries WHERE session_id=1").fetchone()[0]
     con.close()

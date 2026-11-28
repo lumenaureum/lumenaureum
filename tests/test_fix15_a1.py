@@ -202,8 +202,9 @@ def test_new_contact_company_is_the_company_field(env):
 def test_new_session_links_are_labeled(env):
     A, c = env
     _session(A, "family", "inquiry")
-    more = _page(c).split('id="more"', 1)[1]
-    assert "New session for Keystone Realty Group</h3>" in more
+
+    more = _page(c).split('id="more-session"', 1)[1].split("</details>", 1)[0]
+    assert ">New session for Keystone Realty Group</span>" in more
     assert 'type="url"' not in more
 
 def test_codeword_saved_from_the_client_page(env):
@@ -211,13 +212,13 @@ def test_codeword_saved_from_the_client_page(env):
     _session(A, "family", "shot", days=-3, start="10:00", place="Park")
     r = c.post("/session/1/codeword", data={"gallery_codeword": "heron", "back": "/c/1?s=1"}, environ_base=E,
                follow_redirects=True)
-    assert 'Use "heron" as the codeword?' in r.get_data(as_text=True)
+    assert 'Use "heron" as the passphrase?' in r.get_data(as_text=True)
     assert _sql(A, "SELECT gallery_codeword FROM sessions WHERE id=1")[0][0] in ("", None)
     c.post("/session/1/codeword", data={"gallery_codeword": "heron", "cw_ok": "1", "back": "/c/1?s=1"}, environ_base=E)
     assert _sql(A, "SELECT gallery_codeword FROM sessions WHERE id=1")[0][0] == "heron"
     r = c.post("/session/1/codeword", data={"cw_make": "1", "back": "/c/1?s=1"}, environ_base=E, follow_redirects=True)
     made = _sql(A, "SELECT gallery_codeword FROM sessions WHERE id=1")[0][0]
-    assert len(made.split()) == 5 and f"Made the codeword &#34;{made}&#34;" in r.get_data(as_text=True)
+    assert len(made.split()) == 5 and f"Made the passphrase &#34;{made}&#34;" in r.get_data(as_text=True)
     r = c.post("/session/1/codeword", data={"gallery_codeword": "heron maple tide", "back": "/c/1?s=1"}, environ_base=E)
     assert r.headers["Location"].endswith("/c/1?s=1")
     assert _sql(A, "SELECT gallery_codeword FROM sessions WHERE id=1")[0][0] == "heron maple tide"
@@ -262,14 +263,14 @@ def test_codeword_enter_saves_in_place(browser, env):
     ctx, p = _tab(browser, c)
     try:
         p.goto(BASE + "/c/1?s=1")
-        if not p.get_by_text("Add the codeword").count():
-            pytest.skip("this session type asks for no codeword")
+        if not p.get_by_role("link", name="Add the passphrase").count():
+            pytest.skip("this session type asks for no passphrase")
         p.evaluate("window.__stay = 1")
-        p.get_by_text("Add the codeword").click()
-        box = p.get_by_label("Gallery codeword")
+        p.get_by_role("link", name="Add the passphrase").click()
+        box = p.get_by_label("Gallery passphrase")
         box.fill("heron maple tide")
         box.press("Enter")
-        p.locator(".ui-note", has_text="Saved the gallery codeword").wait_for()
+        p.locator(".ui-note", has_text="Saved the gallery passphrase").wait_for()
         assert p.evaluate("window.__stay") == 1
     finally:
         ctx.close()
@@ -301,17 +302,20 @@ def test_a_move_to_delivered_names_the_files_delivered_not_picks(env):
 
     A, c = env
     _session(A, "family", "shot", days=-20, start="10:00", place="Park")
-    _sql(A, "UPDATE sessions SET retouch_picks='IMG_1', sd_shipped=? WHERE id=1", (_day(A, -1),))
+    _sql(A, "UPDATE sessions SET retouch_picks='IMG_1', sd_shipped=?, gallery_built=? WHERE id=1", (_day(A, -1), _day(A, -5)))
+
+    _sql(A, "UPDATE tasks SET done=?, outcome='done' WHERE session_id=1 AND done IS NULL", (_day(A, -1),))
     _in(A, lambda: A.advance(1))
     moved = [h for h in _history(A) if h.startswith("Moved to Delivered")]
     assert moved and moved[0].startswith("Moved to Delivered: the files were delivered."), _history(A)
 
-def test_picks_alone_still_say_picks_came_in(env):
+def test_picks_alone_never_move_to_delivered(env):
+
     A, c = env
     _session(A, "family", "shot", days=-20, start="10:00", place="Park")
     _sql(A, "UPDATE sessions SET favorites='IMG_1' WHERE id=1")
     _in(A, lambda: A.advance(1))
-    assert [h for h in _history(A) if h.startswith("Moved to Delivered: the client's picks came in.")]
+    assert not [h for h in _history(A) if h.startswith("Moved to Delivered")]
 
 def test_make_one_for_me_is_never_a_short_list_and_make_another_replaces_it(env):
 
@@ -324,7 +328,7 @@ def test_make_one_for_me_is_never_a_short_list_and_make_another_replaces_it(env)
     c.post("/session/1/codeword", data={"cw_make": "1", "back": "/c/1?s=1"}, environ_base=E)
     first = _sql(A, "SELECT gallery_codeword FROM sessions WHERE id=1")[0][0]
     page = c.get("/c/1?s=1", environ_base=E).get_data(as_text=True)
-    assert f"Codeword: {first}" in page and "Make another" in page
+    assert f"Passphrase: {first}" in page and "Make another" in page
     seen = {first}
     for _ in range(3):
         c.post("/session/1/codeword", data={"cw_make": "1", "back": "/c/1?s=1"}, environ_base=E)

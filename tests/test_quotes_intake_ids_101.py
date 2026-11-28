@@ -231,8 +231,10 @@ def test_a_deleted_sessions_history_is_labeled_on_its_replacement(tmp_path, monk
     new = _new(A, c, "family", subject_name="Ava")
     assert new == gone + 1
     assert not _q(A, "SELECT 1 FROM audit WHERE session_id=? AND note LIKE ?", (new, f"quote {old_q},%"))
-    page = _stage(c, new)
-    hist = page[page.index('id="history"'):]
+
+    assert "/history?client=1" in _stage(c, new)
+    page = c.get("/history?client=1", environ_base=E).get_data(as_text=True)
+    hist = page[page.index('class="hlist"'):]
     rows = re.findall(r'<div class="hrow.*?</div>\s*</div>', hist, re.S)
     quote_row = next(r_ for r_ in rows if f"quote {old_q}," in r_)
     assert "From a deleted session" in quote_row

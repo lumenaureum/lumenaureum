@@ -12,7 +12,7 @@
      confirm='Approve these prices as they are? Approving counts as your review: they are final, stop printing SAMPLE, and print as your prices on every quote from now on.') }}</div>
 {% endcall %}{% endif %}
 {% call ui.money_table(sched_name(sch.id)) %}
-{% for it in sch['items'] %}{% set price_ %}{% if it.unit == 'mile' and not it.amount %}mileage rate{% else %}{{ money(it.amount) }}{% if it.unit == 'hour' %}/hr{% elif it.unit == 'mile' %}/mi{% elif it.unit == 'each' %} each{% endif %}{% endif %}{% endset %}{% call ui.money_row(price_) %}{{ it.label }}{% endcall %}{% endfor %}
+{% for it in sch['items'] if not (it.key == 'retouch' and not C.OFFER_RETOUCH) %}{% set price_ %}{% if it.unit == 'mile' and not it.amount %}mileage rate{% else %}{{ money(it.amount) }}{% if it.unit == 'hour' %}/hr{% elif it.unit == 'mile' %}/mi{% elif it.unit == 'each' %} each{% endif %}{% endif %}{% endset %}{% call ui.money_row(price_) %}{{ it.label }}{% endcall %}{% endfor %}
 {% endcall %}
 {% include "_editing.html" %}
 </div>

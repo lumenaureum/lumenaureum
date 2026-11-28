@@ -22,6 +22,18 @@ SEALED_ASSETS = Path(__file__).with_name("sealed_assets")
 
 HOST_SCRIPTS_SET = "1.6.0"
 
+def by_photo(what, done, total, photos):
+
+    if not total:
+        return what, 0, 0
+    pct = min(100, 100 * done // total)
+    if not photos:
+        return f"{what}: {pct}%", pct, 100
+    k = min(photos, done * photos // total)
+    if k < 1:
+        return f"{what}: {pct}%", pct, 100
+    return f"{what}: photo {k} of {photos}", k, photos
+
 def _G():
 
     import types
@@ -50,8 +62,16 @@ FOLDERS = os.environ.get("CRM_PHOTO_FOLDERS", "") == "1"
 DEFAULT_BASE_URL = ""
 STEP_LABEL = "Gallery built"
 NO_PICKS_ACTION = "Deliver without picks: the next build is the download gallery"
+
+SHARE_ACTION = "Share a download gallery too: the next build is the download gallery"
 WEB_EDGE, THUMB_EDGE = 2048, 480
 JPEG_EXT = {".jpg", ".jpeg"}
+PHOTO_FORMATS = ("JPEG", "MPO", "PNG")
+SKIPPED_WORDS = "not a JPEG or PNG photo this can read"
+
+def photo_head(b):
+
+    return b.startswith(b"\xff\xd8\xff") or b.startswith(b"\x89PNG\r\n\x1a\n")
 
 GID_OK = re.compile(r"^[A-Za-z0-9_-]{6,64}$")
 
@@ -85,6 +105,7 @@ def _now_iso(plus_min=0):
     return (datetime.now() + timedelta(minutes=plus_min)).isoformat(timespec="seconds")
 
 LAST_CHECK = {}
+UP_AT = {}
 
 def _same_picks(a, b):
 
@@ -232,6 +253,8 @@ def clean_jpeg(path, mark=None, full=False, meta=None):
 
     from PIL import Image, ImageCms, ImageOps
     with Image.open(path) as im:
+        if im.format not in PHOTO_FORMATS:
+            raise ValueError(SKIPPED_WORDS)
         if im.format == "JPEG" and not full:
             w_, h_ = im.size
             r_ = min(1.0, WEB_EDGE / max(w_, h_))
@@ -239,6 +262,11 @@ def clean_jpeg(path, mark=None, full=False, meta=None):
         im.load()
         im = ImageOps.exif_transpose(im)
         icc = im.info.get("icc_profile")
+        if im.mode.startswith("I"):
+            im = im.convert("I").point(lambda v: v * (1 / 256)).convert("L")
+        if "A" in im.getbands() or (im.mode == "P" and "transparency" in im.info):
+            rgba = im.convert("RGBA")
+            im = Image.alpha_composite(Image.new("RGBA", rgba.size, (255, 255, 255, 255)), rgba).convert("RGB")
         if icc and im.mode in ("RGB", "CMYK"):
             try:
                 im = ImageCms.profileToProfile(im, ImageCms.ImageCmsProfile(io.BytesIO(icc)),
@@ -267,12 +295,35 @@ def clean_jpeg(path, mark=None, full=False, meta=None):
     pixels.save(b, "JPEG", quality=95, optimize=True, progressive=True, **extra)
     return web, wsize, thumb, tsize, b.getvalue(), pixels.size
 
+def skipped_list(names, most=20):
+
+    names = [str(n_) for n_ in names]
+    return ", ".join(names[:most]) + (f" and {len(names) - most} more" if len(names) > most else "")
+
+BUILT_LINES = ("Gallery built: %", "Download gallery built: %")
+
+def built_skipped(data):
+
+    try:
+        v_ = (json.loads(data or "{}") or {}).get("left_out", [])
+    except (ValueError, AttributeError):
+        return []
+    return [str(n_) for n_ in v_] if isinstance(v_, list) else []
+
 def natural(p):
     return [int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", p.name)]
 
+def _head(p):
+    try:
+        with open(p, "rb") as f:
+            return f.read(8)
+    except OSError:
+        return b""
+
 def list_jpegs(folder):
-    return sorted((p for p in Path(folder).iterdir() if p.is_file() and p.suffix.lower() in JPEG_EXT
-                   and not p.name.startswith(".")), key=natural)
+
+    return sorted((p for p in Path(folder).iterdir() if p.is_file() and not p.name.startswith(".")
+                   and (p.suffix.lower() in JPEG_EXT | {".png"} or photo_head(_head(p)))), key=natural)
 
 class Built(NamedTuple):
 
@@ -410,7 +461,7 @@ def build(gid, src, key, progress=lambda done, total: None, picks=None, credit="
     files = [opener for _, opener in src] if isinstance(src, list) else list_jpegs(src)
     names = [n_ for n_, _ in src] if isinstance(src, list) else [p_.name for p_ in files]
     if not files:
-        raise ValueError("No JPEGs in folder")
+        raise ValueError("No JPEG or PNG photos in folder")
     if download:
         mark = None
     keep_full = bool(keep_full) and not download and not card
@@ -465,7 +516,8 @@ def build(gid, src, key, progress=lambda done, total: None, picks=None, credit="
         zsize = 0
 
     try:
-        in_zip = zip_names(names)
+        in_zip = zip_names([n_ if Path(str(n_)).suffix.lower() in JPEG_EXT else Path(str(n_)).stem + ".jpg"
+                            for n_ in names])
         stamp = date.today().timetuple()[:3] + (12, 0, 0)
         for i, p in enumerate(files):
             try:
@@ -499,7 +551,7 @@ def build(gid, src, key, progress=lambda done, total: None, picks=None, credit="
             del out
             progress(i + 1, len(files))
         if not items:
-            raise ValueError("None of these files is a JPEG photo this can read: " + ", ".join(skipped[:5]))
+            raise ValueError("None of these files is a JPEG or PNG photo this can read: " + ", ".join(skipped[:5]))
         if zf is not None:
             seal_zip()
     except BaseException:
@@ -717,12 +769,12 @@ def host_check_now():
         return {}
 
 WORD_REFUSED = ("Your web host hands out gallery files without asking for the key, so someone with only the link could "
-                "try codewords as fast as their computer allows. A gallery with a codeword can't go there: remove the "
-                "codeword, or use a web host that passes the check in Setup, Online galleries.")
+                "try passphrases as fast as their computer allows. A gallery with a passphrase can't go there: remove the "
+                "passphrase, or use a web host that passes the check in Setup, Online galleries.")
 
 WORD_REFUSED_STATIC = ("Your web host is a static website (S3-compatible storage), which runs no scripts to ask for the key, "
-                       "so someone with only the link could try codewords as fast as their computer allows. A gallery "
-                       "with a codeword can't go there: remove the codeword, or use a web host that runs PHP.")
+                       "so someone with only the link could try passphrases as fast as their computer allows. A gallery "
+                       "with a passphrase can't go there: remove the passphrase, or use a web host that runs PHP.")
 
 def static_host():
 
@@ -732,7 +784,7 @@ def static_host():
     except Exception:
         return False
 
-NO_CODEWORD_CHECK = "This web host can't check codewords. Galleries stay sealed, and anyone with the link can open them."
+NO_CODEWORD_CHECK = "This web host can't check passphrases. Galleries stay sealed, and anyone with the link can open them."
 
 def codewords_on():
 
@@ -793,8 +845,8 @@ def codewords_kept(con):
 
 def codewords_off_confirm(n):
 
-    return ("Turn codewords off for every session type? "
-            + (f"{n} session{' loses its' if n == 1 else 's lose their'} codeword, as "
+    return ("Turn passphrases off for every session type? "
+            + (f"{n} session{' loses its' if n == 1 else 's lose their'} passphrase, as "
                f"{'its gallery is' if n == 1 else 'their galleries are'} not online yet. " if n else "No session changes. ")
             + "Galleries already online keep theirs.")
 
@@ -884,7 +936,7 @@ def adopt_link(link, base):
         raise AdoptRefused("That link doesn't point at a gallery folder.")
     frag = parse_qs(u.fragment or "")
     if (frag.get("c") or [""])[0] == "1":
-        raise AdoptRefused("That gallery asks for a codeword, so its link alone doesn't open it. It can't be adopted.")
+        raise AdoptRefused("That gallery asks for a passphrase, so its link alone doesn't open it. It can't be adopted.")
     key = (frag.get("k") or [""])[0]
     try:
         ok = len(key_bytes(key)) == 32 and re.fullmatch(r"[A-Za-z0-9_-]{43}", key)
@@ -2444,10 +2496,57 @@ def register(ctx):
 
     BEFORE_DELETE.append(picks_before_delete)
 
+    def flow_of(s):
+
+        dropped_ = app.config.get("retouch_dropped")
+        if callable(dropped_) and dropped_(s["id"]):
+            return ctx.C.without_retouch(ctx.C.WORKFLOW_RETOUCH[s["type"]])
+        if not ctx.C.OFFER_RETOUCH and ((s["retouch_picks"] if "retouch_picks" in s.keys() else "") or "").strip():
+            return ctx.C.WORKFLOW_RETOUCH[s["type"]]
+        return ctx.C.WORKFLOW[s["type"]]
+
+    def dl_start(sid, sd_shipped, first_visit):
+
+        r_ = q("SELECT type, delivery_method FROM sessions WHERE id=?", (sid,), one=True)
+        if r_ and ctx.C.delivery_method(r_["type"], r_["delivery_method"]) == "link":
+            return sd_shipped
+        return first_visit
+
+    app.config["gallery_dl_start"] = dl_start
+    def gallery_asked(sid):
+
+        if download_chosen(sid):
+            return True
+        return bool(q("""SELECT 1 FROM galleries WHERE session_id=? AND (built_at IS NOT NULL OR adopted IS NOT NULL
+                         OR COALESCE(upload_state, '') != '') LIMIT 1""", (sid,), one=True))
+
+    app.config["gallery_asked"] = gallery_asked
+
+    def gallery_delivers(sid):
+
+        if download_chosen(sid):
+            return True
+        g_ = gal(sid)
+        s_ = q("SELECT gallery_id FROM sessions WHERE id=?", (sid,), one=True)
+        if not g_ or not s_:
+            return False
+        if is_adopted(g_):
+            return True
+        return bool((g_["built_at"] or g_["uploaded_at"]) and s_["gallery_id"] and is_download(s_["gallery_id"]))
+
+    app.config["gallery_delivers"] = gallery_delivers
+
+    app.config["share_too"] = lambda sid: None if download_chosen(sid) else ctx.audit(SHARE_ACTION, sid=sid)
+
     def has_gallery_step(s):
 
-        flow = ctx.C.WORKFLOW.get(s["type"], {})
-        return any(st[0] == "auto" and st[1] == "gallery_built" for steps in flow.values() for st in steps) or link_delivery(s)
+        flow = flow_of(s)
+        if shares_link(s):
+            return True
+        if not any(st[0] == "auto" and st[1] == "gallery_built" for steps in flow.values() for st in steps):
+            return False
+        unasked = app.config.get("gallery_unasked")
+        return not (callable(unasked) and "event_id" in s.keys() and unasked(s, flow))
 
     def card_delivery(s):
 
@@ -2456,13 +2555,20 @@ def register(ctx):
     def link_delivery(s):
         return ctx.C.delivery_method(s["type"], s["delivery_method"] if "delivery_method" in s.keys() else None) == "link"
 
+    def shares_link(s):
+
+        return link_delivery(s) or download_chosen(s["id"])
+
+    def download_chosen(sid):
+
+        return bool(q("SELECT 1 FROM audit WHERE session_id=? AND action IN (?,?) LIMIT 1",
+                      (sid, NO_PICKS_ACTION, SHARE_ACTION), one=True))
+
     def wants_download(s):
 
-        if not link_delivery(s):
+        if not shares_link(s):
             return False
-        flow = ctx.C.WORKFLOW[s["type"]]
-        picking = any(st[0] == "auto" and st[1] == "favorites" for steps in flow.values() for st in steps)
-        return not picking or picks_in(s) or no_picks_chosen(s["id"])
+        return not picking_type(s) or picks_in(s) or no_picks_chosen(s["id"])
 
     def picks_in(s):
         return bool(s["favorites"] or s["retouch_picks"] or s["veto"])
@@ -2472,12 +2578,12 @@ def register(ctx):
         return bool(q("SELECT 1 FROM audit WHERE session_id=? AND action=? LIMIT 1", (sid, NO_PICKS_ACTION), one=True))
 
     def picking_type(s):
-        flow = ctx.C.WORKFLOW[s["type"]]
+        flow = flow_of(s)
         return any(st[0] == "auto" and st[1] == "favorites" for steps in flow.values() for st in steps)
 
     def wants_finals(s):
 
-        return (link_delivery(s) or card_delivery(s)) and picking_type(s)
+        return (shares_link(s) or card_delivery(s)) and picking_type(s)
 
     app.config["gallery_wants_finals"] = wants_finals
 
@@ -2491,9 +2597,7 @@ def register(ctx):
 
     def proof_how(s, g):
 
-        flow = ctx.C.WORKFLOW[s["type"]]
-        picking = any(st[0] == "auto" and st[1] == "favorites" for steps in flow.values() for st in steps)
-        if not picking or picks_in(s) or wants_download(s) or s["stage"] == "closed" or is_adopted(g):
+        if not picking_type(s) or picks_in(s) or wants_download(s) or s["stage"] == "closed" or is_adopted(g):
             return ""
         if g and g["built_at"] and is_download(s["gallery_id"] or ""):
             return ""
@@ -2504,7 +2608,30 @@ def register(ctx):
 
     def may_skip_picks(s):
 
-        return link_delivery(s) and s["stage"] != "closed" and not picks_in(s) and not wants_download(s)
+        return picking_type(s) and not picks_in(s) and not wants_download(s) and not is_adopted(gal(s["id"]))
+
+    def may_share(s):
+
+        return (not shares_link(s) and not may_skip_picks(s) and not is_adopted(gal(s["id"]))
+                and s["stage"] in ("shot", "delivered", "closed"))
+
+    def share_offer(s):
+
+        if being_deleted(s) or (JOBS.get(s["id"]) or {}).get("state") == "running":
+            return None
+        if may_skip_picks(s) and s["stage"] != "closed":
+            return dict(label="Deliver without picks", merge=False, post=url_for("gallery_no_picks", sid=s["id"]),
+                        confirm="Make the next build the download gallery, without the client's picks?")
+        if may_skip_picks(s) or may_share(s):
+            return dict(label="Share a gallery", merge=True, confirm=None, post=url_for("gallery_no_picks", sid=s["id"]))
+        return None
+
+    app.jinja_env.globals["gallery_share_offer"] = share_offer
+
+    app.jinja_env.globals["gallery_made"] = lambda sid: bool((gal(sid) or {"built_at": None})["built_at"])
+
+    app.jinja_env.globals["gallery_download_too"] = gallery_download_too = (
+        lambda s: not link_delivery(s) and download_chosen(s["id"]))
 
     def gal(sid):
         return q("SELECT * FROM galleries WHERE session_id=?", (sid,), one=True)
@@ -2565,8 +2692,10 @@ def register(ctx):
 
         h = q("SELECT name FROM households WHERE id=?", (s["household_id"],), one=True)
         when = ""
-        if s["shoot_date"]:
-            d_ = date.fromisoformat(s["shoot_date"][:10])
+        early_ = app.jinja_env.globals.get("shot_early")
+        shot_ = (early_(s) if callable(early_) else None) or s["shoot_date"]
+        if shot_:
+            d_ = date.fromisoformat(shot_[:10])
             when = f"{d_:%B} {d_.day}, {d_.year}"
         label = ctx.C.doc_label(s["type"])
 
@@ -2743,8 +2872,7 @@ def register(ctx):
         import photostore
         con = ctx.connect()
         try:
-            rows = [r for r in photostore.files(con, sid, kind, done_only=True)
-                    if Path(r["name"]).suffix.lower() in JPEG_EXT]
+            rows = list(photostore.files(con, sid, kind, done_only=True))
         finally:
             con.close()
         rows.sort(key=lambda r: natural(Path(r["name"])))
@@ -2812,9 +2940,9 @@ def register(ctx):
     @app.post("/session/<int:sid>/gallery/build", endpoint="build_gallery")
     def build_gallery(sid):
         return start_build(sid, request.form.get("from"), request.form.get("source_dir", "").strip(),
-                           request.form.get("proofs_ok"))
+                           request.form.get("proofs_ok"), then_upload=bool(request.form.get("then_upload")) and has_host())
 
-    def start_build(sid, frm, source_dir, proofs_ok, adopt=None, sync=False):
+    def start_build(sid, frm, source_dir, proofs_ok, adopt=None, sync=False, then_upload=False):
 
         s = session(sid)
         back = url_for("client_stage", hid=s["household_id"]) + f"?s={sid}#gallery"
@@ -2837,7 +2965,7 @@ def register(ctx):
                 src = uploaded(sid)
                 upto = newest_upload(sid, "export")
             if not src:
-                JOBS[sid] = dict(state="error", done=0, total=0, error="No edited JPEGs uploaded yet: drop them in Photos first.")
+                JOBS[sid] = dict(state="error", done=0, total=0, error="No edited photos uploaded yet: drop them in Photos first.")
                 return redirect(back)
             x("UPDATE galleries SET source_dir='' WHERE session_id=?", (sid,))
         else:
@@ -2853,7 +2981,7 @@ def register(ctx):
         if fixed and ((fixed == "none") != (not norm_codeword(word)) or (fixed == "word" and (g["ekey"] or "") not in ("", key))):
 
             JOBS[sid] = dict(state="error", done=0, total=0,
-                             error="This gallery is already online " + ("without a codeword" if fixed == "none" else "with its codeword")
+                             error="This gallery is already online " + ("without a passphrase" if fixed == "none" else "with its passphrase")
                                    + ", so that stays as it is: the link you sent keeps working.")
             return redirect(back)
         with LOCK:
@@ -2869,7 +2997,9 @@ def register(ctx):
         picks_cfg = dict(retouch=ctx.C.RETOUCH_PICKS, market=0 if s["portfolio_no"] else ctx.C.MARKETING_PICKS,
                          email=(em["value"] if em else ""), ref=gid,
                          post=host_type in ("sftp", "local"))
-        if download:
+        dropped_ = app.config.get("retouch_dropped")
+        if download or ((not ctx.C.OFFER_RETOUCH or (callable(dropped_) and dropped_(s["id"]))) and not picking_type(s)):
+
             picks_cfg = dict(post=picks_cfg["post"])
         off = q("SELECT value FROM settings WHERE key='credit_off'", one=True)
         credit = "" if off and off["value"] == "1" else ctx.C.CREDIT
@@ -2918,8 +3048,10 @@ def register(ctx):
                     if relinked:
                         relinked()
                     x("UPDATE sessions SET gallery_built=? WHERE id=?", (date.today().isoformat(), sid))
-                    ctx.audit(("Download gallery" if download else "Gallery") + f" built: {n} photos encrypted" + (f"; skipped (not a JPEG this can read): {', '.join(skipped[:10])}" if skipped else ""),
-                              sid=sid, who="Lumen Aureum")
+                    ctx.audit(("Download gallery" if download else "Gallery") + f" built: {n} photos encrypted"
+                              + (f"; left out ({SKIPPED_WORDS}): {skipped_list(skipped)}" if skipped else ""),
+                              sid=sid, who="Lumen Aureum",
+                              data=json.dumps(dict(left_out=skipped)) if skipped else "")
                     ctx.advance(sid)
                     live = q("SELECT 1 FROM galleries WHERE session_id=? AND upload_state='up' AND removed_at IS NULL",
                              (sid,), one=True)
@@ -2936,7 +3068,10 @@ def register(ctx):
                             x("UPDATE galleries SET upload_error=? WHERE session_id=?", (errtext.scrub(e_), sid))
                 job["state"] = "done"
                 if skipped:
-                    job["error"] = "Skipped, not a JPEG this can read: " + ", ".join(skipped[:10])
+                    job["error"] = f"Left out, {SKIPPED_WORDS}: " + skipped_list(skipped)
+                if then_upload and not live:
+                    with app.app_context():
+                        start_upload(sid)
             except Exception as e:
                 app.logger.exception("gallery build failed")
                 job.update(state="error", error=str(e) or e.__class__.__name__)
@@ -3222,6 +3357,13 @@ def register(ctx):
         s = session(sid)
         if may_skip_picks(s):
             ctx.audit(NO_PICKS_ACTION, sid=sid)
+        elif may_share(s):
+            ctx.audit(SHARE_ACTION, sid=sid)
+        else:
+            return redirect(url_for("client_stage", hid=s["household_id"]) + f"?s={sid}#gallery")
+        if request.form.get("go") and not being_deleted(s) and (uploaded(sid) or uploaded(sid, "final")):
+
+            return start_build(sid, "uploads", "", None, then_upload=has_host())
         return redirect(url_for("client_stage", hid=s["household_id"]) + f"?s={sid}#gallery")
     @app.post("/session/<int:sid>/picks/paste", endpoint="picks_paste")
     def picks_paste(sid):
@@ -3255,14 +3397,15 @@ def register(ctx):
     def gallery_status(sid):
         j = JOBS.get(sid) or dict(state="idle", done=0, total=0, error="")
         u = UPDATING.get(sid)
+        g_ = q("SELECT upload_state, n_files FROM galleries WHERE session_id=?", (sid,), one=True)
+        n_ = (g_["n_files"] if g_ else 0) or 0
         if u and j.get("state") != "running":
-            j = dict(state="running", done=u["done"], total=u["total"], error="",
-                     label=f"Updating the copy online: file {u['done']} of {u['total']}" if u["total"] else "Updating the copy online")
-        g_ = q("SELECT upload_state FROM galleries WHERE session_id=?", (sid,), one=True)
+            w_, d_, t_ = by_photo("Updating the copy online", u["done"], u["total"], n_)
+            j = dict(state="running", done=d_, total=t_, error="", label=w_)
         up_ = UPLOADING.get(sid)
         if up_ and g_ and g_["upload_state"] == "uploading":
-            j = dict(j, up_label=f"Uploading: file {up_['done']} of {up_['total']}" if up_["total"] else "Uploading",
-                     up_done=up_["done"], up_total=up_["total"])
+            w_, d_, t_ = by_photo("Putting the gallery online", up_["done"], up_["total"], n_)
+            j = dict(j, up_label=w_ if up_["total"] else "Putting the gallery online", up_done=d_, up_total=t_)
         return jsonify(dict(j, upload=(g_["upload_state"] if g_ else "") or ""))
 
     def old_build_page(gid):
@@ -3396,6 +3539,8 @@ def register(ctx):
                 con_.commit()
             finally:
                 con_.close()
+            if n_ == 1:
+                UP_AT[sid] = time.time()
             if n_ != 1:
                 delete_gallery(gid)
                 return
@@ -3445,11 +3590,16 @@ def register(ctx):
             with app.app_context():
                 x("UPDATE galleries SET upload_error='' WHERE session_id=?", (sid,))
 
+            n_photos = {}
+
             def progress(done, total):
                 UPDATING[sid].update(done=done, total=total)
                 if job is not None:
-                    job.update(done=done, total=total, label=f"Updating the copy online: file {done} of {total}."
-                                                             " The client's link keeps working meanwhile.")
+                    if "n" not in n_photos:
+                        with app.app_context():
+                            n_photos["n"] = (gal(sid) or {"n_files": 0})["n_files"] or 0
+                    w_, d_, t_ = by_photo("Updating the copy online", done, total, n_photos["n"])
+                    job.update(done=d_, total=t_, label=w_ + ". The client's link keeps working meanwhile.")
             with app.app_context():
                 gid = upgrade_first(sid) or gid
                 g_ = gal(sid)
@@ -3511,20 +3661,28 @@ def register(ctx):
     @app.post("/session/<int:sid>/gallery/upload", endpoint="upload_gallery_req")
     def upload_gallery_req(sid):
         s = session(sid)
-        g = gal(sid)
         back = url_for("client_stage", hid=s["household_id"]) + f"?s={sid}#gallery"
         back = ctx.safe_back(request.form.get("back")) or back
         if being_deleted(s):
             return refuse_deleting(s, back)
+        start_upload(sid, early=bool(request.form.get("early")))
+        return redirect(back)
+
+    def start_upload(sid, early=False):
+
+        s = session(sid)
+        g = gal(sid)
+        if being_deleted(s):
+            return
         if not g or not g["built_at"] or g["upload_state"] in ("awaiting", "uploading"):
-            return redirect(back)
+            return
         replace = False
         if g["upload_state"] == "up" and not g["removed_at"]:
             gid = s["gallery_id"]
             if JOBS.get(sid, {}).get("state") == "running" or sid in UPDATING:
                 from flask import g as _g
                 _g.refused = True
-                return redirect(back)
+                return
             if gid and not online_is_current(gid) and online_download(gid) != is_download(gid):
                 replace = True
         if g["upload_state"] == "up" and not g["removed_at"] and not replace:
@@ -3536,10 +3694,10 @@ def register(ctx):
                         threading.Thread(target=do_update, args=(sid, gid), name=f"gal-up-{sid}", daemon=True).start()
                 except Exception as e:
                     x("UPDATE galleries SET upload_error=? WHERE session_id=?", ("held upload failed: " + errtext.words(e, 180), sid))
-            return redirect(back)
+            return
 
         owed = ctx.deposit_held(sid) if proof_built(sid) else ctx.release_blocked(sid)
-        if owed and not request.form.get("early"):
+        if owed and not early:
             if replace:
                 x("UPDATE galleries SET upload_error=? WHERE session_id=?",
                   (f"balance {ctx.money(owed)} due - the download gallery is released on payment", sid))
@@ -3547,17 +3705,17 @@ def register(ctx):
                 x("UPDATE galleries SET upload_state='error', upload_error=? WHERE session_id=?",
                   (f"deposit {ctx.money(owed)} due - the proofs go online once it is in" if proof_built(sid) else
                    f"balance {ctx.money(owed)} due - the gallery is released on payment", sid))
-            return redirect(back)
+            return
         gid = s["gallery_id"]
         word = (s["gallery_codeword"] if "gallery_codeword" in s.keys() else "") or ""
         if codeword_key(g["key"], cw_id(g, gid), word) != (g["ekey"] or g["key"]):
             x("UPDATE galleries SET upload_state=?, upload_error=? WHERE session_id=?",
-              ("up" if replace else "error", "the codeword changed after the gallery was built: press Rebuild, then Upload", sid))
-            return redirect(back)
+              ("up" if replace else "error", "the passphrase changed after the gallery was built: press Rebuild, then Upload", sid))
+            return
         if norm_codeword(word) and word_refused():
             x("UPDATE galleries SET upload_state=?, upload_error=? WHERE session_id=?",
               ("up" if replace else "error", word_refused(), sid))
-            return redirect(back)
+            return
         try:
 
             held_ = ctx.hooks.guard("gallery_upload", lambda: do_upload(sid, gid, replace, held=True), sid=sid,
@@ -3567,12 +3725,12 @@ def register(ctx):
 
                     x("UPDATE galleries SET upload_state='awaiting', upload_error=? WHERE session_id=?",
                       (held_.strip()[:200] if isinstance(held_, str) else "", sid))
-                return redirect(back)
+                return
         except Exception as e:
             x("UPDATE galleries SET upload_state='error', upload_error=? WHERE session_id=?", ("held upload failed: " + errtext.words(e, 180), sid))
-            return redirect(back)
+            return
         threading.Thread(target=do_upload, args=(sid, gid, replace), name=f"gal-up-{sid}", daemon=True).start()
-        return redirect(back)
+        return
 
     def restored_until(r, days):
 
@@ -3870,7 +4028,7 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
                         import upgrade_140
                         gid = upgrade_140.relink_for_move(ctx, _G(), r["sid"]) or gid
                     days_ = gdays(r["sid"]) * (2 if r["extension_used"] else 1)
-                    first = r["sd_shipped"] if online_download(gid) else r["first_visit"]
+                    first = dl_start(r["sid"], r["sd_shipped"], r["first_visit"]) if online_download(gid) else r["first_visit"]
                     up = date.fromisoformat((r["uploaded_at"] or date.today().isoformat())[:10])
                     until = restored_until(r, days_) or adopted_until(r, gdays(r["sid"])) or (
                         (date.fromisoformat(first[:10]) + timedelta(days=days_)).isoformat() if first else None)
@@ -3935,9 +4093,9 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
             msg += " Not moved: " + ", ".join(missing[:8]) + (" and more" if len(missing) > 8 else "") + \
                    ". Rebuild those on their sessions, then move again."
         if no_check:
-            msg += " Left on the earlier host, as this web host can't check codewords: " + ", ".join(no_check[:8]) + \
+            msg += " Left on the earlier host, as this web host can't check passphrases: " + ", ".join(no_check[:8]) + \
                    (" and more" if len(no_check) > 8 else "") + \
-                   ". Turn codewords off for galleries here (Setup, Online galleries) and remove each one's codeword, or choose a host that can check codewords."
+                   ". Turn passphrases off for galleries here (Setup, Online galleries) and remove each one's passphrase, or choose a host that can check passphrases."
         if failed:
             msg += " Still on the earlier host after a failed upload: " + ", ".join(failed[:8]) + \
                    (" and more" if len(failed) > 8 else "") + ". Press Upload on those sessions."
@@ -4454,7 +4612,7 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
                 LAST_CHECK.setdefault("sid", {})[r["sid"]] = time.time()
             gid = r["gallery_id"]
             dl = online_download(gid)
-            first = r["sd_shipped"] if dl else r["first_visit"]
+            first = dl_start(r["sid"], r["sd_shipped"], r["first_visit"]) if dl else r["first_visit"]
             stranded = bool(r["host_fp"]) and r["host_fp"] != fp_now
             try:
                 if stranded:
@@ -5420,6 +5578,8 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
 
         on_ = online_sids(sids)
         ats = [t_ for t_ in [LAST_CHECK.get("at")] + [(LAST_CHECK.get("sid") or {}).get(s_) for s_ in on_] if t_]
+        if ats and any(UP_AT.get(s_, 0) > max(ats) for s_ in on_):
+            ats = []
         return dict(n=len(on_), at=max(ats) if on_ and ats else None)
 
     ctx.hooks.client_online.append(client_online)
@@ -5437,7 +5597,7 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
         days = ctx.C.gallery_days(s["type"])
         expires = ext_date = None
         dl_online = online_download(gid)
-        opened = s["sd_shipped"] if dl_online else s["first_visit"]
+        opened = dl_start(s["id"], s["sd_shipped"], s["first_visit"]) if dl_online else s["first_visit"]
         restored = bool(g and "restored_at" in g.keys() and g["restored_at"] and (g["upload_state"] or "") != "removed")
         if restored:
             opened = g["restored_at"]
@@ -5543,7 +5703,7 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
                 needs.append(dict(text=f"{n_new} new photo" + ("" if n_new == 1 else "s") + " since the gallery was made",
                                   tone="attention", act=""))
         if not building and codeword_changed(s, g):
-            needs.append(dict(text="The codeword changed after this build", tone="attention", act=""))
+            needs.append(dict(text="The passphrase changed after this build", tone="attention", act=""))
         rebuild = bool(not building and details_changed(s, g, k["brand_fp"]) and rebuild_fields(s, g))
         if rebuild:
             needs.append(dict(text="Studio details changed since this build", tone="attention", act=""))
@@ -5581,7 +5741,7 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
                   "Already online" if host_up else "Closed" if us == "removed" else
                   "Uploading now" if us == "uploading" else "On hold" if us == "awaiting" else
                   "No web host set up" if not k["has_host"] else "Held for payment" if held_for(s) else "")
-        extras = ["Codeword" if (g["ekey"] and g["ekey"] != g["key"]) else "No codeword"]
+        extras = ["Passphrase" if (g["ekey"] and g["ekey"] != g["key"]) else "No passphrase"]
         offer = k["offer"](s) if callable(k["offer"]) else None
         if offer and offer.get("switch") and not (offer.get("proofs") and offer.get("note")):
             extras.append("Prints offered")
@@ -5621,7 +5781,7 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
         fids = {}
         for r_ in q("""SELECT session_id, id, name FROM photo_files WHERE kind IN ('final', 'export') AND state='done'
                        ORDER BY kind='final' DESC, id"""):
-            if r_["session_id"] not in fids and Path(r_["name"]).suffix.lower() in JPEG_EXT:
+            if r_["session_id"] not in fids:
                 fids[r_["session_id"]] = r_["id"]
         k = dict(today=date.today(), has_host=has_, fp=fp_, base=base_url(), served=served_changed() or {}, fids=fids,
                  brand_fp=brand_fingerprint(),
@@ -5685,7 +5845,8 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
                 if st_.get("state") != "running":
                     return cur["who"]
                 what_ = st_.get("label") or "Making the gallery"
-                n_ = f", {st_['done']} of {st_['total']}" if st_.get("total") else ""
+
+                n_ = "" if not st_.get("total") or "photo " in what_ or "%" in what_ else f", photo {st_['done']} of {st_['total']}"
                 return f"{cur['who']}: {what_[:1].lower()}{what_[1:]}{n_}"
             job["now_fn"] = now_
             for i_, (sid_, f_, who_) in enumerate(todo):
@@ -5738,6 +5899,13 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
 
     def block(s):
         g = gal(s["id"])
+        if not is_adopted(g) and s["stage"] in ("shot", "delivered") and not has_gallery_step(s):
+
+            offer = share_offer(s)
+            if not offer:
+                return []
+            from flask import render_template
+            return [("Gallery", render_template("_gallery_block.html", s=s, offer_only=True, share=offer))]
         if not is_adopted(g) and (s["stage"] not in ("shot", "delivered", "closed") or not has_gallery_step(s)):
             return []
         gid = s["gallery_id"] or ""
@@ -5760,6 +5928,11 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
             preview = url_for("gallery_preview", gid=gid) + "#k=" + (g["ekey"] or g["key"])
         pct = round(100 * job["done"] / job["total"]) if job and job.get("total") else 0
         n_fin_ = len(uploaded(s["id"], "final"))
+        left_ = []
+        if g and g["built_at"]:
+            b_ = q("SELECT data FROM audit WHERE session_id=? AND (action LIKE ? OR action LIKE ?) ORDER BY id DESC LIMIT 1",
+                   (s["id"],) + BUILT_LINES, one=True)
+            left_ = built_skipped(b_["data"]) if b_ else []
         from flask import render_template
         use_fin_ = build_from_finals(s, n_fin_)
         hh_ = q("SELECT name FROM households WHERE id=?", (s["household_id"],), one=True)
@@ -5768,6 +5941,8 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
         offer_ = app.config.get("prints_offer")
         html = render_template("_gallery_block.html", s=s, g=g, job=job, pct=pct, src=src, src_n=src_n, dirs=src_dirs() if FOLDERS else [],
                                       n_up=len(uploaded(s["id"])), folders=FOLDERS,
+                                      built_skipped=left_, built_skipped_list=skipped_list(left_),
+                                      skipped_words=SKIPPED_WORDS,
                                       n_fin=n_fin_, use_fin=use_fin_, who=who_, sunset=sunset_days(win_),
                                       n_dl=len(delivery_set(s["id"])) if use_fin_ and n_fin_ else 0,
                                       n_new=new_photos(s, g, use_fin_),
@@ -5809,7 +5984,9 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
                                       dl_next=wants_download(s) or is_adopted(g),
                                       adopted_old=adopted_old(g), adopted_from=adopt_source(s) if adopted_old(g) else None,
                                       dl_online=dl_online, opened=opened,
-                                      skip_picks=may_skip_picks(s) and not (job and job.get("state") == "running"),
+                                      share=share_offer(s),
+                                      dl_chosen=download_chosen(s["id"]),
+                                      dl_too=gallery_download_too(s),
                                       mailto=link_mail(s) if g and g["upload_state"] == "up" else "",
                                       served_bad=served_changed(s["id"]) if g and g["upload_state"] == "up" and not adopted_old(g) else None,
                                       refit_wait=refit_waiting(gid),
@@ -5854,7 +6031,7 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
                   "Your photos are ready. Open your gallery to pick your favorites:") + "\n" + link,
                  f"The gallery is open for {days} days after you first open it."
                  + (" Please download your photos in that time." if dl else "")
-                 + (" When it asks, enter the word you chose with me." if "&c=1" in link else ""),
+                 + (" When it asks, enter the passphrase you chose with me." if "&c=1" in link else ""),
                  f"Thank you,\n{sign}" if sign else "Thank you"]
         body = "\n\n".join(lines)
         from formats import drop_codewords
@@ -5928,9 +6105,9 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
             what = f"{n} {'retouched final' if fin else 'edited photo'}{'' if n == 1 else 's'} uploaded, no gallery yet"
             verb = "Build download gallery" if dl_next else "Build gallery"
             cw_on = bool(ctx.C.POLICY[s["type"]].get("gallery_codeword"))
-            if cw_on and not s["gallery_codeword"] and not (g and g["cw_fixed"] == "none"):
+            if cw_on and not s["gallery_codeword"] and not (g and g["cw_fixed"] == "none") and not gallery_download_too(s):
 
-                return dict(what=what, verb="Add the codeword, then build", href=here)
+                return dict(what=what, verb="Add the passphrase, then build", href=here)
 
             return dict(what=what, verb=verb, post=url_for("build_gallery", sid=s["id"]),
                         fields={"from": "finals" if fin else "uploads"}, reloads=True)
@@ -6025,7 +6202,7 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
             if p_ is not None and p_ != PHOTOS_ROOT.resolve() and p_.is_dir() and list_jpegs(p_):
                 src = p_
         if not src:
-            return None, "No edited JPEGs uploaded yet: drop them in Photos first."
+            return None, "No edited photos uploaded yet: drop them in Photos first."
         return src, ""
 
     def card_folder(text):
@@ -6120,16 +6297,17 @@ down now. Turn them on again (Setup, Galleries) to carry on: with the same host,
                 release_memory()
             x("UPDATE gallery_cards SET written_at=?, n_files=?, written_to=? WHERE session_id=?",
               (date.today().isoformat(), n, where, sid))
-            note = f"; skipped (not a JPEG this can read): {', '.join(skipped[:10])}" if skipped else ""
+            note = f"; left out ({SKIPPED_WORDS}): {skipped_list(skipped)}" if skipped else ""
             if to == "folder":
                 if callable(record):
                     record(sid, "sd_shipped", CARD_HOW)
                 ctx.audit(f"Sealed card written: {n} photos" + note, sid=sid, who="Lumen Aureum")
                 ctx.advance(sid)
                 return (f"Card written: {n} photos. Print the card letter: its code opens them." +
-                        (f" Skipped: {', '.join(skipped[:5])}." if skipped else ""))
+                        (f" Left out, {SKIPPED_WORDS}: {skipped_list(skipped)}." if skipped else ""))
             ctx.audit(f"Sealed card zip made: {n} photos" + note, sid=sid, who="Lumen Aureum")
-            return f"Card zip ready: {n} photos. Press Save the card zip on the delivery row."
+            return (f"Card zip ready: {n} photos. Press Save the card zip on the delivery row." +
+                    (f" Left out, {SKIPPED_WORDS}: {skipped_list(skipped)}." if skipped else ""))
 
         import jobs as _jobs
         _jobs.start(app, f"card:{sid}", "Writing the sealed card" if to == "folder" else "Making the card zip", work)

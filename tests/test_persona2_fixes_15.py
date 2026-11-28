@@ -143,7 +143,7 @@ def test_an_engagement_on_the_signed_wedding_quote_shares_its_signature_and_not_
     assert not sql(A, "SELECT 1 FROM tasks WHERE title LIKE 'Have the plan%'")
     page = html.unescape(c.get("/c/1?s=2", environ_base=E).get_data(as_text=True))
     assert "agreement still open" not in page and "Agreement signed (waiting on the client)" not in page
-    assert "Billing: on the quote of Wedding" in page and "Billing: no quote yet" not in page
+    assert "On the quote of Wedding" in page and "Billing: no quote yet" not in page, re.findall(r"Booked</span>.{0,200}", page)
 
     sql(A, "INSERT INTO sessions (household_id, type, stage, shoot_date) VALUES (1, 'portrait', 'booked', ?)", (later(50),))
     c.post("/session/3/plan", data={"plan_of": "1", "back": "/c/1?s=3"}, environ_base=E)

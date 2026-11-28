@@ -105,7 +105,7 @@ def test_the_step_menu_names_itself_and_its_choices(done):
     assert 'aria-label="More for Files delivered: mark it waived, not needed, or client declined"' in summ
     assert "data-tip=" in summ and 'title="More"' not in summ
     assert "Close this step without doing it:" in html
-    for word in ("Waived", "Not needed", "Client declined"):
+    for word in ("Waived", "Not needed", "Client didn&#39;t want it"):
         assert f">{word}</button>" in html
 
 def _demo_with_photo(A):
@@ -186,7 +186,7 @@ def test_the_session_delivery_checklist_has_its_own_layout(done):
     sec = sec[:sec.index("</section>")]
 
     assert 'class="track"' not in sec and '<ul class="dtrack">' not in sec
-    assert '<label><span>Files delivered by</span><select name="delivery_method"' in sec
+    assert '<label><span>How the files go</span><select name="delivery_method"' in sec
     assert '<label><span>Files delivered on</span><input type="date" name="sd_shipped"' in sec
     css = (Path(ROOT) / "static" / "style.css").read_text()
     assert ".dtrack li { display: flex" in css

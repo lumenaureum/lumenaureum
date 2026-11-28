@@ -521,7 +521,11 @@ document.addEventListener('submit', e => {
 }, true);
 
 (() => {
-  const KEY = 'la-keep:' + location.pathname + location.search;
+  const KEY = 'la-keep:' + location.pathname + location.search, SENT = 'la-keep-sent';
+  try { const sent = JSON.parse(sessionStorage.getItem(SENT) || 'null'); sessionStorage.removeItem(SENT);
+    if (sent && sent.k && !document.querySelector('[data-refused], [data-keep-typing]')) {
+      const s = JSON.parse(sessionStorage.getItem(sent.k) || '{}'); delete s[sent.f];
+      Object.keys(s).length ? sessionStorage.setItem(sent.k, JSON.stringify(s)) : sessionStorage.removeItem(sent.k); } } catch (_) {}
   const posts = () => [...document.querySelectorAll('form')].filter(f => (f.getAttribute('method') || '').toLowerCase() === 'post');
   const fid = f => { const a = new URL(f.action, location.href).pathname;
     return a + '#' + posts().filter(o => new URL(o.action, location.href).pathname === a).indexOf(f); };
@@ -545,7 +549,11 @@ document.addEventListener('submit', e => {
   document.addEventListener('input', e => { if (e.isTrusted && e.target.form) touch(e.target); save(e.target.form); }, true);
   document.addEventListener('change', e => { if (e.isTrusted && e.target.form) touch(e.target); save(e.target.form); }, true);
   let leaving = false;
-  document.addEventListener('submit', e => { const f = e.target, s = read(); if (posts().includes(f)) { delete s[fid(f)]; write(s); if (!f.closest('[data-inplace]')) leaving = true; } });
+  document.addEventListener('submit', e => { const f = e.target, s = read(); if (!posts().includes(f)) return;
+    if (f.closest('[data-inplace]')) { delete s[fid(f)]; write(s); return; }
+    save(f);                           // what is sent is what is kept, until the next page says the save worked
+    try { sessionStorage.setItem(SENT, JSON.stringify({k: KEY, f: fid(f)})); } catch (_) {}
+    leaving = true; });
   window.addEventListener('beforeunload', e => {
     if (leaving || window.laSignedOut) return;
     const dirty = posts().flatMap(f => [...f.elements].filter(el => keepable(el) && changed(el)));

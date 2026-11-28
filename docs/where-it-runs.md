@@ -121,23 +121,23 @@ no version for other script platforms. What each kind of host gives you:
 | Clients' picks come back by themselves (sealed) | yes | no: the client sends them by email, with a fingerprint the app checks; you paste it on the client page (Paste their picks email) |
 | The studio page's inquiry form | yes | no: the Contact page shows your email |
 | Print ordering from galleries ([Print orders](print-orders.md)) | yes | no: galleries say "For prints, email" with your address |
-| Galleries with a codeword | yes, when the host check finds the gate holds | no: refused, with the reason on the client page |
+| Galleries with a passphrase | yes, when the host check finds the gate holds | no: refused, with the reason on the client page |
 
 Setup's Online galleries step checks the host you connect (that PHP runs there, its version, that it keeps a real
 gallery's files behind the gallery's gate, and whether a proxy or CDN sits in front of it) and shows which of these
 work. A host that hands out gallery files without asking for the key, or runs no PHP, can't take galleries with a
-codeword (someone with only the link could try codewords there as fast as their computer allows): Setup says so, and
+passphrase (someone with only the link could try passphrases there as fast as their computer allows): Setup says so, and
 such a gallery is refused there with the reason. A proxy or CDN in front of the host is fine: the inquiry form and
 print orders then use limits for everyone instead of limits per visitor, so nobody is turned away because of someone
 else. The check runs again once a day; if something changes for the worse
 (PHP turned off, say), Today says so. On a host below PHP 7.4, galleries keep the scripts they have and Today names the
 host and its version.
 
-An S3-compatible bucket is always a static host, and a static host can't check codewords: galleries there stay sealed,
-and anyone with the link can open them. While codewords are on, choosing S3 in Setup (or Online galleries) offers two
-ways on: **Turn codewords off for galleries here**, or **Choose a host that can check codewords**. Nothing changes until
-you choose. A gallery with a codeword is never put on an S3 host by any path (Upload, an update, Move galleries): it is
-refused with the reason, and Move galleries leaves it on the earlier host, where its codeword is still checked.
+An S3-compatible bucket is always a static host, and a static host can't check passphrases: galleries there stay sealed,
+and anyone with the link can open them. While passphrases are on, choosing S3 in Setup (or Online galleries) offers two
+ways on: **Turn passphrases off for galleries here**, or **Choose a host that can check passphrases**. Nothing changes until
+you choose. A gallery with a passphrase is never put on an S3 host by any path (Upload, an update, Move galleries): it is
+refused with the reason, and Move galleries leaves it on the earlier host, where its passphrase is still checked.
 
 ### Signing in to an SFTP web host
 Setup signs in with the app's own key by default: you paste its public line into the host's SSH keys once. If your
@@ -195,7 +195,7 @@ Any web server that runs PHP works: Apache, nginx, LiteSpeed. Nothing a client n
 `.htaccess` files or on rules you add: each gallery's sealed files sit under names only its key gives, and the files
 that keep its state print nothing when fetched. A web server that ignores `.htaccess` hands a gallery's files to
 anyone who has its link and asks for them by name, so the gallery doesn't close on its last day by itself (the app
-takes it down at its next check) and can't have a codeword; Setup's check says when that is so. See
+takes it down at its next check) and can't have a passphrase; Setup's check says when that is so. See
 [Security](security.md), "The PHP files on a web host".
 
 When you rebuild a gallery that is already online, the new files go up first, and the old photo files are removed as

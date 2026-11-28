@@ -5,7 +5,7 @@
 <div class="ui-page" data-ui-layout="search">
 {{ ui.page_head(('"' ~ term ~ '"') if term else 'Everyone', kicker='Search') }}
 <form class="ui-filter-find sui-searchbox" role="search" method="get" action="{{ url_for('search') }}">
-  <input type="search" name="q" value="{{ term }}" placeholder="Search everything" aria-label="Search" class="ui-grow"{% if not term %} autofocus{% endif %} autocomplete="off">
+  <input type="search" name="q" value="{{ term }}" maxlength="200" placeholder="Search everything" aria-label="Search" class="ui-grow"{% if not term %} autofocus{% endif %} autocomplete="off">
   <button class="ui-btn ui-btn-quiet">Search</button></form>
 
 {% set clients_ = hits|selectattr('kind', 'equalto', 'client')|list %}

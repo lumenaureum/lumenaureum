@@ -207,7 +207,7 @@ def test_turning_the_codeword_off_carries_a_plain_warning(tmp_path, monkeypatch)
 
     A, c = _app(tmp_path, monkeypatch, presets=("portraits",))
     page = c.get("/settings/type/portrait", environ_base=E).get_data(as_text=True)
-    assert 'data-off-warn="Without a codeword, anyone who gets the gallery link can open the gallery' in page
+    assert 'data-off-warn="Without a passphrase, anyone who gets the gallery link can open the gallery' in page
     assert 'class="cw-off-note" data-off-note="f-gallery_codeword" hidden' in page
     types = [json.loads(json.dumps(t)) for t in __import__("config").TYPES]
     next(t for t in types if t["key"] == "portrait").setdefault("policy", {})["gallery_codeword"] = False

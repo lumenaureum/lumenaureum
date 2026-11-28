@@ -108,14 +108,16 @@ secret = unlock_new_install(A)
 from datetime import datetime
 from vault import keys as K, web as W
 con = A.connect()
-con.execute("INSERT INTO settings (key, value) VALUES ('backup_time', '21:30')"); con.commit(); con.close()
+con.execute("INSERT INTO settings (key, value) VALUES ('backup_time', '21:30')"); con.commit()
 d = datetime(2026, 11, 12, 21, 0)
+print('before setup', W.run_if_due(A.connect, A.DB_PATH, A.FACES, now=d.replace(minute=31)))
+con.execute("INSERT INTO settings (key, value) VALUES ('setup_complete', '1')"); con.commit(); con.close()
 print('before time', W.run_if_due(A.connect, A.DB_PATH, A.FACES, now=d))
 print('at time', W.run_if_due(A.connect, A.DB_PATH, A.FACES, now=d.replace(minute=31)))
 print('again same day', W.run_if_due(A.connect, A.DB_PATH, A.FACES, now=d.replace(minute=45)))
 print('next day', W.run_if_due(A.connect, A.DB_PATH, A.FACES, now=datetime(2026, 11, 13, 22, 0)))
 """, tmp_path)
-    assert "before time False" in out and "at time True" in out and "again same day False" in out and "next day True" in out, out
+    assert "before setup False" in out and "before time False" in out and "at time True" in out and "again same day False" in out and "next day True" in out, out
 
 def test_restore_on_a_new_machine_with_only_the_master_key(tmp_path):
 

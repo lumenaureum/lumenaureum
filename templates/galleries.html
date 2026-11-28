@@ -10,7 +10,7 @@
 
 
 {% if n_rebuild and not rebuilding %}{% call ui.needs('Studio details changed', id='gal-rebuild') %}
-  <p>{{ n_rebuild }} galler{{ 'y was' if n_rebuild == 1 else 'ies were' }} built before the studio details in Settings changed.{{ help("A gallery's header and footer show the studio name, logo, photographer, email, phone, and website it was built with, in the font and colors it was built with. Rebuilding keeps its link and codeword; one online is updated once its new build is complete, one not online yet waits for its Upload.") }}</p>
+  <p>{{ n_rebuild }} galler{{ 'y was' if n_rebuild == 1 else 'ies were' }} built before the studio details in Settings changed.{{ help("A gallery's header and footer show the studio name, logo, photographer, email, phone, and website it was built with, in the font and colors it was built with. Rebuilding keeps its link and passphrase; one online is updated once its new build is complete, one not online yet waits for its Upload.") }}</p>
   <div class="ui-btnrow">{{ ui.action(url_for('galleries_rebuild_details'), 'Rebuild all with the new details', {}, None, 'primary', inplace=false,
        confirm='Rebuild ' ~ n_rebuild ~ ' galler' ~ ('y' if n_rebuild == 1 else 'ies') ~ ' with the studio details in Settings now? Each keeps its link. They are built one at a time; the ones online are updated as each finishes.') }}</div>
 {% endcall %}{% endif %}

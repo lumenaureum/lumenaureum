@@ -82,7 +82,7 @@ def test_the_personal_project_path_is_findable_at_every_step(env):
     assert "Gallery g-" not in edit
 
     if A.C.POLICY["portfolio"].get("gallery_codeword"):
-        assert "Add the codeword, then build" in tasks(page)
+        assert "Add the passphrase, then build" in tasks(page)
         r = c.post(f"/session/{sid}/codeword", data={"cw_make": "1", "back": f"/c/{hid}?s={sid}"}, environ_base=E)
         assert r.status_code in (200, 302)
         page = text(c, f"/c/{hid}?s={sid}")

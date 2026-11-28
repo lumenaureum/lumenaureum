@@ -415,7 +415,7 @@ def first_contact_message(c):
             " gives, tick Trust this server, and test again.")
 
 SECRET_FIELDS = ("primary_secret_key", "secondary_secret_key", "gallery_secret_key", "gallery_password")
-CW_OFF_WORDS = ("Turned gallery codewords off for every session type and for sessions not online yet, as the web host"
+CW_OFF_WORDS = ("Turned gallery passphrases off for every session type and for sessions not online yet, as the web host"
                 " can't check them")
 STEP_PREFIXES = {"storage": ("primary_", "secondary_"), "galleries": ("gallery_",)}
 
@@ -682,10 +682,10 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
             _app().audit_after(CW_OFF_WORDS)
         n = len(ids)
         from flask import session as fs_
-        fs_["notice"] = ((fs_.get("notice") or "Saved.") + " Codewords are off for galleries here."
-                         + (f" Cleared the codeword on {n} session{'' if n == 1 else 's'} not online yet." if n else "")
+        fs_["notice"] = ((fs_.get("notice") or "Saved.") + " Passphrases are off for galleries here."
+                         + (f" Cleared the passphrase on {n} session{'' if n == 1 else 's'} not online yet." if n else "")
                          + (f" {kept} galler{'y' if kept == 1 else 'ies'} already online keep{'s' if kept == 1 else ''}"
-                            f" {'its' if kept == 1 else 'their'} codeword." if kept else ""))
+                            f" {'its' if kept == 1 else 'their'} passphrase." if kept else ""))
 
     @app.post("/setup/galleries/codewords-off", endpoint="setup_codewords_off")
     def setup_codewords_off():
@@ -1409,8 +1409,8 @@ def register(app, connect, apply_settings, audit, allow_nets, after_rules=None):
                 from plugins.gallery import NO_CODEWORD_CHECK, codewords_on
                 if (gh or {}).get("type") == "s3" and codewords_on() and not f.get("s3_codewords_off"):
 
-                    return NO_CODEWORD_CHECK + (" Codewords are on: turn codewords off for galleries here, or choose a"
-                                                " host that can check codewords.")
+                    return NO_CODEWORD_CHECK + (" Passphrases are on: turn passphrases off for galleries here, or choose a"
+                                                " host that can check passphrases.")
                 msg = offer_trust([("Web host: ", "gallery_", gh)])
                 if msg:
                     return msg

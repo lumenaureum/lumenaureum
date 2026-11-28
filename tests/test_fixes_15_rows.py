@@ -76,7 +76,9 @@ def test_a_usb_delivery_gets_the_delivery_row_with_another_way(env):
     page = _page(c)
     rows = dict(_rows(page))
 
-    assert rows.get("Get the photos to Alex") == "Choose how to deliver", rows
+    assert rows.get("Get the USB drive to Alex") == "Record the handover", rows
+    row_ = page.split('id="row-sd_shipped"', 1)[1].split("</li>", 1)[0]
+    assert ">Another way</a>" in row_ and 'name="how" value="usb"' in row_
     ways = page.split('id="f-deliver-1"', 1)[1]
     person = ways.split('data-way="person"', 1)[1].split("</form>", 1)[0]
     assert re.findall(r'data-way="(\w+)"', ways)[0] == "person" and ">usual<" not in ways
@@ -91,8 +93,8 @@ def test_mark_delivered_updates_the_delivery_block_in_place(browser, env):
         p.goto(BASE + "/c/1?s=1")
         p.evaluate("window.__stay = 1")
         assert "Final photos not delivered yet" in p.locator("#delivery").inner_text()
-        p.locator(".ui-todo", has_text="Get the photos to Alex").get_by_role("link", name="Choose how to deliver").click()
-        p.locator("#f-deliver-1").get_by_role("button", name="Record the handover").click()
+
+        p.locator(".ui-todo", has_text="Get the USB drive to Alex").get_by_role("button", name="Record the handover").click()
         p.wait_for_function("!document.querySelector('#delivery').innerText.includes('not delivered yet')", timeout=5000)
         assert "Final photos delivered (USB drive)" in p.locator("#delivery").inner_text()
         assert p.evaluate("window.__stay") == 1
@@ -104,7 +106,7 @@ def test_picks_count_says_retouched_once_the_retouching_is_sent(env):
     _usb_delivered(A, c)
     _sql(A, "UPDATE tasks SET done=date('now') WHERE session_id=1 AND title='Send retouched photos'")
     page = _page(c)
-    assert "to retouch" not in page.split('id="more"', 1)[0]
+    assert "to retouch" not in page.split('id="notes"', 1)[0]
 
 def test_a_sample_agreement_has_one_way_to_edit_its_wording(env):
     A, c = env

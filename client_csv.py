@@ -106,22 +106,37 @@ def decode(raw):
     except UnicodeDecodeError:
         return raw.decode("latin-1"), "Latin-1"
 
+_QUOTED = re.compile(r'"(?:[^"]|"")*"')
+_SEP_LINE = re.compile(r"sep=(.)\s*", re.I)
+
 def read(raw):
+
+    header, rows, enc, _extra = read_full(raw)
+    return header, rows, enc
+
+def read_full(raw):
 
     if len(raw) > MAX_BYTES:
         raise ImportProblem(f"The file is larger than {MAX_BYTES // (1024 * 1024)} MB. Split it into smaller files.")
     text, enc = decode(raw)
     if "\x00" in text:
         raise ImportProblem("This doesn't look like a CSV file. Save the list from your spreadsheet as CSV and try again.")
-    first = text.split("\n", 1)[0]
-    delim = max((",", ";", "\t"), key=lambda d_: first.count(d_))
+    first, _nl, rest = text.partition("\n")
+    sep_ = _SEP_LINE.fullmatch(first.strip())
+    if sep_:
+        delim, text = sep_.group(1), rest
+    else:
+        bare = _QUOTED.sub("", first)
+        delim = max((",", ";", "\t"), key=lambda d_: bare.count(d_))
     try:
         rows = list(csv.reader(io.StringIO(text, newline=""), delimiter=delim))
     except csv.Error:
         raise ImportProblem("The file could not be read as CSV. Save it from your spreadsheet as CSV and try again.")
 
+    skipped = 0
     while rows and not filled(rows[0]):
         rows.pop(0)
+        skipped += 1
     while rows and not filled(rows[-1]):
         rows.pop()
     if not rows:
@@ -136,7 +151,17 @@ def read(raw):
     if n_ > MAX_ROWS:
         raise ImportProblem(f"The file has {n_} rows; the most one import takes is {MAX_ROWS}. Split it.")
     w_ = len(header)
-    return header, [(r + [""] * w_)[:w_] for r in body], enc
+    extra = [skipped + 2 + i for i, r in enumerate(body) if filled(r[w_:])]
+    return header, [(r + [""] * w_)[:w_] for r in body], enc, extra
+
+def extra_words(extra):
+
+    if not extra:
+        return ""
+    shown = ", ".join(str(n_) for n_ in extra[:10]) + (f" and {len(extra) - 10} more" if len(extra) > 10 else "")
+    one_ = len(extra) == 1
+    return (f"Row{'' if one_ else 's'} {shown} {'has' if one_ else 'have'} more cells than the first row has columns. "
+            "The cells past the last column were left out; check them in your spreadsheet.")
 
 def filled(row):
 

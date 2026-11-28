@@ -153,6 +153,23 @@ def free_text(text):
         text = text.replace(old, new)
     return text
 
+NO_LINK_SWAPS = [(" Your gallery link works for anyone who has it: keep the letter safe and do not post the link.", "")]
+
+NO_PROOFS_SWAPS = [("Before delivery I may show you proofs in a private gallery so you can choose favorites. Proofs are for"
+                    " choosing only and are not the delivered photos. ", "")]
+
+def no_proofs_text(text):
+
+    for old, new in NO_PROOFS_SWAPS:
+        text = text.replace(old, new)
+    return text
+
+def no_link_text(text):
+
+    for old, new in NO_LINK_SWAPS:
+        text = text.replace(old, new)
+    return text
+
 def render(text, values):
 
     sections, cur = [], None

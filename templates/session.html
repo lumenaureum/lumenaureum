@@ -4,6 +4,8 @@
 {% block body %}
 {% set here = url_for('session_edit', sid=s.id) %}
 {% set client_page = url_for('client_stage', hid=s.household_id, s=s.id) %}
+
+{% set back_details_ = client_page ~ '#session-facts' if request.args.get('from') == 'details' else '' %}
 <div class="ui-page" data-ui-layout="session-edit">
 {{ ui.page_head(s.household ~ (' - ' ~ s.title if s.title else ''), kicker=ui.type_mark(s.type, 'ui-type-kick') ~ type_label[s.type] ~ ' session: edit details',
    status=(('Lost' ~ (': ' ~ s.lost_reason if s.lost_reason else '')) if s.stage == 'lost' else stage_label[s.stage]),
@@ -17,16 +19,16 @@
 
 {% call ui.section('Session', id='shoot') %}
   {% include "_edit_clash.html" %}
-  <form method="post" action="{{ url_for('session_save', sid=s.id) }}"><input type="hidden" name="seen" value="{{ edit_stamp('sessions', s.id) }}">
+  <form method="post" action="{{ url_for('session_save', sid=s.id) }}"><input type="hidden" name="seen" value="{{ edit_stamp('sessions', s.id) }}">{% if back_details_ %}<input type="hidden" name="back" value="{{ back_details_ }}">{% endif %}
     <div class="ui-form-grid">
       <label><span>Title</span><input name="title" maxlength="200" value="{{ s.title }}"{% if C.is_place(s.type) %} placeholder="Property address"{% endif %}></label>
       <label><span>Type</span><select name="type">{% for k, v in C.SESSION_TYPES.items() %}<option value="{{ k }}"{{ ' selected' if k == s.type }}>{{ v }}</option>{% endfor %}</select></label>
       {% if s.stage not in ('closed', 'lost') %}{% set dm_ = C.delivery_method(s.type, s.delivery_method) %}
-      <label><span>Files delivered by</span><select name="delivery_method">{% for k_, v_ in C.DELIVERY_CHOICES %}<option value="{{ k_ }}"{{ ' selected' if k_ == dm_ }}>{{ v_ }}</option>{% endfor %}</select></label>{% endif %}
+      <label><span>How the files go</span><select name="delivery_method" id="f-delivery_method-early">{% for k_, v_ in C.DELIVERY_CHOICES %}<option value="{{ k_ }}"{{ ' selected' if k_ == dm_ }}>{{ v_ }}</option>{% endfor %}</select></label>{% endif %}
     </div>
     {% set said_ = signed_delivery_differs(s.id) if s.stage not in ('closed', 'lost') else none %}{% if said_ %}<p>{{ ui.chip('The signed agreement says you deliver the photos ' ~ said_ ~ '.', 'attention') }}</p>{% endif %}
     <div class="ui-form-grid">
-      <label><span>Date</span><input type="date" name="shoot_date" value="{{ s.shoot_date or '' }}" data-avail="{{ s.id }}" class="ui-input-date"></label>
+      <label><span>Date</span><input type="date" name="shoot_date" id="f-shoot_date" value="{{ s.shoot_date or '' }}" data-avail="{{ s.id }}" class="ui-input-date"></label>
       <label><span>Start</span><input type="time" name="start_time" value="{{ s.start_time or '' }}" class="ui-input-date"></label>
       
       {% if quote_len %}<div class="ui-fact"><span class="ui-fact-k">Length{{ help("From the quote. To change it, change the quote; once booked, use Replace the quote under Details and history on the client page.") }}</span><span class="ui-fact-v">{{ length_words(minutes) }}</span></div>
@@ -41,7 +43,7 @@
     {% set subj_ids = subjects|map(attribute='id')|list %}
     <div class="ui-form-row" role="group" aria-labelledby="subjects-l">{% for m in members %}<label class="ui-check"><input type="checkbox" name="subjects" value="{{ m.id }}"{{ ' checked' if m.id in subj_ids }}>{{ m.name }}{% if minor_on(m, s.shoot_date) %} (minor){% endif %}</label>{% else %}<small class="ui-mute">No one on this client yet.</small>{% endfor %}</div>
     <div class="ui-form-grid">
-      <label><span>Where{{ help("One place per line, the meeting place first.") }}</span><textarea name="stops" rows="3">{{ s.stops }}</textarea></label>
+      <label><span>Place{{ help("One place per line, the meeting place first.") }}</span><textarea name="stops" id="f-stops" rows="3">{{ s.stops }}</textarea></label>
       <label><span>Notes</span><textarea name="notes" rows="3">{{ s.notes }}</textarea></label>
       <label><span>Event</span><select name="event_id"><option value="">None</option>{% for e in events %}<option value="{{ e.id }}"{{ ' selected' if e.id == s.event_id }}>{{ e.name }}</option>{% endfor %}</select></label>
     </div>
@@ -66,7 +68,8 @@
     <div class="ui-form-row"><b>{{ ('property release' if doc.covers_kind == 'property' else doc.kind)|capitalize }}{% if doc.person %} - {{ doc.person }}{% endif %}</b>
       {{ ui.chip(doc.status, 'done' if doc.status == 'signed' else ('neutral' if doc.status == 'sent' else 'attention')) }}
       {% if doc.signer %}<small class="ui-mute">Signer: {{ doc.signer }}</small>{% endif %}
-      {{ ui.action(url_for('doc_save', did=doc.id), next_, {'cycle': '1', 'from': doc.status}, here ~ '#paperwork') }}</div>
+      {{ ui.action(url_for('doc_save', did=doc.id), next_, {'cycle': '1', 'from': doc.status}, here ~ '#paperwork',
+                   confirm=('Mark this ' ~ doc.kind ~ ' not signed? It stays marked sent; mark it signed again once the new signed copy is back.') if doc.status == 'signed' else none) }}</div>
     <div class="ui-form-row">
       <form method="post" action="{{ url_for('doc_save', did=doc.id) }}" class="ui-action" data-ui-inplace><input type="hidden" name="back" value="{{ here }}#paperwork">
         <label class="ui-check">Signed on <input type="date" name="signed_on" value="{{ doc.signed or '' }}" aria-label="{{ doc.kind|capitalize }} signed on" data-autosubmit class="ui-input-date"></label></form>
@@ -153,11 +156,11 @@
   <p>{{ ui.go(url_for('client_view', hid=s.household_id) ~ '#details', ('Edit' if s.address else 'Add') ~ ' the mailing address') }}</p>
   
   {% if gal_block %}{% import "_ui_photos.html" as ph with context %}
-  {% call ph.fact_row(gal_next.what if gal_next else ('Gallery built ' ~ nice(s.gallery_built) if s.gallery_built else 'Gallery: built from the edited photos you upload'), id='gallery-next') %}
+  {% call ph.fact_row(gal_next.what if gal_next else (('Gallery built ' if (gallery_made(s.id) if gallery_made is defined else true) else 'Gallery step marked done ') ~ nice(s.gallery_built) if s.gallery_built else 'Gallery: built from the edited photos you upload'), id='gallery-next') %}
     {% if gal_next %}{{ ui.step_action(gal_next, client_page ~ '#gallery', 'primary', menu=false) }}{% endif %}
     {{ ui.go(client_page ~ '#gallery', 'Gallery block on the client page') }}{% endcall %}{% endif %}
   {% with clash_form='delivery' %}{% include "_edit_clash.html" %}{% endwith %}
-  <form method="post" action="{{ url_for('session_delivery', sid=s.id) }}"><input type="hidden" name="seen" value="{{ edit_stamp('delivery', s.id) }}">
+  <form method="post" action="{{ url_for('session_delivery', sid=s.id) }}"><input type="hidden" name="seen" value="{{ edit_stamp('delivery', s.id) }}">{% if back_details_ %}<input type="hidden" name="back" value="{{ back_details_ }}">{% endif %}
   {% set gal_ = C.galleries_on() or s.gallery_built or s.letter_mailed or s.first_visit %}
   {% if not gal_ %}
   <input type="hidden" name="gallery_built" value=""><input type="hidden" name="letter_mailed" value=""><input type="hidden" name="first_visit" value="">{% endif %}
@@ -169,7 +172,7 @@
     <label><span>First visit</span><input type="date" name="first_visit" value="{{ s.first_visit or '' }}" data-autosubmit class="ui-input-date"></label>
     {% endif %}
     {% set dm_ = C.delivery_method(s.type, s.delivery_method) %}
-    <label><span>Files delivered by</span><select name="delivery_method" data-autosubmit title="How the files reach the client: the agreement says this">{% for k_, v_ in C.DELIVERY_METHODS.items() %}<option value="{{ k_ }}"{{ ' selected' if k_ == dm_ }}>{{ v_[0] }}</option>{% endfor %}</select></label>
+    <label><span>How the files go</span><select name="delivery_method" id="f-delivery_method" data-autosubmit title="How the files reach the client: the agreement says this">{% for k_, v_ in C.DELIVERY_METHODS.items() %}<option value="{{ k_ }}"{{ ' selected' if k_ == dm_ }}>{{ v_[0] }}</option>{% endfor %}</select></label>
     <label><span>Files delivered on</span><input type="date" name="sd_shipped" value="{{ s.sd_shipped or '' }}" data-autosubmit class="ui-input-date"></label>
   </div>
   {% if expires %}{{ ui.fact('Gallery', ('Closed ' ~ nice(off_web.isoformat()) ~ ', off the web') if off_web else (('Closes ' if expires >= today else 'Closed ') ~ nice(expires.isoformat()))) }}<p>
@@ -181,12 +184,13 @@
   <p class="ui-mute">You choose up to {{ C.MARKETING_PICKS }} photos for your portfolio. The client may suggest favorites, and you never show a photo they asked you not to.</p>
   {% set gcw_ = C.POLICY[s.type].get('gallery_codeword') or s.gallery_codeword %}
   {% if gcw_ %}{%- set cwr_ = session.pop('cw_refused', None) %}{% set cwr_ = cwr_ if cwr_ and cwr_.sid == s.id else None %}
-  <div class="ui-form-row"><label class="ui-check" for="f-gallery_codeword">Gallery codeword</label><input name="gallery_codeword" id="f-gallery_codeword" maxlength="60" class="ui-grow" value="{{ cwr_.word if cwr_ else (s.gallery_codeword or '') }}" autocomplete="off" placeholder="three words, e.g. heron maple tide"{% if cwr_ %} aria-invalid="true" aria-describedby="cw-refused"{% endif %}>{{ help("Three words the client chose. The gallery asks for them; with only the link, someone would have to guess them, so the app asks you to confirm a short or common word before saving it. Make one for me fills in five random words. It's never printed on the letter or written into any email the app drafts: the client chooses it with you in person or on the phone. Once the gallery is online, the word stays as it is so the link you sent keeps working.") }}<button class="ui-btn ui-btn-quiet" name="cw_make" value="1">Make one for me</button></div>
-  {%- if cwr_ %}<p id="cw-refused" class="ui-late">Not saved: this codeword is too easy to guess. Use three or more words, or 14 letters or more, then save.{% if s.gallery_codeword %} The saved codeword is still "{{ s.gallery_codeword }}".{% endif %}</p>{% endif %}{% endif %}
+  <div class="ui-form-row"><label class="ui-check" for="f-gallery_codeword">Gallery passphrase</label><input name="gallery_codeword" id="f-gallery_codeword" maxlength="60" class="ui-grow" value="{{ cwr_.word if cwr_ else (s.gallery_codeword or '') }}" autocomplete="off" placeholder="three words, e.g. heron maple tide"{% if cwr_ %} aria-invalid="true" aria-describedby="cw-refused"{% endif %}>{{ help("Three words the client chose. The gallery asks for them; with only the link, someone would have to guess them, so the app asks you to confirm a short or common word before saving it. Make one for me fills in five random words. It's never printed on the letter or written into any email the app drafts: the client chooses it with you in person or on the phone. Once the gallery is online, the word stays as it is so the link you sent keeps working.") }}<button class="ui-btn ui-btn-quiet" name="cw_make" value="1">Make one for me</button></div>
+  {%- if cwr_ %}<p id="cw-refused" class="ui-late">Not saved: this passphrase is too easy to guess. Use three or more words, or 14 letters or more, then save.{% if s.gallery_codeword %} The saved passphrase is still "{{ s.gallery_codeword }}".{% endif %}</p>{% endif %}{% endif %}
   <div class="ui-form-grid"><label><span>Retouch picks{{ help("The photos the client picked for retouching, with their notes.") }}</span><textarea name="retouch_picks" rows="3">{{ s.retouch_picks or '' }}</textarea></label></div>
   <div class="ui-btnrow"><button class="ui-btn ui-btn-primary">Save delivery</button></div>
   </form>
-  {% if s.gallery_id %}{% call ui.fold('Check a picks email', id='picks-email') %}
+  
+  {% if s.gallery_id %}<div class="ui-btnrow">{{ ui.opener('picks-email', 'Check a picks email') }}</div>{% call ui.inline_form('picks-email', 'Check a picks email') %}
     <form method="post" action="{{ url_for('picks_paste', sid=s.id) }}"><input type="hidden" name="back" value="{{ here }}#delivery">
       <p class="ui-mute">Paste the whole email the client sent from the gallery.{{ help("Its fingerprint line shows whether the list is what they picked in the gallery. If they changed it while writing, the picks are still recorded and a to-do reminds you to ask which are final.") }}</p>
       <textarea name="text" rows="6" maxlength="20000" aria-label="The picks email"></textarea>

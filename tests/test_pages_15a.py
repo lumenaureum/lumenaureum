@@ -58,7 +58,7 @@ def test_the_client_page_lands_on_the_session_the_old_link_named(env):
     r = c.get("/session/2", environ_base=E)
     assert r.location.endswith("/c/1?s=2")
     page = c.get("/c/1?s=2", environ_base=E).get_data(as_text=True)
-    assert 'href="/session/2/edit"' in page.split('id="more"', 1)[1]
+    assert 'href="/session/2/edit"' in page.split('id="more-session"', 1)[1]
 
 def test_a_deleted_session_is_still_gone_not_a_redirect(env):
     A, c = env
@@ -84,9 +84,9 @@ def test_a_new_session_for_a_client_opens_the_client_page(env):
 def test_more_on_the_client_page_names_both_edit_pages_and_never_reloads_itself(env):
     A, c = env
     _session(A, "booked", days=10)
-    more = c.get("/c/1?s=1", environ_base=E).get_data(as_text=True).split('id="more"', 1)[1]
-    assert 'href="/session/1/edit">Edit session details' in more
-    assert 'href="/client/1">Edit client details' in more
+    more = c.get("/c/1?s=1", environ_base=E).get_data(as_text=True).split('id="more-session"', 1)[1].split("</details>", 1)[0]
+    assert 'href="/session/1/edit"><span class="ui-topic-label">Edit all session details' in more
+    assert 'href="/client/1"><span class="ui-topic-label">Edit client details' in more
     assert not re.search(r'href="/session/1(#[^"]*)?"', more)
 
 @pytest.mark.parametrize("stage,days", STAGES)

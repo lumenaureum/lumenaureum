@@ -49,7 +49,7 @@ def test_a_card_says_where_the_gallery_stands_and_opens_the_client_page_at_its_s
     assert 'href="/c/1?s=1#gallery"' in card
     assert "The Sample Family" in card and ">Online<" in card
     assert "Download · 12 photos" in card and "online since" in card
-    assert "Not opened yet" in card and "No codeword" in card
+    assert "Not opened yet" in card and "No passphrase" in card
     assert "KB here" in card and "KB on the web host" in card
     assert 'ui-cover-menu' in card and ">Show it on the client page</a>" in card and ">Close now</button>" in card
     assert f'data-gallery="{PE.GID}"' in card
@@ -128,7 +128,7 @@ def test_a_codeword_gallery_says_codeword(tmp_path, monkeypatch):
     e, PE = _env(tmp_path, monkeypatch)
     _sql(e, "UPDATE galleries SET ekey='a-different-key' WHERE session_id=1")
     (card,) = _cards(_page(e, PE))
-    assert "Codeword" in card and "No codeword" not in card
+    assert "Passphrase" in card and "No passphrase" not in card
 
 def test_no_galleries_says_so(tmp_path, monkeypatch):
     e, PE = _env(tmp_path, monkeypatch)

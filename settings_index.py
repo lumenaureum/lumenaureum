@@ -3,7 +3,7 @@ import settings_registry as _reg
 ENTRIES = _reg.entries()
 
 TYPE_FIELDS = [
-    ("Ask for a gallery codeword", "codeword codewords gallery words password", "f-gallery_codeword"),
+    ("Ask for a gallery passphrase", "passphrase passphrases codeword codewords gallery words password", "f-gallery_codeword"),
     ("Deposit for this type", "deposit retainer", "dep-l"),
     ("Portfolio permission discount", "portfolio discount social media", "folio-l"),
 ]

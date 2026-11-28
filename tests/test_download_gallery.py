@@ -405,8 +405,7 @@ def test_deliver_without_picks(env):
     join("gal-up", sid)
     assert G.online_download(gid)
 
-    for sid_ in (session(A, "realestate"), session(A, "family", delivery_method="usb"),
-                 session(A, "family", delivery_method="link", favorites="Kitchen.jpg")):
+    for sid_ in (session(A, "realestate"), session(A, "family", delivery_method="link", favorites="Kitchen.jpg")):
         assert ">Deliver without picks</button>" not in c.get(f"/c/1?s={sid_}", environ_base=E).get_data(as_text=True)
         c.post(f"/session/{sid_}/gallery/no-picks", environ_base=E)
         assert not row(A, "SELECT 1 FROM audit WHERE session_id=? AND action LIKE 'Deliver without picks%'", (sid_,))

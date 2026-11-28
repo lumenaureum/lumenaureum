@@ -78,6 +78,13 @@ def otpauth_uri(secret, email):
     from urllib.parse import quote
     return f"otpauth://totp/{quote('Lumen Aureum:' + email)}?secret={secret}&issuer=Lumen%20Aureum"
 
+def recovery_form(code):
+
+    bare = "".join(c for c in (code or "").lower() if c not in "- ")
+    if len(bare) == 12 and all(c in "0123456789abcdef" for c in bare):
+        return "-".join(bare[i:i + 4] for i in range(0, 12, 4))
+    return (code or "").lower()
+
 def new_recovery_codes(n=10):
     codes = ["-".join(secrets.token_hex(2) for _ in range(3)) for _ in range(n)]
     return codes, [generate_password_hash(c) for c in codes]
@@ -442,7 +449,7 @@ def register(app, connect, allowed, audit, on_unlock):
             return None
         if not has_owner():
             return redirect(url_for("setup_owner"))
-        nxt = request.path if request.method == "GET" else None
+        nxt = request.path if request.method == "GET" else _came_from()
         if not datakey.is_unlocked():
             session.pop("uid", None)
             return redirect(url_for("login", next=nxt))
@@ -570,6 +577,19 @@ def register(app, connect, allowed, audit, on_unlock):
 
         if has_owner():
             if session.get("uid"):
+                try:
+                    con = connect()
+                    try:
+                        r = con.execute("SELECT value FROM settings WHERE key='setup_complete'").fetchone()
+                    finally:
+                        con.close()
+                    finished = bool(r) and r[0] == "1"
+                except Exception:
+                    finished = False
+                if not finished:
+                    session["notice"] = ("Your account and master key are saved. The recovery codes were shown once; "
+                                         "if you didn't keep them, make new ones under Security once setup is done.")
+                    return redirect(url_for("home"))
                 session["notice"] = ("Setup is finished. The recovery codes were shown once; if you didn't keep them, "
                                      "make new ones under Security.")
                 return redirect(url_for("security"))
@@ -690,8 +710,9 @@ def register(app, connect, allowed, audit, on_unlock):
                 set_last(step)
             return True
         hashes = json.loads(u[2] or "[]")
+        typed = recovery_form(code)
         for i, h in enumerate(hashes):
-            if check_password_hash(h, code.lower()):
+            if check_password_hash(h, typed):
                 hashes.pop(i)
                 set_recovery(hashes)
                 return True
@@ -1098,6 +1119,18 @@ def _no_store(app, html):
     r.headers["Cache-Control"] = "no-store"
     r.headers["Referrer-Policy"] = "same-origin"
     return r
+
+def _came_from():
+
+    from urllib.parse import urlsplit
+    ref = request.headers.get("Referer") or ""
+    try:
+        u = urlsplit(ref)
+    except ValueError:
+        return None
+    if u.scheme not in ("https", "http") or u.netloc.lower() != (request.host or "").lower():
+        return None
+    return _safe_next(u.path or "/")
 
 def _safe_next(n):
 

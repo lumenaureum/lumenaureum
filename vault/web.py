@@ -12,8 +12,16 @@ import errtext
 
 from . import backends as B, keys as K, seal as S
 
-CFG_PATH = Path(os.environ.get("CRM_STORAGE_CFG", Path(__file__).resolve().parent.parent / "data" / "storage.json"))
-DEFAULT_CFG = {"primary": {"type": "local", "path": str(Path(os.environ.get("CRM_DB", Path(__file__).resolve().parent.parent / "data" / "crm.db")).parent / "vault")}}
+_DB = Path(os.environ.get("CRM_DB", Path(__file__).resolve().parent.parent / "data" / "crm.db"))
+
+def default_cfg_path(db=None, program=None):
+
+    here = Path(db or _DB).parent / "storage.json"
+    old = Path(program or Path(__file__).resolve().parent.parent) / "data" / "storage.json"
+    return old if old != here and not here.exists() and old.exists() else here
+
+CFG_PATH = Path(os.environ["CRM_STORAGE_CFG"]) if os.environ.get("CRM_STORAGE_CFG") else default_cfg_path()
+DEFAULT_CFG = {"primary": {"type": "local", "path": str(_DB.parent / "vault")}}
 PATHS = {}
 PENDING = {}
 TTL = 600
@@ -89,15 +97,17 @@ def run_if_due(connect, db_path, faces_dir, now=None):
         at = _setting(con, "backup_time", "02:40")
         last = _setting(con, "backup_last_run")
         has_key = bool(K.master_pub(con))
+
+        set_up = _setting(con, "setup_complete") == "1"
     finally:
         con.close()
     now = now or datetime.now()
-    if not has_key or now.strftime("%H:%M") < at or last[:10] == now.date().isoformat():
+    if not has_key or not set_up or now.strftime("%H:%M") < at or last[:10] == now.date().isoformat():
         return False
     try:
         BK.sealed_backup(str(db_path), str(faces_dir) if faces_dir.exists() else None)
     except Exception as e:
-        _record_error(connect, errtext.named(e))
+        _record_error(connect, errtext.plain(e))
         raise
     _record_run(connect, now)
     return True
@@ -208,7 +218,7 @@ def check_backup(connect, master_secret):
             from . import seal as S_
             words = (str(e)[:1].upper() + str(e)[1:] + "." if isinstance(e, S_.Mismatch) else
                      "That isn't the master key for this install." if isinstance(e, ValueError) or "decrypt" in str(e).lower()
-                     or "key" in type(e).__name__.lower() else f"Couldn't open it: {type(e).__name__}.")
+                     or "key" in type(e).__name__.lower() else f"Couldn't open it: {errtext.plain(e, 120)}.")
             out.append((where, False, words))
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
@@ -294,8 +304,8 @@ def after_new_master(app, connect, old=None):
         try:
             BK.sealed_backup(str(PATHS["db"]), str(PATHS["faces"]) if PATHS["faces"].exists() else None, kind="manual")
         except Exception as e:
-            _record_error(connect, errtext.named(e))
-            raise RuntimeError("; ".join(said) + f". The backup with the new master key failed: {type(e).__name__}. "
+            _record_error(connect, errtext.plain(e))
+            raise RuntimeError("; ".join(said) + f". The backup with the new master key failed: {errtext.plain(e, 120)}. "
                                "Check the backup location.") from e
         _record_run(connect, datetime.now())
         return "; ".join(said) + "; backed up with the new master key."
@@ -360,8 +370,8 @@ def register(app, connect, audit):
             try:
                 BK.sealed_backup(str(PATHS["db"]), str(PATHS["faces"]) if PATHS["faces"].exists() else None, kind="manual")
             except Exception as e:
-                _record_error(connect, errtext.named(e))
-                raise RuntimeError(f"Backup failed: {type(e).__name__}. Check the backup location.") from e
+                _record_error(connect, errtext.plain(e))
+                raise RuntimeError(f"Backup failed: {errtext.plain(e, 160)}. Check the backup location.") from e
             _record_run(connect, datetime.now())
             audit("Backed up now")
             return "Backed up."
@@ -388,6 +398,8 @@ def register(app, connect, audit):
             else:
                 _s["vault_result"] = [("", False, "That isn't the master key this install uses.")]
         else:
+            if th_ is not None:
+                th_.ok(ip_)
             _s["vault_result"] = check_backup(connect, secret)
             audit("Checked the newest backup opens")
         return redirect(url_for("vault_view"))

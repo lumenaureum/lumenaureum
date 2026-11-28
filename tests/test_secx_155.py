@@ -109,7 +109,7 @@ def test_move_galleries_leaves_a_gallery_online_with_a_codeword_the_session_lost
     monkeypatch.setattr(jobs, "start", _start)
     c.post("/galleries/move", environ_base=E)
     assert ran and not uploaded
-    assert "Left on the earlier host, as this web host can't check codewords: Lane." in ran[0]
+    assert "Left on the earlier host, as this web host can't check passphrases: Lane." in ran[0]
     con = A.connect()
     fp = con.execute("SELECT host_fp FROM galleries WHERE session_id=1").fetchone()[0]
     con.close()

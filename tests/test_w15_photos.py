@@ -84,7 +84,7 @@ def test_the_delivery_row_is_one_button_with_the_usual_way_first_and_no_label(en
     A.app.config["gallery_link"] = lambda sid: "https://photos.example/g/x"
     needs = _needs(_page(c))
     row = _row(needs, "Get the photos to Rosa")
-    assert row.count("ui-btn-primary") + row.count("ui-btn-quiet") == 1, row
+    assert row.count("ui-btn-primary") + row.count("ui-btn-quiet") - row.count("ui-btn-skip") == 1, row
     assert ">Choose how to deliver</a>" in row and "Print the QR letter" not in row and "Another way" not in row
     ways = re.findall(r'data-way="(\w+)"', needs)
     assert ways == ["letter", "email", "person"], ways
@@ -99,8 +99,9 @@ def test_files_on_an_sd_card_put_handed_over_in_person_first_and_record_how(env)
     _session(A, "delivered", days=-20, letter_mailed=day0, first_visit=day0, favorites="3, 7", delivery_method="sd")
     _sql(A, "UPDATE tasks SET done=date('now'), outcome='done' WHERE session_id=1")
     needs = _needs(_page(c))
-    row = _row(needs, "Get the photos to Rosa")
-    assert "On an SD card" in row and ">Choose how to deliver</a>" in row, needs[:3000]
+    row = _row(needs, "Get the SD card to Rosa")
+
+    assert "On an SD card" in row and ">Record the handover</button>" in row and ">Another way</a>" in row, needs[:3000]
     ways = re.findall(r'data-way="(\w+)"', needs)
     assert ways[0] == "person" and "letter" not in ways, ways
     person = needs.split('data-way="person"', 1)[1]
@@ -138,7 +139,7 @@ def test_a_booked_session_says_cancel_the_booking_with_a_required_reason(env):
     A, c, tmp = env
     _session(A, "booked", days=10)
     page = _page(c)
-    assert "Mark lost" not in page and ">Cancel the booking</a>" in page
+    assert "Mark lost" not in page and ">Cancel the booking</span></a>" in page
     form = page.split('id="cancel-booking"', 1)[1].split("</form>", 1)[0]
     assert "They canceled" in form and re.search(r'value="Canceled"[^>]*required', form) and "Cancel this booking?" in form
     base = {"stage": "lost", "need_reason": "1", "back": "/c/1?s=1"}
@@ -157,7 +158,7 @@ def test_skip_to_names_the_stage_and_its_confirm_lists_the_open_items(env):
     assert " anyway" not in re.sub(r"<[^>]+>", " ", page.split("</header>", 1)[1]).replace("Upload them as RAWs anyway", "")
     m = re.search(r'data-confirm="(Skip to Delivered\?[^"]*)"', page)
     assert m and "Still open: " in m.group(1) and "They carry along to Delivered." in m.group(1), m and m.group(1)
-    assert ">Skip to Delivered</button>" in page
+    assert ">Skip to Delivered</span></button>" in page
 
 def test_add_buttons_say_what_they_add(env):
     A, c, tmp = env
@@ -272,7 +273,7 @@ def test_leaving_a_page_that_filled_its_own_fields_does_not_ask(browser, env):
         assert asked == []
 
         p.goto(BASE + "/c/1?s=1")
-        p.evaluate("""() => { for (let e = document.querySelector('#add-step'); e; e = e.parentElement) if (e.tagName === 'DETAILS') e.open = true; }""")
+        p.evaluate("""() => document.getElementById('add-step').classList.add('ui-open')""")
         p.locator("#add-step input[name=title]").fill("Call the venue")
         p.evaluate("location.href = '/'")
         p.wait_for_timeout(800)

@@ -502,7 +502,7 @@ let ckey = null;
 // the key travels in the link's #fragment (never sent to any server)
 const HP = new URLSearchParams(location.hash.slice(1));
 const k = HP.get("k") || "";
-const NEEDS_WORD = HP.get("c") === "1";   // the gallery is protected by a codeword the client chose
+const NEEDS_WORD = HP.get("c") === "1";   // the gallery is protected by a passphrase the client chose
 // A sealed card (SD card or USB drive, backlog 129): the page opens from the card itself, with no web host. Browsers
 // refuse fetch() of local files, so the client chooses the card's sealed folder once and the page reads the files from
 // it. The key is never on the card: it comes from the code in the card letter (cardOpen).
@@ -521,7 +521,7 @@ let raw = (() => {
 // print cart and order markers, the colors. Every value is sealed (AES-GCM) under a key derived from the gallery key
 // (HKDF-SHA256, "lumen-aureum local storage"), with its own name as associated data, and stored under a keyed hash of
 // that name, so another page on the same web address sees neither what the client picked nor which galleries this
-// browser opened. Nothing new is stored to make that work: the key comes from the link (and the codeword) at every
+// browser opened. Nothing new is stored to make that work: the key comes from the link (and the passphrase) at every
 // visit. An entry an earlier page left readable is sealed the first time this gallery opens, and the readable one goes.
 // Values are read once the key is known (LS.load) and kept in memory; each write goes to memory at once and is sealed
 // in the background, in order.
@@ -533,7 +533,7 @@ const LS = (() => {
   const b64 = u8 => { let t = ""; for (let i = 0; i < u8.length; i += 0x8000) t += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(t); };
   const unb64 = t => Uint8Array.from(atob(t), c => c.charCodeAt(0));
   const tag = (n, s) => (s ? "s|" : "l|") + n;
-  function init(key) {                          // the final gallery key (after the codeword, when there is one)
+  function init(key) {                          // the final gallery key (after the passphrase, when there is one)
     const id = hex(key);
     if (ready && id === kid) return ready;
     kid = id; mem.clear(); names.clear(); ak = nk = null;
@@ -587,7 +587,7 @@ const LS = (() => {
   return Object.freeze({ init, load, get, json, set, remove: (n, s) => set(n, null, s), flushed: () => chain });
 })();
 // A gallery opened by its link alone: the colors this device remembered paint before the manifest is read (one with a
-// codeword paints them once the word has opened it: its key is not known before)
+// passphrase paints them once the word has opened it: its key is not known before)
 if (raw && subtle && !NEEDS_WORD) LS.init(raw).then(() => LS.load([LOOK]))
   .then(() => { if (!lookDone) look(LS.json(LOOK, null), false); }).catch(() => {});
 // the photographer's preview inside the app needs the app sign-in; a client gallery on the web sends no cookies
@@ -680,7 +680,7 @@ async function hostName(name) {
   const d = await subtle.digest("SHA-256", new TextEncoder().encode("lumen-aureum file name\0" + name + "\0" + await keyProof()));
   return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 24) + name.slice(-4);
 }
-// A request carrying the key proof. After many wrong tries at a codeword the gate asks each request for a proof of work
+// A request carrying the key proof. After many wrong tries at a passphrase the gate asks each request for a proof of work
 // (429, X-Work: <bits> <hour>): it is worked out here once (about a second), kept for the hour, and the request sent
 // again. Nobody is ever locked out by what others sent.
 let workHdr = "";
@@ -702,7 +702,7 @@ async function fetchBin(name, fresh, signal) { // the encrypted bytes of one fil
   if (!r) { r = await reach(await hostName(name), opts); direct = true; }
   if (!r.ok) {                                  // gone dark: the gate may name the photographer's email
     if (r.status === 410) try { const j = await r.json(); if (j && typeof j.contact === "string") darkContact = j.contact; } catch (e) {}
-    // where no gate runs, a sealed file not found by its name may be a wrong codeword (the name comes from the key)
+    // where no gate runs, a sealed file not found by its name may be a wrong passphrase (the name comes from the key)
     throw Object.assign(new Error("http"), { status: r.status, direct: direct && SEALED_NAME.test(name) });
   }
   if (name === "manifest.bin") {               // the gate's word that it closes soon, or is open for one download
@@ -847,7 +847,7 @@ function say(head, line, error) {
 }
 const fail = (head, line) => say(head, line, true);
 
-// A codeword gallery's key: PBKDF2-SHA256(word, salt = the link's 32-byte secret + the gallery's ID, 600000 rounds), the
+// A passphrase gallery's key: PBKDF2-SHA256(word, salt = the link's 32-byte secret + the gallery's ID, 600000 rounds), the
 // same as codeword_key() in the app. The word is normalized the same way (NFKC, trimmed, lowercase, single spaces).
 // The ID is data-cws when the page has one (a gallery that moved to its link ID in 1.4 keeps the ID its key was made
 // with), else the link ID.
@@ -863,13 +863,13 @@ const UNREACHABLE = ["Could not reach the gallery", "Check your connection and t
 const OPENING = "Opening your photos...";
 function askWord(why, last) {                  // why: "" (first ask), "wrong" (the word didn't open it), "reach" (no connection)
   return new Promise(resolve => {
-    const ask = "Enter the word you chose with your photographer.";
-    if (why === "wrong") fail("That word doesn't open this gallery", ask);
+    const ask = "Enter the passphrase you chose with your photographer.";
+    if (why === "wrong") fail("That passphrase doesn't open this gallery", ask);
     else if (why === "reach") fail(...UNREACHABLE);          // the word wasn't the problem: don't ask for it as if it were
-    else say("This gallery is protected by a word", ask);
+    else say("This gallery is protected by a passphrase", ask);
     const act = $("msgact");
     const f = document.createElement("form"), i = document.createElement("input"), go = document.createElement("button");
-    i.type = "password"; i.autocomplete = "off"; i.setAttribute("aria-label", "Gallery word");
+    i.type = "password"; i.autocomplete = "off"; i.setAttribute("aria-label", "Gallery passphrase");
     go.type = "submit"; go.textContent = "Open the gallery";
     f.append(i, go);
     const opening = () => say("", OPENING);
@@ -877,7 +877,7 @@ function askWord(why, last) {                  // why: "" (first ask), "wrong" (
     if (why === "reach") {                     // retry with the word already typed; it can still be changed
       const again = document.createElement("button"), other = document.createElement("button");
       again.type = "button"; again.textContent = "Try again";
-      other.type = "button"; other.className = "plain"; other.textContent = "Use a different word";
+      other.type = "button"; other.className = "plain"; other.textContent = "Use a different passphrase";
       i.value = last || ""; f.hidden = true;
       again.onclick = () => { again.disabled = true; opening(); resolve(last || ""); };
       other.onclick = () => { again.remove(); other.remove(); f.hidden = false; i.value = ""; i.focus(); };
@@ -987,7 +987,7 @@ async function main() {
   const ct = $("contact");
   if (B.email) { const sp = document.createElement("span"), a = document.createElement("a");
     a.href = "mailto:" + B.email; a.textContent = B.email; sp.append(a); ct.append(sp); }
-  if (B.phone) { const sp = document.createElement("span"); sp.textContent = B.phone; ct.append(sp); }
+  if (B.phone) { const sp = document.createElement("span"); sp.className = "nw"; sp.textContent = B.phone; ct.append(sp); }   // one line
   if (SITE) { const sp = document.createElement("span"), a = document.createElement("a");
     a.href = SITE; a.rel = "noopener"; a.target = "_blank"; a.textContent = SITE.replace(/^https:\/\/(www\.)?/, "").replace(/\/$/, "");
     sp.append(a); ct.append(sp); }
@@ -1209,6 +1209,7 @@ async function main() {
     const state = typeof unsent !== "function" ? "" : unsent() ? (hostOk ? "Saved" : "Saved on this device") + "  \u00b7  Not sent yet"
       : quietLegacy() ? "Saved on this device" : "";
     if (state) $("trayn").append(span("saved", state));
+    const was = painted;
     if (state && state !== painted && painted !== null) announce(state.replace("  \u00b7  ", ". "));
     painted = state;
     const lines = [];
@@ -1223,6 +1224,8 @@ async function main() {
     fingerprint(lines).then(fp => { $("send").href = mail(fp); }).catch(() => {});
     const note = sendNote || (isSent() ? "Sent. Thank you! You can change them and send again." : "");
     if ($("sent").textContent !== note) $("sent").textContent = note;
+    // sent: the spoken line follows, never "Saved. Not sent yet" left under "Sent. Thank you!" (308q)
+    if (!state && was) { if (note) announce(note); else $("live").textContent = ""; }
     document.body.classList.toggle("sentline", !!note);
   }
   let painted = null;
@@ -1413,7 +1416,7 @@ async function main() {
     const how = $("how"); how.hidden = false; how.textContent = "";
     const hb = document.createElement("button"); hb.type = "button"; hb.textContent = "How to pick"; hb.onclick = openW; how.append(hb);
     const seen = !!LS.get(seenKey);
-    if (!seen && !PREVIEW) openW();
+    if (!seen && !PREVIEW && sig() === "[]") openW();    // picks made already: no Start box over them (308q)
   }
   if (sunsetOn) {
     const SS = $("sunset"), go = $("ssgo"), dlOn = DL && !$("dlall").hidden;
@@ -1934,7 +1937,8 @@ async function main() {
   function zipButton(Z, part, j) {             // one zip: its own button, progress, Cancel, and Try again
     const b = j ? $("dlallb").cloneNode(false) : $("dlallb"), parts = Z.parts, total = +Z.size || 0;
     if (j) { b.id = ""; $("dlall").append(b); }
-    const mb = total >= 1e9 ? (total / 1e9).toFixed(1) + " GB" : Math.max(1, Math.round(total / 1e6)) + " MB";
+    const mb = total >= 1e9 ? (total / 1e9).toFixed(1) + " GB" : total >= 1e6 ? Math.round(total / 1e6) + " MB"
+      : Math.max(1, Math.round(total / 1e3)) + " KB";   // the real size: under 1 MB in KB (backlog 304)
     const label = (part ? "Download all, part " + part[0] + " of " + part[1] : "Download all") + " (" + mb + ")";
     const zipName = String(Z.name || "").replace(/[\\/:*?"<>|\x00-\x1f\x7f]+/g, "").trim() || "Photos.zip";
     b.textContent = label;

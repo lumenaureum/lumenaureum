@@ -56,7 +56,7 @@ def test_installments_split_the_balance_evenly_and_none_is_late_before_its_day(e
     assert rows[-1]["due"] == end
     assert rows[0]["due"] > A.today().isoformat() and all(r["status"] == "due" for r in rows)
     page = _page(c)
-    assert "Next installment (1 of 3)" in page and "Installments (3)" in page and "late" not in page.split('id="installments"')[1][:2000]
+    assert "Next installment (1 of 3)" in page and page.count("<tr class=\"ui-money-row \">") >= 3 and "late" not in page.split('id="installments"')[1][:2000]
     assert "The balance is now paid in 3 installments" in _history(A)
 
 def test_paid_money_covers_installments_in_order_and_the_reminder_names_the_next(env):

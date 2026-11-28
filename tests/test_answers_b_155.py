@@ -52,7 +52,7 @@ def test_a_priced_type_with_no_quote_is_still_not_priced_yet(tmp_path, monkeypat
     A, c, sid = _app(tmp_path, monkeypatch)
     c.post(f"/session/{sid}/stage", data={"stage": "booked"}, environ_base=E)
     page = _get(c, f"/session/{sid}")
-    assert "Billing: no quote yet" in page and "No charge" not in page
+    assert "No quote yet" in page and "No charge" not in page
     with A.app.test_request_context():
         A.db()
         assert not A.nothing_to_pay(sid)

@@ -68,7 +68,7 @@ of 15 done") moves everything over:
 - A gallery not online (never uploaded, taken down, gone dark) just takes its new ID here. A gone-dark gallery's page
   stays at its old address and comes down with it.
 - Each gallery online gets a new folder beside its old one, on the same host: this version's page and scripts, its
-  photos and Download all pieces as they are online, its days, first-visit stamp, codeword, and one-time download. The
+  photos and Download all pieces as they are online, its days, first-visit stamp, passphrase, and one-time download. The
   app then opens it the way a client would; only if that works does the gallery take its new address. Its old folder
   then stops taking anything, gets a small page that sends the browser on to the new folder (the key in the client's
   link comes along), and what the client sent there (picks, a draft, a print order) is read and carried over before

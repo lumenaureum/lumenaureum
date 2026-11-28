@@ -313,15 +313,15 @@ back online, uploaded, or rebuilt, and the delete checks once more, just before 
 
 What a gallery link can and can't protect:
 - **The link is the key.** Anyone holding the full link (with what follows the `#`) can open the gallery, the same as
-  the client. A codeword adds a second thing they must know. The files a codeword could be tested against (the
+  the client. A passphrase adds a second thing they must know. The files a passphrase could be tested against (the
   manifest, the print offer, the client's picks, and draft) are kept on the web host under names made from the key,
   so someone holding only the link can't even find them, on any web server; on a host that runs PHP the gate also
-  refuses them to anyone who can't prove they hold the key. Each guess at a codeword is one request through the gate,
+  refuses them to anyone who can't prove they hold the key. Each guess at a passphrase is one request through the gate,
   and after 10 wrong guesses in an hour at one gallery, every request must carry a small proof of work (about a second
   in a browser, once an hour), so guessing gets slow and nobody is ever locked out, whoever else shares their address.
   A web host that hands gallery files out without asking for the key (Setup's host check tests a real gallery for
-  this), or one that runs no PHP, would let someone with the link try codewords as fast as their computer allows, so
-  the app refuses galleries with a codeword there and says why. It also refuses short or common codewords.
+  this), or one that runs no PHP, would let someone with the link try passphrases as fast as their computer allows, so
+  the app refuses galleries with a passphrase there and says why. It also refuses short or common passphrases.
 - **The host serves the page.** A web host that turns hostile (or is broken into) could change the gallery page so
   that it sends the key somewhere when a client opens it. No web page can fully prevent that, whoever serves it: it
   is a limit of encryption delivered by a web page, not something a setting or a choice of host protects against.
@@ -392,7 +392,7 @@ ones running. What each does:
 
 | File | What it does |
 |---|---|
-| `limits.php` | The gallery's window: how many days after the first visit, and the date it closes if nobody opens it (with the exact instant that day ends in your time zone, written again when the time zone changes). The app writes it at upload and on every change. After Move galleries, the copy left on the earlier host is marked moved (with your email, which earlier copies didn't carry), and a page built before 1.3 there is replaced with this version's, which reads the same files and tells the client the gallery moved. It also says whether the gallery has a codeword, and whether the host sits behind a proxy or CDN. Galleries from before 1.4 had it as `limits.txt`; the 1.4 update moves it. |
+| `limits.php` | The gallery's window: how many days after the first visit, and the date it closes if nobody opens it (with the exact instant that day ends in your time zone, written again when the time zone changes). The app writes it at upload and on every change. After Move galleries, the copy left on the earlier host is marked moved (with your email, which earlier copies didn't carry), and a page built before 1.3 there is replaced with this version's, which reads the same files and tells the client the gallery moved. It also says whether the gallery has a passphrase, and whether the host sits behind a proxy or CDN. Galleries from before 1.4 had it as `limits.txt`; the 1.4 update moves it. |
 | `seen-key.php` | The SHA-256 of the key proof (the proof is the first 32 hex characters of the SHA-256 of the link key). It starts with `<?php exit; ?>`, so fetching it shows nothing. |
 | `seen.php` | Records the first visit in `seen-at.php` (before 1.4, `seen.txt`), once, and only for a visitor who sends the key proof. A stamp left empty is replaced. |
 | `gate.php` | Serves the encrypted photo files, `manifest.bin`, `offer.bin` and the client's picks and drafts (each device's own, and `picks.las` and `draft.las` from before 1.6), and only while the window is open. A missing or unreadable `limits.php` counts as closed. It asks for the key proof for every file, and finds the sealed files by the names the proof gives. A one-time download's list and end go in `once.php` and `done.php`. It never serves anything else. |
@@ -407,14 +407,14 @@ ones running. What each does:
 How the gate answers:
 - A request with no key proof is refused at once.
 - A right key proof is never refused because of what anyone else sent: no address is ever locked out.
-- A wrong key proof is refused at once. In a gallery with a codeword it is counted, for the gallery as a whole: after
+- A wrong key proof is refused at once. In a gallery with a passphrase it is counted, for the gallery as a whole: after
   10 wrong proofs in an hour, every request must carry a proof of work (`SHA-256(SHA-256("lumen-aureum gate work", 0,
   proof, 0, hour) . w)` starting with 16 zero bits, one more for each doubling of the wrong proofs, at most 20). The
   gate answers 429 with the number of bits, the page works it out (about a second, once an hour) and asks again. So
-  each guess at a codeword costs work on top of the codeword's own 600,000 rounds, and a client sharing an address
+  each guess at a passphrase costs work on top of the passphrase's own 600,000 rounds, and a client sharing an address
   with someone guessing (an office network, a phone carrier, a proxy or CDN in front of the host) still gets in.
   Nothing waits on the host, so a script sending wrong proofs can't tie up its PHP workers. A gallery without a
-  codeword counts nothing: its proof can't be guessed.
+  passphrase counts nothing: its proof can't be guessed.
 - The gallery page reads its own device's picks (or `picks.las` from before 1.6) through the gate, with the proof, to
   check what was really sent. The app reads them over the upload connection, not through the gate. With `manifest.bin`, and only for a visitor who sent the right
   proof, the gate says whether `draft.las` and `picks.las` are there, so the page asks only for the ones that are,
@@ -427,11 +427,11 @@ key gives, the state files print nothing, and the folders a client's things wait
 web server that ignores `.htaccess` (nginx with PHP-FPM, LiteSpeed without rewrite support, `AllowOverride None`)
 changes is only this: someone who has a gallery's link could fetch its files by their names without going through the
 gate, so the gate can't close the gallery on its last day by itself (the app takes it down at its next check), and
-could try codewords without the gate's proof of work. So Setup's host check fetches a real gallery's manifest by its
-name without the proof: on a host that hands it out, Setup says so in plain words, and galleries with a codeword are
-refused there (Today says so too if it starts later). A gallery with a codeword already there stays online, but
-someone with its link could try codewords much faster: Today says to take it down or move to a host that passes the
-check. A gallery without a codeword is as safe there as anywhere (its key can't be guessed). The 1.4 update and every
+could try passphrases without the gate's proof of work. So Setup's host check fetches a real gallery's manifest by its
+name without the proof: on a host that hands it out, Setup says so in plain words, and galleries with a passphrase are
+refused there (Today says so too if it starts later). A gallery with a passphrase already there stays online, but
+someone with its link could try passphrases much faster: Today says to take it down or move to a host that passes the
+check. A gallery without a passphrase is as safe there as anywhere (its key can't be guessed). The 1.4 update and every
 later gallery update move each gallery's files to these names, and the refit's first check of each host tries it the
 same way.
 
@@ -484,7 +484,7 @@ yours to look after, under your lab's own terms.
 **What the client's browser keeps is sealed.** The gallery page keeps the client's picks, notes included, the print
 cart and order markers, and the gallery's colors in the browser's storage, so they survive a reload. Each is sealed
 (AES-256-GCM) under a key derived (HKDF-SHA256, "lumen-aureum local storage") from the gallery key, which comes from
-the link (and the codeword) on every visit and is never stored; each entry's name is itself a keyed hash, so nothing
+the link (and the passphrase) on every visit and is never stored; each entry's name is itself a keyed hash, so nothing
 there says which galleries the browser opened. So a gallery in a folder of your main website is safe from that
 site's other scripts (a plugin, an analytics script), and nothing readable about a client stays on their device.
 Older entries are sealed (and the readable copy removed) the first time the gallery is opened with this version.
@@ -709,15 +709,15 @@ photos. Each way of reaching the host is judged by what it does with that sign-i
 - **S3-compatible storage as a static website.** Requests are signed (the secret key never crosses the network) and
   the bucket holds only sealed files and a page. A static website runs no scripts, so there is no gate: galleries
   close when the app takes them down, picks come back by email, and print orders and the inquiry form need a host
-  that runs PHP. Without a gate, someone holding only a gallery's link could try codewords as fast as their computer
-  allows, so a gallery with a codeword is refused on this host by its kind, before any check has run, with the
+  that runs PHP. Without a gate, someone holding only a gallery's link could try passphrases as fast as their computer
+  allows, so a gallery with a passphrase is refused on this host by its kind, before any check has run, with the
   reason on its client page. The same refusal sits where every upload passes, so no path (an update, Move galleries,
-  putting a gallery back online) can publish a codeword gallery here without its check. That refusal reads the
-  gallery's own record (whether it was built or put online with a codeword), not only the session's codeword box,
-  and a gallery on its way up keeps its codeword when codewords are turned off: otherwise one caught mid-upload would
-  lose the codeword in the app's records, look like a gallery without one, and later be moved here unchecked. Choosing S3 while codewords
-  are on is never a silent switch: Setup says the host can't check codewords and the owner either turns codewords off
-  for galleries here or chooses another host; a studio already on S3 with codewords on is told the same in Online
+  putting a gallery back online) can publish a passphrase gallery here without its check. That refusal reads the
+  gallery's own record (whether it was built or put online with a passphrase), not only the session's passphrase box,
+  and a gallery on its way up keeps its passphrase when passphrases are turned off: otherwise one caught mid-upload would
+  lose the passphrase in the app's records, look like a gallery without one, and later be moved here unchecked. Choosing S3 while passphrases
+  are on is never a silent switch: Setup says the host can't check passphrases and the owner either turns passphrases off
+  for galleries here or chooses another host; a studio already on S3 with passphrases on is told the same in Online
   galleries and the alert bell.
 - **Left out: plain FTP.** It sends the sign-in in the clear, and whoever holds the sign-in can change the page that
   unlocks the photos. **Left out: WebDAV.**

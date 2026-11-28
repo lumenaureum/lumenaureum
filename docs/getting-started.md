@@ -185,7 +185,7 @@ one in Settings, so set it before galleries go online. A folder on this machine 
 After saving, the step shows **What this host can do**: whether galleries there close on their last day by
 themselves, whether clients' picks come back by themselves, whether the studio page's inquiry form can work there, and
 whether clients can order prints from download galleries (see [Print orders](print-orders.md)). They all need a host that runs PHP 7.4 or later; a plain bucket gives none of them
-(see [Choosing a web host](where-it-runs.md#choosing-a-web-host)). It also says whether galleries with a codeword
+(see [Choosing a web host](where-it-runs.md#choosing-a-web-host)). It also says whether galleries with a passphrase
 can go there (not on a host that hands out gallery files without asking for the key), and whether a proxy or CDN sits
 in front of it. **Check again** asks the host once more; the app also asks once a day, and Today says if anything
 changed for the worse.

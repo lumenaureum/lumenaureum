@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% import "_ui.html" as ui with context %}
+{% block title %}Steps for this session - Lumen Aureum{% endblock %}
+
+{% block body %}
+<div class="ui-page">
+{{ ui.page_head('Steps for this session', kicker=type_label[s.type] ~ ((' · ' ~ s.title) if (s.title or '')|trim else ''), sub=ui.go(back, 'Back to ' ~ s.household)) }}
+<p class="ui-mute">Switch off what this client doesn't need, such as the agreement, the deposit, or the intake questions. Only this session changes. Anything switched off can be switched back on here, or with Undo on its row.</p>
+<section class="ui-sec" id="session-steps">{{ ui.steps_form(steps, s.id, back) }}<p>{{ ui.go(back, 'Back without saving') }}</p></section>
+</div>
+{% endblock %}
+

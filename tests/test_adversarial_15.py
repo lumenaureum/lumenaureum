@@ -72,6 +72,8 @@ def test_h1_gallery_opened_after_the_move_dates_the_clock_from_the_visit(env):
     _sql(A, "UPDATE sessions SET first_visit=NULL WHERE id=3")
     _sql(A, "UPDATE sessions SET favorites='IMG_1' WHERE id=3")
     _in(A, lambda: A.advance(3))
+    assert _stage(A, 3) == "shot" and _due(A, 3) is None
+    c.post("/session/3/stage", data={"stage": "delivered"}, environ_base=E)
     assert _stage(A, 3) == "delivered" and _due(A, 3) is None
     _sql(A, "UPDATE sessions SET first_visit=? WHERE id=3", (_day(A, 5),))
     with A.app.app_context():
@@ -87,7 +89,7 @@ def test_h2_a_deleted_session_never_makes_new_moves_read_as_1_4_ones(env):
     assert {r[0] for r in _sql(A, "SELECT era FROM stage_log")} == {"1.4"}
     _sql(A, "DELETE FROM sessions WHERE id=2")
     _sql(A, "DELETE FROM stage_log WHERE session_id=2")
-    c.post("/session/1/quick", data={"act": "favorites", "retouch_picks": "IMG_0002", "favorites": "", "veto": ""}, environ_base=E)
+    c.post("/session/1/stage", data={"stage": "delivered"}, environ_base=E)
     assert _stage(A, 1) == "delivered"
     new_ = _sql(A, "SELECT id, era FROM stage_log WHERE session_id=1 AND stage='delivered'")
     assert new_ and new_[0][1] is None
@@ -131,7 +133,7 @@ def test_m1_one_failing_session_never_stops_the_others_and_is_tried_again(env):
     A, c = env
     _session(A, "shot", days=-5, sid=1)
     _session(A, "shot", days=-5, sid=2)
-    _sql(A, "UPDATE sessions SET favorites='IMG_1' WHERE id IN (1, 2)")
+    _sql(A, "UPDATE sessions SET sd_shipped=? WHERE id IN (1, 2)", (_day(A, -1),))
     _as_1_4(A)
     orig = A.advance
 

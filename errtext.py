@@ -40,3 +40,29 @@ def named(e, limit=LIMIT):
 
     text = scrub(e, 0)
     return scrub(f"{type(e).__name__}: {text}" if text else type(e).__name__, limit)
+
+_KINDS = (
+    (PermissionError, "permission was refused"),
+    (FileNotFoundError, "a file or folder is missing"),
+    (IsADirectoryError, "a folder was found where a file should be"),
+    (TimeoutError, "it took too long"),
+    (ConnectionError, "the connection failed"),
+    (MemoryError, "the computer ran out of memory"),
+    (OSError, "a disk or network problem"),
+    (ImportError, "it needs a part this studio doesn't have"),
+    (SyntaxError, "its code has a mistake in it"),
+)
+_OWN_ERRNO = re.compile(r"^\[Errno -?\d+\]\s*")
+
+def plain(e, limit=LIMIT):
+
+    kind = next((w for k, w in _KINDS if isinstance(e, k)), "an unexpected error")
+    if isinstance(e, OSError) and e.strerror:
+        own = e.strerror + (f": {e.filename}" if e.filename else "")
+    elif isinstance(e, ImportError):
+        return scrub(kind + (f" ({e.name})" if e.name else ""), limit)
+    elif isinstance(e, (KeyError, IndexError, AttributeError, TypeError, NameError, AssertionError)):
+        own = ""
+    else:
+        own = _OWN_ERRNO.sub("", str(e))
+    return scrub(own, limit) or kind

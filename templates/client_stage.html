@@ -20,8 +20,21 @@
 {% set nq_ = namespace(n=0) %}{% for k, _l in intake_q %}{% if (intake.get(k) or '')|trim %}{% set nq_.n = nq_.n + 1 %}{% endif %}{% endfor %}{% set n_answered = nq_.n %}
 {% set others = sess|rejectattr('id', 'equalto', s.id)|list %}
 {% set block_by = {} %}{% for title, html in blocks %}{% set _ = block_by.update({title: html}) %}{% endfor %}
-{% set when_words %}{% if s.shoot_date %}{% if s.shoot_date > today.isoformat() %}Shoot {{ nice(s.shoot_date) }}{% if s.date_tentative %}, date not final yet{% endif %}{% if s.start_time %}, {{ clock(s.start_time) }}{% endif %}
-  {%- elif s.shoot_date == today.isoformat() and s.stage == 'booked' %}Shooting today{% if s.start_time %}, {{ clock(s.start_time) }}{% endif %}{% elif s.date_tentative and s.stage == 'booked' %}Date to confirm: {{ nice(s.shoot_date) }} was tentative{% else %}Shot {{ nice(s.shoot_date) }}{% endif %}{% endif %}{% endset %}
+{% set qchg_ = quote_changed(s.id) if s.stage in ('inquiry', 'quoted') else none %}
+
+{% set early_ = shot_early(s) %}
+{% set when_words %}{% if s.shoot_date %}{% if early_ %}Shot {{ nice(early_) }} (early){% elif s.shoot_date > today.isoformat() %}Shoot {{ nice(s.shoot_date) }}{% if s.date_tentative %}, date not final yet{% endif %}{% if s.start_time %}, {{ clock(s.start_time) }}{% endif %}
+  {%- elif s.shoot_date == today.isoformat() and s.stage == 'booked' %}Shooting today{% if s.start_time %}, {{ clock(s.start_time) }}{% endif %}{% elif s.date_tentative and s.stage == 'booked' %}Date to confirm: {{ nice(s.shoot_date) }} was tentative
+  {%- elif s.stage in ('inquiry', 'quoted', 'booked') %}
+  {%- if s.shoot_date == today.isoformat() %}Shoot today{% if s.start_time %}, {{ clock(s.start_time) }}{% endif %}{% else %}Shoot date {{ nice(s.shoot_date) }} has passed{% endif %}
+  {%- elif s.stage == 'lost' %}Shoot {{ nice(s.shoot_date) }}{% else %}Shot {{ nice(s.shoot_date) }}{% endif %}{% endif %}{% endset %}
+
+{% set handover_ = handover_recorded(s) if C.delivery_method(s.type, s.delivery_method) in ('usb', 'sd', 'disc', 'card') else '' %}
+{% set handover_ask_ = ('Undo the handover of ' ~ nice(handover_) ~ '? The photos count as not delivered yet' ~ (', and the session goes back to Shot.' if s.stage in ('delivered', 'closed') else '.')) if handover_ else '' %}
+{% set undo_handover_ = dict(label='Undo the handover', post=url_for('delivery_undo', sid=s.id), confirm=handover_ask_, inplace=false) if handover_ else dict(label='Undo the handover', why='No handover recorded') %}
+
+{% set unsign_ = dict(label='Mark the agreement not signed', post=url_for('agreement_unsign', sid=s.id), inplace=false,
+     confirm='Mark the agreement not signed? It stays marked sent, and its signed copy is kept. Mark it signed again once the new signed copy is back.') if agreement_is_signed(s.id) else none %}
 <nav class="jumps" aria-label="On this page"><a href="#billing">Skip to billing</a><a href="#history">Skip to history</a></nav>
 <div class="ui-page" data-ui-layout="{{ fst }}">
 
@@ -31,11 +44,11 @@
 {% set when_a_ = shoot_row_ or dict(form='date_set', sid=s.id, prefill=true, where=x_.place, verb='Change the date, time, or place', what='when') %}
 {% set when_form_ = ui.step_form_id(when_a_)|trim if s.stage in ('inquiry', 'quoted', 'booked') and not s.event_id else '' %}
 {% set shot_line = fst == 'shot' and s.shoot_date and when_words.startswith('Shot ') %}
-{% set status_ %}{% if shot_line %}<span class="hn-stage">{{ when_words }}</span>{% else %}<span class="hn-stage">{% if s.stage == 'lost' %}Lost{% else %}{{ stage_label[s.stage] }}{% endif %}</span> {% if days_in is not none %}<span class="ui-mute">{% if days_in == 0 %}since today{% elif days_in == 1 %}since yesterday{% else %}for {{ days_in }} days{% endif %}</span>{% endif %}{% endif %}
+{% set status_ %}{% if shot_line %}<span class="hn-stage">{{ when_words }}</span>{% if x_.place %}<br><span class="hn-when">{{ x_.place }}</span>{% endif %}{% else %}<span class="hn-stage">{% if s.stage == 'lost' %}Lost{% else %}{{ stage_label[s.stage] }}{% endif %}</span> {% if days_in is not none %}<span class="ui-mute">{% if days_in == 0 %}since today{% elif days_in == 1 %}since yesterday{% else %}for {{ days_in }} days{% endif %}</span>{% endif %}{% endif %}
   {%- set bh_ = booked_hint(s.id) %}{% if bh_ %} <span class="stage-hint">&middot; {{ bh_ }}</span>{% endif %}
   {%- if s.shoot_date and fst in ('inquiry', 'quoted', 'booked', 'shoot_day', 'shot') and not shot_line %}<br><span class="hn-when">
-    {%- if when_form_ %}<a class="ui-factlink" href="#{{ when_form_ }}" data-ui-open="{{ when_form_ }}" aria-controls="{{ when_form_ }}" aria-expanded="false" data-tip="Tap to change the date, time, or place">{{ when_words }}{% if x_.place and fst in ('booked', 'shoot_day') %}, {{ x_.place }}{% endif %}</a>
-    {%- else %}{{ when_words }}{% if x_.place and fst in ('booked', 'shoot_day') %}, {{ x_.place }}{% endif %}{% endif %}{% if moved %} &middot; Rescheduled {{ 'once' if moved == 1 else moved ~ ' times' }}{% endif %}</span>{% endif %}
+    {%- if when_form_ %}<a class="ui-factlink" href="#{{ when_form_ }}" data-ui-open="{{ when_form_ }}" aria-controls="{{ when_form_ }}" aria-expanded="false" data-tip="Tap to change the date, time, or place">{{ when_words }}{% if x_.place and fst in ('booked', 'shoot_day', 'shot') %}, {{ x_.place }}{% endif %}</a>
+    {%- else %}{{ when_words }}{% if x_.place and fst in ('booked', 'shoot_day', 'shot') %}, {{ x_.place }}{% endif %}{% endif %}{% if moved %} &middot; Rescheduled {{ 'once' if moved == 1 else moved ~ ' times' }}{% endif %}</span>{% endif %}
   {%- if fst == 'shoot_day' and light_ %}<br><span class="ui-mute">{{ light_.text }}</span>{% endif %}
 {% endset %}
 {% set sub_ %}{% if contact %}<span class="ui-contact">{{ phone(contact.phone) }}{% if contact.email %} <a class="name" href="mailto:{{ contact.email }}">{{ contact.email }}</a>{% endif %}</span>{% endif %}
@@ -43,7 +56,8 @@
   {%- if others %}<span class="ui-also">Also {% for o in others %}{{ ui.go(url_for('client_stage', hid=h.id, s=o.id), (o.title or type_label[o.type]) ~ (', ' ~ nice(o.shoot_date) if o.shoot_date else '') ~ ', ' ~ stage_label[o.stage]) }} {% endfor %}</span>{% endif %}{% endset %}
 {% import "_client_labels.html" as cl with context %}{% set sub_ = sub_ ~ cl.labels_chips(h.id) %}
 
-{% set kick_ %}{{ ui.type_mark(s.type, 'ui-type-kick') }}{{ type_label[s.type] }}{% if (s.title or '')|trim and s.title|trim != type_label[s.type] %}<span class="ui-kick-title">&nbsp;&middot; {{ s.title|trim }}</span>{% endif %}{% endset %}
+
+{% set kick_ %}{{ ui.type_mark(s.type, 'ui-type-kick') }}{{ type_label[s.type] }}{% if (s.title or '')|trim and s.title|trim != type_label[s.type] %}<span class="ui-kick-title">&nbsp;&middot; {{ s.title|trim }}</span>{% endif %}<a class="ui-kick-edit ui-go" href="{{ url_for('session_edit', sid=s.id) }}" id="edit-details">Edit details &rsaquo;</a>{% endset %}
 {{ ui.page_head(h.name ~ (' (sample)' if h.demo else ''), status=status_, kicker=kick_, face=avatar(h.id, 64), sub=sub_) }}
 
 {% set message_ %}{% if x_.message %}{% set m_ = x_.message %}{{ ui.message(m_.who or (contact.name if contact else '') or h.name, m_.how, m_.when,
@@ -56,9 +70,8 @@
   {% set head_when = s.shoot_date and fst in ('inquiry', 'quoted', 'booked', 'shoot_day', 'shot') %}
   {% if s.shoot_date and not head_when %}{{ ui.fact('When', when_words) }}{% endif %}
   {% if x_.place and fst == 'shoot_day' %}{{ ui.fact('Where', ui.place(x_.place)) }}{% elif x_.place and fst not in ('booked',) %}{{ ui.fact('Where', x_.place) }}{% endif %}
-  {% if light_ and T.light == 1 %}{{ ui.fact('Light', light_.text) }}{% elif light_ and T.light == 3 and s.shoot_date >= today.isoformat() %}{% call ui.fold('Light', id='light') %}{{ ui.fact('Light', light_.text) }}{% endcall %}{% endif %}
+  {% if light_ and (T.light == 1 or (T.light == 3 and s.shoot_date >= today.isoformat())) %}{{ ui.fact('Light', light_.text) }}{% endif %}
   {% for c_ in clash %}<p>{{ ui.chip('Overlaps ' ~ c_.name ~ ', ' ~ c_.when, 'attention') }} {{ ui.go(url_for('client_stage', hid=c_.hid, s=c_.sid), 'Open ' ~ c_.name) }}</p>{% endfor %}
-  {% for p in panels %}{{ p }}{% endfor %}
   {% set call_ = fst == 'shoot_day' and contact and contact.phone %}{% set done_now = fst == 'shoot_day' and can_shot and x_.shoot_passed %}
   {% if call_ or done_now %}<div class="ui-btnrow">
     {% if done_now %}{{ ui.action(url_for('quick', sid=s.id), 'Shoot done', dict(act='shot'), back, 'primary',
@@ -71,7 +84,9 @@
 
 
 {% set from_line_ %}{% if from_client %}{% set ck_ = from_client.checked %}{% if from_client.checking %}{% set fl_ %}From the client: checking now{{ ui.job_watch(from_client.key) }}{% endset %}{% call ph.fact_row(fl_, id='from-client') %}{% endcall %}
-{% else %}{% call ph.fact_row(('From the client, ' ~ from_client.said) if from_client.said else 'From the client' ~ ( (': last checked ' ~ ('just now' if ck_ < 1 else '1 min ago' if ck_ == 1 else ck_ ~ ' min ago' if ck_ < 120 else (ck_ // 60) ~ ' hours ago')) if ck_ is not none else ''), id='from-client') %}{{ ui.action(url_for('client_check_now', hid=h.id), 'Check now', {}, back, 'quiet') }}{% endcall %}{% endif %}{% endif %}{% endset %}
+{% else %}{% set ago_ = ('just now' if ck_ < 1 else '1 min ago' if ck_ == 1 else ck_ ~ ' min ago' if ck_ < 120 else (ck_ // 60) ~ ' hours ago') if ck_ is not none else '' %}
+
+{% call ph.fact_row(('From the client, ' ~ from_client.said) if from_client.said else ('From the client: not opened yet' ~ (' (checked ' ~ ago_ ~ ')' if ago_ else '')) if not s.first_visit else 'From the client' ~ ((': last checked ' ~ ago_) if ago_ else ''), id='from-client') %}{{ ui.action(url_for('client_check_now', hid=h.id), 'Check now', {}, back, 'quiet') }}{% endcall %}{% endif %}{% endif %}{% endset %}
 {% set follow_ = acts|selectattr('followup')|first if s.stage == 'quoted' else none %}
 
 {% set pencil_ %}{% if s.stage in ('inquiry', 'quoted') and s.shoot_date and (not s.event_id or penciled(s)) %}
@@ -130,17 +145,23 @@
   {% else %}<form method="post" action="{{ url_for('session_reply', sid=s.id) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ back }}">
     {{ seg('how', REPLY_HOW.items()|list, 'email', label='How you replied') }}<button class="ui-btn ui-btn-quiet">Mark replied</button></form>{% endif %}{{ pencil_ }}{{ dont_book_form() }}{% endcall %}
 {% elif s.stage == 'quoted' %}{% call ui.needs('The quote', id='quote-now', lead=from_line_) %}
-  <p class="ui-needs-line">{% if lines or free_ %}{{ 'No charge' if free_ else money(t.quoted) }}{% if versions %}, sent {{ nice(versions[0].at[:10]) }}{% else %}, not sent yet{% endif %}{% if t.deposit_short > 0.005 %} &middot; {{ 'deposit'|dep }} {{ money(t.deposit_short) }} due{% endif %}{% else %}No quote lines yet{% endif %}</p>
+  <p class="ui-needs-line">{% if lines or free_ %}{{ 'No charge' if free_ else money(t.quoted) }}{% if qchg_ %}, changed since you sent {{ money(qchg_.total) }}{% if qchg_.sent %} on {{ nice(qchg_.sent[:10]) }}{% endif %}{% elif versions %}, sent {{ nice(versions[0].at[:10]) }}{% else %}, not sent yet{% endif %}{% if t.deposit_short > 0.005 %} &middot; {{ 'deposit'|dep }} {{ money(t.deposit_short) }} due{% endif %}{% else %}No quote lines yet{% endif %}</p>
   <div class="ui-btnrow">
     {{ ui.action(url_for('quick', sid=s.id), 'Book it', dict(act='book'), back, 'primary', extra=ui.final_tick(s.shoot_date) if s.shoot_date else '') }}
+    {{ ui.go(url_for('session_steps', sid=s.id), 'Steps for this session') }}
     {% if follow_ %}{{ ui.button_link(follow_.doc, 'Follow up', 'quiet') }}{{ ui.action(follow_.post, 'I sent the follow-up', follow_.fields, back, 'quiet') }}{% endif %}
     {{ dont_book() }}
   </div>{{ pencil_ }}{{ dont_book_form() }}{% endcall %}
 {% elif fst == 'shoot_day' %}{% call ui.needs('The shoot', id='shoot', lead=from_line_) %}{{ shoot_ }}{% endcall %}
 {% elif fst == 'closed' %}{% call ui.needs('Closed', id='closed-now', lead=from_line_) %}
-  <p class="ui-needs-line">{% if s.shoot_date %}Shot {{ nice(s.shoot_date) }} &middot; {% endif %}{% if free_ %}No charge{% else %}{{ money(t.paid) }} of {{ money(t.quoted) }} paid{% endif %}{% if t.written_off > 0.005 %}, {{ money(t.written_off) }} waived{% endif %}</p>
+  <p class="ui-needs-line">{% if s.shoot_date %}{{ when_words|trim }} &middot; {% endif %}{% if free_ %}No charge{% else %}{{ money(t.paid) }} of {{ money(t.quoted) }} paid{% endif %}{% if t.written_off > 0.005 %}, {{ money(t.written_off) }} waived{% endif %}</p>
+  
+  {% if handover_ %}<p class="ui-mute" id="closed-handover">Photos handed over {{ nice(handover_) }} ({{ C.DELIVERY_METHODS[C.delivery_method(s.type, s.delivery_method)][0] }}). {{ ui.action(url_for('delivery_undo', sid=s.id), 'Undo the handover', {}, back, 'inline', inplace=false, confirm=handover_ask_) }}</p>{% endif %}
   <div class="ui-btnrow">{{ ui.opener('new-session', '+ New session for ' ~ h.name, 'primary') }}
-    {% if s.stage == 'closed' %}{{ ui.action(url_for('session_stage', sid=s.id), 'Reopen at Delivered', dict(stage='delivered'), back, 'quiet') }}{% endif %}</div>
+    
+    {% set share_ = gallery_share_offer(s) if s.stage == 'closed' and gallery_share_offer is defined else none %}
+    {% if share_ %}{{ ui.action(share_.post, share_.label, {'go': '1'}, None, 'quiet', inplace=false, confirm=share_.confirm) }}{% endif %}
+    </div>
   {% call ui.inline_form('new-session', 'New session') %}<div class="ui-btnrow">{% for k, v in C.SESSION_TYPES.items() %}{% if k in C.NEW_SESSION_TYPES %}{{ ui.go(url_for('inquiry', hid=h.id, type=k), v) }}{% endif %}{% endfor %}</div>{% endcall %}
 {% endcall %}
 {% endif %}
@@ -185,6 +206,9 @@
   {% if replacing %}<p>{{ ui.chip('New quote', 'attention') }} Replaces the booked quote of {{ money(replacing.old_total) }}, canceled {{ nice(replacing.at[:10]) }}{{ help("The canceled quote is kept in History. Change this one, send it, and press Book it when they say yes.") }}</p>{% endif %}
   
   {% set sch_id_ = quote.schedule_id if quote else fee_sched.id %}
+{% set plan_words_ = ('Billed on the quote of ' ~ plan_head_label(s.id)) if s.plan_of and not lines and billed_on_plan(s.id) else '' %}
+
+{% set qv_ = namespace(items=[]) %}{% for v in versions %}{% set newer_ = versions[loop.index0 - 1] if not loop.first else none %}{% set qv_.items = qv_.items + [dict(label='Quote ' ~ (v.number or v.id) ~ ', ' ~ nice(v.at[:10]) ~ (', canceled' if v.id in canceled_vids else (', replaced by ' ~ (newer_.number or newer_.id)) if newer_ else ''), href=url_for('quote_doc', vid=v.id), blank=true)] %}{% endfor %}
   {% if open_q and sch_id_ and not prices_approved(sch_id_) %}<div id="sample-prices">
     <p>{{ ui.chip('SAMPLE prices', 'attention') }} These are the starter prices that came with the app, not yet approved by you. Approving them makes them your prices: this quote and every one after prints them as yours.</p>
     <div class="ui-btnrow">{{ ui.action(url_for('fees_approve', sched_id=sch_id_), 'Approve these prices', {}, back, 'quiet',
@@ -221,25 +245,24 @@
   
   {% if inst %}{% set nx_ = inst|selectattr('status', 'ne', 'paid')|first %}
     {% if nx_ %}<p>Next installment ({{ nx_.n }} of {{ nx_.of }}): <b>{{ money(nx_.left) }}</b>{% if nx_.due %} {{ ui.due_words(nice(nx_.due), nx_.status == 'late') }}{% endif %}</p>{% endif %}
-    {% call ui.fold('Installments', id='installments', count=inst|length) %}
+    <div id="installments">
       {% call ui.money_table('Installments') %}{% for r_ in inst %}{% call ui.money_row(money(r_.amount)) %}{{ r_.n }} of {{ r_.of }}{% if r_.due %}, due {{ nice(r_.due) }}{% else %}, due once the shoot date is set{% endif %}
         {% if r_.status == 'paid' %}{{ ui.chip('Paid', 'done') }}{% elif r_.status == 'late' %}{{ ui.chip(money(r_.left) ~ ' late', 'late') }}{% elif r_.part %}{{ ui.chip(money(r_.left) ~ ' left', 'neutral') }}{% endif %}{% endcall %}{% endfor %}{% endcall %}
-      {% if s.stage not in ('lost', 'closed') %}{{ inst_form() }}{% endif %}
-    {% endcall %}
+      {% if s.stage not in ('lost', 'closed') %}{% call ui.inline_form('inst-change', 'Change the installments') %}{{ inst_form() }}{% endcall %}{% endif %}
+    </div>
   {% elif lines and t.due > 0.005 and s.stage not in ('lost', 'closed') and not free_ %}
     <div class="ui-btnrow">{{ ui.opener('inst-form', 'Pay in installments') }}</div>{% call ui.inline_form('inst-form', 'Pay in installments') %}{{ inst_form() }}{% endcall %}
   {% endif %}
   {% if edit_q and not on_plan_ %}{% set mine_ = fee_sched['items']|selectattr('type', 'defined')|selectattr('type', 'equalto', s.type)|map(attribute='key')|list %}
-  {% set own_ = fee_sched['items']|selectattr('key', 'in', mine_)|list %}{% set add_ = fee_sched['items']|selectattr('key', 'in', C.ADDON_FEES)|list %}
+  {% set own_ = fee_sched['items']|selectattr('key', 'in', mine_)|list %}{% set add_ = fee_sched['items']|selectattr('key', 'in', C.ADDON_FEES)|rejectattr('key', 'in', [] if C.OFFER_RETOUCH and not retouch_dropped(s.id) else ['retouch'])|list %}
   {% set rest_ = fee_sched['items']|rejectattr('key', 'in', mine_)|rejectattr('key', 'in', C.ADDON_FEES)|list %}
   
-  {% set split_ = own_ and rest_ %}
-  {{ line_form(own_, add_, [] if split_ else rest_, 'Add a line' if lines else 'Pick the first line', not lines, true) }}
-  {% if split_ %}{% call ui.fold('Lines from other session types', id='other-lines', count=rest_|length) %}{{ line_form([], [], rest_, 'Lines from other session types', false, false) }}{% endcall %}{% endif %}
+  
+  {{ line_form(own_, add_, rest_, 'Add a line' if lines else 'Pick the first line', not lines, true) }}
   {% endif %}
   {% if lines and t.deposit_short > 0.005 and s.stage in ('quoted', 'booked') %}<p>{% if t.paid > 0.005 %}{{ 'Deposit'|dep }} <b>{{ money(t.deposit_short) }}</b> short of {{ money(t.deposit_req) }}{% else %}{{ 'Deposit'|dep }} <b>{{ money(t.deposit_req) }}</b> due{% endif %}</p>{% endif %}
   {% if not lines and not edit_q and not on_plan_ %}<p class="ui-mute">No quote yet. {{ ui.go(url_for('fee_sheet', type=s.type, sid=s.id), 'Send the ' ~ C.SESSION_TYPES.get(s.type, '') ~ ' price list', blank=true) }}</p>{% endif %}
-  {% if edit_q and not on_plan_ %}{% call ui.fold('Discount' ~ (', portfolio' if C.TYPE_KIND.get(s.type) != 'property' else '') ~ (', tax' if taxed else ''), id='bill-options') %}
+  {% if edit_q and not on_plan_ %}{% call ui.inline_form('bill-options', 'Discount, portfolio, and tax') %}
     <form method="post" action="{{ url_for('quote_discount', sid=s.id) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ back }}">
       <span class="seg" role="radiogroup" aria-label="Discount reason">{% for k, lab, pct in C.DISCOUNTS %}<label><input type="radio" name="reason" value="{{ k }}" data-fill="pct" data-value="{{ pct }}"{{ ' checked' if (quote.discount_reason if quote else '') == k }}><span>{{ lab }}{% if pct %} ({{ pct }}%){% endif %}</span></label>{% endfor %}</span>
       <input type="number" name="pct" min="0" max="100" step="1" value="{{ (quote.discount_pct|int) if quote else 0 }}" class="ui-input-qty" title="Discount %" aria-label="Discount percent"><span class="ui-mute">%</span><button class="ui-btn ui-btn-quiet">Apply</button></form>
@@ -253,7 +276,7 @@
       <label class="ui-check"><input type="checkbox" name="tax_on" value="1" data-autosubmit {{ 'checked' if t_.on }}>{{ t_.name }} {{ '%g' % t_.rate }}%{% if t_.included %}, included in the price{% endif %}</label>{% if t_.note %}{{ ui.chip(t_.note, 'attention') }}{% endif %}</form>{% endfor %}{% endif %}{% endif %}
   {% endcall %}
   
-  {% if s.type in C.LICENSE_TYPES and business_client(s) %}{% call ui.fold('License', id='license') %}
+  {% if s.type in C.LICENSE_TYPES and business_client(s) %}{% call ui.inline_form('license', 'License terms') %}
     <form method="post" action="{{ url_for('quote_license', sid=s.id) }}" class="ui-form-grid" data-ui-inplace><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="lic_present" value="1">
       <label><span>License term</span><input name="lic_term" maxlength="200" value="{{ s.lic_term or '' }}" placeholder="2 years, or blank for no end"></label>
       <label><span>Territory</span><input name="lic_territory" maxlength="200" value="{{ s.lic_territory or '' }}" placeholder="United States, or blank for anywhere"></label>
@@ -283,11 +306,16 @@
   
   {% if lines and open_q and (s.stage == 'inquiry' or replacing) %}<p class="ui-mute">The quote opens in a new tab. Press Email it there, then Mark sent once it has gone.</p>{% endif %}
 {% endset %}
-{% set bill_sum %}{% if free_ and not lines %}No charge{% elif free_ %}Quote: no charge{% if s.stage == 'quoted' and versions %}, sent {{ nice(versions[0].at[:10]) }}{% endif %}{% elif s.stage == 'quoted' and lines %}Quote {{ money(t.quoted) }}{% if versions %}, sent {{ nice(versions[0].at[:10]) }}{% endif %}{% if t.deposit_short > 0.005 %} &middot; {{ 'deposit'|dep }} {{ money(t.deposit_short) }} due{% endif %}{% elif lines %}{{ money(t.paid) }} of {{ money(t.quoted) }} paid{% if t.written_off > 0.005 %}, {{ money(t.written_off) }} waived{% endif %}{% if t.due > 0.005 %}, balance {{ money(t.due) }}{% endif %}{% elif s.plan_of %}Billing: on the quote of {{ plan_head_label(s.id) }}{% else %}Billing: no quote yet{% endif %}{% endset %}
+{% set bill_sum %}{% if free_ and not lines %}No charge{% elif free_ %}Quote: no charge{% if s.stage == 'quoted' and qchg_ %}, changed since sent{% elif s.stage == 'quoted' and versions %}, sent {{ nice(versions[0].at[:10]) }}{% endif %}{% elif s.stage == 'quoted' and lines %}Quote {{ money(t.quoted) }}{% if qchg_ %}, changed since sent{% elif versions %}, sent {{ nice(versions[0].at[:10]) }}{% endif %}{% if t.deposit_short > 0.005 %} &middot; {{ 'deposit'|dep }} {{ money(t.deposit_short) }} due{% endif %}{% elif lines %}{{ money(t.paid) }} of {{ money(t.quoted) }} paid{% if t.written_off > 0.005 %}, {{ money(t.written_off) }} waived{% endif %}{% if t.due > 0.005 %}, balance {{ money(t.due) }}{% endif %}{% elif s.plan_of %}Billing: on the quote of {{ plan_head_label(s.id) }}{% else %}Billing: no quote yet{% endif %}{% endset %}
 
 {% set rows_ = acts|reject('sameas', follow_)|list %}{% set todo_first = fst in ('booked', 'shot', 'delivered') %}
 
 {% set lead_ = (rows_|selectattr('primary')|rejectattr('theirs')|first) or (rows_|rejectattr('theirs')|rejectattr('carried')|first) or (rows_|rejectattr('theirs')|first) if todo_first else none %}
+
+{% set rt_ = namespace(st=none) %}{% for g_ in wf.stages %}{% for st_ in g_.steps if st_.label == 'Send retouched photos' and st_.task_id %}{% set rt_.st = st_ %}{% endfor %}{% endfor %}
+{% set early_shot_ = dict(say=('Shoot ' ~ nice(s.shoot_date[:10]) ~ (', date not final yet' if s.date_tentative else '') ~ '.') if s.shoot_date else 'No shoot date yet.',
+     ask=('The shoot date is ' ~ nice(s.shoot_date[:10]) ~ '. Mark shot anyway?') if s.shoot_date else 'No shoot date is set. Mark shot anyway?')
+     if s.stage == 'booked' and not s.event_id and not can_shot else none %}
 {% set todo_ %}
   {% with clash_form='todo' %}{% include "_edit_clash.html" %}{% endwith %}
   
@@ -296,165 +324,105 @@
   {% if rows_ %}<ul class="ui-todos">{% for a in rows_ %}{% if a.drop or a.deliver %}{{ ph.step_row(a, back, s, lead=a is sameas lead_) }}{% else %}{{ ui.step_row(a, back, s, lead=a is sameas lead_) }}{% endif %}
     {%- if a.replacing and replacing %}<li id="billing">{{ bill_ }}</li>{% endif %}{% endfor %}</ul>
   {% elif s.stage not in ('lost', 'closed') %}<p class="ui-mute">Nothing open.</p>{% endif %}
-  {% if cur %}{% set done_ = cur.steps|selectattr('done')|list %}{% if done_ %}{% set really_ = done_|rejectattr('outcome')|list %}{% set other_ = done_|selectattr('outcome')|list %}
-    {% set others_ %}{% for o_, g_ in other_|groupby('outcome') %}, {{ g_|length }} {{ OUTCOMES[o_]|lower }}{% endfor %}{% endset %}
-    {% call ui.fold(really_|length ~ ' of ' ~ cur.steps|length ~ ' done' ~ others_, id='done-steps') %}
-    <div class="ui-chips">{% for st in done_ %}{{ ui.chip((money(t.written_off) ~ ' waived') if st.key == 'balance_paid' and st.outcome == 'waived' and t.written_off > 0.005 else (((st.how[:1]|upper) ~ st.how[1:] if st.how else st.label|dep) ~ (' (' ~ OUTCOMES[st.outcome]|lower ~ ')' if st.outcome else (' (done: ' ~ st.settled ~ ')' if st.settled else ''))), 'neutral' if st.outcome else 'done') }} {% endfor %}</div>{% endcall %}{% endif %}{% endif %}
-{% endset %}
-{% if todo_first %}{% call ui.needs('Tasks', id='needs', lead=from_line_) %}{{ todo_ }}{% endcall %}{{ timeline_ }}
-{% elif rows_ or s.stage not in ('lost', 'closed') or g.get('edit_clash_form') == 'todo' %}{% call ui.section('Tasks', id='needs', part=true) %}{{ todo_ }}{% endcall %}{% endif %}
-{% if T.shoot == 1 and fst != 'shoot_day' and (shoot_|ui_shape).lines %}{% call ui.section('The shoot', id='shoot', part=true) %}{{ shoot_ }}{% endcall %}{% endif %}
-
-{% set intake_ %}
-  {% with clash_form='intake' %}{% include "_edit_clash.html" %}{% endwith %}
-  {% set iform_ %}<form method="post" action="{{ url_for('session_intake', sid=s.id) }}" class="ui-form-grid" data-ui-inplace><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seen" value="{{ edit_stamp('intake', s.id) }}">
-    {% for k, label in intake_q %}<label><span>{{ label }}</span><input name="{{ k }}" value="{{ intake.get(k, '') }}"></label>{% endfor %}
-    <div><button class="ui-btn ui-btn-quiet">Save</button></div></form>{% endset %}
-  {% if fst in ('shoot_day', 'shot') %}{% for k, label in intake_q %}{% if intake.get(k) %}{{ ui.fact(label, intake[k]) }}{% endif %}{% endfor %}
-    {% if not n_answered %}<p class="ui-mute">No answers yet.</p>{% endif %}
-    {% call ui.fold('Edit answers', id='intake-edit') %}{{ iform_ }}{% endcall %}
-  {% else %}{{ iform_ }}{% endif %}
-{% endset %}
-{% if T.intake == 1 and intake_q %}{% call ui.section('What they want', id='intake-box', part=true) %}{{ intake_ }}{% endcall %}{% endif %}
-
-
-{% set row_kinds = rows_|selectattr('drop')|map(attribute='drop')|list %}
-{% set ph_ = namespace(n=0) %}{% for k, g_ in (photos or {}).items() %}{% if g_.done or g_.sealed or g_.partial or (k not in row_kinds and (s.stage in ('shot', 'delivered') or fst == 'shoot_day')) %}{% set ph_.n = ph_.n + 1 %}{% endif %}{% endfor %}
-
-{% set zones_ = (photos or {}).keys()|reject('in', row_kinds)|list if (s.stage in ('shot', 'delivered') or fst == 'shoot_day') else [] %}
-{% set photos_ %}{% if photos %}{{ ph.photos_section(s.id, photos, back, zones_, request.args.get('find', '')[:100], url_for('client_stage', hid=h.id)) }}{% endif %}{% endset %}
-
-{% set delivery_ %}
-  <div class="ui-form-row">
-    {% if off_web %}{{ ui.chip('Gallery closed ' ~ nice(off_web.isoformat()), 'neutral', tip='Off the web since ' ~ nice(off_web.isoformat()) ~ '. The photos are still here.') }}{% elif expires %}{% set left = (expires - today).days %}{{ ui.chip((left ~ (' day left' if left == 1 else ' days left')) if left >= 0 else 'Gallery closed ' ~ nice(expires.isoformat()), 'attention' if 0 <= left <= 1 else 'neutral', tip=('Warning: ' if 0 <= left <= 1 else '') ~ 'Gallery ' ~ ('closes ' if left >= 0 else 'closed ') ~ nice(expires.isoformat())) }}{% endif %}
-  </div>
-  {% set fk = C.WORKFLOW[s.type].values()|sum(start=[])|map(attribute=1)|list %}
-  <ul class="ui-checks">
-    {% if 'gallery_built' in fk %}<li class="{{ 'ui-ok' if s.gallery_built }}">{{ ('Encrypted gallery built ' ~ nice(s.gallery_built)) if s.gallery_built else 'Gallery not built yet' }}</li>{% endif %}
-    {% if 'letter_mailed' in fk %}<li class="{{ 'ui-ok' if s.letter_mailed }}">{{ ('QR letter mailed ' ~ nice(s.letter_mailed)) if s.letter_mailed else 'QR letter not mailed yet' }}</li>{% endif %}
-    {% if 'gallery_built' in fk or 'first_visit' in fk %}<li class="{{ 'ui-ok' if s.first_visit }}">{{ ('Client opened the gallery ' ~ nice(s.first_visit)) if s.first_visit else 'Client has not opened the gallery yet' }}</li>{% endif %}
-    {% if 'sd_shipped' in fk %}<li class="{{ 'ui-ok' if s.sd_shipped }}">{{ ('Final photos delivered (' ~ C.DELIVERY_METHODS[C.delivery_method(s.type, s.delivery_method)][0] ~ ') ' ~ nice(s.sd_shipped)) if s.sd_shipped else 'Final photos not delivered yet (' ~ C.DELIVERY_METHODS[C.delivery_method(s.type, s.delivery_method)][0] ~ ')' }}</li>{% endif %}
-    {% if 'favorites' in fk %}<li class="{{ 'ui-ok' if s.favorites or s.retouch_picks or s.veto }}">{{ ('Suggested for portfolio ' ~ (s.favorites or '')) if s.favorites or s.retouch_picks or s.veto else 'Nothing suggested for portfolio yet' }}</li>
-    {% if s.veto %}<li class="ui-ok">Don't show {{ s.veto }}</li>{% endif %}{% endif %}
-  </ul>
-  {% if not s.address and s.stage != 'closed' %}<p class="ui-mute">No mailing address. {{ ui.go(url_for('client_view', hid=h.id) ~ '#details', 'Add a mailing address') }}</p>{% endif %}
-  {% for lab, cnt, html in tabs %}<h3 class="ui-sub-title">{{ lab }}</h3>{{ html }}{% endfor %}
-  {% if 'Letters' in block_by %}<h3 class="ui-sub-title">Letters</h3>{{ block_by['Letters'] }}{% endif %}
+  
+  
+  {% set rt_off_ = rt_.st and rt_.st.done and rt_.st.outcome %}
+  
+  {% set past_ = namespace(l=[]) %}{% for g_ in wf.stages if cur and g_.stage != s.stage %}{% for st_ in g_.steps if st_.carried and st_.done and st_.outcome and st_.undo and st_.key and not st_.by_app %}{% set past_.l = past_.l + [st_] %}{% endfor %}{% endfor %}
+  {% if cur %}{{ ui.past_steps(past_.l + (cur.steps|rejectattr('label', 'equalto', 'Send retouched photos')|list if rt_off_ else cur.steps), s.id, back, t.written_off if t else 0) }}{% endif %}
+  {% if rt_off_ and s.stage not in ('lost',) %}{% set rlo_ = retouch_lines_off(s.id) %}{% set cr_ = [rlo_, -t.due]|min if t and t.due < -0.005 and rlo_ else 0 %}
+  <p class="ui-mute" id="no-retouch">No retouching for this session.{% if rlo_ %} Its retouching ({{ money(rlo_) }}) is off the quote.{% endif %} {{ ui.action(url_for('step_reopen'), 'Bring retouching back', dict(task=rt_.st.task_id), back, 'inline', inplace=false) }}</p>
+  
+  {% if cr_ > 0.005 %}{% call ph.fact_row(money(cr_) ~ ' paid for retouching that is no longer included. Refund it, or keep it as a credit toward something else.', id='retouch-credit', tone='attention') %}{{ ui.action(url_for('money_add', sid=s.id), 'Record refund', dict(what='payment', kind='refund', amount='%.2f'|format(cr_), method=(C.PAYMENT_METHODS[0][0] if C.PAYMENT_METHODS and C.PAYMENT_METHODS[0] is not string else (C.PAYMENT_METHODS[0] if C.PAYMENT_METHODS else 'other')), received=iso_today(), once=form_once()), back, 'quiet', inplace=false, confirm='Record a ' ~ money(cr_) ~ ' refund to the client, paid back today?') }}{% endcall %}{% endif %}{% endif %}
+  
+  {% if s.stage == 'booked' and not s.event_id %}<p class="ui-mute ui-shortlist-more">Not every client needs every step. {{ ui.go(url_for('session_steps', sid=s.id), 'Steps for this session') }}</p>{% endif %}
+  
+  {% if early_shot_ %}<div class="ui-btnrow" id="mark-shot"><span class="ui-mute">{{ early_shot_.say }}</span>{{ ui.action(url_for('quick', sid=s.id), 'Mark shot', dict(act='mark_shot'), back, 'quiet', confirm=early_shot_.ask) }}</div>{% endif %}
+  {% call ui.inline_form('add-step', 'Add a step') %}<form method="post" action="{{ url_for('task_add', sid=s.id) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ back }}"><input name="title" maxlength="200" placeholder="Add a step" aria-label="Add a step" required class="ui-grow"><button class="ui-btn ui-btn-primary">Add the step</button></form>{% endcall %}
 {% endset %}
 
-{% if ph_.n %}{% call ui.section('Photos', id='photos-sec', part=true) %}{{ photos_ }}{% endcall %}{% endif %}
-{% if T.gallery == 1 and 'Gallery' in block_by %}{% call ui.section('Gallery', id='gallery-sec') %}{{ block_by['Gallery'] }}{% endcall %}{% endif %}
-{% if T.delivery == 1 %}{% call ui.section('Delivery', id='delivery', part=true) %}{{ delivery_ }}{% endcall %}{% endif %}
+{% set skip_why_ %}{% if s.date_tentative %}The shoot date is still tentative. Set the real date first.{% elif not s.shoot_date %}Set the shoot date first.{% else %}Not before the shoot date, {{ nice(s.shoot_date[:10]) }}. Shot already? Use Mark shot.{% endif %}{% endset %}
+{% set rl_ = retouch_lines_total(s.id) %}
+{% set rt_item_ = (dict(label='No retouching for this session', post=url_for('close_step'), fields=dict(task=rt_.st.task_id, outcome='na', note_why='No retouching for this session'), inplace=false,
+                        confirm='No retouching for this session? Nothing waits on retouched photos, and the gallery offers no retouching from its next build.' ~ ((' The quote\'s retouching (' ~ money(rl_[1]) ~ ') comes off what is still owed; anything already paid for it shows as a credit.') if rl_[0] else '') ~ ' Bring retouching back undoes it all.') if not rt_.st.done else
+                   dict(label='Bring retouching back', post=url_for('step_reopen'), fields=dict(task=rt_.st.task_id), inplace=false) if rt_.st.outcome else
+                   dict(label='No retouching for this session', why='The retouched photos are sent')) if rt_.st else
+                  none %}
+{% set tasks_more_ = ui.topic_more('tasks', 'Tasks', [
+    (dict(label='Steps for this session', href=url_for('session_steps', sid=s.id)) if s.stage not in ('closed', 'lost') else dict(label='Steps for this session', why='Closed: reopen it first' if s.stage == 'closed' else 'Not booked')) if not s.event_id else dict(label='Steps for this session', why='A group event sets its shared steps on the event'),
+    dict(label='Add a step', open='add-step'),
+    (dict(label='Mark shot', post=url_for('quick', sid=s.id), fields=dict(act='mark_shot'), confirm=early_shot_.ask, inplace=false) if early_shot_ else none),
+    (dict(label='Skip to ' ~ stage_label[wf.next_stage], why=skip_why_|trim) if wf.next_stage == 'shot' and not can_move else
+     dict(label='Skip to ' ~ stage_label[wf.next_stage], post=url_for('quick', sid=s.id), fields=dict(act='stage', stage=wf.next_stage),
+          confirm='Skip to ' ~ stage_label[wf.next_stage] ~ '?' ~ ((' Still open: ' ~ open_steps|join(', ') ~ '. They carry along to ' ~ stage_label[wf.next_stage] ~ '.') if open_steps else ''))) if wf.next_stage and s.stage != 'lost'
+      else dict(label='Skip to the next stage', why=('Closed is the last stage. Reopen it from More... in Session details.' if s.stage == 'closed' else 'Not booked: reopen it first.')),
+    rt_item_ if s.stage not in ('lost',) else none,
+  ], back) %}
+{% if todo_first %}<section class="ui-needs" id="needs" data-ui-part><div class="ui-sec-head"><h2 class="ui-sec-title">Tasks</h2>{{ tasks_more_ }}</div>{{ from_line_ }}{{ todo_ }}</section>{{ timeline_ }}
+{% elif rows_ or s.stage not in ('lost', 'closed') or g.get('edit_clash_form') == 'todo' %}{% call ui.section('Tasks', id='needs', part=true, more=tasks_more_) %}{{ todo_ }}{% endcall %}{% endif %}
 
-{% if replacing %}
-{% elif T.quote == 1 %}{% call ui.section('Quote', id='billing', part=true) %}{{ bill_ }}{% endcall %}
-{% else %}{% call ui.fold(bill_sum, id='billing', open=request.args.get('bill') or resched_open, part=true) %}{{ bill_ }}{% endcall %}{% endif %}
+{% macro fact_edit_(href, what) -%}<a class="ui-go ui-fact-edit" href="{{ href }}" aria-label="{{ what }}">Change &rsaquo;</a>{%- endmacro %}
+{% set edit_ = url_for('session_edit', sid=s.id) ~ '?from=details' %}
+{% set rf_ = refile_offer(s) if refile_offer is defined else none %}
 
+{% set show_ = request.args.get('show', '') %}
+{% macro view_(part, anchor) -%}{{ url_for('client_stage', hid=h.id, s=s.id, show=part) }}#{{ anchor }}{%- endmacro %}
 
-{% if T.shoot == 2 and s.shoot_date %}{% call ui.fold(when_words ~ (', ' ~ x_.place if x_.place else ''), id='shoot') %}{{ shoot_ }}{% endcall %}{% endif %}
-{% if T.intake == 2 and intake_q %}{% call ui.fold('What they want: ' ~ n_answered ~ ' of ' ~ intake_q|length ~ ' answered', id='intake-box', part=true) %}{{ intake_ }}{% endcall %}{% endif %}
-
-{% set papers_ %}{% for d in j.docs %}{% set url_ = url_for('release_doc', did=d.id) if d.kind in ('release', 'property release') else url_for('agreement', sid=s.id) if d.kind == 'agreement' else url_for('session_edit', sid=s.id) ~ '#doc-' ~ d.id %}
-  {%- set dkind_ = 'property release' if d.covers_kind == 'property' else d.kind %}
-  <div class="ui-form-row">{{ ui.chip(d.status, 'done' if d.status == 'signed' else ('late' if s.shoot_date and s.shoot_date < today.isoformat() and fst != 'closed' else ('attention' if s.shoot_date and s.shoot_date <= (today + delta3).isoformat() else 'neutral'))) }}
-    {{ ui.go(url_, ('Signed ' ~ dkind_) if d.status == 'signed' else (dkind_|capitalize ~ ' to sign') ~ (' - ' ~ d.person if d.person else ''), blank=d.kind != 'other') }}{% if d.signer %} <small class="ui-mute">{{ d.signer }}</small>{% endif %}</div>{% endfor %}
-  {% set said_ = signed_delivery_differs(s.id) %}{% if said_ %}{{ ui.chip('The signed agreement says you deliver the photos ' ~ said_ ~ '.', 'attention') }}{% endif %}
-  {% if C.TYPE_KIND.get(s.type) == 'personal' %}<form method="post" action="{{ url_for('trade_copies_set', sid=s.id) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ back }}">
-    <label class="ui-check"><input type="checkbox" name="trade_copies" value="1" data-autosubmit {{ 'checked' if s.trade_copies }}>Traded for photos{{ help("The releases say the person receives copies of the edited photos they appear in, for personal use. A release already signed keeps its words.") }}</label></form>{% endif %}
-  <p>{{ ui.go(url_for('session_edit', sid=s.id) ~ '#paperwork', 'Who signs, add a release') }}</p>{% endset %}
-{% set n_signed = j.docs|selectattr('status', 'equalto', 'signed')|list|length %}
-{% if j.docs and T.paperwork in (2, 3) %}{% call ui.fold(('Paperwork: ' ~ ('all signed' if n_signed == j.docs|length else n_signed ~ ' of ' ~ j.docs|length ~ ' signed')) if T.paperwork == 2 else 'Paperwork', id='paperwork', count=none if T.paperwork == 2 else j.docs|length) %}{{ papers_ }}{% endcall %}{% endif %}
-
-
-{% set rt_sent_ = cur and cur.steps|selectattr('label', 'equalto', 'Send retouched photos')|selectattr('done')|rejectattr('outcome')|list %}
-{% if T.picks == 2 and (s.retouch_picks or s.favorites or s.veto) %}{% call ui.fold('Picks: ' ~ ((s.retouch_picks or '').strip().splitlines()|length) ~ (' retouched' if rt_sent_ else ' to retouch'), id='picks', part=true) %}
-  {% if s.retouch_picks %}<p class="ui-pre">{{ s.retouch_picks }}</p>{% endif %}
-  {% if s.favorites %}{{ ui.fact('Portfolio', s.favorites) }}{% endif %}{% if s.veto %}{{ ui.fact("Don't show", s.veto) }}{% endif %}{% endcall %}{% endif %}
-{% if T.gallery == 2 and 'Gallery' in block_by %}{% set gl_ = (expires - today).days if expires and not off_web else none %}{% call ui.fold('Gallery' ~ (': closed ' ~ nice(off_web.isoformat()) if off_web else ('' if gl_ is none else (': closed ' ~ nice(expires.isoformat()) if gl_ < 0 else ': ' ~ gl_ ~ (' day left' if gl_ == 1 else ' days left')))), id='gallery-sec') %}{{ block_by['Gallery'] }}{% endcall %}{% endif %}
-
-
-{% if T.message == 3 %}{% call ui.fold('Their message', id='message') %}{{ message_ }}{% endcall %}{% endif %}
-{% if T.shoot == 3 %}{% call ui.fold('The shoot', id='shoot') %}{{ shoot_ }}{% endcall %}{% endif %}
-{% if T.intake == 3 and intake_q %}{% call ui.fold('What they want', id='intake-box', part=true) %}{{ intake_ }}{% endcall %}{% endif %}
-{% if T.delivery == 3 %}{% call ui.fold('Delivery', id='delivery', part=true) %}{{ delivery_ }}{% endcall %}{% endif %}
-{% if T.people == 3 %}{% call ui.fold('People', id='people-fold', count=people|length) %}
-  {% for p in people %}{{ ui.fact(p.name, (who_is(p).split(', ', 1)[1] if ', ' in who_is(p) else '') ~ (', class of ' ~ p.grad_year if p.grad_year else '')) }}{% endfor %}
-  <p>{{ ui.go(url_for('client_view', hid=h.id) ~ '#people', 'Edit people') }}</p>{% endcall %}{% endif %}
-{% if T.timeline == 3 %}{% call ui.fold('Timeline', id='timeline') %}{% include "_journey.html" %}{% endcall %}{% endif %}
-{% if T.storage == 3 and 'Photo storage' in block_by %}{% call ui.fold('Photo storage', id='storage') %}{{ block_by['Photo storage'] }}{% endcall %}{% endif %}
-{% for title, html in blocks if title not in block_key %}{% call ui.fold(title, id='blk-' ~ loop.index) %}{{ html }}{% endcall %}{% endfor %}
-
-
-{% set notes_ = history|selectattr('lid')|list %}
-{% call ui.section('Notes', id='notes', part=true) %}
-    <form method="post" action="{{ url_for('client_note', hid=h.id) }}" class="note-form" data-ui-inplace>
-      <input type="hidden" name="session_id" value="{{ s.id }}"><input type="hidden" name="back" value="{{ back }}#notes">
-      <textarea name="text" rows="2" placeholder="Note" aria-label="Note" required></textarea>
-      <div class="ui-form-row">{{ seg('channel', ['note','call','text','email','in person'], 'note', label='Channel') }}
-        <label class="mini">When <input type="datetime-local" name="when" class="ui-input-date" max="{{ now_iso }}"></label>
-        <button class="ui-btn ui-btn-primary">Save note</button></div>
-    </form>
-  <div class="hlist">{% for r in notes_[:5] %}{{ hrow_(r, back ~ '#notes') }}{% endfor %}</div>
-  {% if notes_|length > 5 %}{% call ui.fold('Earlier notes', id='notes-earlier', count=notes_|length - 5) %}<div class="hlist">{% for r in notes_[5:] %}{{ hrow_(r, back ~ '#notes') }}{% endfor %}</div>{% endcall %}{% endif %}
-{% endcall %}
-
-
-{% call ui.fold('Details and history', id='more', cls='ui-fold-more', always=true, count=history|length) %}
-  <div class="ui-btnrow">
-    {{ ui.go(url_for('session_edit', sid=s.id), 'Edit session details') }}
-    {{ ui.go(url_for('client_view', hid=h.id), 'Edit client details') }}
-    {% if T.paperwork == 4 and j.docs %}{{ ui.go(url_for('session_edit', sid=s.id) ~ '#paperwork', 'Paperwork') }}{% endif %}
-  </div>
+{% set done_now_ = s.stage == 'booked' and can_shot and x_.shoot_passed %}
+{% set session_more_ = ui.topic_more('session', 'Session details', [
+    dict(label='Edit all session details', href=url_for('session_edit', sid=s.id)),
+    (dict(label='Change the date, time, or place', open=when_form_) if when_form_ and (shoot_row_ or s.shoot_date) else
+     dict(label='Change the date, time, or place', why='Set on the group event') if s.event_id else
+     dict(label='Change the date, time, or place', href=edit_ ~ '#f-shoot_date')),
+    dict(label='Change how the files go', open='files-go') if s.stage != 'lost' else dict(label='Change how the files go', why='Not booked'),
+    (dict(label='Shoot done', post=url_for('quick', sid=s.id), fields=dict(act='shot'),
+          confirm=(open_steps|join(', ') ~ (' is' if open_steps|length == 1 else ' are') ~ ' still open. Move to Shot?') if open_steps else none) if done_now_ else
+     dict(label='Shoot done', why=('From the morning of the shoot date' ~ (', ' ~ nice(s.shoot_date[:10]) if s.shoot_date else '') ~ '. Shot already? Use Mark shot.') if s.stage == 'booked' else
+                                  ('Book it first' if s.stage in ('inquiry', 'quoted') else 'Done: the session is past the shoot' if s.stage in ('shot', 'delivered', 'closed') else 'Not booked'))),
+    dict(label='Mark shot', post=url_for('quick', sid=s.id), fields=dict(act='mark_shot'),
+         confirm=early_shot_.ask if early_shot_ else 'Mark this session shot?') if s.stage == 'booked' and not s.event_id and not done_now_ else
+      dict(label='Mark shot', why='Use Shoot done' if done_now_ else 'Set on the group event' if s.event_id else 'Only a booked session' if s.stage in ('inquiry', 'quoted', 'lost') else 'Shot already'),
+    dict(label='Book without a quote', post=url_for('quick', sid=s.id), fields=dict(act='book'), confirm='Book ' ~ h.name ~ ' without a quote? It moves to Booked now.') if s.stage == 'inquiry' else
+      dict(label='Book without a quote', why='Only an inquiry books without a quote' if s.stage != 'quoted' else 'There is a quote: use Book it'),
+    dict(label='Do not book', open='dont-book') if s.stage in ('inquiry', 'quoted') else dict(label='Do not book', why='Booked already: cancel the booking instead' if s.stage not in ('lost',) else 'Not booked already'),
+    dict(label='Cancel the booking', open='cancel-booking') if s.stage not in ('lost', 'closed', 'inquiry', 'quoted') else
+      dict(label='Cancel the booking', why='Nothing booked yet' if s.stage in ('inquiry', 'quoted') else 'Closed: reopen it first' if s.stage == 'closed' else 'Not booked'),
+    dict(label='Reopen at Delivered', post=url_for('session_stage', sid=s.id), fields=dict(stage='delivered')) if s.stage == 'closed' else dict(label='Reopen at Delivered', why='Only a closed session reopens'),
+    undo_handover_,
+    unsign_,
+    dict(label='New session for ' ~ h.name, href=url_for('inquiry', hid=h.id)),
+    dict(label='Edit client details', href=url_for('client_view', hid=h.id)),
+    (dict(label='Move to another client', why='It cannot move now: ' ~ rf_.reason) if rf_.reason else dict(label='Move to another client', open='refile-move')) if rf_ else
+      dict(label='Move to another client', why='Only an inquiry filed from the Inbox moves, before anything went out'),
+    (dict(label='Make it a new client', post=url_for('inquiry_refile', sid=s.id), fields=dict(do='new'), inplace=false,
+          confirm='Make ' ~ rf_.name ~ ' a client of their own? This inquiry, their message, and their contact details move there.') if rf_ and not rf_.reason else none),
+    dict(label='Their message', href=('#message' if T.message == 1 else view_('message', 'message'))) if s.stage != 'inquiry' else none,
+    dict(label='What they want', href=('#intake-box' if T.intake == 1 else view_('intake', 'intake-box'))) if intake_q else none,
+    dict(label='Timeline', href=('#timeline' if T.timeline == 1 else view_('timeline', 'timeline'))),
+    dict(label='People', href=url_for('client_view', hid=h.id) ~ '#people'),
+    dict(label='All history (' ~ history|length ~ ')', href=url_for('studio_history_view', client=h.id)),
+  ], back) %}
+{% set dl_too_ = gallery_download_too(s) if gallery_download_too is defined else false %}
+{% set pkg_ = lines|selectattr('kind', 'in', ['fee', 'custom'])|map(attribute='label')|list %}
+{% call ui.section('Session details', id='session-facts', part=true, more=session_more_) %}
   
-  {% call ui.fold('History', id='history', part=true, count=history|length, open=true, always=true) %}
-    <div class="ui-form-row"><input class="hsearch ui-grow" type="search" placeholder="Search notes and history" aria-label="Search notes and history" data-filter-rows=".hrow" data-filter-heads=".hday"></div>
-    {% set ns = namespace(day='') %}
-    <div class="hlist">
-    {% for r in history %}
-      {% if r.day != ns.day %}{% set ns.day = r.day %}<div class="hday">{{ nice(r.day) }}</div>{% endif %}
-      {{ hrow_(r, back ~ '#history') }}
-    {% endfor %}
-    </div>
-    <p>{{ ui.go(url_for('studio_history_view'), 'Studio history, all clients') }}</p>
-  {% endcall %}
+  {% set mg_ = minor_without_guardian(h.id) %}{% if mg_ and s.stage not in ('lost',) %}{% call ph.fact_row(mg_ ~ ' is under ' ~ majority_age() ~ ', and no parent or guardian is on file. Add one, so the quote, the agreement and your emails go to them.', id='add-guardian', tone='attention') %}{{ ui.button_link(url_for('client_view', hid=h.id) ~ '#people', 'Add a parent or guardian') }}{% endcall %}{% endif %}
   
-  {% if fst != 'closed' %}<div class="ui-flat" id="new-session-more"><h3 class="ui-sub-title">New session for {{ h.name }}</h3><div class="ui-btnrow">{% for k, v in C.SESSION_TYPES.items() %}{% if k in C.NEW_SESSION_TYPES %}{{ ui.go(url_for('inquiry', hid=h.id, type=k), v) }}{% endif %}{% endfor %}</div></div>{% endif %}
+  {% if s.stage != 'lost' %}
+  {{ ui.fact('Date', ((nice(s.shoot_date[:10]) ~ (', ' ~ clock(s.start_time) if s.start_time else '') ~ (', not final yet' if s.date_tentative else '')) if s.shoot_date else 'Not set yet') ~ ' ' ~ fact_edit_(edit_ ~ '#f-shoot_date', 'Change the date')) }}
   
-  <div class="ui-btnrow" id="stage-moves" data-ui-part>
-    {% if wf.next_stage == 'shot' and s.stage != 'lost' and not wf.wait_close and not can_move %}<button type="button" class="ui-btn ui-btn-quiet" disabled aria-describedby="skip-why">Skip to Shot</button>
-      <span class="ui-mute" id="skip-why">{% if s.date_tentative %}The shoot date is still tentative. Set the real date first.{% elif not s.shoot_date %}Set the shoot date first.{% else %}Not before the shoot date, {{ nice(s.shoot_date[:10]) }}. If the shoot already happened, set its real date.{% endif %}</span>
-    {% elif wf.next_stage and s.stage != 'lost' and not wf.wait_close and not (wf.ready and can_move) %}{{ ui.action(url_for('quick', sid=s.id), 'Skip to ' ~ stage_label[wf.next_stage], dict(act='stage', stage=wf.next_stage), back, 'quiet',
-        confirm='Skip to ' ~ stage_label[wf.next_stage] ~ '?' ~ ((' Still open: ' ~ open_steps|join(', ') ~ '. They carry along to ' ~ stage_label[wf.next_stage] ~ '.') if open_steps else '')) }}{% endif %}
-    {% if wf.wait_close %}{{ ui.action(url_for('quick', sid=s.id), 'Close it now', dict(act='stage', stage='closed'), back, 'quiet', confirm='Close this session now? The gallery stays up until its days have run.') }}{% endif %}
-    {% if s.stage == 'inquiry' %}{{ ui.action(url_for('quick', sid=s.id), 'Book without a quote', dict(act='book'), back, 'quiet', confirm='Book ' ~ h.name ~ ' without a quote? It moves to Booked now.', extra=ui.final_tick(s.shoot_date) if s.shoot_date else '') }}{% endif %}
-    {% if q_locked and s.stage in ('booked', 'shot', 'delivered') and not s.event_id %}{% if lines %}{{ ui.action(url_for('quote_replace', sid=s.id), 'Replace the quote', {}, back, 'quiet',
-        confirm=h.name ~ ' agreed to ' ~ ('a session at no charge' if free_ else money(t.quoted)) ~ '. Replace the quote? The booked quote is canceled and kept in History, and the new one needs Book it again'
-                ~ (' and a fresh signature on the agreement' if j.docs|selectattr('kind', 'equalto', 'agreement')|list else '') ~ '.'
-                ~ (' The ' ~ money(t.paid) ~ ' paid carries over to it.' if t.paid > 0.005 else '') ~ ' The shoot stays on the calendar.') }}
-    {%- else %}{{ ui.action(url_for('quote_replace', sid=s.id), 'Build a quote', {}, back, 'quiet',
-        confirm='Build a quote for ' ~ h.name ~ '? It needs Book it once they say yes, and the shoot stays on the calendar.') }}{% endif %}{% endif %}
-  </div>
+  {{ ui.fact('Place', (x_.place or 'Not set yet') ~ ' ' ~ fact_edit_(edit_ ~ '#f-stops', 'Change the place')) }}
   
-  {% set rf_ = refile_offer(s) if refile_offer is defined else none %}{% if rf_ %}<div class="ui-flat" id="refile"><h3 class="ui-sub-title">Filed under the wrong client?</h3>
-    {% if rf_.reason %}<p class="ui-mute">It can't move now: {{ rf_.reason }}.</p>
-    {% else %}<div class="ui-btnrow">{{ ui.opener('refile-move', 'Move to another client') }}
-      {{ ui.action(url_for('inquiry_refile', sid=s.id), 'Make it a new client', dict(do='new'), back, 'quiet', inplace=false,
-                   confirm='Make ' ~ rf_.name ~ ' a client of their own? This inquiry, their message, and their contact details move there.') }}</div>
-    {% call ui.inline_form('refile-move', 'Move to another client') %}<form method="post" action="{{ url_for('inquiry_refile', sid=s.id) }}" class="ui-action ui-form-row"><input type="hidden" name="do" value="move"><input type="hidden" name="back" value="{{ back }}">
-      <datalist id="refile-clients">{% for hid_, label_, reach_ in refile_clients() if hid_ != h.id %}<option value="{{ label_ }}">{{ reach_ }}</option>{% endfor %}</datalist>
-      <input type="search" name="client" list="refile-clients" class="ui-grow" placeholder="Type a client's name" aria-label="The client to move this to" autocomplete="off" required>
-      <button class="ui-btn ui-btn-quiet">Move to this client</button></form>{% endcall %}{% endif %}</div>{% endif %}
-  {% call ui.fold('Add a step', id='add-step') %}<form method="post" action="{{ url_for('task_add', sid=s.id) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ back }}"><input name="title" maxlength="200" placeholder="Add a step" aria-label="Add a step" required class="ui-grow"><button class="ui-btn ui-btn-quiet">Add the step</button></form>{% endcall %}
-  {% if gallery_adopt_offer is defined and gallery_adopt_offer(s) %}{% call ui.fold('Adopt a gallery already online', id='adopt-gallery') %}<form method="post" action="{{ url_for('gallery_adopt', sid=s.id) }}" class="ui-form-row"><input type="hidden" name="back" value="{{ back }}#gallery"><input name="link" inputmode="url" maxlength="600" placeholder="Paste the client link" aria-label="The gallery's client link" required class="ui-grow">{% set a_close = gallery_adopt_close(s) %}<label class="ui-check">Closes after <input type="date" name="until" value="{{ a_close.until }}" min="{{ a_close.tomorrow }}" required aria-label="The adopted gallery's last day" class="ui-input-date"></label><button class="ui-btn ui-btn-quiet">Adopt a gallery already online</button>{{ help("For a download gallery already on your web host: it becomes this session's gallery with the same link. The app checks the folder is on your web host, that it can write there with its own login, and that the link's key opens it. Nothing on your web host changes until you bring it up to date. It stays online until the day you set, which starts as today plus this session type's usual gallery days.") }}</form>{% endcall %}{% endif %}
-  {% if T.shoot == 4 and s.shoot_date %}{% call ui.fold('The shoot', id='shoot') %}{{ shoot_ }}{% endcall %}{% endif %}
-  {% if T.intake == 4 and intake_q and n_answered %}{% call ui.fold('What they want', id='intake-box') %}{% for k, label in intake_q %}{% if intake.get(k) %}{{ ui.fact(label, intake[k]) }}{% endif %}{% endfor %}{% endcall %}{% endif %}
-  {% if T.gallery == 4 and 'Gallery' in block_by %}{% call ui.fold('Gallery', id='gallery-sec') %}{{ block_by['Gallery'] }}{% endcall %}{% endif %}
-  {% if T.picks == 4 and (s.retouch_picks or s.favorites or s.veto) %}{% call ui.fold('Picks', id='picks', part=true) %}{% if s.retouch_picks %}<p class="ui-pre">{{ s.retouch_picks }}</p>{% endif %}{% if s.favorites %}{{ ui.fact('Portfolio', s.favorites) }}{% endif %}{% if s.veto %}{{ ui.fact("Don't show", s.veto) }}{% endif %}{% endcall %}{% endif %}
-  {% if T.delivery == 4 and s.stage in ('shot', 'delivered', 'closed') %}{% call ui.fold('Delivery', id='delivery', part=true) %}{{ delivery_ }}{% endcall %}{% endif %}
-  {% if T.storage == 4 and 'Photo storage' in block_by %}{% call ui.fold('Photo storage', id='storage') %}{{ block_by['Photo storage'] }}{% endcall %}{% endif %}
-  {% if T.timeline == 4 %}{% call ui.fold('Timeline', id='timeline') %}{% include "_journey.html" %}{% endcall %}{% endif %}
+  {% set dm_ = C.delivery_method(s.type, s.delivery_method) %}
+  {{ ui.fact('Files go', C.DELIVERY_METHODS[dm_][0] ~ (', and a download gallery' if dl_too_ else '') ~ ' ' ~ '<a class="ui-go ui-fact-edit" href="#files-go" data-ui-open="files-go" aria-controls="files-go" aria-label="Change how the files go">Change &rsaquo;</a>'|safe) }}
+  {% call ui.inline_form('files-go', 'Change how the files go') %}<form method="post" action="{{ url_for('session_files_go', sid=s.id) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ back }}">
+    <select name="delivery_method" aria-label="How the files go" class="ui-grow">{% for k_, v_ in C.DELIVERY_CHOICES %}<option value="{{ k_ }}"{{ ' selected' if k_ == dm_ }}>{{ v_ }}</option>{% endfor %}</select>
+    <button class="ui-btn ui-btn-primary">Save how the files go</button></form>{% if dl_too_ %}<p class="ui-mute">The download gallery stays either way.</p>{% endif %}{% endcall %}
   
-  {% if s.stage not in ('lost', 'closed', 'inquiry', 'quoted') %}<div class="ui-btnrow ui-danger-row">{{ ui.opener('cancel-booking', 'Cancel the booking', 'danger') }}</div>{% endif %}
+  {% set qd_ = sent_quote_delivery_differs(s.id) %}{% if qd_ %}<p class="ui-mute" id="quote-delivery-old">The quote you sent says: {{ qd_ }} {{ ui.go('#billing', 'Send it again') }}</p>{% endif %}
+  {{ ui.fact('Booked', ((pkg_[:2]|join(', ')) ~ (' and ' ~ (pkg_|length - 2) ~ ' more' if pkg_|length > 2 else '') if pkg_ else ('No charge' if free_ else 'On the quote of ' ~ plan_head_label(s.id) if s.plan_of else 'No quote yet')) ~ ' ' ~ fact_edit_('#billing', 'See the quote')) }}
+  {% endif %}
+  
   {% if s.stage not in ('lost', 'closed', 'inquiry', 'quoted') %}{% call ui.inline_form('cancel-booking', 'Cancel the booking') %}<form method="post" action="{{ url_for('session_stage', sid=s.id) }}" class="ui-form-row" data-ui-inplace data-confirm="Cancel this booking? It can be reopened.">
     <input type="hidden" name="stage" value="lost"><input type="hidden" name="back" value="{{ back }}">
     {{ why_lost(C.CANCEL_REASONS, 'cb-why', 'Why') }}
@@ -462,6 +430,188 @@
     {% set keep_ = (t.paid if t.quoted <= 0.005 else [t.paid, t.deposit_req]|min) %}
     {% if keep_ > 0.005 %}<span class="ui-label" id="cb-dep">{{ 'The deposit'|dep }}, {{ money(keep_) }}</span>{{ seg('deposit', [('keep', 'Keep it'), ('credit', 'Credit toward a future session')], 'keep', by='cb-dep') }}{{ help(("Keep it: the Terms say you keep the deposit if the client cancels."|dep) ~ " A credit: the client may put it toward a session they book later. You can change this after canceling.") }}{% endif %}
     <button class="ui-btn ui-btn-danger">Cancel the booking</button></form>{% endcall %}{% endif %}
+  {% if rf_ and not rf_.reason %}{% call ui.inline_form('refile-move', 'Move to another client') %}<form method="post" action="{{ url_for('inquiry_refile', sid=s.id) }}" class="ui-action ui-form-row"><input type="hidden" name="do" value="move"><input type="hidden" name="back" value="{{ back }}">
+    <datalist id="refile-clients">{% for hid_, label_, reach_ in refile_clients() if hid_ != h.id %}<option value="{{ label_ }}">{{ reach_ }}</option>{% endfor %}</datalist>
+    <input type="search" name="client" list="refile-clients" class="ui-grow" placeholder="Type a client's name" aria-label="The client to move this to" autocomplete="off" required>
+    <button class="ui-btn ui-btn-quiet">Move to this client</button></form>{% endcall %}{% endif %}
+{% endcall %}
+
+{% if s.shoot_date and (T.shoot in (1, 2) or show_ == 'shoot') and fst != 'shoot_day' and (shoot_|ui_shape).lines %}{% call ui.section('The shoot', id='shoot', part=true) %}{{ shoot_ }}{% endcall %}{% endif %}
+
+{% for p in panels %}{{ p }}{% endfor %}
+
+{% set intake_ %}
+  {% with clash_form='intake' %}{% include "_edit_clash.html" %}{% endwith %}
+  {% set iform_ %}<form method="post" action="{{ url_for('session_intake', sid=s.id) }}" class="ui-form-grid" data-ui-inplace><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seen" value="{{ edit_stamp('intake', s.id) }}">
+    {% for k, label in intake_q %}<label><span>{{ label }}</span><input name="{{ k }}" value="{{ intake.get(k, '') }}"></label>{% endfor %}
+    <div><button class="ui-btn ui-btn-quiet">Save</button></div></form>{% endset %}
+  {% if fst in ('shoot_day', 'shot') or (n_answered and show_ == 'intake') %}{% for k, label in intake_q %}{% if intake.get(k) %}{{ ui.fact(label, intake[k]) }}{% endif %}{% endfor %}
+    {% if not n_answered %}<p class="ui-mute">No answers yet.</p>{% endif %}
+    <div class="ui-btnrow">{{ ui.opener('intake-edit', 'Edit their answers') }}</div>{% call ui.inline_form('intake-edit', 'Edit their answers') %}{{ iform_ }}{% endcall %}
+  {% else %}{{ iform_ }}{% endif %}
+{% endset %}
+{% if intake_q and (T.intake == 1 or show_ == 'intake' or g.get('edit_clash_form') == 'intake') %}{% call ui.section('What they want', id='intake-box', part=true) %}{{ intake_ }}{% endcall %}{% endif %}
+{% if show_ == 'message' and T.message != 1 %}{% call ui.section('Their message', id='message') %}{{ message_ }}{% endcall %}{% endif %}
+
+
+{% set row_kinds = rows_|selectattr('drop')|map(attribute='drop')|list %}
+{% set ph_ = namespace(n=0) %}{% for k, g_ in (photos or {}).items() %}{% if g_.done or g_.sealed or g_.partial or (k not in row_kinds and (s.stage in ('shot', 'delivered') or fst == 'shoot_day')) %}{% set ph_.n = ph_.n + 1 %}{% endif %}{% endfor %}
+
+{% set zones_ = (photos or {}).keys()|reject('in', row_kinds)|list if (s.stage in ('shot', 'delivered') or fst == 'shoot_day') else [] %}
+{% set photos_ %}{% if photos %}{{ ph.photos_section(s.id, photos, back, zones_, request.args.get('find', '')[:100], url_for('client_stage', hid=h.id)) }}{% endif %}{% endset %}
+{% set has_storage_ = 'Photo storage' in block_by %}
+{% set photos_more_ = ui.topic_more('photos', 'Photos', [
+    dict(label='Photo storage: encrypt, keep, or delete early', href=('#storage' if T.storage == 1 else view_('storage', 'storage'))) if has_storage_ else dict(label='Photo storage', why='Nothing stored for this session yet'),
+    dict(label='Upload more photos', href='#photos-sec') if zones_ else dict(label='Upload more photos', why='Uploads open once the shoot is done' if s.stage in ('inquiry', 'quoted', 'booked') else 'Each kind is uploaded on its step row'),
+  ], back) %}
+
+{% set fk = session_step_keys(s.id) %}
+{% set deliver_row_ = rows_|selectattr('deliver')|first %}
+{% set delivery_ %}
+  <div class="ui-form-row">
+    {% if off_web %}{{ ui.chip('Gallery closed ' ~ nice(off_web.isoformat()), 'neutral', tip='Off the web since ' ~ nice(off_web.isoformat()) ~ '. The photos are still here.') }}{% elif expires %}{% set left = (expires - today).days %}{{ ui.chip((left ~ (' day left' if left == 1 else ' days left')) if left >= 0 else 'Gallery closed ' ~ nice(expires.isoformat()), 'attention' if 0 <= left <= 1 else 'neutral', tip=('Warning: ' if 0 <= left <= 1 else '') ~ 'Gallery ' ~ ('closes ' if left >= 0 else 'closed ') ~ nice(expires.isoformat())) }}{% endif %}
+  </div>
+  
+  <ul class="ui-checks">
+    
+    {% set made_ = gallery_made(s.id) if gallery_made is defined else true %}
+    {% if 'gallery_built' in fk %}<li class="{{ 'ui-ok' if s.gallery_built }}">{{ (('Encrypted gallery built ' if made_ else 'Gallery step marked done ') ~ nice(s.gallery_built)) if s.gallery_built else 'Gallery not built yet' }}</li>{% endif %}
+    {% if 'letter_mailed' in fk %}<li class="{{ 'ui-ok' if s.letter_mailed }}">{{ ('QR letter mailed ' ~ nice(s.letter_mailed)) if s.letter_mailed else 'QR letter not mailed yet' }}</li>{% endif %}
+    {% if 'gallery_built' in fk or 'first_visit' in fk %}<li class="{{ 'ui-ok' if s.first_visit }}">{{ ('Client opened the gallery ' ~ nice(s.first_visit)) if s.first_visit else 'Client has not opened the gallery yet' }}</li>{% endif %}
+    {% if 'sd_shipped' in fk %}<li class="{{ 'ui-ok' if s.sd_shipped }}">{{ ('Final photos delivered (' ~ C.DELIVERY_METHODS[C.delivery_method(s.type, s.delivery_method)][0] ~ ') ' ~ nice(s.sd_shipped)) if s.sd_shipped else 'Final photos not delivered yet (' ~ C.DELIVERY_METHODS[C.delivery_method(s.type, s.delivery_method)][0] ~ ')' }}{% if handover_ %} {{ ui.action(url_for('delivery_undo', sid=s.id), 'Undo', {}, back, 'inline', inplace=false, confirm=handover_ask_) }}{% endif %}</li>{% endif %}
+    {% if 'favorites' in fk %}<li class="{{ 'ui-ok' if s.favorites or s.retouch_picks or s.veto }}">{{ ('Suggested for portfolio ' ~ (s.favorites or '')) if s.favorites or s.retouch_picks or s.veto else 'Nothing suggested for portfolio yet' }}</li>
+    {% if s.veto %}<li class="ui-ok">Don't show {{ s.veto }}</li>{% endif %}{% endif %}
+  </ul>
+  {% if not s.address and s.stage != 'closed' and 'letter_mailed' in fk %}<p class="ui-mute">No mailing address. {{ ui.go(url_for('client_view', hid=h.id) ~ '#details', 'Add a mailing address') }}</p>{% endif %}
+  {% for lab, cnt, html in tabs %}<h3 class="ui-sub-title">{{ lab }}</h3>{{ html }}{% endfor %}
+  {% if 'Letters' in block_by %}<h3 class="ui-sub-title">Letters</h3>{{ block_by['Letters'] }}{% endif %}
+{% endset %}
+{% set delivery_more_ = ui.topic_more('delivery', 'Delivery', [
+    dict(label='Record the handover', open='f-deliver-' ~ s.id) if deliver_row_ else
+      dict(label='Record the handover', why=('Delivered ' ~ nice(s.sd_shipped)) if s.sd_shipped else ('Not yet: the photos go out once they are shot and edited' if s.stage in ('inquiry', 'quoted', 'booked', 'shot') else 'No handover step on this session')),
+    undo_handover_,
+    dict(label='Change how the files go', open='files-go') if s.stage != 'lost' else dict(label='Change how the files go', why='Not booked'),
+    dict(label='The gallery', href='#gallery-sec') if 'Gallery' in block_by and (T.gallery in (1, 2) or show_ == 'gallery') else dict(label='The gallery', why='No gallery for this session yet' if s.stage in ('inquiry', 'quoted', 'booked') else 'Share one from Gallery or Photos'),
+    dict(label='Add a mailing address', href=url_for('client_view', hid=h.id) ~ '#details') if not s.address else none,
+    dict(label='Delivery details', href=view_('delivery', 'delivery')) if T.delivery != 1 and s.stage in ('shot', 'delivered', 'closed') else none,
+  ], back) %}
+
+{% if ph_.n %}{% call ui.section('Photos', id='photos-sec', part=true, more=photos_more_) %}{{ photos_ }}{% endcall %}{% endif %}
+{% if 'Gallery' in block_by and (T.gallery in (1, 2) or show_ == 'gallery') %}{% call ui.section('Gallery', id='gallery-sec') %}{{ block_by['Gallery'] }}{% endcall %}{% endif %}
+{% if T.delivery == 1 or show_ == 'delivery' %}{% call ui.section('Delivery', id='delivery', part=true, more=delivery_more_) %}{{ delivery_ }}{% endcall %}{% endif %}
+
+{% if has_storage_ and (T.storage == 1 or show_ == 'storage' or 'id="raw-date"' in block_by['Photo storage']) %}{% call ui.section('Photo storage', id='storage') %}{{ block_by['Photo storage'] }}{% endcall %}{% endif %}
+
+
+{% set pay_open_ = acts|selectattr('form', 'in', ['deposit_paid', 'pay_balance'])|first %}
+{% set sch_id_ = quote.schedule_id if quote else fee_sched.id %}
+{% set plan_words_ = ('Billed on the quote of ' ~ plan_head_label(s.id)) if s.plan_of and not lines and billed_on_plan(s.id) else '' %}
+
+{% set qv_ = namespace(items=[]) %}{% for v in versions %}{% set newer_ = versions[loop.index0 - 1] if not loop.first else none %}{% set qv_.items = qv_.items + [dict(label='Quote ' ~ (v.number or v.id) ~ ', ' ~ nice(v.at[:10]) ~ (', canceled' if v.id in canceled_vids else (', replaced by ' ~ (newer_.number or newer_.id)) if newer_ else ''), href=url_for('quote_doc', vid=v.id), blank=true)] %}{% endfor %}
+
+{% set full_bill_ = T.quote == 1 or s.stage in ('inquiry', 'quoted') or show_ == 'billing' or (not q_locked and s.stage not in ('closed', 'lost')) %}
+{% set due_ = lines and t.due > 0.005 and s.stage in ('quoted', 'booked', 'shot', 'delivered', 'closed') %}
+{% set remind_ = remind_menu(s.id) %}
+{% set pay_form_id_ = ui.step_form_id(dict(form='deposit_paid' if s.stage in ('quoted', 'booked') and t.deposit_short > 0.005 else 'pay_balance', sid=s.id))|trim %}
+{% set payments_more_ = ui.topic_more('payments', 'Payments', [
+    dict(label='Record payment', open=pay_form_id_) if due_ and not pay_open_ else dict(label='Record payment', open=ui.step_form_id(pay_open_)|trim) if pay_open_ else
+      dict(label='Record payment', why=plan_words_ or ('Nothing owed' if lines or free_ else 'No quote yet')),
+    (dict(label='Send the quote', href=url_for('quote_doc', vid=quote_same.id), blank=true) if quote_same else dict(label='Prepare the quote to send', post=url_for('quote_send', sid=s.id), fields=dict(total='%.2f'|format(t.quoted)), inplace=false)) if lines and (s.stage in ('inquiry', 'quoted') or replacing) else
+      dict(label='Send the quote', why=plan_words_ or ('Add the first line to the quote' if s.stage in ('inquiry', 'quoted') else 'Booked: the quote is agreed. Replace it to change it')),
+    dict(label='Preview the quote', href=url_for('quote_preview', sid=s.id), blank=true) if lines and s.stage in ('inquiry', 'quoted') else none,
+    (dict(label='Replace the quote', post=url_for('quote_replace', sid=s.id), confirm=h.name ~ ' agreed to ' ~ ('a session at no charge' if free_ else money(t.quoted)) ~ '. Replace the quote? The booked quote is canceled and kept in History, and the new one needs Book it again'
+          ~ (' and a fresh signature on the agreement' if j.docs|selectattr('kind', 'equalto', 'agreement')|list else '') ~ '.' ~ (' The ' ~ money(t.paid) ~ ' paid carries over to it.' if t.paid > 0.005 else '') ~ ' The shoot stays on the calendar.') if lines else
+     dict(label='Build a quote', post=url_for('quote_replace', sid=s.id), confirm='Build a quote for ' ~ h.name ~ '? It needs Book it once they say yes, and the shoot stays on the calendar.'))
+      if q_locked and s.stage in ('booked', 'shot', 'delivered') and not s.event_id else
+      dict(label='Replace the quote', why='The quote can still be changed as it is' if s.stage in ('inquiry', 'quoted') else 'Set on the group event' if s.event_id else 'Closed: reopen it first'),
+    dict(label='Requote at current fees', post=url_for('quote_requote', sid=s.id)) if quote and quote.expired and s.stage in ('inquiry', 'quoted') else none,
+    dict(label='Discount, portfolio, and tax', open='bill-options') if full_bill_ and not q_locked and s.stage not in ('closed', 'lost') and not (s.plan_of and not lines and billed_on_plan(s.id)) else
+      dict(label='Discount, portfolio, and tax', why='Agreed at booking. Replace the quote to change them'),
+    (dict(label='License terms', open='license') if full_bill_ and not q_locked and s.stage not in ('closed', 'lost') else dict(label='License terms', why='Agreed at booking')) if s.type in C.LICENSE_TYPES and business_client(s) else none,
+    dict(label='Pay in installments' if not inst else 'Change the installments', open='inst-form' if not inst else 'inst-change') if lines and t.due > 0.005 and s.stage not in ('lost', 'closed') and not free_ else dict(label='Pay in installments', why='Nothing left to pay' if lines else 'No quote yet'),
+    dict(label='Invoice', href=url_for('invoice', sid=s.id), blank=true) if lines and s.stage not in ('inquiry', 'quoted', 'lost') and t.due > 0.005 else dict(label='Invoice', why='Once booked' if s.stage in ('inquiry', 'quoted') else 'Nothing owed'),
+    dict(label='Receipt', href=url_for('receipt', sid=s.id), blank=true) if lines and t.paid > 0.005 and s.stage not in ('inquiry', 'quoted', 'lost') else none,
+    ((dict(label='No-charge invoice ' ~ invoice_number(s.id), href=url_for('invoice', sid=s.id), blank=true) if invoice_number(s.id) else
+      dict(label='Issue a no-charge invoice', post=url_for('bill_issue', sid=s.id, kind='invoice'), fields=dict(no_charge='1'),
+           confirm='Issue a no-charge invoice? It gets the next invoice number and a total of $0.00, as a record of what was given. There is nothing to pay and no receipt to follow.'))
+     if s.stage in ('booked', 'shot', 'delivered', 'closed') else dict(label='Issue a no-charge invoice', why='Once booked')) if free_ else none,
+    (remind_[0] and dict(label=remind_[0].verb, post=remind_[0].post, fields=remind_[0].fields, mail=remind_[0].mail)) if remind_ else dict(label='Remind them to pay', why='Nothing owed' if not (lines and t.due > 0.005) else 'Once the invoice is sent'),
+    (dict(label=remind_[1].verb, post=remind_[1].post, fields=remind_[1].fields, mail=remind_[1].mail)) if remind_|length > 1 else none,
+    dict(label='Waive the balance', post=url_for('close_step'), fields=dict(sid=s.id, step='balance_paid', outcome='waived'), ask='Why (required)', ask_name='note_why',
+         confirm='Waive the balance? It is written off, not paid: Finances count it as a write-off, not income.') if lines and t.due > 0.005 and s.stage in ('shot', 'delivered', 'closed') else
+      dict(label='Waive the balance', why='Nothing owed' if not (lines and t.due > 0.005) else 'After the shoot'),
+    dict(label='Approve these prices', post=url_for('fees_approve', sched_id=sch_id_), confirm='Approve these prices as they are? Approving counts as your review: they are final, stop printing SAMPLE, and print as your prices on every quote from now on.') if sch_id_ and not prices_approved(sch_id_) else none,
+    dict(label='See all the prices', href=url_for('fees_view', sched_id=sch_id_)) if sch_id_ else none,
+    dict(label='The whole quote and every payment', href=view_('billing', 'billing')) if not (full_bill_ or replacing) else none,
+  ] + qv_.items, back) %}
+{% set pay_title_ = 'Quote' if s.stage in ('inquiry', 'quoted') else 'Payments' %}
+{% if replacing %}
+{% elif full_bill_ %}{% call ui.section(pay_title_, id='billing', part=true, more=payments_more_) %}{% if s.stage not in ('inquiry', 'quoted') %}<p class="ui-glance">{{ bill_sum }}</p>{% endif %}{{ bill_ }}{% endcall %}
+{% else %}{% call ui.section(pay_title_, id='billing', part=true, more=payments_more_) %}
+  <p class="ui-glance">{{ bill_sum }}</p>
+  {% if due_ and not pay_open_ %}{% set pay_ = dict(form='deposit_paid' if s.stage in ('quoted', 'booked') and t.deposit_short > 0.005 else 'pay_balance', verb='Record payment', sid=s.id, dep_amt=t.deposit_short, pay_amt=t.due) %}
+    <div class="ui-btnrow">{{ ui.opener(ui.step_form_id(pay_), 'Record payment') }}</div>{{ ui.step_form(pay_, back, s) }}{% endif %}
+  {% if inst %}{% set nx_ = inst|selectattr('status', 'ne', 'paid')|first %}{% if nx_ %}<p>Next installment ({{ nx_.n }} of {{ nx_.of }}): <b>{{ money(nx_.left) }}</b>{% if nx_.due %} {{ ui.due_words(nice(nx_.due), nx_.status == 'late') }}{% endif %}</p>{% endif %}{% endif %}
+  {% if resched_open %}{% call ph.fact_row('Rescheduled ' ~ ('once' if moved == 1 else moved ~ ' times') ~ ': the Terms charge ' ~ money(C.RESCHEDULE_FEE) ~ ' for each reschedule after the free one.', id='resched-fee', tone='attention') %}
+    {{ ui.action(url_for('session_reschedule_fee', sid=s.id), 'Add the ' ~ money(C.RESCHEDULE_FEE) ~ ' fee', dict(act='add', once=form_once()), back) }}{{ ui.action(url_for('session_reschedule_fee', sid=s.id), 'Waive it', dict(act='waive'), back) }}{% endcall %}{% endif %}
+  {% if lines and t.due > 0.005 and s.stage not in ('lost', 'closed') %}{% for c_ in credits %}{% set use_ = [c_.left, t.due]|min %}
+    {% call ph.fact_row('Credit from the canceled ' ~ c_.what ~ ' session: ' ~ money(c_.left) ~ '.', id='credit-' ~ c_.id, tone='attention') %}
+    {{ ui.action(url_for('session_credit_use', sid=s.id), 'Use ' ~ money(use_) ~ ' of the credit', dict(credit=c_.id, once=form_once()), back,
+       confirm='Put ' ~ money(use_) ~ ' of the credit toward this session? It is recorded today as a payment here and as money moved out of the canceled session.') }}{% endcall %}{% endfor %}{% endif %}
+  {% if inst and s.stage not in ('lost', 'closed') %}{% call ui.inline_form('inst-change', 'Change the installments') %}{{ inst_form() }}{% endcall %}{% endif %}
+  {% if lines and t.due > 0.005 and s.stage not in ('lost', 'closed') and not free_ and not inst %}{% call ui.inline_form('inst-form', 'Pay in installments') %}{{ inst_form() }}{% endcall %}{% endif %}
+{% endcall %}{% endif %}
+
+
+{% set agr_off_ = namespace(v=false) %}{% for g_ in wf.stages %}{% for st in g_.steps %}{% if st.key == 'agreement_signed' and st.outcome %}{% set agr_off_.v = true %}{% endif %}{% endfor %}{% endfor %}
+{% set papers_ %}{% for d in j.docs %}{% set url_ = url_for('release_doc', did=d.id) if d.kind in ('release', 'property release') else url_for('agreement', sid=s.id) if d.kind == 'agreement' else url_for('session_edit', sid=s.id) ~ '#doc-' ~ d.id %}
+  {%- set dkind_ = 'property release' if d.covers_kind == 'property' else d.kind %}
+  <div class="ui-form-row">{{ ui.chip('skipped' if d.kind == 'agreement' and agr_off_.v else d.status, 'neutral' if d.kind == 'agreement' and agr_off_.v else 'done' if d.status == 'signed' else ('late' if s.shoot_date and s.shoot_date < today.isoformat() and fst != 'closed' else ('attention' if s.shoot_date and s.shoot_date <= (today + delta3).isoformat() else 'neutral'))) }}
+    {{ ui.go(url_, ('Signed ' ~ dkind_) if d.status == 'signed' else (dkind_|capitalize ~ (' (not needed for this session)' if d.kind == 'agreement' and agr_off_.v else ' to sign')) ~ (' - ' ~ d.person if d.person else ''), blank=d.kind != 'other') }}{% if d.signer %} <small class="ui-mute">{{ d.signer }}</small>{% endif %}</div>{% endfor %}
+  {% set said_ = signed_delivery_differs(s.id) %}{% if said_ %}{{ ui.chip('The signed agreement says you deliver the photos ' ~ said_ ~ '.', 'attention') }}{% endif %}
+  {% if C.TYPE_KIND.get(s.type) == 'personal' %}<form method="post" action="{{ url_for('trade_copies_set', sid=s.id) }}" class="ui-form-row" data-ui-inplace><input type="hidden" name="back" value="{{ back }}">
+    <label class="ui-check"><input type="checkbox" name="trade_copies" value="1" data-autosubmit {{ 'checked' if s.trade_copies }}>Traded for photos{{ help("The releases say the person receives copies of the edited photos they appear in, for personal use. A release already signed keeps its words.") }}</label></form>{% endif %}{% endset %}
+{% set n_signed = j.docs|selectattr('status', 'equalto', 'signed')|list|length + (1 if agr_off_.v and j.docs|selectattr('kind', 'equalto', 'agreement')|rejectattr('status', 'equalto', 'signed')|list else 0) %}
+{% set has_agr_ = j.docs|selectattr('kind', 'equalto', 'agreement')|list %}
+{% set paper_more_ = ui.topic_more('paperwork', 'Paperwork', [
+    unsign_,
+    dict(label='Open the agreement', href=url_for('agreement', sid=s.id), blank=true) if has_agr_ else dict(label='Open the agreement', why='No agreement for this kind of session'),
+    dict(label='Who signs, and add a release', href=url_for('session_edit', sid=s.id) ~ '#paperwork'),
+    dict(label='Send the session sheet', href=url_for('session_details', sid=s.id), blank=true),
+    dict(label="Their answers to the intake questions", href=('#intake-box' if T.intake == 1 else view_('intake', 'intake-box'))) if intake_q else dict(label='Intake questions', why='This kind of session has none'),
+    dict(label='Paperwork details', href=view_('paperwork', 'paperwork')) if not (T.paperwork in (1, 2, 3) or show_ == 'paperwork') else none,
+  ], back) %}
+{% if j.docs and (T.paperwork in (1, 2, 3) or show_ == 'paperwork') %}
+{% call ui.section('Paperwork' ~ (': all signed' if n_signed == j.docs|length else ''), id='paperwork', part=true, more=paper_more_) %}{{ papers_ }}{% endcall %}{% endif %}
+
+
+{% set rt_sent_ = cur and cur.steps|selectattr('label', 'equalto', 'Send retouched photos')|selectattr('done')|rejectattr('outcome')|list %}
+{% if (T.picks in (1, 2) or show_ == 'picks') and (s.retouch_picks or s.favorites or s.veto) %}{% call ui.section(('Picks (no retouching for this session)' if s.retouch_picks and retouch_dropped(s.id) else 'Picks: ' ~ ((s.retouch_picks or '').strip().splitlines()|length) ~ (' retouched' if rt_sent_ else ' to retouch')) if s.retouch_picks else 'Picks', id='picks', part=true) %}
+  {% if s.retouch_picks %}<p class="ui-pre">{{ s.retouch_picks }}</p>{% endif %}
+  {% if s.favorites %}{{ ui.fact('Portfolio', s.favorites) }}{% endif %}{% if s.veto %}{{ ui.fact("Don't show", s.veto) }}{% endif %}{% endcall %}{% endif %}
+{% if T.timeline != 1 and show_ == 'timeline' %}{% call ui.section('Timeline', id='timeline') %}{% include "_journey.html" %}{% endcall %}{% endif %}
+
+{% for title, html in blocks if title not in block_key %}{% call ui.section(title, id='blk-' ~ loop.index) %}{{ html }}{% endcall %}{% endfor %}
+
+{% if gallery_adopt_offer is defined and gallery_adopt_offer(s) %}{% call ui.inline_form('adopt-gallery', 'Adopt a gallery already online') %}<form method="post" action="{{ url_for('gallery_adopt', sid=s.id) }}" class="ui-form-row"><input type="hidden" name="back" value="{{ back }}#gallery"><input name="link" inputmode="url" maxlength="600" placeholder="Paste the client link" aria-label="The gallery's client link" required class="ui-grow">{% set a_close = gallery_adopt_close(s) %}<label class="ui-check">Closes after <input type="date" name="until" value="{{ a_close.until }}" min="{{ a_close.tomorrow }}" required aria-label="The adopted gallery's last day" class="ui-input-date"></label><button class="ui-btn ui-btn-quiet">Adopt a gallery already online</button>{{ help("For a download gallery already on your web host: it becomes this session's gallery with the same link. The app checks the folder is on your web host, that it can write there with its own login, and that the link's key opens it. Nothing on your web host changes until you bring it up to date. It stays online until the day you set, which starts as today plus this session type's usual gallery days.") }}</form>{% endcall %}{% endif %}
+
+
+{% set notes_ = history|selectattr('lid')|list %}
+{% set notes_more_ = ui.topic_more('notes', 'Notes', [
+    dict(label='All notes and history (' ~ history|length ~ ')', href=url_for('studio_history_view', client=h.id)),
+    dict(label='Studio history, all clients', href=url_for('studio_history_view')),
+    dict(label='Edit client details', href=url_for('client_view', hid=h.id)),
+  ], back) %}
+{% call ui.section('Notes', id='notes', part=true, more=notes_more_) %}
+    <form method="post" action="{{ url_for('client_note', hid=h.id) }}" class="note-form" data-ui-inplace>
+      <input type="hidden" name="session_id" value="{{ s.id }}"><input type="hidden" name="back" value="{{ back }}#notes">
+      <textarea name="text" rows="2" placeholder="Note" aria-label="Note" required></textarea>
+      <div class="ui-form-row">{{ seg('channel', ['note','call','text','email','in person'], 'note', label='Channel') }}
+        <label class="mini">When <input type="datetime-local" name="when" class="ui-input-date" max="{{ now_iso }}"></label>
+        <button class="ui-btn ui-btn-primary">Save note</button></div>
+    </form>
+  <div class="hlist" id="history">{% for r in notes_[:5] %}{{ hrow_(r, back ~ '#notes') }}{% endfor %}</div>
+  <p class="ui-shortlist-more">{{ ui.go(url_for('studio_history_view', client=h.id), 'All notes and history (' ~ history|length ~ ')') }}</p>
 {% endcall %}
 
 </div>

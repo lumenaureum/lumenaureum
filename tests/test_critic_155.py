@@ -56,10 +56,10 @@ def test_a_session_billed_on_its_plans_quote_shows_one_line_and_no_quote_tools(e
         assert A.billed_on_plan(member)
     page = c.get(f"/c/1?s={member}", environ_base=E).get_data(as_text=True)
     bill = page.split('id="billing"', 1)[1].split('id="shoot"', 1)[0] if 'id="shoot"' in page else page.split('id="billing"', 1)[1]
-    assert "Billing: on the quote of" in page
+    assert "On the quote of" in page
     for gone in ("Pick the first line", "Add a line", "Lines from other session types", "Add the line",
                  f"/session/{member}/discount", f"/session/{member}/portfolio", "Discount reason"):
-        assert gone not in bill, gone
+        assert gone not in bill, (gone, bill[max(0, bill.find(gone) - 300):bill.find(gone) + 100])
     assert f'href="/session/{head}/quote"' in bill
 
     head_page = c.get(f"/c/1?s={head}", environ_base=E).get_data(as_text=True)

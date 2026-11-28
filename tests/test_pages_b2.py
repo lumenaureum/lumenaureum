@@ -54,14 +54,14 @@ def test_finances_headings_total_what_their_lists_show(tmp_path, monkeypatch):
     A, c = _seeded(tmp_path, monkeypatch)
     page = _page(c, "/money?year=2026")
 
-    head = re.search(r'<span class="ui-fold-sum">(Business expenses:[^<]*)</span>', page).group(1)
-    assert head == "Business expenses: $155.00 (2)", head
-    sec = page.split('id="overhead"', 1)[1].split("</details>", 1)[0]
+    head = re.search(r'<h2 class="ui-sec-title">(Business expenses:[^<]*)</h2>', page).group(1)
+    assert head == "Business expenses: $155.00", head
+    sec = page.split('id="overhead"', 1)[1].split("</section>", 1)[0]
     assert "Lens cleaning kit" in sec and "$34.50" in sec and "Drive to the park" not in sec
 
-    head = re.search(r'<span class="ui-fold-sum">(Driven for sessions:[^<]*)</span>', page).group(1)
-    assert head == "Driven for sessions: 44 mi · $29.45 at your rate (2)", head
-    sec = page.split('id="driven"', 1)[1].split("</details>", 1)[0]
+    head = re.search(r'<h2 class="ui-sec-title">(Driven for sessions:[^<]*)</h2>', page).group(1)
+    assert head == "Driven for sessions: 44 mi · $29.45 at your rate", head
+    sec = page.split('id="driven"', 1)[1].split("</section>", 1)[0]
     assert sec.count('class="ui-money-row') == 2 and "$19.65" in sec and "$9.80" in sec and "44 mi" in sec
 
     year_ = page.split('id="year"', 1)[1].split("</section>", 1)[0]

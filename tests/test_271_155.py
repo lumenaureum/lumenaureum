@@ -231,7 +231,7 @@ def test_rebuild_all_shows_which_gallery_and_how_far_while_it_runs(env, monkeypa
     monkeypatch.setitem(gl, "build", watched)
     c.post("/galleries/rebuild-details", environ_base=E)
     join("gallery", sid)
-    want = "working... (0 of 1 done) · Fall Portraits: making the gallery, 1 of 2"
+    want = "working... (0 of 1 done) · Fall Portraits: making the gallery, photo 1 of 2"
     assert seen and seen[0] == [want] and seen[1] == [want], seen
     raw = c.get("/galleries", environ_base=E).get_data(as_text=True)
     assert 'data-job-text="gallery-rebuild-details"' not in raw
